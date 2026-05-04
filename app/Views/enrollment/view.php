@@ -109,10 +109,46 @@ $isParent = $_SESSION['role'] === 'parent';
         </div>
     </div>
 
-    <!-- Documents Status -->
+    <!-- Parent/Guardian Signature -->
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-pen"></i> Parent/Guardian Digital Signature</h5>
+        </div>
+        <div class="card-body">
+            <?php if ($enrollment['signature_data']): ?>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 bg-light text-center">
+                            <img src="<?php echo htmlspecialchars($enrollment['signature_data']); ?>" 
+                                 alt="Parent Signature" 
+                                 class="img-fluid" 
+                                 style="max-height: 150px; border: 2px solid #1e4072; background: white; padding: 10px;">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-success">
+                            <h6><i class="bi bi-check-circle"></i> Digitally Signed</h6>
+                            <p class="mb-1"><strong>Signed by:</strong> <?php echo htmlspecialchars($enrollment['parent_name']); ?></p>
+                            <p class="mb-1"><strong>Date:</strong> <?php echo date('F j, Y g:i A', strtotime($enrollment['date_signed'])); ?></p>
+                            <p class="mb-0"><strong>IP Address:</strong> <?php echo htmlspecialchars($enrollment['signature_ip'] ?? 'Not recorded'); ?></p>
+                        </div>
+                        <div class="alert alert-info mb-0">
+                            <small><i class="bi bi-shield-check"></i> This digital signature is legally binding and verifies the authenticity of this enrollment submission.</small>
+                        </div>
+                    </div>
+                </div>
+            <?php else: ?>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> No signature provided.
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Documents with Preview -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="bi bi-file-earmark-check"></i> Document Status</h5>
+            <h5 class="mb-0"><i class="bi bi-file-earmark-check"></i> Uploaded Documents</h5>
         </div>
         <div class="card-body">
             <?php if (empty($documents)): ?>
@@ -120,53 +156,88 @@ $isParent = $_SESSION['role'] === 'parent';
                     <i class="bi bi-exclamation-triangle"></i> No documents uploaded.
                 </div>
             <?php else: ?>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>Document Type</th>
-                                <th>Status</th>
-                                <th>Uploaded</th>
-                                <th>Reviewed</th>
-                                <th>Notes</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($documents as $doc): ?>
-                            <tr>
-                                <td><strong><?php echo $docLabels[$doc['document_type']]; ?></strong></td>
-                                <td>
+                <div class="row">
+                    <?php foreach ($documents as $doc): ?>
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100 border-<?php echo $statusColors[$doc['status']]; ?>">
+                            <div class="card-header bg-light">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <strong><i class="bi bi-file-earmark-text"></i> <?php echo $docLabels[$doc['document_type']]; ?></strong>
                                     <span class="badge bg-<?php echo $statusColors[$doc['status']]; ?>">
                                         <?php echo ucfirst($doc['status']); ?>
                                     </span>
-                                </td>
-                                <td><?php echo date('M j, Y', strtotime($doc['uploaded_at'])); ?></td>
-                                <td>
-                                    <?php if ($doc['reviewed_at']): ?>
-                                        <?php echo date('M j, Y', strtotime($doc['reviewed_at'])); ?><br>
-                                        <small class="text-muted">by <?php echo htmlspecialchars($doc['reviewer_name'] ?? 'Unknown'); ?></small>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <!-- Document Preview -->
+                                <div class="mb-3 text-center">
+                                    <?php 
+                                    $fileExt = pathinfo($doc['file_path'], PATHINFO_EXTENSION);
+                                    $isImage = in_array(strtolower($fileExt), ['jpg', 'jpeg', 'png', 'gif']);
+                                    $encodedPath = base64_encode($doc['file_path']);
+                                    $fileUrl = $basePath . '/file/serve/' . $encodedPath;
+                                    ?>
+                                    
+                                    <?php if ($isImage): ?>
+                                        <div class="border rounded p-2 bg-light" style="max-height: 250px; overflow: hidden;">
+                                            <img src="<?php echo $fileUrl; ?>" 
+                                                 alt="<?php echo $docLabels[$doc['document_type']]; ?>" 
+                                                 class="img-fluid" 
+                                                 style="max-height: 230px; cursor: pointer;"
+                                                 onclick="window.open('<?php echo $fileUrl; ?>', '_blank')">
+                                        </div>
+                                        <small class="text-muted">Click image to view full size</small>
                                     <?php else: ?>
-                                        <span class="text-muted">Not yet reviewed</span>
+                                        <div class="border rounded p-4 bg-light">
+                                            <i class="bi bi-file-earmark-pdf text-danger" style="font-size: 4rem;"></i>
+                                            <p class="mb-0 mt-2"><strong>PDF Document</strong></p>
+                                        </div>
                                     <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if ($doc['review_note']): ?>
-                                        <span class="text-danger"><?php echo htmlspecialchars($doc['review_note']); ?></span>
-                                    <?php else: ?>
-                                        <span class="text-muted">—</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <a href="<?php echo $basePath; ?>/<?php echo htmlspecialchars($doc['file_path']); ?>" 
-                                       target="_blank" class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-download"></i> View
+                                </div>
+
+                                <!-- Document Info -->
+                                <div class="mb-3">
+                                    <small class="text-muted">
+                                        <i class="bi bi-calendar"></i> Uploaded: <?php echo date('M j, Y g:i A', strtotime($doc['uploaded_at'])); ?>
+                                    </small>
+                                </div>
+
+                                <!-- Review Status -->
+                                <?php if ($doc['status'] !== 'pending'): ?>
+                                    <div class="alert alert-<?php echo $statusColors[$doc['status']]; ?> mb-3">
+                                        <small>
+                                            <strong><i class="bi bi-person-check"></i> Reviewed by:</strong> 
+                                            <?php echo htmlspecialchars($doc['reviewer_name'] ?? 'Unknown'); ?><br>
+                                            <strong><i class="bi bi-calendar-check"></i> Date:</strong> 
+                                            <?php echo date('M j, Y g:i A', strtotime($doc['reviewed_at'])); ?>
+                                            <?php if ($doc['review_note']): ?>
+                                                <br><strong><i class="bi bi-chat-left-text"></i> Note:</strong> 
+                                                <?php echo htmlspecialchars($doc['review_note']); ?>
+                                            <?php endif; ?>
+                                        </small>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="alert alert-warning mb-3">
+                                        <small><i class="bi bi-clock-history"></i> Awaiting review by SPED Teacher</small>
+                                    </div>
+                                <?php endif; ?>
+
+                                <!-- Action Buttons -->
+                                <div class="d-grid gap-2">
+                                    <a href="<?php echo $fileUrl; ?>" 
+                                       target="_blank" 
+                                       class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-eye"></i> View Full Document
                                     </a>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                                    <a href="<?php echo $basePath; ?>/file/download/<?php echo $encodedPath; ?>" 
+                                       class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-download"></i> Download
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
                 </div>
             <?php endif; ?>
         </div>

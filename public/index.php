@@ -1,7 +1,30 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Application Entry Point
-// Last modified: 2026-05-01
+// Last modified: 2026-05-04
 // Part of: SPED LMS — Front Controller
+
+// Load environment variables from .env file
+$envFile = __DIR__ . '/../.env';
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        // Skip comments and empty lines
+        if (empty($line) || strpos(trim($line), '#') === 0) {
+            continue;
+        }
+        // Parse KEY=VALUE
+        if (strpos($line, '=') !== false) {
+            list($key, $value) = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+            // Remove quotes if present
+            $value = trim($value, '"\'');
+            putenv("$key=$value");
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
+    }
+}
 
 // Composer autoloader (for PHPMailer and other dependencies)
 if (file_exists(__DIR__ . '/../vendor/autoload.php')) {

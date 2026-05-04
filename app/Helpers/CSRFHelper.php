@@ -158,6 +158,12 @@ class CSRFHelper {
         $userId = $_SESSION['user_id'] ?? null;
         $ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         
+        // Only log if user is logged in (activity_log requires user_id)
+        if ($userId === null) {
+            error_log("CSRF validation failed for anonymous user: $reason (IP: $ipAddress)");
+            return;
+        }
+        
         try {
             $db = Database::getInstance()->getConnection();
             $stmt = $db->prepare("
@@ -200,11 +206,6 @@ class CSRFHelper {
      * @throws Exception If token is invalid
      */
     public static function verify() {
-        // Skip verification in development mode
-        if (getenv('APP_ENV') === 'development') {
-            return true;
-        }
-
         // Skip verification for GET requests
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             return true;
@@ -212,7 +213,35 @@ class CSRFHelper {
 
         // Get token from POST data or headers
         $token = $_POST['_csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
+        
+        // Check environment
+        $appEnv = getenv('APP_ENV');
+        error_log("CSRF: APP_ENV = " . ($appEnv ?: 'not set'));
 
+        // In development mode, be more lenient but still try to validate
+        if ($appEnv === 'development') {
+            error_log('CSRF: Development mode detected - lenient validation');
+            
+            if (!$token) {
+                error_log('CSRF: No token provided (development mode - allowing)');
+                return true;
+            }
+            
+            // Try to validate, but don't fail if it doesn't work
+            try {
+                $valid = self::validateToken($token);
+                if (!$valid) {
+                    error_log('CSRF: Token validation failed (development mode - allowing anyway)');
+                }
+                return true;
+            } catch (Exception $e) {
+                error_log('CSRF: Validation error (development mode - allowing): ' . $e->getMessage());
+                return true;
+            }
+        }
+
+        // Production mode - strict validation
+        error_log('CSRF: Production mode - strict validation');
         if (!$token || !self::validateToken($token)) {
             http_response_code(403);
             throw new Exception('CSRF token validation failed');

@@ -656,6 +656,8 @@ class EnrollmentController {
      * Upload file helper
      */
     private function uploadFile($file, $uploadDir, $prefix) {
+        require_once __DIR__ . '/../Helpers/FileEncryptionHelper.php';
+        
         $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
         $maxSize = 5 * 1024 * 1024; // 5MB
 
@@ -671,8 +673,23 @@ class EnrollmentController {
         $filename = $prefix . time() . '_' . uniqid() . '.' . $extension;
         $filepath = $uploadDir . $filename;
 
+        // First, move uploaded file to temp location
         if (move_uploaded_file($file['tmp_name'], $filepath)) {
-            return ['success' => true, 'path' => 'uploads/enrollment/' . $filename];
+            // Encrypt the file
+            $originalName = $file['name'];
+            $encryptResult = FileEncryptionHelper::encryptFile($filepath, $originalName);
+            
+            if ($encryptResult['success']) {
+                return [
+                    'success' => true, 
+                    'path' => $encryptResult['encrypted_path'],
+                    'original_name' => $originalName
+                ];
+            } else {
+                // If encryption fails, keep unencrypted file
+                error_log('File encryption failed: ' . $encryptResult['error']);
+                return ['success' => true, 'path' => 'uploads/enrollment/' . $filename];
+            }
         }
 
         return ['success' => false, 'error' => 'Upload failed'];

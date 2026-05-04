@@ -49,6 +49,11 @@ route('GET', '/register', 'AuthController', 'showRegister');
 route('POST', '/register', 'AuthController', 'register');
 route('GET', '/logout', 'AuthController', 'logout');
 
+// File serving (encrypted files)
+route('GET', '/file/serve/{path}', 'FileController', 'serve', '*');
+route('GET', '/file/download/{path}', 'FileController', 'download', '*');
+route('GET', '/file/thumbnail/{path}', 'FileController', 'thumbnail', '*');
+
 // Email Verification
 route('GET', '/auth/verify-email', 'AuthController', 'showVerifyEmail');
 route('POST', '/auth/verify-email', 'AuthController', 'verifyEmail');
@@ -185,6 +190,20 @@ route('POST', '/admin/role-requests/{id}/approve', 'AdminController', 'approveRo
 route('POST', '/admin/role-requests/{id}/reject', 'AdminController', 'rejectRole', '*');
 route('GET', '/admin/login-logs', 'AdminController', 'loginLogs', '*');
 route('GET', '/admin/activity-logs', 'AdminController', 'activityLogs', '*');
+
+// System Settings
+route('GET', '/admin/settings', 'AdminController', 'settings', '*');
+route('POST', '/admin/settings/update', 'AdminController', 'updateSettings', '*');
+
+// User Management
+route('GET', '/admin/manage-users', 'AdminController', 'manageUsers', '*');
+route('POST', '/admin/user/change-role', 'AdminController', 'changeUserRole', '*');
+route('POST', '/admin/user/toggle-status', 'AdminController', 'toggleUserStatus', '*');
+route('POST', '/admin/user/delete', 'AdminController', 'deleteUser', '*');
+route('GET', '/admin/user/details/{id}', 'AdminController', 'getUserDetails', '*');
+
+// Activity Logs Export
+route('GET', '/admin/activity-logs/export', 'AdminController', 'exportActivityLogs', '*');
 
 // ============================================
 // 404 NOT FOUND

@@ -6,10 +6,37 @@
 require_once __DIR__ . '/../../config/db.php';
 
 class RateLimitHelper {
-    private const MAX_ATTEMPTS_PER_IP = 10;
-    private const MAX_ATTEMPTS_PER_EMAIL = 5;
-    private const LOCKOUT_DURATION = 900; // 15 minutes
-    private const ATTEMPT_WINDOW = 900; // 15 minutes
+    // Rate limiting time windows (in seconds)
+    const ATTEMPT_WINDOW = 900; // 15 minutes
+    
+    /**
+     * Get system setting value
+     */
+    private static function getSetting($key, $default) {
+        try {
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE setting_key = :key LIMIT 1");
+            $stmt->execute(['key' => $key]);
+            $result = $stmt->fetch();
+            return $result ? (int)$result['setting_value'] : $default;
+        } catch (Exception $e) {
+            return $default;
+        }
+    }
+
+    /**
+     * Get max login attempts from settings
+     */
+    private static function getMaxAttempts() {
+        return self::getSetting('max_login_attempts', 5);
+    }
+
+    /**
+     * Get lockout duration in seconds from settings
+     */
+    private static function getLockoutDuration() {
+        return self::getSetting('lockout_duration', 15) * 60; // Convert minutes to seconds
+    }
 
     /**
      * Check if login attempt is rate limited
@@ -25,7 +52,9 @@ class RateLimitHelper {
 
         try {
             $db = Database::getInstance()->getConnection();
-            $windowStart = date('Y-m-d H:i:s', time() - self::ATTEMPT_WINDOW);
+            $maxAttempts = self::getMaxAttempts();
+            $lockoutDuration = self::getLockoutDuration();
+            $windowStart = date('Y-m-d H:i:s', time() - $lockoutDuration);
 
             // Check attempts by email
             $stmt = $db->prepare("
@@ -43,7 +72,18 @@ class RateLimitHelper {
             
             $emailAttempts = $stmt->fetch()['count'];
 
-            // Check attempts by IP
+            // Check if rate limited by email
+            if ($emailAttempts >= $maxAttempts) {
+                $lockoutMinutes = (int)($lockoutDuration / 60);
+                return [
+                    'allowed' => false,
+                    'message' => "Too many login attempts. Please try again in {$lockoutMinutes} minutes.",
+                    'remaining' => 0,
+                    'type' => 'email'
+                ];
+            }
+
+            // Check attempts by IP (10x the email limit)
             $stmt = $db->prepare("
                 SELECT COUNT(*) as count FROM rate_limit_log
                 WHERE ip_address = :ip_address
@@ -59,21 +99,11 @@ class RateLimitHelper {
             
             $ipAttempts = $stmt->fetch()['count'];
 
-            // Check if rate limited by email
-            if ($emailAttempts >= self::MAX_ATTEMPTS_PER_EMAIL) {
+            if ($ipAttempts >= ($maxAttempts * 10)) {
+                $lockoutMinutes = (int)($lockoutDuration / 60);
                 return [
                     'allowed' => false,
-                    'message' => 'Too many login attempts. Please try again in 15 minutes.',
-                    'remaining' => 0,
-                    'type' => 'email'
-                ];
-            }
-
-            // Check if rate limited by IP
-            if ($ipAttempts >= self::MAX_ATTEMPTS_PER_IP) {
-                return [
-                    'allowed' => false,
-                    'message' => 'Too many login attempts from this IP. Please try again in 15 minutes.',
+                    'message' => "Too many login attempts from this IP. Please try again in {$lockoutMinutes} minutes.",
                     'remaining' => 0,
                     'type' => 'ip'
                 ];
@@ -82,7 +112,7 @@ class RateLimitHelper {
             return [
                 'allowed' => true,
                 'message' => 'OK',
-                'remaining' => self::MAX_ATTEMPTS_PER_EMAIL - $emailAttempts,
+                'remaining' => $maxAttempts - $emailAttempts,
                 'type' => 'none'
             ];
         } catch (Exception $e) {
@@ -91,7 +121,7 @@ class RateLimitHelper {
             return [
                 'allowed' => true,
                 'message' => 'OK',
-                'remaining' => self::MAX_ATTEMPTS_PER_EMAIL,
+                'remaining' => 5,
                 'type' => 'none'
             ];
         }
@@ -269,7 +299,9 @@ class RateLimitHelper {
     public static function getRemainingAttempts($email) {
         try {
             $db = Database::getInstance()->getConnection();
-            $windowStart = date('Y-m-d H:i:s', time() - self::ATTEMPT_WINDOW);
+            $maxAttempts = self::getMaxAttempts();
+            $lockoutDuration = self::getLockoutDuration();
+            $windowStart = date('Y-m-d H:i:s', time() - $lockoutDuration);
 
             $stmt = $db->prepare("
                 SELECT COUNT(*) as count FROM rate_limit_log
@@ -285,10 +317,10 @@ class RateLimitHelper {
             ]);
             
             $attempts = $stmt->fetch()['count'];
-            return max(0, self::MAX_ATTEMPTS_PER_EMAIL - $attempts);
+            return max(0, $maxAttempts - $attempts);
         } catch (Exception $e) {
             error_log('Failed to get remaining attempts: ' . $e->getMessage());
-            return self::MAX_ATTEMPTS_PER_EMAIL;
+            return 5;
         }
     }
 }

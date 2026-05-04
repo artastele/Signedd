@@ -8,6 +8,173 @@ $pageTitle = 'Enrollment Detail - SPED LMS';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
+<style>
+    @media print {
+        .sidebar, .topbar, .btn, .no-print { display: none !important; }
+        .main-content { margin-left: 0 !important; padding: 20px !important; }
+    }
+    
+    .section-header {
+        background: linear-gradient(135deg, #1e4072 0%, #2a5a9e 100%);
+        color: white;
+        padding: 12px 20px;
+        margin: 20px 0 15px 0;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    
+    .field-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 15px;
+    }
+    
+    .field-row.full {
+        grid-template-columns: 1fr;
+    }
+    
+    .field-label {
+        font-weight: 600;
+        color: #1e4072;
+        margin-bottom: 5px;
+        font-size: 0.9rem;
+    }
+    
+    .field-value {
+        padding: 10px;
+        background: #f8f9fa;
+        border-left: 3px solid #a01422;
+        border-radius: 4px;
+        min-height: 40px;
+    }
+    
+    .doc-card {
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+        background: white;
+        transition: all 0.3s ease;
+    }
+    
+    .doc-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .doc-status {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    
+    .doc-status.pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .doc-status.approved {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .doc-status.rejected {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
+    .doc-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+    }
+    
+    .btn-approve {
+        background: #3b6d11;
+        color: white;
+        border: none;
+        flex: 1;
+    }
+    
+    .btn-approve:hover {
+        background: #2d5409;
+        color: white;
+    }
+    
+    .btn-reject {
+        background: #dc3545;
+        color: white;
+        border: none;
+        flex: 1;
+    }
+    
+    .btn-reject:hover {
+        background: #c82333;
+        color: white;
+    }
+    
+    .btn-verify {
+        width: 100%;
+        padding: 15px;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+    
+    .signature-section {
+        background: white;
+        border: 2px solid #1e4072;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+    }
+    
+    .signature-box {
+        border: 2px solid #1e4072;
+        background: white;
+        padding: 15px;
+        border-radius: 6px;
+        text-align: center;
+        max-width: 400px;
+        margin: 0 auto;
+    }
+    
+    .signature-box img {
+        max-width: 100%;
+        height: auto;
+        max-height: 150px;
+    }
+    
+    .document-preview {
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 10px;
+        background: #f8f9fa;
+        text-align: center;
+        margin-bottom: 15px;
+    }
+    
+    .document-preview img {
+        max-width: 100%;
+        max-height: 250px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    .document-preview img:hover {
+        opacity: 0.9;
+        transform: scale(1.02);
+        transition: all 0.3s ease;
+    }
+    
+    .pdf-icon {
+        font-size: 4rem;
+        color: #dc3545;
+    }
+</style>
+
 <body data-logged-in="true">
 
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
@@ -15,7 +182,7 @@ require_once __DIR__ . '/../layouts/header.php';
 
 <div class="main-content">
     <!-- Print Button -->
-    <div class="mb-3">
+    <div class="mb-3 no-print">
         <button class="btn btn-outline-secondary" onclick="window.print()">
             <i class="bi bi-printer"></i> Print
         </button>
@@ -343,14 +510,42 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
                 </div>
                 
+                <!-- SECTION 8: PARENT/GUARDIAN SIGNATURE -->
+                <div class="section-header">Section 8: Parent/Guardian Digital Signature</div>
+                <div class="signature-section">
+                    <?php if ($enrollment['signature_data']): ?>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="signature-box">
+                                    <img src="<?php echo htmlspecialchars($enrollment['signature_data']); ?>" 
+                                         alt="Parent Signature">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="alert alert-success">
+                                    <h6><i class="bi bi-check-circle"></i> Digitally Signed</h6>
+                                    <p class="mb-1"><strong>Signed by:</strong> <?php echo htmlspecialchars($enrollment['parent_name'] ?? 'Parent/Guardian'); ?></p>
+                                    <p class="mb-1"><strong>Date:</strong> <?php echo date('F j, Y g:i A', strtotime($enrollment['date_signed'])); ?></p>
+                                    <p class="mb-0"><small><i class="bi bi-shield-check"></i> This digital signature is legally binding.</small></p>
+                                </div>
+                            </div>
+                        </div>
+                    <?php else: ?>
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> No signature provided.
+                        </div>
+                    <?php endif; ?>
+                </div>
+                
                 <!-- DOCUMENTS SECTION -->
-                <div class="section-header">Documents for Approval</div>
+                <div class="section-header">Uploaded Documents for Review</div>
                 <div class="row">
                     <?php foreach ($documents as $doc): ?>
                         <div class="col-md-6">
                             <div class="doc-card">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
                                     <h6 class="mb-0">
+                                        <i class="bi bi-file-earmark-text"></i>
                                         <?php
                                         $docLabels = [
                                             'psa_birth_cert' => 'PSA Birth Certificate',
@@ -367,16 +562,49 @@ require_once __DIR__ . '/../layouts/header.php';
                                 </div>
                                 
                                 <!-- Document Preview -->
+                                <div class="document-preview">
+                                    <?php 
+                                    $fileExt = pathinfo($doc['file_path'], PATHINFO_EXTENSION);
+                                    $isImage = in_array(strtolower($fileExt), ['jpg', 'jpeg', 'png', 'gif']);
+                                    $encodedPath = base64_encode($doc['file_path']);
+                                    $fileUrl = $basePath . '/file/serve/' . $encodedPath;
+                                    ?>
+                                    
+                                    <?php if ($isImage): ?>
+                                        <img src="<?php echo $fileUrl; ?>" 
+                                             alt="<?php echo $docLabels[$doc['document_type']]; ?>"
+                                             onclick="window.open('<?php echo $fileUrl; ?>', '_blank')">
+                                        <small class="text-muted d-block mt-2">Click to view full size</small>
+                                    <?php else: ?>
+                                        <i class="bi bi-file-earmark-pdf pdf-icon"></i>
+                                        <p class="mb-0 mt-2"><strong>PDF Document</strong></p>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <!-- View/Download Button -->
                                 <div class="mb-2">
-                                    <a href="<?php echo $basePath; ?><?php echo htmlspecialchars($doc['file_path']); ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
-                                        View Document
+                                    <a href="<?php echo $fileUrl; ?>" 
+                                       target="_blank" 
+                                       class="btn btn-sm btn-outline-primary w-100">
+                                        <i class="bi bi-eye"></i> View Full Document
                                     </a>
                                 </div>
                                 
                                 <!-- Review Notes -->
                                 <?php if ($doc['review_note']): ?>
                                     <div class="alert alert-warning small mb-2">
-                                        <strong>Review Note:</strong> <?php echo htmlspecialchars($doc['review_note']); ?>
+                                        <strong><i class="bi bi-chat-left-text"></i> Review Note:</strong><br>
+                                        <?php echo htmlspecialchars($doc['review_note']); ?>
+                                    </div>
+                                <?php endif; ?>
+                                
+                                <!-- Reviewer Info -->
+                                <?php if ($doc['status'] !== 'pending' && $doc['reviewed_at']): ?>
+                                    <div class="alert alert-info small mb-2">
+                                        <strong><i class="bi bi-person-check"></i> Reviewed by:</strong> 
+                                        <?php echo htmlspecialchars($doc['reviewer_name'] ?? 'Unknown'); ?><br>
+                                        <strong><i class="bi bi-calendar-check"></i> Date:</strong> 
+                                        <?php echo date('M j, Y g:i A', strtotime($doc['reviewed_at'])); ?>
                                     </div>
                                 <?php endif; ?>
                                 
@@ -384,10 +612,10 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <?php if ($doc['status'] === 'pending'): ?>
                                     <div class="doc-actions">
                                         <button class="btn btn-sm btn-approve" onclick="approveDocument(<?php echo $doc['id']; ?>)">
-                                            ✓ Approve
+                                            <i class="bi bi-check-circle"></i> Approve
                                         </button>
                                         <button class="btn btn-sm btn-reject" onclick="rejectDocument(<?php echo $doc['id']; ?>)">
-                                            ✗ Reject
+                                            <i class="bi bi-x-circle"></i> Reject
                                         </button>
                                     </div>
                                 <?php endif; ?>

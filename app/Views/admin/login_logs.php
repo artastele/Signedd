@@ -49,29 +49,23 @@ require_once __DIR__ . '/../layouts/header.php';
                 <div class="col-md-3">
                     <label class="form-label">Result</label>
                     <select name="result" class="form-select">
-                        <option value="">All Results</option>
+                        <option value="all" <?php echo ($_GET['result'] ?? 'all') === 'all' ? 'selected' : ''; ?>>All Results</option>
                         <option value="success" <?php echo ($_GET['result'] ?? '') === 'success' ? 'selected' : ''; ?>>Success</option>
                         <option value="failure" <?php echo ($_GET['result'] ?? '') === 'failure' ? 'selected' : ''; ?>>Failure</option>
-                    </select>
-                </div>
-                    <select name="status" class="form-select">
-                        <option value="all" <?php echo ($status ?? 'all') === 'all' ? 'selected' : ''; ?>>All</option>
-                        <option value="success" <?php echo ($status ?? '') === 'success' ? 'selected' : ''; ?>>Success</option>
-                        <option value="failure" <?php echo ($status ?? '') === 'failure' ? 'selected' : ''; ?>>Failure</option>
                     </select>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Limit</label>
                     <select name="limit" class="form-select">
-                        <option value="50" <?php echo ($limit ?? 50) == 50 ? 'selected' : ''; ?>>50</option>
-                        <option value="100" <?php echo ($limit ?? 50) == 100 ? 'selected' : ''; ?>>100</option>
-                        <option value="200" <?php echo ($limit ?? 50) == 200 ? 'selected' : ''; ?>>200</option>
-                        <option value="500" <?php echo ($limit ?? 50) == 500 ? 'selected' : ''; ?>>500</option>
+                        <option value="50" <?php echo ($_GET['limit'] ?? 50) == 50 ? 'selected' : ''; ?>>50</option>
+                        <option value="100" <?php echo ($_GET['limit'] ?? 50) == 100 ? 'selected' : ''; ?>>100</option>
+                        <option value="200" <?php echo ($_GET['limit'] ?? 50) == 200 ? 'selected' : ''; ?>>200</option>
+                        <option value="500" <?php echo ($_GET['limit'] ?? 50) == 500 ? 'selected' : ''; ?>>500</option>
                     </select>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Search Email</label>
-                    <input type="text" name="search" class="form-control" placeholder="Search by email..." value="<?php echo htmlspecialchars($search ?? ''); ?>">
+                    <input type="text" name="search" class="form-control" placeholder="Search by email..." value="<?php echo htmlspecialchars($_GET['search'] ?? ''); ?>">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary w-100">
@@ -91,16 +85,17 @@ require_once __DIR__ . '/../layouts/header.php';
                         <tr>
                             <th>ID</th>
                             <th>Email</th>
-                            <th>Status</th>
+                            <th>User Name</th>
+                            <th>Role</th>
+                            <th>Result</th>
                             <th>IP Address</th>
-                            <th>User Agent</th>
                             <th>Attempted At</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($logs)): ?>
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-4">
+                                <td colspan="7" class="text-center text-muted py-4">
                                     <i class="bi bi-inbox" style="font-size: 2rem;"></i>
                                     <p class="mb-0 mt-2">No login attempts found</p>
                                 </td>
@@ -109,30 +104,60 @@ require_once __DIR__ . '/../layouts/header.php';
                             <?php foreach ($logs as $log): ?>
                                 <tr>
                                     <td><?php echo $log['id']; ?></td>
-                                    <td><?php echo htmlspecialchars($log['email']); ?></td>
                                     <td>
-                                        <?php if ($log['status'] === 'success'): ?>
-                                            <span class="badge bg-success">Success</span>
+                                        <strong><?php echo htmlspecialchars($log['email']); ?></strong>
+                                    </td>
+                                    <td>
+                                        <?php if (!empty($log['user_name'])): ?>
+                                            <span class="text-dark">
+                                                <i class="bi bi-person"></i>
+                                                <?php echo htmlspecialchars($log['user_name']); ?>
+                                            </span>
                                         <?php else: ?>
-                                            <span class="badge bg-danger">Failure</span>
+                                            <span class="text-muted fst-italic">
+                                                <i class="bi bi-person-x"></i> Unknown User
+                                            </span>
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <code><?php echo htmlspecialchars($log['ip_address'] ?? 'N/A'); ?></code>
+                                        <?php if (!empty($log['user_role'])): ?>
+                                            <span class="badge" style="background-color: #1e4072;">
+                                                <?php echo ucwords(str_replace('_', ' ', htmlspecialchars($log['user_role']))); ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge bg-secondary">N/A</span>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
-                                        <small class="text-muted" title="<?php echo htmlspecialchars($log['user_agent'] ?? 'N/A'); ?>">
-                                            <?php echo htmlspecialchars(substr($log['user_agent'] ?? 'N/A', 0, 50)); ?>...
-                                        </small>
+                                        <?php if ($log['result'] === 'success'): ?>
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-circle"></i> Success
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge bg-danger">
+                                                <i class="bi bi-x-circle"></i> Failure
+                                            </span>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
-                                        <small><?php echo date('M j, Y g:i A', strtotime($log['attempted_at'])); ?></small>
+                                        <code style="background: #f8f9fa; padding: 4px 8px; border-radius: 4px;">
+                                            <?php echo htmlspecialchars($log['ip_address'] ?? 'N/A'); ?>
+                                        </code>
+                                    </td>
+                                    <td>
+                                        <i class="bi bi-clock"></i>
+                                        <?php echo date('M j, Y g:i A', strtotime($log['attempted_at'])); ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
+            
+            <!-- Results Count -->
+            <div class="mt-3 text-muted">
+                <small>Showing <?php echo count($logs); ?> results</small>
             </div>
         </div>
     </div>

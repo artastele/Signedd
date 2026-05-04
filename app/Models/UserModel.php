@@ -105,12 +105,26 @@ class UserModel {
             $ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         }
 
+        // Try to get user_id from email (if user exists)
+        $userId = null;
+        try {
+            $userStmt = $this->db->prepare("SELECT id FROM users WHERE email = :email LIMIT 1");
+            $userStmt->execute(['email' => $email]);
+            $user = $userStmt->fetch();
+            if ($user) {
+                $userId = $user['id'];
+            }
+        } catch (Exception $e) {
+            // If user doesn't exist, userId stays null
+        }
+
         $stmt = $this->db->prepare("
-            INSERT INTO login_log (email, ip_address, result)
-            VALUES (:email, :ip_address, :result)
+            INSERT INTO login_log (user_id, email, ip_address, result)
+            VALUES (:user_id, :email, :ip_address, :result)
         ");
 
         $stmt->execute([
+            'user_id' => $userId,
             'email' => $email,
             'ip_address' => $ipAddress,
             'result' => $result
@@ -317,5 +331,148 @@ class UserModel {
         ");
         $stmt->execute(['role' => $role]);
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Get all users with statistics
+     */
+    public function getAllUsersWithStats($filters = []) {
+        $sql = "
+            SELECT id, name, email, role, status, created_at, deleted_at, locked_until
+            FROM users
+            WHERE deleted_at IS NULL
+        ";
+        $params = [];
+
+        // Apply filters
+        if (!empty($filters['role']) && $filters['role'] !== 'all') {
+            $sql .= " AND role = :role";
+            $params['role'] = $filters['role'];
+        }
+
+        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+            $sql .= " AND status = :status";
+            $params['status'] = $filters['status'];
+        }
+
+        if (!empty($filters['search'])) {
+            $sql .= " AND (name LIKE :search OR email LIKE :search)";
+            $params['search'] = '%' . $filters['search'] . '%';
+        }
+
+        $sql .= " ORDER BY created_at DESC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Get user statistics
+     */
+    public function getUserStats() {
+        $stmt = $this->db->query("
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) as inactive,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN role = 'parent' THEN 1 ELSE 0 END) as parents,
+                SUM(CASE WHEN role = 'sped_teacher' THEN 1 ELSE 0 END) as teachers,
+                SUM(CASE WHEN role = 'guidance' THEN 1 ELSE 0 END) as guidance,
+                SUM(CASE WHEN role = 'principal' THEN 1 ELSE 0 END) as principals,
+                SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) as admins
+            FROM users
+            WHERE deleted_at IS NULL
+        ");
+        return $stmt->fetch();
+    }
+
+    /**
+     * Soft delete user
+     */
+    public function softDelete($userId) {
+        $stmt = $this->db->prepare("
+            UPDATE users
+            SET deleted_at = CURRENT_TIMESTAMP,
+                status = 'inactive'
+            WHERE id = :id
+        ");
+        return $stmt->execute(['id' => $userId]);
+    }
+
+    /**
+     * Lock user account until specified time
+     */
+    public function lockAccount($userId, $minutes) {
+        $lockUntil = date('Y-m-d H:i:s', strtotime("+{$minutes} minutes"));
+        
+        $stmt = $this->db->prepare("
+            UPDATE users
+            SET locked_until = :locked_until
+            WHERE id = :id
+        ");
+        
+        return $stmt->execute([
+            'locked_until' => $lockUntil,
+            'id' => $userId
+        ]);
+    }
+
+    /**
+     * Check if account is locked
+     */
+    public function isAccountLocked($userId) {
+        $stmt = $this->db->prepare("
+            SELECT locked_until
+            FROM users
+            WHERE id = :id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $userId]);
+        $result = $stmt->fetch();
+        
+        if (!$result || !$result['locked_until']) {
+            return false;
+        }
+        
+        // Check if lock has expired
+        if (strtotime($result['locked_until']) < time()) {
+            // Lock expired, clear it
+            $this->unlockAccount($userId);
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * Unlock user account
+     */
+    public function unlockAccount($userId) {
+        $stmt = $this->db->prepare("
+            UPDATE users
+            SET locked_until = NULL
+            WHERE id = :id
+        ");
+        return $stmt->execute(['id' => $userId]);
+    }
+
+    /**
+     * Get user's full details
+     */
+    public function getUserDetails($userId) {
+        $stmt = $this->db->prepare("
+            SELECT 
+                id, name, first_name, middle_name, last_name, suffix,
+                email, contact_number, role, status, email_verified,
+                auth_provider, profile_picture, created_at, updated_at,
+                locked_until, deleted_at
+            FROM users
+            WHERE id = :id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $userId]);
+        return $stmt->fetch();
     }
 }

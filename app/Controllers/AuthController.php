@@ -76,6 +76,7 @@ class AuthController {
         if (!$rateLimit['allowed']) {
             $_SESSION['error'] = $rateLimit['message'];
             RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
+            $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
             header('Location: ' . $basePath . '/login');
             exit;
         }
@@ -85,6 +86,7 @@ class AuthController {
 
         if (!$user) {
             RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
+            $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
             $_SESSION['error'] = 'Invalid email or password.';
             header('Location: ' . $basePath . '/login');
             exit;
@@ -93,6 +95,7 @@ class AuthController {
         // Verify password
         if (!$this->userModel->verifyPassword($user, $password)) {
             RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
+            $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
             $_SESSION['error'] = 'Invalid email or password.';
             header('Location: ' . $basePath . '/login');
             exit;
@@ -101,6 +104,7 @@ class AuthController {
         // Check if account is active
         if ($user['status'] !== 'active') {
             RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
+            $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
             $_SESSION['error'] = 'Your account is not active. Please contact the administrator.';
             header('Location: ' . $basePath . '/login');
             exit;
@@ -109,6 +113,7 @@ class AuthController {
         // Login successful
         RateLimitHelper::recordLoginAttempt($email, true, $ipAddress);
         RateLimitHelper::clearLoginAttempts($email);
+        $this->userModel->logLoginAttempt($email, 'success', $ipAddress);
 
         // Regenerate session ID for security
         SessionMiddleware::regenerate();
@@ -560,7 +565,8 @@ class AuthController {
         $_SESSION['last_activity'] = time();
         
         // Log successful login
-        $this->userModel->logLoginAttempt($user['email'], 'success');
+        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $this->userModel->logLoginAttempt($user['email'], 'success', $ipAddress);
     }
 
     /**

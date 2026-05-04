@@ -490,11 +490,14 @@ CREATE TABLE IF NOT EXISTS module_access_logs (
 
 CREATE TABLE IF NOT EXISTS login_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL,
     email VARCHAR(255) NOT NULL,
     ip_address VARCHAR(45),
     result ENUM('success', 'failure') NOT NULL,
     attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_email (email),
+    INDEX idx_user_id (user_id),
     INDEX idx_attempted_at (attempted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -613,3 +616,103 @@ INSERT IGNORE INTO dlp_settings (setting_key, setting_value, description) VALUES
 ('dlp_sensitive_pages', 'iep,assessment,student_records', 'Comma-separated list of sensitive page types');
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+
+-- ============================================
+-- MIGRATION v20: Add user_id to login_log
+-- ============================================
+
+-- Add user_id column if it doesn't exist
+SET @dbname = DATABASE();
+SET @tablename = 'login_log';
+SET @columnname = 'user_id';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE
+      (table_name = @tablename)
+      AND (table_schema = @dbname)
+      AND (column_name = @columnname)
+  ) > 0,
+  'SELECT 1',
+  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' INT NULL AFTER id, ADD FOREIGN KEY (', @columnname, ') REFERENCES users(id) ON DELETE SET NULL, ADD INDEX idx_', @columnname, ' (', @columnname, ')')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (20);
+
+-- ============================================
+-- MIGRATION v21: System Settings Table
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS system_settings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    setting_key VARCHAR(100) UNIQUE NOT NULL,
+    setting_value TEXT NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_category (category),
+    INDEX idx_key (setting_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Insert default settings
+INSERT IGNORE INTO system_settings (setting_key, setting_value, category, description) VALUES
+('session_timeout', '15', 'security', 'Session timeout in minutes'),
+('max_login_attempts', '5', 'security', 'Maximum failed login attempts before lockout'),
+('lockout_duration', '15', 'security', 'Account lockout duration in minutes'),
+('otp_expiration', '10', 'security', 'OTP expiration time in minutes'),
+('logout_warning', '2', 'security', 'Show logout warning X minutes before timeout');
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (21);
+
+-- ============================================
+-- MIGRATION v22: User Management Enhancements
+-- ============================================
+
+-- Add deleted_at column if it doesn't exist
+SET @dbname = DATABASE();
+SET @tablename = 'users';
+SET @columnname = 'deleted_at';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE
+      (table_name = @tablename)
+      AND (table_schema = @dbname)
+      AND (column_name = @columnname)
+  ) > 0,
+  'SELECT 1',
+  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' TIMESTAMP NULL')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Add locked_until column if it doesn't exist
+SET @columnname = 'locked_until';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE
+      (table_name = @tablename)
+      AND (table_schema = @dbname)
+      AND (column_name = @columnname)
+  ) > 0,
+  'SELECT 1',
+  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' TIMESTAMP NULL')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Add indexes
+CREATE INDEX IF NOT EXISTS idx_deleted_at ON users(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_locked_until ON users(locked_until);
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (22);

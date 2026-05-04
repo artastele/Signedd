@@ -628,3 +628,213 @@
 .main-content {
     margin-top: 70px;
 }
+
+
+/* ============================================
+   DOCUMENT PREVIEW & SIGNATURE STYLES
+   ============================================ */
+
+/* Document Card Hover Effect */
+.card.h-100:hover {
+    transform: translateY(-5px);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* Document Preview Container */
+.document-preview {
+    position: relative;
+    overflow: hidden;
+    border-radius: 6px;
+    background: #f8f9fa;
+    cursor: pointer;
+}
+
+.document-preview img {
+    transition: transform 0.3s ease;
+}
+
+.document-preview:hover img {
+    transform: scale(1.05);
+}
+
+/* Signature Display */
+.signature-container {
+    background: white;
+    border: 2px solid #1e4072;
+    border-radius: 6px;
+    padding: 15px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.signature-container img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Signature Verification Badge */
+.signature-verified {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #3b6d11 0%, #4a8514 100%);
+    color: white;
+    border-radius: 20px;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(59, 109, 17, 0.3);
+}
+
+.signature-verified i {
+    font-size: 1.2rem;
+}
+
+/* Document Status Badges */
+.badge.bg-pending {
+    background-color: #f59e0b !important;
+}
+
+.badge.bg-approved {
+    background-color: #3b6d11 !important;
+}
+
+.badge.bg-rejected {
+    background-color: #dc3545 !important;
+}
+
+/* Document Type Icons */
+.document-icon {
+    font-size: 3.5rem;
+    color: #1e4072;
+    opacity: 0.8;
+}
+
+.document-icon.pdf {
+    color: #dc3545;
+}
+
+.document-icon.image {
+    color: #0d6efd;
+}
+
+/* Review Status Alert */
+.review-status {
+    border-left: 4px solid;
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.review-status.approved {
+    border-left-color: #3b6d11;
+    background-color: #d4edda;
+}
+
+.review-status.rejected {
+    border-left-color: #dc3545;
+    background-color: #f8d7da;
+}
+
+.review-status.pending {
+    border-left-color: #f59e0b;
+    background-color: #fff3cd;
+}
+
+/* Document Grid Layout */
+.document-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+/* Lightbox Effect for Images */
+.document-lightbox {
+    cursor: zoom-in;
+    transition: opacity 0.3s ease;
+}
+
+.document-lightbox:hover {
+    opacity: 0.9;
+}
+
+/* Print Button Styling */
+.btn-print {
+    background: linear-gradient(135deg, #1e4072 0%, #2a5a9e 100%);
+    border: none;
+    color: white;
+    padding: 10px 24px;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(30, 64, 114, 0.3);
+}
+
+.btn-print:hover {
+    background: linear-gradient(135deg, #152f56 0%, #1e4072 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(30, 64, 114, 0.4);
+}
+
+/* Responsive Document Cards */
+@media (max-width: 768px) {
+    .document-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .signature-container {
+        max-width: 100%;
+    }
+}
+
+/* Document Upload Status Timeline */
+.document-timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.document-timeline::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.document-timeline-item {
+    position: relative;
+    padding-bottom: 20px;
+}
+
+.document-timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -24px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #3b6d11;
+    border: 2px solid white;
+    box-shadow: 0 0 0 2px #3b6d11;
+}
+
+/* Watermark for Verified Documents */
+.document-watermark {
+    position: relative;
+}
+
+.document-watermark::after {
+    content: 'VERIFIED';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    font-size: 3rem;
+    font-weight: bold;
+    color: rgba(59, 109, 17, 0.1);
+    pointer-events: none;
+    white-space: nowrap;
+}

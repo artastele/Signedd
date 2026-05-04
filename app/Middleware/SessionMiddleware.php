@@ -1,12 +1,24 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Security Module 5
-// Last modified: 2026-05-01
+// Last modified: 2026-05-04
 // Part of: SPED LMS — Session Management & Timeout
 
 class SessionMiddleware {
-    private const TIMEOUT_DURATION = 1800; // 30 minutes default
-    private const ENROLLMENT_TIMEOUT = 3600; // 60 minutes for enrollment pages
-    private const WARNING_TIME = 300; // 5 minutes warning
+    /**
+     * Get session timeout from system settings
+     */
+    private static function getSessionTimeout() {
+        try {
+            require_once __DIR__ . '/../../config/db.php';
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'session_timeout' LIMIT 1");
+            $stmt->execute();
+            $result = $stmt->fetch();
+            return $result ? (int)$result['setting_value'] * 60 : 900; // Convert minutes to seconds, default 15 min
+        } catch (Exception $e) {
+            return 900; // Default 15 minutes
+        }
+    }
 
     public static function start() {
         if (session_status() === PHP_SESSION_NONE) {
@@ -25,8 +37,13 @@ class SessionMiddleware {
         if (isset($_SESSION['user_id'])) {
             $currentTime = time();
 
-            // Determine timeout duration based on current page
-            $timeoutDuration = self::getTimeoutDuration();
+            // Get timeout duration from settings
+            $timeoutDuration = self::getSessionTimeout();
+            
+            // Enrollment pages get 2x the normal timeout
+            if (strpos($_SERVER['REQUEST_URI'] ?? '', '/enrollment/') !== false) {
+                $timeoutDuration *= 2;
+            }
 
             // Check if last activity timestamp exists
             if (isset($_SESSION['last_activity'])) {
@@ -50,18 +67,6 @@ class SessionMiddleware {
 
     /**
      * Get timeout duration based on current page
-     */
-    private static function getTimeoutDuration() {
-        // Get current path
-        $currentPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-        
-        // Extended timeout for enrollment pages
-        if (strpos($currentPath, '/enrollment') !== false) {
-            return self::ENROLLMENT_TIMEOUT; // 60 minutes
-        }
-        
-        return self::TIMEOUT_DURATION; // 30 minutes default
-    }
 
     /**
      * Check if user's role has been updated in database
@@ -172,10 +177,23 @@ class SessionMiddleware {
             $remaining = $timeoutDuration - $elapsed;
             return max(0, $remaining);
         }
-        return self::getTimeoutDuration();
+        return self::getSessionTimeout();
     }
 
     public static function isWarningTime() {
-        return self::getTimeRemaining() <= self::WARNING_TIME;
+        // Get warning time from settings (default 2 minutes)
+        try {
+            require_once __DIR__ . '/../../config/db.php';
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'logout_warning' LIMIT 1");
+            $stmt->execute();
+            $result = $stmt->fetch();
+            $warningMinutes = $result ? (int)$result['setting_value'] : 2;
+            $warningTime = $warningMinutes * 60;
+        } catch (Exception $e) {
+            $warningTime = 120; // Default 2 minutes
+        }
+        
+        return self::getTimeRemaining() <= $warningTime;
     }
 }

@@ -150,13 +150,17 @@ function isActive($path) {
             </a>
 
         <?php elseif ($role === 'admin'): ?>
-            <a href="<?php echo $basePath; ?>/admin/users" class="<?php echo isActive('/admin/users'); ?>">
+            <a href="<?php echo $basePath; ?>/admin/manage-users" class="<?php echo isActive('/admin/manage-users'); ?>">
                 <i class="bi bi-people"></i>
                 <span>Manage Users</span>
             </a>
             <a href="<?php echo $basePath; ?>/admin/role-requests" class="<?php echo isActive('/admin/role-requests'); ?>">
                 <i class="bi bi-person-check"></i>
                 <span>Role Requests</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/admin/settings" class="<?php echo isActive('/admin/settings'); ?>">
+                <i class="bi bi-gear"></i>
+                <span>System Settings</span>
             </a>
             <a href="<?php echo $basePath; ?>/admin/login-logs" class="<?php echo isActive('/admin/login-logs'); ?>">
                 <i class="bi bi-shield-lock"></i>

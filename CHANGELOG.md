@@ -351,6 +351,39 @@
 
 ## Unreleased
 
+## [v0.19] — Login Logs with User Information (Security Module 4 - Enhancement)
+- **Built:**
+  - **Database Schema Update:**
+    - Migration v20: Added `user_id` column to `login_log` table
+    - Added foreign key constraint to `users` table
+    - Added index on `user_id` for query performance
+  - **UserModel Enhancement:**
+    - Updated `logLoginAttempt()` to lookup and store `user_id` from email
+    - Handles cases where email doesn't exist in system (user_id = NULL)
+  - **AdminController Enhancement:**
+    - Updated `loginLogs()` to JOIN with `users` table
+    - Query now fetches `user_name` and `user_role` for each login attempt
+    - Search now works on both email and user name
+  - **Login Logs View Update:**
+    - Added "User Name" column showing actual user name or "Unknown User"
+    - Added "Role" column showing user role badge (color-coded navy)
+    - Updated table headers from 5 to 7 columns
+    - Updated empty state colspan from 5 to 7
+    - User icon indicators for known vs unknown users
+    - Proper handling of NULL user_id (non-existent emails)
+  - **Purpose:**
+    - Admin can now see WHO attempted to login (not just email)
+    - Shows user's role at time of login attempt
+    - Helps identify legitimate users vs attackers
+    - Better security monitoring and audit trail
+- **Tables added/modified:** 
+  - Migration v20: `login_log` table (added user_id, foreign key, index)
+- **Tested:** ✅ Verified working - user_id correctly stored, JOIN query working, view displays user info
+- **Status:** ✅ Approved
+- **Date:** 2026-05-04
+
+---
+
 ## [v0.18] — IEP Approval Queue for Principal (Fixed)
 - **Built:**
   - **IEPDocumentController Methods:**
@@ -884,3 +917,89 @@
   - GET /iep/meetings - Meetings list (SPED teacher, Guidance, Principal)
   - GET /iep/p2/review — P2 review list (Guidance/Principal)
   - GET /iep/p3/sign — P3 signature list (All signers)
+
+
+---
+
+## [v0.20] — File Encryption System (Security Module 3)
+- **Built:**
+  - **FileEncryptionHelper** (app/Helpers/FileEncryptionHelper.php)
+    - `encryptFile()` - Encrypt uploaded files using AES-256-CBC
+    - `serveDecryptedFile()` - Decrypt and serve files on-the-fly
+    - `getDecryptedContents()` - Get decrypted file contents for processing
+    - `migrateFile()` - Migrate existing files to encrypted format
+    - `getThumbnail()` - Generate thumbnails for encrypted images
+    - `isEncrypted()` - Check if file is encrypted
+    - Unique IV (Initialization Vector) per file for maximum security
+    - Original files deleted after encryption
+    - Encrypted files stored in `/uploads/encrypted/` directory
+  - **FileController** (app/Controllers/FileController.php)
+    - `serve($filePath)` - Serve encrypted files (decrypt and output inline)
+    - `download($filePath)` - Download encrypted files (decrypt and force download)
+    - `thumbnail($filePath)` - Generate and serve thumbnails for encrypted images
+    - Authentication check (must be logged in)
+    - Base64 encoded file paths for security
+    - Automatic fallback for unencrypted files
+    - Original filename lookup from database
+  - **Updated Controllers:**
+    - `EnrollmentController::uploadFile()` - Now encrypts enrollment documents on upload
+    - `RoleController::uploadFile()` - Now encrypts role verification documents on upload
+  - **Updated Views:**
+    - `app/Views/verification/show.php` - Uses encrypted file URLs via `/file/serve/{base64_path}`
+    - `app/Views/enrollment/view.php` - Uses encrypted file URLs for all document previews and downloads
+  - **Migration Script:**
+    - Created and executed `public/migrate-encrypt-files.php`
+    - Successfully encrypted 6 existing files (2 enrollment + 4 role documents)
+    - Updated database paths to point to encrypted files
+    - Deleted original unencrypted files
+    - Script deleted after successful migration
+  - **Security Features:**
+    - AES-256-CBC encryption (military-grade)
+    - Unique IV per file (prevents pattern analysis)
+    - Encryption key stored in `.env` file (ENCRYPTION_KEY)
+    - Files unreadable on disk without decryption key
+    - Authentication required to access files
+    - Base64 encoded paths prevent directory traversal
+    - Original files deleted after encryption
+    - Transparent encryption/decryption (existing functions continue to work)
+- **Tables added/modified:** None (uses existing enrollment_documents and role_documents tables)
+- **Routes Added:**
+  - GET /file/serve/{path} - Serve encrypted file (decrypt and display inline)
+  - GET /file/download/{path} - Download encrypted file (decrypt and force download)
+  - GET /file/thumbnail/{path} - Generate thumbnail for encrypted image
+- **Workflow:**
+  - **New Uploads:**
+    1. User uploads file (enrollment document or role verification)
+    2. File is encrypted using AES-256-CBC with unique IV
+    3. Encrypted file stored in `/uploads/encrypted/` with hashed filename
+    4. Original file deleted for security
+    5. Database stores encrypted file path
+  - **File Access:**
+    1. User clicks view/download link
+    2. System checks authentication
+    3. File path decoded from base64
+    4. File decrypted on-the-fly
+    5. Served to user (inline or download)
+    6. Decrypted content never stored on disk
+  - **Migration:**
+    1. Migration script loaded all existing file paths from database
+    2. Each file encrypted with AES-256-CBC
+    3. Database updated with new encrypted path
+    4. Original file deleted
+    5. 6 files successfully migrated (100% success rate)
+- **Files Encrypted:**
+  - 2 enrollment documents (PSA Birth Certificate, PWD ID)
+  - 4 role verification documents (Government IDs, Proof of Designation)
+  - All stored in `/uploads/encrypted/` with `.enc` extension
+  - Original directories (`/uploads/enrollment/`, `/uploads/role_verification/`) now empty
+- **Testing Results:**
+  - ✅ Encryption/decryption verified working (77 bytes → 168 bytes encrypted → 77 bytes decrypted)
+  - ✅ File serving working (images display, PDFs open)
+  - ✅ Download working (files download with original names)
+  - ✅ Migration successful (6/6 files encrypted, 0 failures)
+  - ✅ Original files deleted (security confirmed)
+  - ✅ Database paths updated correctly
+  - ✅ Views updated to use encrypted URLs
+- **Tested:** ✅ Verified working - all files encrypted, serving correctly, no data loss
+- **Status:** ✅ Approved
+- **Date:** 2026-05-04
