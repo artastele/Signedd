@@ -379,10 +379,13 @@ $statusColors = [
                                     <?php 
                                     $fileExt = pathinfo($doc['file_path'], PATHINFO_EXTENSION);
                                     $isImage = in_array(strtolower($fileExt), ['jpg', 'jpeg', 'png', 'gif']);
+                                    $encodedPath = base64_encode($doc['file_path']);
+                                    $fileUrl = $basePath . '/file/serve/' . $encodedPath;
+                                    $downloadUrl = $basePath . '/file/download/' . $encodedPath;
                                     ?>
                                     
                                     <?php if ($isImage): ?>
-                                        <img src="<?php echo $basePath; ?>/<?php echo htmlspecialchars($doc['file_path']); ?>" 
+                                        <img src="<?php echo $fileUrl; ?>" 
                                              alt="Document" class="img-fluid mb-2" style="max-height: 200px;">
                                     <?php else: ?>
                                         <div class="text-center p-3 bg-light">
@@ -391,7 +394,7 @@ $statusColors = [
                                         </div>
                                     <?php endif; ?>
                                     
-                                    <a href="<?php echo $basePath; ?>/<?php echo htmlspecialchars($doc['file_path']); ?>" 
+                                    <a href="<?php echo $fileUrl; ?>" 
                                        target="_blank" class="btn btn-sm btn-outline-primary w-100">
                                         <i class="bi bi-download"></i> Download/View
                                     </a>

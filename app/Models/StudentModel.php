@@ -266,6 +266,33 @@ class StudentModel {
     }
 
     /**
+     * Get student by user ID (for learner accounts)
+     */
+    public function getByUserId($userId) {
+        try {
+            // Get user's email (learner_LRN@spedlms.local format)
+            $stmt = $this->db->prepare("SELECT email FROM users WHERE id = :user_id");
+            $stmt->execute(['user_id' => $userId]);
+            $user = $stmt->fetch();
+            
+            if (!$user) {
+                return null;
+            }
+            
+            // Extract LRN from email
+            if (preg_match('/learner_(\d+)@/', $user['email'], $matches)) {
+                $lrn = $matches[1];
+                return $this->findByLRN($lrn);
+            }
+            
+            return null;
+        } catch (PDOException $e) {
+            error_log('Failed to get student by user ID: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Find student by enrollment ID
      */
     public function findByEnrollmentId($enrollmentId) {

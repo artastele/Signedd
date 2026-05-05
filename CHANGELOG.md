@@ -351,6 +351,62 @@
 
 ## Unreleased
 
+---
+
+## [v0.21] — Process 6-7 Learner Views Completion (Process 6 & 7)
+- **Built:**
+  - **Learner View Files (5 files):**
+    - `app/Views/learning/assignments.php` - Assignments list with filter tabs (All, Pending, Submitted, Graded)
+    - `app/Views/learning/view_module.php` - Module viewer with timer, file viewer (PDF/image/video), complete button
+    - `app/Views/learning/view_assignment.php` - Assignment viewer with file upload, text answer, submission tracking
+    - `app/Views/learning/progress.php` - Progress page with stats, achievement badges, activity timeline
+    - `app/Views/learning/play_activity.php` - Interactive activity player with 8 activity types support
+  - **JavaScript Enhancement:**
+    - `public/js/activity-player.js` - Standalone activity player class (reusable, modular)
+    - Support for 8 activity types: Multiple Choice, True/False, Fill Blanks, Matching, Drag & Drop Sorting, Sequencing, Image Labeling, Flashcards
+    - Timer functionality with auto-save every 30 seconds
+    - Confetti animation on activity completion (canvas-confetti library)
+    - Drag-and-drop support (SortableJS library)
+    - XSS protection with HTML escaping
+  - **UI Features:**
+    - Assignments list with filter tabs, due date badges, points display
+    - Module viewer with timer, file viewer (PDF/image/video), complete button
+    - Assignment viewer with text/file submission, grade display, teacher feedback
+    - Progress page with stats cards, 10 achievement badges, activity timeline
+    - Activity player with interactive questions, auto-grading, confetti animation
+  - **External Libraries Integrated:**
+    - SortableJS v1.15.0 (drag-and-drop functionality)
+    - Canvas Confetti v1.6.0 (celebration animations)
+  - **Cartoon UI Styling:**
+    - Bright colors (yellow, orange, green, blue, purple, pink)
+    - Comic Sans MS font family
+    - Rounded borders, 3D effects, hover animations
+    - Emoji icons, gradient backgrounds, pulse/bounce/shake animations
+  - **Security Features:**
+    - Authentication check on all routes
+    - File encryption support (FileEncryptionHelper integration)
+    - XSS protection with htmlspecialchars()
+    - Activity logging for all actions
+- **Tables added/modified:** None (uses existing tables from Migration v23)
+- **Routes used:**
+  - GET /learning/modules, /learning/assignments, /learning/module/{id}, /learning/assignment/{id}
+  - GET /learning/activity/{id}, /learning/progress
+  - POST /learning/complete-module, /learning/submit-activity, /learning/submit-assignment
+- **Workflow:**
+  - Learners view modules/assignments, complete activities, earn stars (1-3 based on score)
+  - Progress tracked with achievement badges and timeline
+  - Interactive activities with auto-grading and confetti celebration
+- **Testing Status:**
+  - ✅ All 5 view files created
+  - ✅ JavaScript activity player created
+  - ✅ Cartoon CSS styling applied
+  - ⏳ Runtime testing pending (user cannot test due to XAMPP issues)
+- **Tested:** Pending user testing (XAMPP issues on current PC)
+- **Status:** Pending Approval (awaiting user testing)
+- **Date:** 2026-05-05
+
+---
+
 ## [v0.19] — Login Logs with User Information (Security Module 4 - Enhancement)
 - **Built:**
   - **Database Schema Update:**

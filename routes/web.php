@@ -49,10 +49,10 @@ route('GET', '/register', 'AuthController', 'showRegister');
 route('POST', '/register', 'AuthController', 'register');
 route('GET', '/logout', 'AuthController', 'logout');
 
-// File serving (encrypted files)
-route('GET', '/file/serve/{path}', 'FileController', 'serve', '*');
-route('GET', '/file/download/{path}', 'FileController', 'download', '*');
-route('GET', '/file/thumbnail/{path}', 'FileController', 'thumbnail', '*');
+// File serving (encrypted files) - No RBAC check, only authentication
+route('GET', '/file/serve/{path}', 'FileController', 'serve');
+route('GET', '/file/download/{path}', 'FileController', 'download');
+route('GET', '/file/thumbnail/{path}', 'FileController', 'thumbnail');
 
 // Email Verification
 route('GET', '/auth/verify-email', 'AuthController', 'showVerifyEmail');
@@ -127,14 +127,40 @@ route('POST', '/assessment/{id}/approve', 'AssessmentController', 'approve', 'as
 route('POST', '/assessment/{id}/reject', 'AssessmentController', 'reject', 'assessment.manage');
 route('GET', '/assessment/{id}/history', 'AssessmentController', 'history', 'assessment.view');
 
-// IEP Implementation (Process 6)
+// IEP Implementation (Process 6 - Teacher Side)
 route('GET', '/iep/implementation', 'IEPImplementationController', 'index', 'iep.implement');
-route('GET', '/iep/implementation/{id}', 'IEPImplementationController', 'show', 'iep.implement');
-route('POST', '/iep/implementation/{id}/materials', 'IEPImplementationController', 'addMaterial', 'learning.materials');
+route('GET', '/iep/implementation/assign', 'IEPImplementationController', 'showAssign', 'iep.implement');
+route('POST', '/iep/implementation/assign', 'IEPImplementationController', 'assign', 'iep.implement');
+route('GET', '/iep/implementation/materials/{id}', 'IEPImplementationController', 'materials', 'iep.implement');
+route('GET', '/iep/implementation/create-activity', 'IEPImplementationController', 'showCreateActivity', 'iep.implement');
+route('GET', '/iep/implementation/create-activity/{id}', 'IEPImplementationController', 'showCreateActivity', 'iep.implement');
+route('POST', '/iep/implementation/upload-file', 'IEPImplementationController', 'uploadFile', 'iep.implement');
+route('POST', '/iep/implementation/save-activity', 'IEPImplementationController', 'saveActivity', 'iep.implement');
+route('POST', '/iep/implementation/delete-material/{id}', 'IEPImplementationController', 'deleteMaterial', 'iep.implement');
+route('GET', '/iep/implementation/progress/{id}', 'IEPImplementationController', 'progress', 'iep.implement');
 
-// Learning Activities (Process 7)
-route('GET', '/activities', 'LearningActivityController', 'index', 'activity.logs');
-route('POST', '/activities/record', 'LearningActivityController', 'record', 'activity.record');
+// ============================================
+// LEARNER ROUTES (Process 7)
+// ============================================
+
+// Learning Dashboard & Modules
+route('GET', '/learning/dashboard', 'LearningController', 'dashboard', 'learning.access');
+route('GET', '/learning/modules', 'LearningController', 'modules', 'learning.access');
+route('GET', '/learning/module/{id}', 'LearningController', 'viewModule', 'learning.access');
+route('POST', '/learning/module/complete', 'LearningController', 'completeModule', 'learning.access');
+
+// Learning Activities
+route('GET', '/learning/activity/{id}', 'LearningController', 'playActivity', 'learning.access');
+route('POST', '/learning/activity/submit', 'LearningController', 'submitActivity', 'learning.access');
+
+// Assignments
+route('GET', '/learning/assignments', 'LearningController', 'assignments', 'learning.access');
+route('GET', '/learning/assignment/{id}', 'LearningController', 'viewAssignment', 'learning.access');
+route('POST', '/learning/assignment/submit', 'LearningController', 'submitAssignment', 'learning.access');
+
+// Progress & Activity Logging
+route('GET', '/learning/progress', 'LearningController', 'progress', 'learning.access');
+route('POST', '/learning/log-activity', 'LearningController', 'logActivity', 'learning.access');
 
 // ============================================
 // GUIDANCE ROUTES

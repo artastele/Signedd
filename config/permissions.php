@@ -73,6 +73,16 @@ return [
         'account.settings',
     ],
 
+    'learner' => [
+        'dashboard.learner',
+        'learning.access',
+        'learning.modules',
+        'learning.activities',
+        'learning.assignments',
+        'learning.progress',
+        'account.settings',
+    ],
+
     'admin' => [
         '*', // Full access to all permissions
     ],

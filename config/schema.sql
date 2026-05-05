@@ -716,3 +716,149 @@ CREATE INDEX IF NOT EXISTS idx_locked_until ON users(locked_until);
 
 -- Mark migration as applied
 INSERT IGNORE INTO db_version (version) VALUES (22);
+
+-- ============================================
+-- MIGRATION v23: Manual Activity System & Assignment Tracking
+-- ============================================
+
+-- Add assignment-specific fields to learning_materials
+SET @dbname = DATABASE();
+SET @tablename = 'learning_materials';
+
+-- Add is_assignment column
+SET @columnname = 'is_assignment';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE
+      (table_name = @tablename)
+      AND (table_schema = @dbname)
+      AND (column_name = @columnname)
+  ) > 0,
+  'SELECT 1',
+  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' BOOLEAN DEFAULT FALSE AFTER description')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Add due_date column
+SET @columnname = 'due_date';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE
+      (table_name = @tablename)
+      AND (table_schema = @dbname)
+      AND (column_name = @columnname)
+  ) > 0,
+  'SELECT 1',
+  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' DATETIME NULL AFTER is_assignment')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Add points column
+SET @columnname = 'points';
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE
+      (table_name = @tablename)
+      AND (table_schema = @dbname)
+      AND (column_name = @columnname)
+  ) > 0,
+  'SELECT 1',
+  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' INT DEFAULT 0 AFTER due_date')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
+-- Create activity_templates table for manual activities
+CREATE TABLE IF NOT EXISTS activity_templates (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    material_id INT NOT NULL,
+    activity_type ENUM(
+        'multiple_choice', 
+        'true_false', 
+        'fill_blanks', 
+        'matching', 
+        'drag_drop_sort', 
+        'image_label', 
+        'sequencing', 
+        'flashcards'
+    ) NOT NULL,
+    instructions TEXT,
+    activity_data JSON NOT NULL,
+    total_points INT DEFAULT 0,
+    time_limit_minutes INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (material_id) REFERENCES learning_materials(id) ON DELETE CASCADE,
+    INDEX idx_material_id (material_id),
+    INDEX idx_activity_type (activity_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create activity_attempts table (learner answers)
+CREATE TABLE IF NOT EXISTS activity_attempts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    activity_id INT NOT NULL,
+    student_id INT NOT NULL,
+    attempt_number INT DEFAULT 1,
+    answers JSON NOT NULL,
+    score INT DEFAULT 0,
+    total_points INT DEFAULT 0,
+    percentage DECIMAL(5,2) DEFAULT 0,
+    time_spent_minutes INT DEFAULT 0,
+    completed BOOLEAN DEFAULT FALSE,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP NULL,
+    FOREIGN KEY (activity_id) REFERENCES activity_templates(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    INDEX idx_activity_id (activity_id),
+    INDEX idx_student_id (student_id),
+    INDEX idx_completed (completed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create assignment_submissions table
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    material_id INT NOT NULL,
+    student_id INT NOT NULL,
+    submission_type ENUM('file', 'text', 'both') NOT NULL,
+    file_path VARCHAR(500),
+    text_answer TEXT,
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    graded BOOLEAN DEFAULT FALSE,
+    grade INT,
+    teacher_feedback TEXT,
+    graded_at TIMESTAMP NULL,
+    graded_by INT,
+    FOREIGN KEY (material_id) REFERENCES learning_materials(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (graded_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_material_id (material_id),
+    INDEX idx_student_id (student_id),
+    INDEX idx_graded (graded)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create learner_progress table
+CREATE TABLE IF NOT EXISTS learner_progress (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    material_id INT NOT NULL,
+    status ENUM('not_started', 'in_progress', 'completed') DEFAULT 'not_started',
+    started_at TIMESTAMP NULL,
+    completed_at TIMESTAMP NULL,
+    time_spent_minutes INT DEFAULT 0,
+    stars_earned INT DEFAULT 0,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (material_id) REFERENCES learning_materials(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_student_material (student_id, material_id),
+    INDEX idx_student_id (student_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (23);
