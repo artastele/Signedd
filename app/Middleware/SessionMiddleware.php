@@ -127,11 +127,13 @@ class SessionMiddleware {
             '/auth/verify-email',
             '/auth/resend-otp',
             '/logout',
-            '/auth/google/callback'
+            '/auth/google/callback',
+            '/register',
+            '/login'
         ];
 
         foreach ($exemptRoutes as $route) {
-            if (strpos($currentPath, $route) === 0) {
+            if (strpos($currentPath, $route) !== false) {
                 return;
             }
         }
@@ -139,11 +141,10 @@ class SessionMiddleware {
         // Check if email is verified
         if (isset($_SESSION['email_verified']) && $_SESSION['email_verified'] === false) {
             // Redirect to verification page
+            $basePath = defined('BASE_PATH') ? BASE_PATH : '';
             $redirectPath = $basePath . '/auth/verify-email';
-            if ($currentPath !== '/auth/verify-email') {
-                header('Location: ' . $redirectPath);
-                exit;
-            }
+            header('Location: ' . $redirectPath);
+            exit;
         }
     }
 

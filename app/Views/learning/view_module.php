@@ -43,13 +43,8 @@ require_once __DIR__ . '/../layouts/header.php';
                 <div class="file-viewer">
                     <?php
                     $fileExt = strtolower(pathinfo($material['file_path'], PATHINFO_EXTENSION));
-                    $isEncrypted = strpos($material['file_path'], '.enc') !== false;
-                    
-                    if ($isEncrypted) {
-                        $fileExt = strtolower(pathinfo(str_replace('.enc', '', $material['file_path']), PATHINFO_EXTENSION));
-                    }
-                    
-                    $fileUrl = $basePath . '/file/serve/' . base64_encode($material['file_path']);
+                    // Use direct file path (no encryption)
+                    $fileUrl = $basePath . '/' . $material['file_path'];
                     ?>
                     
                     <?php if (in_array($fileExt, ['pdf'])): ?>

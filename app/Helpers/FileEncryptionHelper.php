@@ -145,6 +145,40 @@ class FileEncryptionHelper {
     }
 
     /**
+     * Decrypt file from full path (for testing and FileController)
+     * 
+     * @param string $fullPath Full path to encrypted file
+     * @return string|false Decrypted contents or false on error
+     */
+    public static function decryptFile($fullPath) {
+        try {
+            if (!file_exists($fullPath)) {
+                error_log('File not found: ' . $fullPath);
+                return false;
+            }
+
+            $encryptedContents = file_get_contents($fullPath);
+            if ($encryptedContents === false) {
+                error_log('Failed to read file: ' . $fullPath);
+                return false;
+            }
+
+            $decrypted = EncryptionHelper::decrypt($encryptedContents);
+            
+            if ($decrypted === false) {
+                error_log('Failed to decrypt file: ' . $fullPath);
+                return false;
+            }
+
+            return $decrypted;
+
+        } catch (Exception $e) {
+            error_log('File decryption error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Generate encrypted filename
      * 
      * @param string $originalName Original filename

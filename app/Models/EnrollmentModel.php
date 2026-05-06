@@ -208,7 +208,8 @@ class EnrollmentModel {
             'als_rating', 'shs_track', 'shs_strand', 'shs_semester', 'modality_modular_print', 
             'modality_modular_digital', 'modality_online', 'modality_educational_tv', 'modality_radio', 
             'modality_blended', 'modality_face_to_face', 'preferred_distance_modality', 'signature_data', 
-            'date_signed', 'draft_saved_at', 'submitted_at', 'verified_by', 'verified_at', 'last_activity'
+            'date_signed', 'draft_saved_at', 'submitted_at', 'verified_by', 'verified_at', 'last_activity',
+            'learner_account_created', 'lrn'
         ];
         
         // Only include fields that exist in $data and are valid columns
@@ -388,16 +389,18 @@ class EnrollmentModel {
     /**
      * Update enrollment status
      */
-    public function updateStatus($enrollmentId, $status, $verifiedBy = null) {
+    public function updateStatus($enrollmentId, $status, $verifiedBy = null, $reviewNote = null) {
         $sql = "UPDATE enrollment_submissions
                 SET status = :status,
                     verified_by = :verified_by,
-                    verified_at = NOW()
+                    verified_at = NOW(),
+                    review_note = :review_note
                 WHERE id = :id";
         
         return $this->db->prepare($sql)->execute([
             'status' => $status,
             'verified_by' => $verifiedBy,
+            'review_note' => $reviewNote,
             'id' => $enrollmentId
         ]);
     }
@@ -565,5 +568,73 @@ class EnrollmentModel {
             WHERE parent_id = :parent_id AND is_draft = TRUE
         ");
         return $stmt->execute(['parent_id' => $parentId]);
+    }
+
+    /**
+     * Search student by LRN for returning enrollment
+     * Optionally filter by school year
+     */
+    public function searchByLRN($lrn, $schoolYear = null) {
+        $sql = "
+            SELECT * FROM enrollment_submissions
+            WHERE lrn = :lrn 
+            AND is_draft = FALSE
+            AND status IN ('verified', 'pending')
+        ";
+        
+        $params = ['lrn' => $lrn];
+        
+        if ($schoolYear) {
+            $sql .= " AND school_year = :school_year";
+            $params['school_year'] = $schoolYear;
+        }
+        
+        $sql .= " ORDER BY created_at DESC LIMIT 1";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetch();
+    }
+
+    /**
+     * Search students by name for returning enrollment
+     * Returns array of matching enrollments
+     * Optionally filter by school year
+     */
+    public function searchByName($lastName, $firstName, $middleName = '', $suffix = '', $schoolYear = null) {
+        $sql = "
+            SELECT * FROM enrollment_submissions
+            WHERE last_name = :last_name
+            AND first_name = :first_name
+            AND is_draft = FALSE
+            AND status IN ('verified', 'pending')
+        ";
+        
+        $params = [
+            'last_name' => $lastName,
+            'first_name' => $firstName
+        ];
+        
+        // Add optional filters
+        if (!empty($middleName)) {
+            $sql .= " AND middle_name = :middle_name";
+            $params['middle_name'] = $middleName;
+        }
+        
+        if (!empty($suffix)) {
+            $sql .= " AND extension_name = :suffix";
+            $params['suffix'] = $suffix;
+        }
+        
+        if ($schoolYear) {
+            $sql .= " AND school_year = :school_year";
+            $params['school_year'] = $schoolYear;
+        }
+        
+        $sql .= " ORDER BY created_at DESC LIMIT 10";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
     }
 }

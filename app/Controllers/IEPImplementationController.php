@@ -123,7 +123,7 @@ class IEPImplementationController {
     }
 
     /**
-     * Upload file material
+     * Upload file material (simplified - no encryption)
      */
     public function uploadFile() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -159,15 +159,6 @@ class IEPImplementationController {
         $fullPath = $uploadDir . $fileName;
 
         if (move_uploaded_file($file['tmp_name'], $fullPath)) {
-            // Encrypt file
-            $encryptedPath = FileEncryptionHelper::encryptFile($fullPath);
-            
-            if ($encryptedPath) {
-                // Delete original
-                unlink($fullPath);
-                $filePath = $encryptedPath;
-            }
-
             // Create material for each selected student
             $successCount = 0;
             foreach ($learnerIepIds as $learnerIepId) {

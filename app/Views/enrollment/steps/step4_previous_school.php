@@ -6,16 +6,10 @@
                 <i class="bi bi-building"></i> Step 4: Previous School Information
             </h4>
             
-            <?php if ($enrollmentType === 'new'): ?>
-                <!-- New Student - Skip this step -->
-                <div class="alert alert-info">
-                    <h5><i class="bi bi-info-circle"></i> Not Applicable</h5>
-                    <p class="mb-0">This section is not required for new students. Click <strong>Next</strong> to continue.</p>
-                </div>
-            <?php else: ?>
-                <!-- Transfer/Returning Student - Show form -->
+            <?php if ($enrollmentType === 'transfer'): ?>
+                <!-- Transfer Student - Show form -->
                 <div class="alert alert-warning">
-                    <strong><i class="bi bi-exclamation-triangle"></i> Required for <?php echo ucfirst($enrollmentType); ?> Students</strong>
+                    <strong><i class="bi bi-exclamation-triangle"></i> Required for Transfer Students</strong>
                     <p class="mb-0">Please provide information about your previous school.</p>
                 </div>
 
@@ -43,11 +37,11 @@
                 <div class="row">
                     <!-- School Name -->
                     <div class="col-md-12 mb-3">
-                        <label for="previous_school_name" class="form-label">School Name *</label>
+                        <label for="previous_school_name" class="form-label">School Name <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="previous_school_name" name="previous_school_name" 
                                value="<?php echo htmlspecialchars(getFormValue('previous_school_name')); ?>"
                                placeholder="e.g., ABC Elementary School"
-                               <?php echo $enrollmentType !== 'new' ? 'required' : ''; ?>>
+                               required>
                     </div>
                 </div>
 
@@ -90,7 +84,31 @@
                                placeholder="e.g., 2024-2025">
                     </div>
                 </div>
+            <?php else: ?>
+                <!-- New/Returning Student - Skip this step -->
+                <div class="alert alert-info">
+                    <h5><i class="bi bi-info-circle"></i> Not Applicable</h5>
+                    <p class="mb-0">
+                        This section is only required for <strong>transfer students</strong>. 
+                        <?php if ($enrollmentType === 'returning'): ?>
+                            Your previous school information is already on file.
+                        <?php endif; ?>
+                        Click <strong>Next</strong> to continue.
+                    </p>
+                </div>
             <?php endif; ?>
         </div>
     </div>
 </div>
+
+<script>
+// Make previous school fields optional for non-transfer students
+document.addEventListener('DOMContentLoaded', function() {
+    const enrollmentType = '<?php echo $enrollmentType; ?>';
+    const previousSchoolName = document.getElementById('previous_school_name');
+    
+    if (enrollmentType !== 'transfer' && previousSchoolName) {
+        previousSchoolName.required = false;
+    }
+});
+</script>

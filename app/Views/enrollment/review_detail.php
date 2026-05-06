@@ -28,6 +28,11 @@ $statusColors = [
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
 
 <div class="main-content">
+    <!-- VERSION MARKER - v1.8 Simplified Approval -->
+    <div class="alert alert-info mb-3" style="background: #e3f2fd; border-left: 4px solid #2196F3;">
+        <strong>✨ NEW:</strong> Simplified approval system - Review all documents, then use single approve/reject buttons at bottom
+    </div>
+
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>
@@ -335,8 +340,8 @@ $statusColors = [
     </div>
 
     <!-- Section 8: Documents & Signature -->
-    <div class="card mb-4 border-warning">
-        <div class="card-header bg-warning text-dark">
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
             <h5 class="mb-0"><i class="bi bi-file-earmark-check"></i> Section 8: Documents & Signature</h5>
         </div>
         <div class="card-body">
@@ -355,7 +360,7 @@ $statusColors = [
             </div>
 
             <!-- Uploaded Documents -->
-            <h6 class="text-primary mb-3">Uploaded Documents</h6>
+            <h6 class="text-primary mb-3">Uploaded Documents for Review</h6>
             <?php if (empty($documents)): ?>
                 <div class="alert alert-warning">
                     <i class="bi bi-exclamation-triangle"></i> No documents uploaded yet.
@@ -364,14 +369,12 @@ $statusColors = [
                 <div class="row">
                     <?php foreach ($documents as $doc): ?>
                     <div class="col-md-6 mb-3">
-                        <div class="card border-<?php echo $statusColors[$doc['status']]; ?>">
-                            <div class="card-header bg-light">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <strong><?php echo $docLabels[$doc['document_type']]; ?></strong>
-                                    <span class="badge bg-<?php echo $statusColors[$doc['status']]; ?>">
-                                        <?php echo ucfirst($doc['status']); ?>
-                                    </span>
-                                </div>
+                        <div class="card">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                <strong><?php echo $docLabels[$doc['document_type']]; ?></strong>
+                                <span class="badge bg-<?php echo $statusColors[$doc['status']]; ?>">
+                                    <?php echo ucfirst($doc['status']); ?>
+                                </span>
                             </div>
                             <div class="card-body">
                                 <!-- File Preview/Download -->
@@ -379,9 +382,7 @@ $statusColors = [
                                     <?php 
                                     $fileExt = pathinfo($doc['file_path'], PATHINFO_EXTENSION);
                                     $isImage = in_array(strtolower($fileExt), ['jpg', 'jpeg', 'png', 'gif']);
-                                    $encodedPath = base64_encode($doc['file_path']);
-                                    $fileUrl = $basePath . '/file/serve/' . $encodedPath;
-                                    $downloadUrl = $basePath . '/file/download/' . $encodedPath;
+                                    $fileUrl = $basePath . '/' . $doc['file_path'];
                                     ?>
                                     
                                     <?php if ($isImage): ?>
@@ -396,71 +397,14 @@ $statusColors = [
                                     
                                     <a href="<?php echo $fileUrl; ?>" 
                                        target="_blank" class="btn btn-sm btn-outline-primary w-100">
-                                        <i class="bi bi-download"></i> Download/View
+                                        <i class="bi bi-eye"></i> View Document
                                     </a>
                                 </div>
-
-                                <!-- Review Information -->
-                                <?php if ($doc['status'] !== 'pending'): ?>
-                                    <div class="alert alert-<?php echo $statusColors[$doc['status']]; ?> mb-2">
-                                        <small>
-                                            <strong>Reviewed by:</strong> <?php echo htmlspecialchars($doc['reviewer_name'] ?? 'Unknown'); ?><br>
-                                            <strong>Date:</strong> <?php echo date('M j, Y g:i A', strtotime($doc['reviewed_at'])); ?>
-                                            <?php if ($doc['review_note']): ?>
-                                                <br><strong>Note:</strong> <?php echo htmlspecialchars($doc['review_note']); ?>
-                                            <?php endif; ?>
-                                        </small>
-                                    </div>
-                                <?php endif; ?>
-
-                                <!-- Action Buttons (only for pending documents) -->
-                                <?php if ($doc['status'] === 'pending'): ?>
-                                    <form method="POST" action="<?php echo $basePath; ?>/enrollment/document/approve/<?php echo $doc['id']; ?>" 
-                                          class="d-inline">
-                                        <input type="hidden" name="enrollment_id" value="<?php echo $enrollment['id']; ?>">
-                                        <input type="hidden" name="document_type" value="<?php echo $doc['document_type']; ?>">
-                                        <button type="submit" class="btn btn-success btn-sm w-100 mb-2">
-                                            <i class="bi bi-check-circle"></i> Approve
-                                        </button>
-                                    </form>
-                                    
-                                    <button type="button" class="btn btn-danger btn-sm w-100" 
-                                            data-bs-toggle="modal" 
-                                            data-bs-target="#rejectModal<?php echo $doc['id']; ?>">
-                                        <i class="bi bi-x-circle"></i> Reject
-                                    </button>
-
-                                    <!-- Reject Modal -->
-                                    <div class="modal fade" id="rejectModal<?php echo $doc['id']; ?>" tabindex="-1">
-                                        <div class="modal-dialog">
-                                            <div class="modal-content">
-                                                <div class="modal-header bg-danger text-white">
-                                                    <h5 class="modal-title">Reject Document</h5>
-                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                                </div>
-                                                <form method="POST" action="<?php echo $basePath; ?>/enrollment/document/reject/<?php echo $doc['id']; ?>">
-                                                    <div class="modal-body">
-                                                        <input type="hidden" name="enrollment_id" value="<?php echo $enrollment['id']; ?>">
-                                                        <input type="hidden" name="document_type" value="<?php echo $doc['document_type']; ?>">
-                                                        <p>You are about to reject: <strong><?php echo $docLabels[$doc['document_type']]; ?></strong></p>
-                                                        <div class="mb-3">
-                                                            <label for="review_note<?php echo $doc['id']; ?>" class="form-label">
-                                                                Reason for Rejection *
-                                                            </label>
-                                                            <textarea class="form-control" id="review_note<?php echo $doc['id']; ?>" 
-                                                                      name="review_note" rows="3" required
-                                                                      placeholder="Explain why this document is being rejected..."></textarea>
-                                                        </div>
-                                                    </div>
-                                                    <div class="modal-footer">
-                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                        <button type="submit" class="btn btn-danger">
-                                                            <i class="bi bi-x-circle"></i> Reject Document
-                                                        </button>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        </div>
+                                
+                                <!-- Show review note if rejected -->
+                                <?php if ($doc['status'] === 'rejected' && !empty($doc['review_note'])): ?>
+                                    <div class="alert alert-danger mb-0">
+                                        <small><strong>Rejection Reason:</strong><br><?php echo htmlspecialchars($doc['review_note']); ?></small>
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -472,6 +416,122 @@ $statusColors = [
         </div>
     </div>
 
+    <!-- Action Buttons (Only if pending) -->
+    <?php if ($enrollment['status'] === 'pending'): ?>
+    <div class="card mb-4 border-success">
+        <div class="card-body">
+            <h5 class="mb-3"><i class="bi bi-clipboard-check"></i> Review Decision</h5>
+            <p class="text-muted">After reviewing all documents and information above, make your decision:</p>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <form method="POST" action="<?php echo $basePath; ?>/enrollment/approve/<?php echo $enrollment['id']; ?>" 
+                          onsubmit="return confirm('Are you sure you want to APPROVE this enrollment? All documents will be marked as verified.');">
+                        <button type="submit" class="btn btn-success btn-lg w-100">
+                            <i class="bi bi-check-circle-fill"></i> Approve Enrollment
+                        </button>
+                        <small class="text-muted d-block mt-2">This will verify all documents and approve the enrollment</small>
+                    </form>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <button type="button" class="btn btn-danger btn-lg w-100" 
+                            data-bs-toggle="modal" data-bs-target="#rejectEnrollmentModal">
+                        <i class="bi bi-x-circle-fill"></i> Reject Enrollment
+                    </button>
+                    <small class="text-muted d-block mt-2">Provide feedback on what needs to be corrected</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reject Enrollment Modal -->
+    <div class="modal fade" id="rejectEnrollmentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="bi bi-x-circle"></i> Reject Enrollment</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="<?php echo $basePath; ?>/enrollment/reject/<?php echo $enrollment['id']; ?>">
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <strong>Note:</strong> The parent will be notified and can resubmit the enrollment with corrections.
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="rejection_reason" class="form-label">
+                                <strong>Reason for Rejection <span class="text-danger">*</span></strong>
+                            </label>
+                            <textarea class="form-control" id="rejection_reason" 
+                                      name="rejection_reason" rows="5" required
+                                      placeholder="Please explain what needs to be corrected or why this enrollment is being rejected..."></textarea>
+                            <div class="form-text">Be specific so the parent knows what to fix</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-arrow-left"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-x-circle-fill"></i> Reject Enrollment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Create Learner Account Section (Only if verified and account not yet created) -->
+    <?php if ($enrollment['status'] === 'verified' && !$enrollment['learner_account_created']): ?>
+    <div class="card mb-4 border-success" style="border-width: 3px;">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-person-plus-fill"></i> Process 2 Part 2: Create Learner Account</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-success">
+                <h5><i class="bi bi-check-circle-fill"></i> Enrollment Verified!</h5>
+                <p class="mb-0">All documents have been approved. You can now create the learner account and generate the LRN.</p>
+            </div>
+            
+            <h6 class="mb-3">What will happen when you click the button below:</h6>
+            <ul class="mb-4">
+                <li><strong>Generate LRN</strong> (Learner Reference Number)</li>
+                <li><strong>Create Student Record</strong> in the system</li>
+                <li><strong>Create Learner Account</strong> with login credentials</li>
+                <li><strong>Send Email & Notification</strong> to parent with LRN and login details</li>
+            </ul>
+            
+            <button type="button" class="btn btn-success btn-lg w-100" 
+                    onclick="createLearnerAccount(<?php echo $enrollment['id']; ?>)"
+                    id="createLearnerBtn">
+                <i class="bi bi-person-plus-fill"></i> Create Learner Account & Generate LRN
+            </button>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Learner Account Already Created -->
+    <?php if ($enrollment['status'] === 'verified' && $enrollment['learner_account_created']): ?>
+    <div class="card mb-4 border-info">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-check-circle-fill"></i> Learner Account Created</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <h6><i class="bi bi-info-circle"></i> Account Information</h6>
+                <p><strong>LRN:</strong> <?php echo htmlspecialchars($enrollment['lrn'] ?? 'N/A'); ?></p>
+                <p class="mb-0"><strong>Status:</strong> Learner account has been created and parent has been notified.</p>
+            </div>
+            <p class="text-muted mb-0">
+                <i class="bi bi-calendar-check"></i> Created on: 
+                <?php echo $enrollment['verified_at'] ? date('F j, Y g:i A', strtotime($enrollment['verified_at'])) : 'N/A'; ?>
+            </p>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Back Button -->
     <div class="text-center mb-4">
         <a href="<?php echo $basePath; ?>/enrollment/review" class="btn btn-secondary btn-lg">
@@ -479,5 +539,48 @@ $statusColors = [
         </a>
     </div>
 </div>
+
+<script>
+function createLearnerAccount(enrollmentId) {
+    const btn = document.getElementById('createLearnerBtn');
+    
+    if (!confirm('Create learner account and generate LRN?\n\nThis will:\n- Generate a unique LRN\n- Create student record\n- Create learner login account\n- Send credentials to parent\n\nProceed?')) {
+        return;
+    }
+    
+    // Disable button
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Creating account...';
+    
+    // Make AJAX request
+    fetch('<?php echo $basePath; ?>/verification/' + enrollmentId + '/verify', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Learner Account Created Successfully!\n\n' +
+                  'LRN: ' + data.lrn + '\n' +
+                  'Learner ID: ' + data.learner_id + '\n\n' +
+                  'Parent has been notified via email and in-app notification.');
+            
+            // Reload page to show updated status
+            location.reload();
+        } else {
+            alert('❌ Error: ' + data.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-person-plus-fill"></i> Create Learner Account & Generate LRN';
+        }
+    })
+    .catch(error => {
+        alert('❌ Error: ' + error.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-person-plus-fill"></i> Create Learner Account & Generate LRN';
+    });
+}
+</script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

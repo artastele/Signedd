@@ -172,6 +172,15 @@ function isActive($path) {
             </a>
         <?php endif; ?>
 
+        <?php if ($role !== 'parent' && $role !== 'user'): ?>
+            <!-- Student Records - Available for all staff roles -->
+            <div class="sidebar-divider"></div>
+            <a href="<?php echo $basePath; ?>/students" class="<?php echo isActive('/students'); ?>">
+                <i class="bi bi-person-lines-fill"></i>
+                <span>Student Records</span>
+            </a>
+        <?php endif; ?>
+
         <div class="sidebar-divider"></div>
 
         <a href="<?php echo $basePath; ?>/account/settings">

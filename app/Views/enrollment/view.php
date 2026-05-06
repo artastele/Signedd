@@ -174,8 +174,8 @@ $isParent = $_SESSION['role'] === 'parent';
                                     <?php 
                                     $fileExt = pathinfo($doc['file_path'], PATHINFO_EXTENSION);
                                     $isImage = in_array(strtolower($fileExt), ['jpg', 'jpeg', 'png', 'gif']);
-                                    $encodedPath = base64_encode($doc['file_path']);
-                                    $fileUrl = $basePath . '/file/serve/' . $encodedPath;
+                                    // Use direct file path (no encryption)
+                                    $fileUrl = $basePath . '/' . $doc['file_path'];
                                     ?>
                                     
                                     <?php if ($isImage): ?>
@@ -229,7 +229,8 @@ $isParent = $_SESSION['role'] === 'parent';
                                        class="btn btn-outline-primary btn-sm">
                                         <i class="bi bi-eye"></i> View Full Document
                                     </a>
-                                    <a href="<?php echo $basePath; ?>/file/download/<?php echo $encodedPath; ?>" 
+                                    <a href="<?php echo $fileUrl; ?>" 
+                                       download
                                        class="btn btn-outline-secondary btn-sm">
                                         <i class="bi bi-download"></i> Download
                                     </a>

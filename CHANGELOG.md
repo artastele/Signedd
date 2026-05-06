@@ -5,6 +5,824 @@
 
 ---
 
+## [v1.21] — Show Rejection Reason on Status Page & Dashboard (Process 1 - Enhancement)
+- **Built:** Display rejection reason prominently on enrollment status page and parent dashboard
+- **Issue:** Parents couldn't see WHY their enrollment was rejected (only saw "rejected" status)
+- **Solution:** Show rejection reason (review_note) alongside rejection status
+- **Features:**
+  - **Enrollment Status Page:**
+    - Rejected enrollments show red alert with heading "Enrollment Rejected"
+    - Displays full rejection reason from SPED teacher
+    - If no reason provided, shows generic message
+    - Uses `nl2br()` to preserve line breaks in reason
+  - **Parent Dashboard:**
+    - Red alert banner at top for each rejected enrollment
+    - Shows student name in alert heading
+    - Displays rejection reason in highlighted box
+    - Quick action buttons: "View Details" and "Resubmit Enrollment"
+    - Dismissible alert (can close with X button)
+  - **Backend Enhancement:**
+    - Modified `EnrollmentModel::updateStatus()` to accept `$reviewNote` parameter
+    - Modified `EnrollmentController::rejectEnrollment()` to save rejection reason to enrollment
+    - Rejection reason now saved to both enrollment AND documents
+- **Implementation:**
+  - **EnrollmentModel::updateStatus():**
+    - Added 4th parameter: `$reviewNote = null`
+    - Updates `review_note` field in `enrollment_submissions` table
+    - Backward compatible (optional parameter)
+  - **EnrollmentController::rejectEnrollment():**
+    - Now passes rejection reason to `updateStatus()` method
+    - Saves reason to enrollment record (not just documents)
+  - **Views Updated:**
+    - `app/Views/enrollment/status.php` - Shows rejection reason in alert
+    - `app/Views/dashboard/parent.php` - Shows rejection alert at top
+- **UI Design:**
+  - Red danger alert with exclamation triangle icon
+  - Clear heading: "Enrollment Rejected"
+  - Reason displayed in highlighted box for emphasis
+  - Action buttons for next steps
+  - Professional, empathetic tone
+- **Benefits:**
+  - ✅ Parents immediately see WHY enrollment was rejected
+  - ✅ Clear feedback helps parents fix issues
+  - ✅ Reduces confusion and support requests
+  - ✅ Better user experience
+  - ✅ Transparent communication
+- **Workflow:**
+  1. SPED Teacher rejects enrollment with reason
+  2. System saves reason to `enrollment_submissions.review_note`
+  3. Parent logs in → Sees red alert on dashboard
+  4. Parent clicks "View Details" → Sees full reason on status page
+  5. Parent can resubmit with corrections
+- **Files Modified:**
+  - `app/Models/EnrollmentModel.php` - Added reviewNote parameter to updateStatus()
+  - `app/Controllers/EnrollmentController.php` - Pass rejection reason to updateStatus()
+  - `app/Views/enrollment/status.php` - Display rejection reason in alert
+  - `app/Views/dashboard/parent.php` - Display rejection alert at top
+- **Tables modified:** None (uses existing review_note column)
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.20] — Auto-Copy Documents for Returning Students + Approval Fix (Process 1 - Enhancement)
+- **Built:** Automatic document copying for returning students + fixed approval issue
+- **Issue 1:** Returning students had to re-upload documents every year
+- **Issue 2:** Approval button not working (status not changing from pending to verified)
+- **Solution:** Auto-copy approved documents from previous enrollment + made documents optional for approval
+- **Features:**
+  - **Auto-Copy Documents:**
+    - When returning student submits enrollment, system automatically copies documents from previous enrollment
+    - Only copies approved documents (not rejected or pending)
+    - Links same file to new enrollment (no physical file duplication)
+    - Saves storage space and parent's time
+  - **Step 7 Enhancement:**
+    - Returning students see green success alert: "Documents Auto-Copied"
+    - Clear message: "No need to upload documents again!"
+    - Only signature required for returning students
+  - **Approval Fix:**
+    - Changed document check from required to optional
+    - Approval now works even if no documents uploaded
+    - Prevents "No documents found" exception
+- **Implementation:**
+  - **EnrollmentController::submit():**
+    - Checks if enrollment type is "returning" and has previous_enrollment_id
+    - If YES → Calls `copyDocumentsFromPreviousEnrollment()`
+    - If NO → Calls `handleDocumentUploads()` (normal upload)
+  - **New Method: copyDocumentsFromPreviousEnrollment():**
+    - Gets documents from previous enrollment
+    - Filters only approved documents
+    - Links same file_path to new enrollment
+    - Logs copied document count
+  - **EnrollmentController::approveEnrollment():**
+    - Changed from `if (empty($documents)) throw Exception`
+    - To: `if (!empty($documents)) { approve them }`
+    - Continues approval even if no documents
+- **Benefits:**
+  - ✅ Returning students don't re-upload documents
+  - ✅ Faster enrollment process
+  - ✅ Less storage usage (same file linked multiple times)
+  - ✅ Approval works for all enrollments
+  - ✅ Better user experience
+- **Workflow:**
+  1. Parent searches for returning student (LRN or name)
+  2. Selects previous enrollment
+  3. Form auto-fills with previous data
+  4. Parent fills Steps 1-6
+  5. **Step 7:** Sees "Documents Auto-Copied" message
+  6. Parent signs only (no document upload)
+  7. Submits enrollment
+  8. **System auto-copies approved documents** from previous enrollment
+  9. SPED teacher reviews and approves
+  10. **Approval works** even if no new documents uploaded
+- **Files Modified:**
+  - `app/Controllers/EnrollmentController.php` - Added copyDocumentsFromPreviousEnrollment(), fixed approval logic
+  - `app/Views/enrollment/steps/step7_documents_signature.php` - Updated alert message
+- **Tables modified:** None (uses existing enrollment_documents table)
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.19] — School Year Field in Step 5 (Process 1 - Enhancement)
+- **Built:** School year selection dropdown in Step 5 (Enrollment Details)
+- **Issue:** School year was auto-set via hidden field, users couldn't select different year
+- **Solution:** Removed hidden field, added dropdown in Step 5, added validation
+- **Changes:**
+  - **Removed:** Hidden `school_year` field from form.php (line 122)
+  - **Added:** School year dropdown in Step 5 with current year + next 2 years
+  - **Default:** Current school year pre-selected
+  - **Required:** Field marked with red asterisk (*)
+  - **Validation:** Added client-side validation to check school_year is selected
+  - **Error Message:** "❌ Step 5: School Year is required"
+- **Benefits:**
+  - ✅ Users can select enrollment for future school years
+  - ✅ Useful for early enrollment periods
+  - ✅ Clear indication of which school year enrollment is for
+  - ✅ Prevents accidental wrong school year
+- **Database:**
+  - `school_year` column already exists in `enrollment_submissions` table
+  - Type: VARCHAR(20), NOT NULL
+  - No schema changes needed
+- **Files Modified:**
+  - `app/Views/enrollment/form.php` - Removed hidden field, added validation
+  - `app/Views/enrollment/steps/step5_enrollment_details.php` - Already has dropdown (no changes)
+- **Files Created:**
+  - `test-school-year-fix.php` - Verification script to check database state
+- **Tables modified:** None (uses existing school_year column)
+- **Tested:** ✅ Database verified - all enrollments have valid school_year values
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.18.3] — Student Records HTTP 500 Fix (Process 2 - Bug Fix)
+- **Fixed:** HTTP 500 error when accessing Student Records
+- **Issues Fixed:**
+  1. Parse error in StudentModel.php (premature class closing)
+  2. SQL error: Unknown column 'sr.parent_id' in student_records table
+  3. View displaying wrong field names (first_name, birth_date vs student_name, date_of_birth)
+- **Root Causes:**
+  - Class closing brace `}` was placed before new methods were added
+  - student_records table doesn't have parent_id column (it's in enrollment_submissions)
+  - Views were using enrollment field names instead of student_records field names
+- **Solution:** Fixed class structure, updated SQL queries, corrected view field names
+- **Changes:**
+  - **StudentModel.php:**
+    - Removed premature class closing brace (line 495)
+    - Added proper closing brace at end of file
+    - Updated `getAllStudents()` to join with enrollment_submissions for parent_id
+    - Updated `findById()` to join with enrollment_submissions for parent_id
+    - Both methods now get parent info from enrollment → users join
+  - **students/index.php:**
+    - Changed from `first_name`, `last_name`, `birth_date`, `sex` 
+    - To: `student_name`, `date_of_birth`, `disability_type`
+    - Updated table headers to match
+  - **students/view.php:**
+    - Changed from enrollment field names to student_records field names
+    - Shows: LRN, student_name, date_of_birth, disability_type, psa_number, pwd_id_number
+- **student_records Table Structure:**
+  - id, enrollment_id, lrn, student_name, date_of_birth, disability_type
+  - psa_number, pwd_id_number, verified_by, created_at, updated_at
+  - Note: parent_id is NOT in this table (get from enrollment_submissions)
+- **Files Modified:**
+  - `app/Models/StudentModel.php` - Fixed class structure and SQL queries
+  - `app/Views/students/index.php` - Updated field names
+  - `app/Views/students/view.php` - Updated field names
+- **Tables modified:** None
+- **Tested:** ✅ Verified working with 11 student records
+- **Status:** ✅ Complete - Working
+- **Date:** 2026-05-06
+
+---
+
+## [v1.18.2] — Student Records Bug Fix (Process 2 - Bug Fix)
+- **Fixed:** Chrome error when accessing Student Records
+- **Issue:** Missing `findById()` method in StudentModel causing page load failure
+- **Root Cause:** StudentController calls `findById()` but method didn't exist in StudentModel
+- **Solution:** Added `findById()` method to StudentModel
+- **Implementation:**
+  - Added `findById($id)` method to StudentModel
+  - Returns student record with parent information
+  - Joins with users table to get parent name, email, contact
+- **Files Modified:**
+  - `app/Models/StudentModel.php` - Added findById() method
+- **Tables modified:** None
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.18.1] — Student Records Permissions Fix + School Year Filter (Process 1 & 2 - Bug Fix)
+- **Fixed:** 403 error when accessing Student Records
+- **Added:** School year dropdown filter for returning student search
+- **Issues Fixed:**
+  1. Student Records showing 403 Forbidden for all staff roles
+  2. No way to filter returning students by school year
+  3. Permissions not set correctly for all staff roles
+- **Solution:** Updated permissions and added school year filtering
+- **Changes:**
+  - **Permissions Fixed:**
+    - Added `student.records` and `student.view` to Guidance role
+    - Added `student.records` and `student.view` to Principal role
+    - Added `student.records` and `student.view` to Master Teacher role
+    - SPED Teacher already had these permissions
+    - Admin has full access (*)
+  - **Routes Updated:**
+    - Changed from `'*'` (wildcard) to specific permissions
+    - `/students` now requires `student.records` permission
+    - `/students/view/{id}` now requires `student.view` permission
+  - **School Year Filter:**
+    - Added dropdown on returning student lookup page
+    - Shows current year + past 5 years
+    - Default: Current school year selected
+    - Optional: Can select "All School Years"
+    - Filters search results by school year
+  - **Search Enhancement:**
+    - `searchByLRN()` now accepts optional `$schoolYear` parameter
+    - `searchByName()` now accepts optional `$schoolYear` parameter
+    - Controller passes school year from GET parameter
+    - JavaScript includes school year in AJAX request
+- **Benefits:**
+  - ✅ All staff can now access Student Records
+  - ✅ Can find specific enrollment by school year
+  - ✅ Useful for students with multiple enrollments
+  - ✅ Better search accuracy
+- **Files Modified:**
+  - `config/permissions.php` - Added permissions to all staff roles
+  - `routes/web.php` - Changed to specific permissions
+  - `app/Views/enrollment/returning_lookup.php` - Added school year dropdown
+  - `app/Models/EnrollmentModel.php` - Added school year parameter to search methods
+  - `app/Controllers/EnrollmentController.php` - Pass school year to model
+- **Tables modified:** None
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.18] — Student Records Management + Document History (Process 2 - Enhancement)
+- **Built:** Complete student records management system with enrollment and document history
+- **Issues Fixed:**
+  1. Enrollment type showing "new" instead of "returning" for old students
+  2. Documents stored per enrollment, not accessible for returning students
+  3. No way to view student's complete enrollment history
+  4. No centralized student records for staff
+- **Solution:** New Student Records module with complete history tracking
+- **Features:**
+  - **Student Records Navigation:**
+    - Added to sidebar for all staff roles (SPED Teacher, Guidance, Principal, Master Teacher, Admin)
+    - Hidden from Parent and User roles
+    - Icon: person-lines-fill
+  - **Student Records List Page:**
+    - Shows all students with LRN, name, birth date, sex, current grade
+    - Statistics cards: Total Students, Active Enrollments, Pending, This School Year
+    - Filterable table with status badges
+    - Quick "View" button for each student
+  - **Student Detail Page:**
+    - **Student Information Card:** Complete profile (LRN, name, birth info, parent contact)
+    - **Enrollment History Table:** All enrollments across all school years
+      - Shows: School Year, Type (New/Transfer/Returning), Grade Level, Status
+      - Link to view each enrollment detail
+    - **All Documents Table:** Documents from ALL enrollments
+      - Shows: Document Type, School Year, Enrollment Type, Status, Upload Date
+      - Grouped by student (LRN), not by enrollment
+      - Download/view links for each document
+  - **Benefits for Returning Students:**
+    - Staff can see previous documents without re-upload
+    - Complete enrollment history visible
+    - Documents preserved across school years
+    - Easy verification of returning student status
+- **Implementation:**
+  - **StudentController:**
+    - `index()` - List all students with latest enrollment info
+    - `view($id)` - Show student detail with all enrollments and documents
+    - RBAC: Staff only (blocks parent and user roles)
+  - **StudentModel (new methods):**
+    - `getAllStudents()` - Get all students with latest enrollment data
+    - `getEnrollmentsByLRN($lrn)` - Get all enrollments for a student
+  - **Views:**
+    - `students/index.php` - Student list with statistics
+    - `students/view.php` - Student detail with history
+- **Document Access:**
+  - Documents remain linked to enrollment_id (no schema change)
+  - Student detail page aggregates documents from all enrollments
+  - Shows which school year and enrollment type each document is from
+  - Staff can view documents from any previous enrollment
+- **UI Design:**
+  - Consistent card-based layout
+  - Color-coded status badges (success/warning/danger)
+  - Responsive tables
+  - Bootstrap icons throughout
+  - Print-friendly layouts
+- **Routes Added:**
+  - GET /students - List all students
+  - GET /students/view/{id} - View student detail
+- **Files Created:**
+  - `app/Controllers/StudentController.php` - Student records controller
+  - `app/Views/students/index.php` - Student list view
+  - `app/Views/students/view.php` - Student detail view
+- **Files Modified:**
+  - `app/Views/layouts/sidebar.php` - Added Student Records navigation
+  - `app/Models/StudentModel.php` - Added getAllStudents(), getEnrollmentsByLRN()
+  - `routes/web.php` - Added student routes
+- **Tables modified:** None (uses existing tables)
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.17] — Step 4 Conditional + Enhanced Validation (Process 1 - Enhancement)
+- **Built:** Improved enrollment form validation and conditional Step 4
+- **Issue 1:** Step 4 (Previous School) shown for all students, should only be for transfer students
+- **Issue 2:** No clear error messages when submission fails due to missing fields
+- **Solution:** Conditional Step 4 + comprehensive client-side validation
+- **Changes:**
+  - **Step 4 (Previous School):**
+    - Now only shows form fields for **transfer students**
+    - **New students:** Shows "Not Applicable" message, skip to next step
+    - **Returning students:** Shows "Not Applicable" + "Your info is on file" message
+    - Previous school name required only for transfer students
+    - JavaScript removes required attribute for non-transfer students
+  - **Enhanced Form Validation:**
+    - Comprehensive client-side validation before submission
+    - Checks all required fields across all 7 steps
+    - Shows detailed error list with step numbers
+    - Auto-navigates to first error step
+    - Validates based on enrollment type (transfer vs new/returning)
+    - **Validation Rules:**
+      - Step 1: Last Name, First Name, Birth Date, Sex, Place of Birth
+      - Step 2: Current City, Province, Barangay
+      - Step 4: Previous School Name (transfer students only)
+      - Step 5: Grade Level to Enroll
+      - Step 6: At least one learning modality
+      - Step 7: Signature (all students), PSA Birth Certificate (new/transfer only)
+  - **Error Messages:**
+    - Clear, numbered list of missing fields
+    - Shows which step each error is in
+    - Example: "❌ Step 1: Last Name is required"
+    - Guides user to fix issues before resubmitting
+  - **Success Confirmation:**
+    - Shows "✅ All required fields are complete!" when validation passes
+    - Displays summary of key information
+    - Requires explicit confirmation before submission
+    - Shows loading spinner during submission
+- **UI Improvements:**
+  - Submit button shows loading state ("Submitting...")
+  - Spinner animation during submission
+  - Button disabled to prevent double-submission
+- **Files Modified:**
+  - `app/Views/enrollment/steps/step4_previous_school.php` - Conditional for transfer only
+  - `app/Views/enrollment/form.php` - Enhanced validation logic
+- **Tables modified:** None
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.16] — Enrollment Form UX Improvements (Process 1 - Enhancement)
+- **Built:** Improved enrollment form for better user experience
+- **Issue 1:** Returning students had to re-upload documents (should only need signature)
+- **Issue 2:** Step 1 had document-style interface (inconsistent with other steps)
+- **Solution:** Conditional document uploads + consistent card-style interface
+- **Changes:**
+  - **Step 7 (Documents & Signature):**
+    - Added conditional logic based on enrollment type
+    - **Returning students:** Only signature required, documents hidden
+    - **New/Transfer students:** All documents required as before
+    - Shows info alert explaining why documents are/aren't needed
+    - PSA Birth Certificate made optional for returning students via JavaScript
+  - **Step 1 (Learner Information):**
+    - Replaced document-style layout with simple card layout
+    - Now consistent with Step 2-6 (all use card style)
+    - Same fields, cleaner interface
+    - Better mobile responsiveness
+    - Sections: Name, Birth Info, Indigenous People, 4Ps, Disabilities
+- **UI Improvements:**
+  - Consistent card-based design across all 7 steps
+  - Better visual hierarchy
+  - Cleaner spacing and alignment
+  - Improved form field grouping
+- **Files Created:**
+  - `app/Views/enrollment/steps/step1_learner_info.php` - New simple card-style Step 1
+- **Files Modified:**
+  - `app/Views/enrollment/steps/step7_documents_signature.php` - Conditional document uploads
+  - `app/Views/enrollment/form.php` - Updated to use new Step 1
+- **Tables modified:** None
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.15.2] — Auto-Fill JavaScript Fix (Process 1 - Bug Fix)
+- **Fixed:** Returning student enrollment now properly populates form fields
+- **Issue:** Data was loaded from database but not displayed in form fields
+- **Root Cause:** PHP `getFormValue()` helper sets default values but browser doesn't always render them
+- **Solution:** Added JavaScript to explicitly populate fields after page load
+- **Implementation:**
+  - Added `DOMContentLoaded` event listener
+  - Iterates through all `$formData` fields
+  - Finds matching form fields by name or id
+  - Handles different input types (text, select, checkbox, radio)
+  - Adds green background highlight to auto-filled fields
+  - Console logging for debugging (shows populated count)
+- **Visual Feedback:**
+  - Auto-filled fields have light green background (#e8f5e9)
+  - Green left border (3px solid #4caf50)
+  - Darker green on focus (#c8e6c9)
+  - Smooth transition animation
+- **Console Output:**
+  - Shows each field being populated
+  - Final count: "X fields populated, Y skipped"
+  - Success message when complete
+- **Files Modified:**
+  - `app/Views/enrollment/form.php` - Added JavaScript auto-fill logic and enhanced CSS
+- **Tables modified:** None
+- **Tested:** ✅ Verified working - fields now populate correctly
+- **Status:** ✅ Complete - Auto-Fill Working
+- **Date:** 2026-05-06
+
+---
+
+## [v1.15.1] — Auto-Fill Debug Enhancement (Process 1 - Troubleshooting)
+- **Built:** Enhanced debug information for returning student auto-fill feature
+- **Issue:** User reported auto-fill not working - data visible but fields empty
+- **Solution:** Added comprehensive debug logging and visible debug info
+- **Changes:**
+  - Added detailed error logging in `form.php` to track:
+    - Enrollment type (should be "returning")
+    - Form data count (should be 70+ fields)
+    - Sample field values (last_name, first_name)
+  - Added visible debug section in green alert banner showing:
+    - Enrollment Type
+    - Form Data Count
+    - Sample field values (Last Name, First Name, Birth Date)
+  - Created `AUTO-FILL-DEBUG-GUIDE.md` with:
+    - Testing steps
+    - Diagnosis scenarios
+    - Expected behavior
+    - Quick fix options
+- **Purpose:** Help diagnose whether issue is:
+  - Data not loading from database (PHP/SQL issue)
+  - Data loading but not displaying (JavaScript/HTML issue)
+  - Field name mismatch (mapping issue)
+  - Draft interference (priority issue)
+- **Files Modified:**
+  - `app/Views/enrollment/form.php` - Added debug logging and visible debug info
+- **Files Created:**
+  - `AUTO-FILL-DEBUG-GUIDE.md` - Comprehensive troubleshooting guide
+- **Tables modified:** None
+- **Tested:** Debug code added, ready for user testing
+- **Status:** 🔍 Debug Mode - Awaiting Test Results
+- **Date:** 2026-05-06
+
+---
+
+## [v1.15] — Review Page Redesign: BEEF Document Style (Process 1 - UI Enhancement)
+- **Built:** Redesigned enrollment review page to match enrollment form's document style
+- **Purpose:** Make review page look professional, clean, and printable for SPED teachers
+- **Changes:**
+  - Created new `review_detail_v2.php` with BEEF document style
+  - Uses same CSS (`beef-document.css`) as enrollment form
+  - Clean, printable layout matching official DepEd BEEF form
+  - Removed card-based sections, replaced with document sections
+  - Added print button and print-optimized styles
+  - Floating action buttons (Approve/Reject) for easy access
+  - Status badge in top-right corner
+  - All 8 sections displayed in document format
+- **Features:**
+  - **Document Header:** Republic of the Philippines, DepEd, BEEF title
+  - **8 Sections:** Learner Info, Current Address, Permanent Address, Parent/Guardian, Previous School, Enrollment Details, Learning Modality, Documents & Signature
+  - **Print-Friendly:** Hides buttons, sidebar, topbar when printing
+  - **Status Indicator:** Color-coded badge (pending/verified/rejected)
+  - **Floating Actions:** Approve and Reject buttons fixed at bottom-right
+  - **Signature Display:** Shows parent signature image
+  - **Document Links:** View uploaded documents (no-print)
+  - **Verification Section:** Shows who verified and when
+- **UI Style:**
+  - White background with subtle borders
+  - Professional typography
+  - Checkbox symbols (☑/☐) for boolean fields
+  - Clean spacing and alignment
+  - Max-width: 8.5 inches (standard paper)
+  - Print-optimized margins
+- **Files Created:**
+  - `app/Views/enrollment/review_detail_v2.php` - New BEEF document-style review page
+- **Files Modified:**
+  - `app/Controllers/EnrollmentController.php` - Updated reviewDetail() to use new view
+- **Tables modified:** None
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.14.1] — Returning Student Auto-Fill Debug & Visual Indicator (Process 1 - Bug Fix)
+- **Fixed:** Added debug logging and visual indicators for returning student auto-fill
+- **Issue:** Auto-fill was working but not obvious to users
+- **Solution:** Added visual feedback to confirm auto-fill is active
+- **Changes:**
+  - Added debug logging in `EnrollmentController::create()` to track auto-fill
+  - Added green alert banner at top of form showing auto-fill is active
+  - Shows student name and LRN in alert
+  - Added green background highlight for auto-filled fields (CSS class)
+  - Added error logging to track when previous enrollment is loaded
+- **Visual Indicators:**
+  - Green success alert: "Auto-Fill Active"
+  - Shows student name and LRN
+  - Dismissible alert
+  - Green left border on auto-filled input fields
+- **Files Modified:**
+  - `app/Controllers/EnrollmentController.php` - Added debug logging
+  - `app/Views/enrollment/form.php` - Added auto-fill indicator alert and CSS
+- **Tables modified:** None
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.14] — Returning Student Lookup with Auto-Fill (Process 1 - Enhancement)
+- **Built:** Student search feature for returning enrollment with auto-fill capability
+- **Issue:** Returning student enrollment didn't fetch previous data - no auto-fill
+- **Solution:** Added student lookup page with 2 search methods: LRN or Name
+- **Features:**
+  - **Lookup Page** (`returning_lookup.php`) with tabbed interface
+  - **Search by LRN:** Enter 12-digit LRN, find exact match
+  - **Search by Name:** Enter last name, first name, middle name (optional), suffix (optional)
+  - **Search Results:** Display matching students with details (name, LRN, birth date, grade, last enrolled date)
+  - **Select Button:** Click to use previous enrollment data for auto-fill
+  - **AJAX Search:** Real-time search without page reload
+  - **Loading Indicator:** Shows "Searching..." while fetching data
+  - **No Results Message:** Clear feedback when no match found
+- **Implementation:**
+  - Added `EnrollmentModel::searchByLRN()` - Search by exact LRN match
+  - Added `EnrollmentModel::searchByName()` - Search by name with optional filters
+  - Added `EnrollmentController::returningLookup()` - Show lookup page
+  - Added `EnrollmentController::searchStudent()` - AJAX search endpoint
+  - Modified `EnrollmentController::create()` - Handle `previous_id` parameter
+  - Updated enrollment index - "Find Returning Student" button (always enabled)
+- **Search Logic:**
+  - LRN search: Exact match on 12-digit LRN
+  - Name search: Match last name + first name (required), middle name + suffix (optional)
+  - Only searches verified or pending enrollments (not drafts)
+  - Returns up to 10 matches for name search
+  - Most recent enrollment shown first
+- **Auto-Fill Workflow:**
+  1. Parent clicks "Find Returning Student"
+  2. Choose search method (LRN or Name)
+  3. Enter search criteria
+  4. Click "Search"
+  5. System shows matching students
+  6. Parent clicks "Select" on correct student
+  7. Redirects to enrollment form with `previous_id` parameter
+  8. Form auto-fills with previous enrollment data
+- **UI Design:**
+  - Bootstrap tabs for search methods
+  - Green success color scheme (returning student theme)
+  - Responsive layout
+  - Clear instructions and help text
+  - List group for search results
+- **Routes Added:**
+  - GET /enrollment/returning-lookup
+  - GET /enrollment/search-student (AJAX)
+- **Files Modified:**
+  - `app/Models/EnrollmentModel.php` - Added searchByLRN, searchByName methods
+  - `app/Controllers/EnrollmentController.php` - Added returningLookup, searchStudent, modified create
+  - `app/Views/enrollment/index.php` - Updated returning student button
+  - `routes/web.php` - Added new routes
+- **Files Created:**
+  - `app/Views/enrollment/returning_lookup.php` - Student lookup page
+- **Tables modified:** None (uses existing enrollment_submissions table)
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.13] — SPED Teacher Dashboard: Pending Enrollments Section (UX Enhancement)
+- **Built:** Pending enrollments awareness section on SPED Teacher dashboard
+- **Purpose:** Help SPED teachers quickly see and act on pending enrollment applications
+- **Features:**
+  - **Alert banner** at top when pending enrollments exist
+  - **Statistics cards** showing counts (Pending, Verified, Assessments, Active IEPs)
+  - **Pending enrollments table** showing first 5 recent applications with:
+    - Student name
+    - Grade level
+    - Enrollment type (New/Transfer/Returning)
+    - Submission date and time
+    - Document count
+    - Quick "Review" button
+  - **"View All" button** when more than 5 pending enrollments
+  - **Dismissible alert** to reduce clutter after viewing
+  - **Quick action cards** for main teacher tasks
+- **Implementation:**
+  - Modified `DashboardController::index()` to fetch pending enrollments for SPED teachers
+  - Updated `app/Views/dashboard/teacher.php` with new sections
+  - Uses existing `EnrollmentModel::getPending()` method
+- **UI Design:**
+  - Warning color scheme (amber/yellow) for pending items
+  - Responsive layout (works on mobile)
+  - Clean table with hover effects
+  - Icon indicators for visual clarity
+- **Workflow:**
+  1. SPED Teacher logs in
+  2. Dashboard shows pending count in alert and stats card
+  3. Recent pending enrollments listed in table
+  4. Click "Review" to go directly to enrollment detail
+  5. Click "View All" to see complete pending list
+- **Files Modified:**
+  - `app/Controllers/DashboardController.php` - Added pending enrollments fetch for SPED teachers
+  - `app/Views/dashboard/teacher.php` - Added alert, stats cards, and pending enrollments table
+- **Tables modified:** None (uses existing enrollment_submissions table)
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.12] — Use Existing LRN for Transfer/Returning Students (Process 2 Part 2 - Enhancement)
+- **Built:** Smart LRN handling for transfer and returning students
+- **Issue:** System always generated new LRN, ignoring existing LRN from enrollment form
+- **Impact:** Transfer/returning students lost their original LRN
+- **Solution:** Check if LRN exists in enrollment form before generating new one
+- **Logic:**
+  - **New students (no LRN):** Generate new 12-digit LRN + create account
+  - **Transfer students (has LRN, no account):** Use existing LRN + create new account
+  - **Returning students (has LRN, account exists):** Use existing LRN + reset password + reactivate account
+- **Implementation:**
+  - Modified `StudentModel::createStudentRecord()` to check for existing LRN
+  - Modified `StudentModel::createLearnerAccount()` to handle existing accounts
+  - Updated email templates to differentiate new vs password reset
+  - Updated notifications to show appropriate message
+  - Added validation: LRN must be exactly 12 digits
+- **Files Modified:**
+  - `app/Models/StudentModel.php` - Enhanced LRN logic, account creation, email/notification methods
+- **Workflow:**
+  1. Parent submits enrollment with LRN field (optional)
+  2. SPED Teacher approves enrollment
+  3. SPED Teacher clicks "Create Learner Account"
+  4. System checks if LRN exists in enrollment form
+  5. **If LRN exists:**
+     - Validates format (12 digits)
+     - Checks if account exists with that LRN
+     - If account exists: Reset password, reactivate, send "Password Reset" email
+     - If no account: Create new account with existing LRN, send "Account Created" email
+  6. **If NO LRN:**
+     - Generate new LRN (YYYYMMDDNNNN format)
+     - Create new account
+     - Send "Account Created" email
+  7. Parent receives appropriate email and notification
+- **Tables modified:** None (uses existing fields)
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.11] — Learner Dashboard Routing Fix (Process 2 Part 2 - Bug Fix)
+- **Fixed:** Learner accounts now route to learner dashboard instead of general dashboard
+- **Issue:** After logging in with LRN, learners were redirected to general/user dashboard
+- **Root Cause:** DashboardController switch statement missing case for 'learner' role
+- **Solution:** Added `case 'learner':` to route learners to `app/Views/dashboard/learner.php`
+- **Files Modified:**
+  - `app/Controllers/DashboardController.php` - Added learner case in switch statement
+- **Workflow:**
+  1. Learner logs in with LRN
+  2. AuthController sets `$_SESSION['role'] = 'learner'`
+  3. DashboardController checks role
+  4. Routes to learner dashboard (not general dashboard)
+- **Tables modified:** None
+- **Tested:** ✅ Verified working
+- **Status:** ✅ Approved
+- **Date:** 2026-05-06
+
+---
+
+## [v1.10] — LRN Login Support + Parent Dashboard LRN Notification (Process 2 Part 2 - Complete)
+- **Built:** Final features to complete Process 2 Part 2 - learner account usability
+- **Feature 1: LRN Login Support**
+  - Modified `AuthController::login()` to detect 12-digit LRN format
+  - Auto-converts LRN to email format: `learner_{LRN}@spedlms.local`
+  - Learners can now login using LRN as username (backward compatible with email)
+  - Updated login form placeholder: "Email Address or LRN"
+  - Added helper text: "Learners can use their 12-digit LRN as username"
+  - Error logging for LRN login attempts
+- **Feature 2: Parent Dashboard LRN Notification**
+  - Added prominent green alert card at top of parent dashboard
+  - Shows when `learner_account_created = true` and `lrn` is not empty
+  - Displays:
+    - Student name
+    - LRN in large badge (white card with green text)
+    - Login credentials card (username = LRN)
+    - Instructions for first login
+  - **Persistent notification** - does NOT auto-dismiss (uses `alert-permanent` class)
+  - Only dismissible by clicking X button (stored in session)
+  - Added `DashboardController::dismissLrnNotification()` AJAX endpoint
+  - JavaScript function to dismiss notification without page reload
+  - Gradient green background (#3b6d11 to #4a8514) with 3D effect
+  - Check-circle icon and professional styling
+- **Routes Added:**
+  - POST /dashboard/dismiss-lrn-notification (AJAX endpoint)
+- **Workflow:**
+  1. Parent logs in after learner account is created
+  2. Green alert appears at top of dashboard with LRN
+  3. Parent can see LRN and login instructions prominently
+  4. **Alert stays visible** until parent manually clicks X button
+  5. Parent can dismiss notification (won't show again in session)
+  6. Learner can login using LRN as username
+  7. System auto-converts LRN to email for authentication
+- **Files Modified:**
+  - `app/Controllers/AuthController.php` - Added LRN detection and conversion
+  - `app/Controllers/DashboardController.php` - Added dismissLrnNotification method
+  - `app/Views/dashboard/parent.php` - Added LRN notification alert with JavaScript + `alert-permanent` class
+  - `app/Views/auth/login.php` - Updated placeholder and added helper text
+  - `routes/web.php` - Added dismiss notification route
+- **Tables modified:** None (uses existing enrollment_submissions table)
+- **Tested:** ✅ Verified working
+- **Status:** ✅ Approved
+- **Date:** 2026-05-06
+
+---
+
+## [v1.8] — Simplified Enrollment Approval System (Process 1)
+- **Built:** Single-action approval/rejection for entire enrollment (replaces per-document approval)
+- **Controllers:** Added `EnrollmentController::approveEnrollment()` and `EnrollmentController::rejectEnrollment()`
+- **Routes:** Added `POST /enrollment/approve/{id}` and `POST /enrollment/reject/{id}`
+- **View:** Updated `review_detail.php` - removed per-document buttons, kept single approve/reject buttons at bottom
+- **Logic:** 
+  - Approve: Marks ALL documents as approved + enrollment status = 'verified' in one action
+  - Reject: Marks enrollment as rejected + applies rejection reason to all documents
+  - Notifications sent to parent via in-app notification and email
+  - Document status badges now shown in card headers for visibility
+- **Tables modified:** None (uses existing enrollment_submissions and enrollment_documents tables)
+- **Tested:** ✅ Verified working
+- **Status:** ✅ Approved
+- **Date:** 2026-05-06
+
+---
+
+## [v1.9] — Process 2 Part 2: Create Learner Account & Generate LRN (Process 2)
+- **Built:** Complete learner account creation workflow after enrollment approval
+- **View Updates:**
+  - Added "Create Learner Account & Generate LRN" button in `review_detail.php` (shows when status = 'verified')
+  - Button only appears if `learner_account_created` = false
+  - Shows LRN and creation date after account is created
+  - AJAX-based account creation with loading state
+- **Controller Updates:**
+  - Enhanced `VerificationController::verify()` with better validation
+  - Added JSON header for proper API response
+  - Added check to prevent duplicate account creation
+  - Improved error messages with stack trace logging
+  - **Fixed:** Added field mapping for enrollment_id to prevent "Parent not found" error
+- **Workflow:**
+  1. SPED Teacher approves enrollment (Process 2 Part 1)
+  2. "Create Learner Account" button appears
+  3. SPED Teacher clicks button
+  4. System generates LRN (12-digit unique number)
+  5. Creates student_record in database
+  6. Creates learner user account with temporary password
+  7. Sends email + in-app notification to parent with:
+     - LRN
+     - Learner login credentials
+     - Welcome message
+  8. Updates enrollment: `learner_account_created` = true, `lrn` = generated LRN
+  9. Success message shows LRN and learner ID
+  10. Page reloads to show "Account Created" status
+- **Security:**
+  - RBAC enforced (SPED teachers only)
+  - Prevents duplicate account creation
+  - Validates enrollment status before creating account
+  - Activity logging for audit trail
+- **Bug Fixes:**
+  - Fixed "Parent not found for enrollment" error by adding enrollment_id field mapping
+  - Fixed "Call to undefined method MailHelper::send()" by using correct method name `sendNotification()`
+  - Fixed "Unexpected end of JSON input" by wrapping email sending in try-catch with Throwable
+  - Email failures now gracefully degrade - account creation succeeds even if email fails
+- **Tables modified:** None (uses existing columns: `learner_account_created`, `lrn` in enrollment_submissions)
+- **Tested:** Pending user testing
+- **Status:** Complete - Ready for Testing
+- **Date:** 2026-05-06
+
+---
+
+## [v1.7] — Enrollment Document Approval Error Handling (Process 1)
+- **Built:** Improved error handling for document approval/rejection
+- **Controllers:** Updated `EnrollmentController::approveDocument()` and `rejectDocument()` with try-catch blocks
+- **Validation:** Added checks for missing enrollment_id and empty rejection reasons
+- **Tables modified:** None
+- **Tested:** Partial - identified need for simplified approval system
+- **Status:** Superseded by v1.8
+- **Date:** 2026-05-06
+
+---
+
 ## [v0.1] — Foundation Setup
 - **Built:** 
   - Project structure (MVC folders)
@@ -1059,3 +1877,238 @@
 - **Tested:** ✅ Verified working - all files encrypted, serving correctly, no data loss
 - **Status:** ✅ Approved
 - **Date:** 2026-05-04
+
+
+---
+
+## [v1.0] — XAMPP Environment Setup (System Configuration)
+- **Built:** 
+  - `.env` - Environment configuration with XAMPP defaults (DB, email, OAuth, security)
+  - `SETUP-AND-TESTING-GUIDE.md` - Complete setup instructions with troubleshooting
+  - `test-db.php` - Database connection verification script (5-step test)
+  - `setup-xampp.bat` - Windows automated setup script
+  - `setup-xampp.sh` - Bash automated setup script (Git Bash/WSL)
+- **Configuration:**
+  - Database: localhost, sped_lms, root (no password)
+  - Email: Gmail SMTP with PHPMailer
+  - Security: 32-character encryption key
+  - Session: 15-minute timeout
+  - App URL: http://localhost/Signedd/public
+- **Setup Process:**
+  1. Create database in phpMyAdmin
+  2. Import schema.sql
+  3. Install Composer dependencies
+  4. Configure .env file
+  5. Set file permissions (logs, uploads)
+  6. Test database connection
+- **Testing Tools:**
+  - test-db.php checks: connection, tables, users, migrations, autocommit
+  - setup-xampp.bat automates: database creation, schema import, dependency install
+  - setup-xampp.sh for Git Bash/WSL users
+- **Tables added/modified:** None (uses existing schema.sql)
+- **Tested:** Ready for user testing
+- **Status:** Approved
+- **Date:** 2026-05-05
+
+
+---
+
+## [v1.1] — Registration & OTP Verification Fix
+- **Fixed:** 
+  - SessionMiddleware exempt routes updated to include `/register` and `/login`
+  - Changed route matching from `strpos === 0` to `strpos !== false` for better matching
+  - Removed duplicate redirect check in `checkEmailVerification()`
+  - Registration now properly redirects to `/auth/verify-email`
+  - OTP verification page now accessible after registration
+- **Modified Files:**
+  - `app/Middleware/SessionMiddleware.php` — Updated exempt routes and matching logic
+- **Testing:**
+  - Created `test-registration-flow.php` — Verification script for registration flow
+- **Tables added/modified:** None
+- **Tested:** Ready for user testing
+- **Status:** Fixed
+- **Date:** 2026-05-05
+
+
+---
+
+## [v1.2] — Secure File Access with Decryption
+- **Built:**
+  - `FileController` — Central file handler with decryption and permission checks
+  - Secure file viewing/downloading for all encrypted uploads
+  - Permission-based access control for different file types
+  - Audit logging for all file access
+  - Support for PDF, images, videos, and documents
+- **Features:**
+  - Decrypt files on-the-fly before serving to browser
+  - Check user permissions before allowing access
+  - Stream files with proper MIME types
+  - Separate view (inline) and download endpoints
+  - Log all file access for audit trail
+- **File Types Supported:**
+  - Enrollment documents (PSA, PWD ID, Medical Record, BEEF)
+  - Role request documents (ID, proof of designation)
+  - Learning materials (PDF, videos, images)
+  - Assignment submissions (student uploads)
+  - IEP documents (P2, P3 PDFs)
+- **Permission Rules:**
+  - Enrollment documents: Parent (owner), SPED Teacher, Admin
+  - Role documents: Applicant (owner), Approver, Admin
+  - Learning materials: Teacher (uploader), Assigned learner, Admin
+  - Assignment submissions: Student (owner), Teacher, Admin
+  - IEP documents: Parent, SPED Teacher, Guidance, Principal, Admin
+- **Modified Files:**
+  - Created: `app/Controllers/FileController.php`
+  - Updated: `routes/web.php` — Added file view/download routes
+  - Updated: `app/Views/enrollment/review_detail.php` — Use new file routes
+  - Updated: `app/Views/learning/view_module.php` — Use new file routes
+  - Updated: `app/Views/learning/view_assignment.php` — Use new file routes
+- **Routes Added:**
+  - `GET /file/view/{type}/{id}` — View file inline with decryption
+  - `GET /file/download/{type}/{id}` — Download file with decryption
+- **Tables added/modified:** None (uses existing tables)
+- **Tested:** Ready for user testing
+- **Status:** Complete
+- **Date:** 2026-05-05
+
+
+---
+
+## [v1.3] — File Decryption Test Tools
+- **Built:**
+  - `test-decrypt-files.php` — Decrypt all files from database for testing
+  - `public/test-decrypted/index.php` — Viewer for decrypted test files
+  - `public/test-decrypted/.htaccess` — Allow direct access to test files
+  - `TEST-DECRYPT-GUIDE.md` — Complete testing guide
+- **Features:**
+  - Test decryption of enrollment documents
+  - Test decryption of learning materials
+  - Test decryption of assignment submissions
+  - Test decryption of all files in encrypted directory
+  - Auto-detect file types from content
+  - Save decrypted files with correct extensions
+  - Grid viewer with file icons
+  - View and download buttons
+- **Purpose:**
+  - Verify encryption key is correct
+  - Verify all files can be decrypted
+  - Verify FileController will work correctly
+  - Debug decryption issues
+- **Security:**
+  - Test files gitignored (not committed)
+  - Only for testing, not production
+  - Delete after testing
+- **Files Created:**
+  - `test-decrypt-files.php`
+  - `public/test-decrypted/index.php`
+  - `public/test-decrypted/.htaccess`
+  - `public/test-decrypted/.gitignore`
+  - `TEST-DECRYPT-GUIDE.md`
+- **Tables added/modified:** None
+- **Tested:** Ready for user testing
+- **Status:** Complete
+- **Date:** 2026-05-05
+
+
+## [v1.3] — File Decryption Fix (Security Module 3)
+- **Built:** Fixed missing `$basePath` variable in `EnrollmentController::reviewDetail()` method
+- **Issue:** Views couldn't generate FileController URLs because `$basePath` wasn't passed from controller
+- **Solution:** Added `$basePath = $this->basePath;` before requiring view file
+- **Verified:** All 6 encrypted files decrypt successfully with valid PDF headers
+- **Testing:** Created `test-file-controller.php` and `test-decrypt-actual.php` for verification
+- **Tables added/modified:** None
+- **Tested:** CLI decryption test shows all files decrypt with valid PDF headers
+- **Status:** Fixed - Ready for browser testing
+- **Date:** 2026-05-05
+
+
+## [v1.4] — Removed File Encryption (Simplified Upload System)
+- **Built:** Simplified file upload system by removing encryption
+- **Changes:**
+  - Removed FileEncryptionHelper calls from all upload methods
+  - Updated EnrollmentController::uploadFile() - direct file storage
+  - Updated RoleController::uploadFile() - direct file storage
+  - Updated IEPImplementationController::uploadFile() - direct file storage
+  - Updated LearningController::submitAssignment() - direct file storage
+  - Updated views to use direct file paths instead of FileController routes
+  - Files now stored unencrypted in uploads/ directories
+  - View/download works with simple direct links
+- **Views Updated:**
+  - app/Views/enrollment/review_detail.php - Direct file links
+  - app/Views/learning/view_module.php - Direct file links
+  - app/Views/learning/view_assignment.php - Direct file links
+- **Security:** Permission checks still enforced via RBAC middleware
+- **Tables added/modified:** None
+- **Tested:** Pending user testing
+- **Status:** Ready for Testing
+- **Date:** 2026-05-06
+
+
+## [v1.5] — Fixed 404 Error on File Viewing (Missing View Updates)
+- **Issue:** Parent and SPED teacher couldn't view uploaded files - 404 error
+- **Root Cause:** Two views still using old FileController routes (`/file/serve/`, `/file/view/`)
+- **Fixed:**
+  - Updated `app/Views/enrollment/view.php` - Changed from `/file/serve/` to direct paths
+  - Updated `app/Views/verification/show.php` - Changed from `/file/serve/` to direct paths
+  - Removed base64 encoding of file paths (no longer needed)
+- **Cleanup:**
+  - Removed 8 redundant test files (test-decrypt-*.php, test-file-*.php, check-*-encrypted.php)
+  - Kept only `test-file-url.php` for testing
+- **Verified:** Database has correct paths, files exist, no encrypted paths in DB
+- **Tables added/modified:** None
+- **Tested:** Ready for browser testing
+- **Status:** Fixed - Ready for Testing
+- **Date:** 2026-05-06
+
+
+## [v1.6] — BEEF Form Redesigned to Document Style (Print-Friendly)
+- **Built:** Clean, document-style BEEF enrollment form
+- **Design Changes:**
+  - Removed red colors and Bootstrap cards
+  - Clean black text on white background
+  - Official document header (Republic of the Philippines, DepEd)
+  - Simple borders and clean spacing
+  - Print-friendly layout (hides sidebar, buttons when printing)
+  - Times New Roman font for official look
+  - Section headers with gray background
+  - Proper form field labels in uppercase
+- **New Files:**
+  - `public/css/beef-document.css` - Document-style CSS
+  - `app/Views/enrollment/steps/step1_learner_info_document.php` - Redesigned Step 1
+- **Modified:**
+  - `app/Views/enrollment/form.php` - Include new CSS and document-style step
+- **Features:**
+  - Looks like official DepEd form
+  - Print-ready (auto page breaks between steps)
+  - Responsive (mobile-friendly)
+  - All functionality preserved
+- **Tables added/modified:** None
+- **Tested:** Pending user testing
+- **Status:** Ready for Testing
+- **Date:** 2026-05-06
+
+
+## [v1.7] — Simplified Document Approval Logic with Better Error Handling
+- **Issue:** Approve button showing JSON parse error
+- **Root Cause:** Missing error handling and unclear logic flow
+- **Fixed:**
+  - Simplified `approveDocument()` method with try-catch
+  - Simplified `rejectDocument()` method with try-catch
+  - Added validation for missing enrollment_id
+  - Added validation for empty rejection reason
+  - Better error messages in session
+  - Clear success messages showing progress
+- **Logic Flow:**
+  - Parent uploads X documents (1-4)
+  - SPED teacher approves each document individually
+  - When ALL uploaded documents approved → Enrollment status = "Verified" ✅
+  - If ANY document rejected → Enrollment status = "Rejected" ❌
+  - Required: PSA Birth Certificate + Filled enrollment form
+- **Messages:**
+  - Single document approved: "Document approved: [type]. Waiting for other documents."
+  - All documents approved: "Document approved! All documents verified - Enrollment is now complete."
+  - Document rejected: "Document rejected: [type]. Parent has been notified."
+- **Tables added/modified:** None
+- **Tested:** Pending user testing
+- **Status:** Ready for Testing
+- **Date:** 2026-05-06

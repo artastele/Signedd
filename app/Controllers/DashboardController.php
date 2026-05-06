@@ -37,7 +37,17 @@ class DashboardController {
                 
                 require_once __DIR__ . '/../Views/dashboard/parent.php';
                 break;
+            case 'learner':
+                // Learner dashboard with learning modules and activities
+                require_once __DIR__ . '/../Views/dashboard/learner.php';
+                break;
             case 'sped_teacher':
+                // Fetch pending enrollments for SPED teacher
+                require_once __DIR__ . '/../Models/EnrollmentModel.php';
+                $enrollmentModel = new EnrollmentModel();
+                $pendingEnrollments = $enrollmentModel->getPending();
+                $pendingCount = count($pendingEnrollments);
+                
                 require_once __DIR__ . '/../Views/dashboard/teacher.php';
                 break;
             case 'guidance':
@@ -55,5 +65,35 @@ class DashboardController {
                 require_once __DIR__ . '/../Views/dashboard/general.php';
                 break;
         }
+    }
+
+    /**
+     * Dismiss LRN notification (AJAX endpoint)
+     */
+    public function dismissLrnNotification() {
+        header('Content-Type: application/json');
+        
+        // Must be logged in
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+            exit;
+        }
+        
+        // Get enrollment ID from request
+        $input = json_decode(file_get_contents('php://input'), true);
+        $enrollmentId = $input['enrollment_id'] ?? null;
+        
+        if (!$enrollmentId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Enrollment ID required']);
+            exit;
+        }
+        
+        // Store dismissal in session
+        $_SESSION['lrn_dismissed_' . $enrollmentId] = true;
+        
+        echo json_encode(['success' => true, 'message' => 'Notification dismissed']);
+        exit;
     }
 }

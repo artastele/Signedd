@@ -75,8 +75,13 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
 
                 <div class="form-floating mb-3">
-                    <input type="email" class="form-control" id="email" name="email" placeholder="name@example.com" required autofocus>
-                    <label for="email"><i class="bi bi-envelope"></i> Email Address</label>
+                    <input type="text" class="form-control" id="email" name="email" placeholder="name@example.com or LRN" required autofocus>
+                    <label for="email"><i class="bi bi-envelope"></i> Email Address or LRN</label>
+                    <div class="form-text">
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i> Learners can use their 12-digit LRN as username
+                        </small>
+                    </div>
                 </div>
 
                 <div class="mb-3">

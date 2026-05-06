@@ -9,6 +9,7 @@ This applies to BOTH DFD processes AND security modules. No exceptions. Never bu
 
 ## Documentation rule: minimize MD files
 - **DO NOT** create temporary/redundant MD files (e.g., PART-A-SUMMARY.md, FIX-SUMMARY.md, etc.)
+- **DO NOT** create test PHP files unless explicitly requested by user
 - **ONLY** update existing documentation files:
   - `CHANGELOG.md` - for version history
   - `README.md` - for main documentation
@@ -16,7 +17,9 @@ This applies to BOTH DFD processes AND security modules. No exceptions. Never bu
   - `PROCESS-N-TEST-CHECKLIST.md` - for testing checklists (one per process)
 - **NEVER** create multiple summary files for the same feature
 - **NEVER** create temporary fix documentation files
+- **NEVER** create status/progress MD files unless user explicitly asks
 - Keep documentation clean and consolidated
+- **Exception:** Only create MD or test files when user explicitly says "create a test file" or "create documentation"
 
 ## The cycle (never skip steps)
 

@@ -6,6 +6,17 @@
                 <i class="bi bi-file-earmark-arrow-up"></i> Step 7: Documents & Signature
             </h4>
             
+            <?php if ($enrollmentType === 'returning'): ?>
+            <!-- Returning Student - Documents Auto-Copied -->
+            <div class="alert alert-success">
+                <h5 class="mb-2"><strong><i class="bi bi-check-circle-fill"></i> Returning Student - Documents Auto-Copied</strong></h5>
+                <p class="mb-0">
+                    Your documents from last year's enrollment have been automatically copied to this enrollment. 
+                    <strong>No need to upload documents again!</strong> Only your signature is required to confirm this enrollment.
+                </p>
+            </div>
+            <?php else: ?>
+            <!-- New/Transfer Student - Documents Required -->
             <div class="alert alert-info">
                 <strong><i class="bi bi-info-circle"></i> Required Documents</strong>
                 <p class="mb-0">Only PSA Birth Certificate is required. Other documents are optional but recommended.</p>
@@ -24,21 +35,6 @@
                             <input type="file" class="form-control" id="psa_birth_cert" name="psa_birth_cert" 
                                    accept=".pdf,.jpg,.jpeg,.png" required>
                             <div class="form-text">Philippine Statistics Authority certified birth certificate (Required)</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- BEEF Form (Optional) -->
-                <div class="col-md-6 mb-3">
-                    <div class="card border-secondary">
-                        <div class="card-body">
-                            <label for="beef_form" class="form-label">
-                                <i class="bi bi-file-earmark-pdf text-secondary"></i> 
-                                <strong>BEEF Form</strong> <small class="text-muted">(Optional)</small>
-                            </label>
-                            <input type="file" class="form-control" id="beef_form" name="beef_form" 
-                                   accept=".pdf,.jpg,.jpeg,.png">
-                            <div class="form-text">Upload if you have a pre-filled BEEF form, otherwise this form will be auto-generated</div>
                         </div>
                     </div>
                 </div>
@@ -73,6 +69,7 @@
                     </div>
                 </div>
             </div>
+            <?php endif; ?>
 
             <!-- Signature Section -->
             <div class="card border-danger mt-4">
@@ -111,3 +108,15 @@
         </div>
     </div>
 </div>
+
+<script>
+// Make PSA Birth Certificate optional for returning students
+document.addEventListener('DOMContentLoaded', function() {
+    const enrollmentType = '<?php echo $enrollmentType; ?>';
+    const psaField = document.getElementById('psa_birth_cert');
+    
+    if (enrollmentType === 'returning' && psaField) {
+        psaField.required = false;
+    }
+});
+</script>

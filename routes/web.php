@@ -49,10 +49,9 @@ route('GET', '/register', 'AuthController', 'showRegister');
 route('POST', '/register', 'AuthController', 'register');
 route('GET', '/logout', 'AuthController', 'logout');
 
-// File serving (encrypted files) - No RBAC check, only authentication
-route('GET', '/file/serve/{path}', 'FileController', 'serve');
-route('GET', '/file/download/{path}', 'FileController', 'download');
-route('GET', '/file/thumbnail/{path}', 'FileController', 'thumbnail');
+// File serving (encrypted files with decryption) - Authentication required, permission checked in controller
+route('GET', '/file/view/{type}/{id}', 'FileController', 'view');
+route('GET', '/file/download/{type}/{id}', 'FileController', 'download');
 
 // Email Verification
 route('GET', '/auth/verify-email', 'AuthController', 'showVerifyEmail');
@@ -69,6 +68,7 @@ route('GET', '/auth/google/callback', 'AuthController', 'googleCallback');
 
 // Dashboard
 route('GET', '/dashboard', 'DashboardController', 'index');
+route('POST', '/dashboard/dismiss-lrn-notification', 'DashboardController', 'dismissLrnNotification');
 
 // Notifications (AJAX endpoints)
 route('GET', '/notifications/get', 'NotificationController', 'getNotifications');
@@ -96,6 +96,8 @@ route('POST', '/role/submit-staff', 'RoleController', 'submitStaffApplication', 
 // Parent Enrollment Routes
 route('GET', '/enrollment', 'EnrollmentController', 'index', 'enrollment.submit');
 route('GET', '/enrollment/create', 'EnrollmentController', 'create', 'enrollment.submit');
+route('GET', '/enrollment/returning-lookup', 'EnrollmentController', 'returningLookup', 'enrollment.submit');
+route('GET', '/enrollment/search-student', 'EnrollmentController', 'searchStudent', 'enrollment.submit');
 route('POST', '/enrollment/save-draft', 'EnrollmentController', 'saveDraft', 'enrollment.submit');
 route('POST', '/enrollment/submit', 'EnrollmentController', 'submit', 'enrollment.submit');
 route('POST', '/enrollment/discard-draft', 'EnrollmentController', 'discardDraft', 'enrollment.submit');
@@ -115,6 +117,12 @@ route('POST', '/verification/{id}/verify', 'VerificationController', 'verify', '
 // Enrollment Review (Process 1 - SPED Teacher Side)
 route('GET', '/enrollment/review', 'EnrollmentController', 'review', 'enrollment.verify');
 route('GET', '/enrollment/review/{id}', 'EnrollmentController', 'reviewDetail', 'enrollment.verify');
+
+// Simplified Enrollment Approval (Single Action - NEW)
+route('POST', '/enrollment/approve/{id}', 'EnrollmentController', 'approveEnrollment', 'enrollment.verify');
+route('POST', '/enrollment/reject/{id}', 'EnrollmentController', 'rejectEnrollment', 'enrollment.verify');
+
+// Per-Document Approval (Legacy - kept for backward compatibility)
 route('POST', '/enrollment/document/approve/{id}', 'EnrollmentController', 'approveDocument', 'enrollment.verify');
 route('POST', '/enrollment/document/reject/{id}', 'EnrollmentController', 'rejectDocument', 'enrollment.verify');
 
@@ -230,6 +238,13 @@ route('GET', '/admin/user/details/{id}', 'AdminController', 'getUserDetails', '*
 
 // Activity Logs Export
 route('GET', '/admin/activity-logs/export', 'AdminController', 'exportActivityLogs', '*');
+
+// ============================================
+// STUDENT RECORDS (All staff except parent)
+// ============================================
+
+route('GET', '/students', 'StudentController', 'index', 'student.records');
+route('GET', '/students/view/{id}', 'StudentController', 'view', 'student.view');
 
 // ============================================
 // 404 NOT FOUND

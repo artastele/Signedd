@@ -40,6 +40,8 @@ class StudentModel {
 
     /**
      * Create student record from enrollment
+     * Uses existing LRN if provided (transfer/returning students)
+     * Generates new LRN if not provided (new students)
      */
     public function createStudentRecord($enrollmentId, $verifiedBy) {
         try {
@@ -55,8 +57,17 @@ class StudentModel {
                 throw new Exception("Enrollment not found: $enrollmentId");
             }
             
-            // Generate LRN
-            $lrn = $this->generateLRN();
+            // Check if LRN exists in enrollment (transfer/returning students)
+            $lrn = null;
+            if (!empty($enrollment['lrn']) && preg_match('/^\d{12}$/', $enrollment['lrn'])) {
+                // Use existing LRN
+                $lrn = $enrollment['lrn'];
+                error_log("Using existing LRN from enrollment: $lrn");
+            } else {
+                // Generate new LRN for new students
+                $lrn = $this->generateLRN();
+                error_log("Generated new LRN: $lrn");
+            }
             
             // Create student record
             $stmt = $this->db->prepare("
@@ -117,6 +128,11 @@ class StudentModel {
      * Create learner account with LRN as credentials
      * Returns: ['user_id' => id, 'lrn' => lrn, 'temp_password' => password]
      */
+    /**
+     * Create learner account with LRN as credentials
+     * Handles both new accounts and existing accounts (transfer/returning students)
+     * Returns: ['user_id' => id, 'lrn' => lrn, 'temp_password' => password, 'is_existing' => bool]
+     */
     public function createLearnerAccount($studentId, $lrn, $enrollmentData) {
         try {
             // Generate temporary password (8 characters)
@@ -137,46 +153,91 @@ class StudentModel {
                 throw new Exception("Parent not found for enrollment");
             }
             
-            // Create learner user account
-            $stmt = $this->db->prepare("
-                INSERT INTO users (
-                    name, first_name, last_name, email, password_hash,
-                    role, status, email_verified, auth_provider
-                ) VALUES (
-                    :name, :first_name, :last_name, :email, :password_hash,
-                    'learner', 'active', TRUE, 'local'
-                )
-            ");
-            
             $learnerName = $enrollmentData['first_name'] . ' ' . $enrollmentData['last_name'];
             $learnerEmail = 'learner_' . $lrn . '@spedlms.local'; // System email
             
-            $result = $stmt->execute([
-                'name' => $learnerName,
-                'first_name' => $enrollmentData['first_name'],
-                'last_name' => $enrollmentData['last_name'],
-                'email' => $learnerEmail,
-                'password_hash' => $passwordHash
-            ]);
+            // Check if account already exists with this LRN
+            $stmt = $this->db->prepare("
+                SELECT id, status FROM users WHERE email = :email
+            ");
+            $stmt->execute(['email' => $learnerEmail]);
+            $existingUser = $stmt->fetch();
             
-            if (!$result) {
-                throw new Exception("Failed to create learner account");
+            $userId = null;
+            $isExisting = false;
+            
+            if ($existingUser) {
+                // Account exists - reset password and reactivate
+                $userId = $existingUser['id'];
+                $isExisting = true;
+                
+                error_log("Existing learner account found ID: $userId - Resetting password");
+                
+                $stmt = $this->db->prepare("
+                    UPDATE users
+                    SET password_hash = :password_hash,
+                        status = 'active',
+                        name = :name,
+                        first_name = :first_name,
+                        last_name = :last_name
+                    WHERE id = :id
+                ");
+                
+                $result = $stmt->execute([
+                    'password_hash' => $passwordHash,
+                    'name' => $learnerName,
+                    'first_name' => $enrollmentData['first_name'],
+                    'last_name' => $enrollmentData['last_name'],
+                    'id' => $userId
+                ]);
+                
+                if (!$result) {
+                    throw new Exception("Failed to reset learner account password");
+                }
+                
+                error_log("Reset password for existing learner account ID: $userId with LRN: $lrn");
+                
+            } else {
+                // Create new learner user account
+                $stmt = $this->db->prepare("
+                    INSERT INTO users (
+                        name, first_name, last_name, email, password_hash,
+                        role, status, email_verified, auth_provider
+                    ) VALUES (
+                        :name, :first_name, :last_name, :email, :password_hash,
+                        'learner', 'active', TRUE, 'local'
+                    )
+                ");
+                
+                $result = $stmt->execute([
+                    'name' => $learnerName,
+                    'first_name' => $enrollmentData['first_name'],
+                    'last_name' => $enrollmentData['last_name'],
+                    'email' => $learnerEmail,
+                    'password_hash' => $passwordHash
+                ]);
+                
+                if (!$result) {
+                    throw new Exception("Failed to create learner account");
+                }
+                
+                $userId = $this->db->lastInsertId();
+                error_log("Created new learner account ID: $userId with LRN: $lrn");
             }
             
-            $userId = $this->db->lastInsertId();
-            error_log("Created learner account ID: $userId with LRN: $lrn");
-            
             // Send credentials email to parent
-            $this->sendLRNCredentialsEmail($parent['email'], $learnerName, $lrn, $tempPassword);
+            $parentName = $parent['first_name'] . ' ' . $parent['last_name'];
+            $this->sendLRNCredentialsEmail($parent['email'], $learnerName, $lrn, $tempPassword, $parentName, $isExisting);
             
             // Create in-app notification for parent
-            $this->createLRNNotification($parent['id'], $learnerName, $lrn, $tempPassword);
+            $this->createLRNNotification($parent['id'], $learnerName, $lrn, $tempPassword, $isExisting);
             
             return [
                 'user_id' => $userId,
                 'lrn' => $lrn,
                 'temp_password' => $tempPassword,
-                'parent_email' => $parent['email']
+                'parent_email' => $parent['email'],
+                'is_existing' => $isExisting
             ];
             
         } catch (Exception $e) {
@@ -187,38 +248,70 @@ class StudentModel {
 
     /**
      * Send LRN credentials email to parent
+     * Handles both new accounts and password resets for existing accounts
      */
-    private function sendLRNCredentialsEmail($parentEmail, $learnerName, $lrn, $tempPassword) {
+    private function sendLRNCredentialsEmail($parentEmail, $learnerName, $lrn, $tempPassword, $parentName = 'Parent/Guardian', $isExisting = false) {
         try {
-            require_once __DIR__ . '/../Helpers/MailHelper.php';
+            // Check if MailHelper is available
+            if (!class_exists('MailHelper')) {
+                require_once __DIR__ . '/../Helpers/MailHelper.php';
+            }
             
-            $subject = "Learner Account Created - LRN: $lrn";
+            if ($isExisting) {
+                // Password reset for existing account
+                $subject = "Learner Account Password Reset - LRN: $lrn";
+                
+                $body = "
+                <h2>Learner Account Password Reset</h2>
+                <p>Dear $parentName,</p>
+                <p>Your child's enrollment has been re-verified and the learner account password has been reset.</p>
+                
+                <h3>Learner Information</h3>
+                <p><strong>Name:</strong> $learnerName</p>
+                <p><strong>LRN (Learner Reference Number):</strong> <strong>$lrn</strong></p>
+                
+                <h3>New Login Credentials</h3>
+                <p><strong>Username (LRN):</strong> $lrn</p>
+                <p><strong>New Temporary Password:</strong> $tempPassword</p>
+                
+                <p style='color: #a01422; font-weight: bold;'>
+                    This is a returning/transfer student account. The password has been reset for security.
+                    Please change your password on first login.
+                </p>
+                
+                <p>If you have any questions, please contact the school.</p>
+                <p>Best regards,<br>SPED LMS System</p>
+                ";
+            } else {
+                // New account creation
+                $subject = "Learner Account Created - LRN: $lrn";
+                
+                $body = "
+                <h2>Learner Account Created</h2>
+                <p>Dear $parentName,</p>
+                <p>Your child's enrollment has been verified and a learner account has been created.</p>
+                
+                <h3>Learner Information</h3>
+                <p><strong>Name:</strong> $learnerName</p>
+                <p><strong>LRN (Learner Reference Number):</strong> <strong>$lrn</strong></p>
+                
+                <h3>Login Credentials</h3>
+                <p><strong>Username (LRN):</strong> $lrn</p>
+                <p><strong>Temporary Password:</strong> $tempPassword</p>
+                
+                <p style='color: #a01422; font-weight: bold;'>
+                    Please change your password on first login for security.
+                </p>
+                
+                <p>If you have any questions, please contact the school.</p>
+                <p>Best regards,<br>SPED LMS System</p>
+                ";
+            }
             
-            $body = "
-            <h2>Learner Account Created</h2>
-            <p>Dear Parent/Guardian,</p>
-            <p>Your child's enrollment has been verified and a learner account has been created.</p>
+            @MailHelper::sendNotification($parentEmail, $parentName, $subject, $body);
+            error_log("LRN credentials email sent to: $parentEmail (isExisting: " . ($isExisting ? 'true' : 'false') . ")");
             
-            <h3>Learner Information</h3>
-            <p><strong>Name:</strong> $learnerName</p>
-            <p><strong>LRN (Learner Reference Number):</strong> <strong>$lrn</strong></p>
-            
-            <h3>Login Credentials</h3>
-            <p><strong>LRN:</strong> $lrn</p>
-            <p><strong>Temporary Password:</strong> $tempPassword</p>
-            
-            <p style='color: #a01422; font-weight: bold;'>
-                Please change your password on first login for security.
-            </p>
-            
-            <p>If you have any questions, please contact the school.</p>
-            <p>Best regards,<br>SPED LMS System</p>
-            ";
-            
-            MailHelper::send($parentEmail, $subject, $body);
-            error_log("LRN credentials email sent to: $parentEmail");
-            
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             error_log("Failed to send LRN credentials email: " . $e->getMessage());
             // Don't throw - email failure shouldn't block account creation
         }
@@ -226,25 +319,45 @@ class StudentModel {
 
     /**
      * Create in-app notification for LRN credentials
+     * Handles both new accounts and password resets for existing accounts
      */
-    private function createLRNNotification($parentId, $learnerName, $lrn, $tempPassword) {
+    private function createLRNNotification($parentId, $learnerName, $lrn, $tempPassword, $isExisting = false) {
         try {
             require_once __DIR__ . '/../Models/NotificationModel.php';
             
             $notificationModel = new NotificationModel();
-            $notificationModel->create(
-                $parentId,
-                'learner_account_created',
-                'Learner Account Created - LRN Credentials',
-                "Your child $learnerName's learner account has been created. LRN: $lrn. Check your email for login credentials.",
-                [
-                    'learner_name' => $learnerName,
-                    'lrn' => $lrn,
-                    'temp_password' => $tempPassword
-                ]
-            );
             
-            error_log("LRN notification created for parent ID: $parentId");
+            if ($isExisting) {
+                // Password reset notification
+                $notificationModel->create(
+                    $parentId,
+                    'learner_password_reset',
+                    'Learner Account Password Reset',
+                    "Your child $learnerName's learner account password has been reset. LRN: $lrn. Check your email for new login credentials.",
+                    [
+                        'learner_name' => $learnerName,
+                        'lrn' => $lrn,
+                        'temp_password' => $tempPassword,
+                        'is_existing' => true
+                    ]
+                );
+            } else {
+                // New account notification
+                $notificationModel->create(
+                    $parentId,
+                    'learner_account_created',
+                    'Learner Account Created - LRN Credentials',
+                    "Your child $learnerName's learner account has been created. LRN: $lrn. Check your email for login credentials.",
+                    [
+                        'learner_name' => $learnerName,
+                        'lrn' => $lrn,
+                        'temp_password' => $tempPassword,
+                        'is_existing' => false
+                    ]
+                );
+            }
+            
+            error_log("LRN notification created for parent ID: $parentId (isExisting: " . ($isExisting ? 'true' : 'false') . ")");
             
         } catch (Exception $e) {
             error_log("Failed to create LRN notification: " . $e->getMessage());
@@ -379,4 +492,79 @@ class StudentModel {
         ");
         return $stmt->execute(['id' => $studentId]);
     }
+
+    /**
+     * Get all students with their latest enrollment info
+     */
+    public function getAllStudents() {
+        $stmt = $this->db->query("
+            SELECT 
+                sr.*,
+                es.school_year as latest_school_year,
+                es.grade_level_to_enroll as current_grade_level,
+                es.status as enrollment_status,
+                es.parent_id,
+                u.name as parent_name,
+                u.email as parent_email
+            FROM student_records sr
+            LEFT JOIN enrollment_submissions es ON sr.lrn = es.lrn 
+                AND es.id = (
+                    SELECT id FROM enrollment_submissions 
+                    WHERE lrn = sr.lrn 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                )
+            LEFT JOIN users u ON es.parent_id = u.id
+            ORDER BY sr.created_at DESC
+        ");
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Get all enrollments for a student by LRN
+     */
+    public function getEnrollmentsByLRN($lrn) {
+        $stmt = $this->db->prepare("
+            SELECT 
+                es.*,
+                u.name as parent_name,
+                u.email as parent_email,
+                verifier.name as verifier_name
+            FROM enrollment_submissions es
+            JOIN users u ON es.parent_id = u.id
+            LEFT JOIN users verifier ON es.verified_by = verifier.id
+            WHERE es.lrn = :lrn AND es.is_draft = FALSE
+            ORDER BY es.created_at DESC
+        ");
+        $stmt->execute(['lrn' => $lrn]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Find student by ID
+     */
+    public function findById($id) {
+        $stmt = $this->db->prepare("
+            SELECT 
+                sr.*,
+                es.parent_id,
+                u.name as parent_name,
+                u.email as parent_email,
+                u.contact_number
+            FROM student_records sr
+            LEFT JOIN enrollment_submissions es ON sr.lrn = es.lrn
+                AND es.id = (
+                    SELECT id FROM enrollment_submissions 
+                    WHERE lrn = sr.lrn 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                )
+            LEFT JOIN users u ON es.parent_id = u.id
+            WHERE sr.id = :id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch();
+    }
+
 }

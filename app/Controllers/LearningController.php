@@ -342,7 +342,7 @@ class LearningController {
         $filePath = null;
         $submissionType = 'text';
 
-        // Handle file upload if present
+        // Handle file upload if present (simplified - no encryption)
         if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
             $file = $_FILES['file'];
             $uploadDir = __DIR__ . '/../../public/uploads/assignments/';
@@ -356,16 +356,7 @@ class LearningController {
             $fullPath = $uploadDir . $fileName;
 
             if (move_uploaded_file($file['tmp_name'], $fullPath)) {
-                // Encrypt file
-                $encryptedPath = FileEncryptionHelper::encryptFile($fullPath);
-                
-                if ($encryptedPath) {
-                    unlink($fullPath);
-                    $filePath = $encryptedPath;
-                } else {
-                    $filePath = 'uploads/assignments/' . $fileName;
-                }
-
+                $filePath = 'uploads/assignments/' . $fileName;
                 $submissionType = $textAnswer ? 'both' : 'file';
             }
         }

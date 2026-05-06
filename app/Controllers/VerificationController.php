@@ -108,6 +108,9 @@ class VerificationController {
      * This is called after all documents are individually approved
      */
     public function verify($id) {
+        // Set JSON header
+        header('Content-Type: application/json');
+        
         try {
             // Get enrollment
             $enrollment = $this->enrollmentModel->findById($id);
@@ -118,25 +121,33 @@ class VerificationController {
                 return;
             }
             
-            // Check if all documents are approved
-            if (!$this->enrollmentModel->areAllDocumentsApproved($id)) {
+            // Check if enrollment is already verified with learner account
+            if ($enrollment['learner_account_created']) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Not all documents are approved']);
+                echo json_encode(['success' => false, 'message' => 'Learner account already created for this enrollment']);
+                return;
+            }
+            
+            // Check if enrollment status is verified
+            if ($enrollment['status'] !== 'verified') {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Enrollment must be verified first before creating learner account']);
                 return;
             }
             
             // Create student record with LRN
             $studentData = $this->studentModel->createStudentRecord($id, $this->userId);
             
+            // Prepare enrollment data with correct field name
+            $enrollmentDataForAccount = $enrollment;
+            $enrollmentDataForAccount['enrollment_id'] = $enrollment['id'];
+            
             // Create learner account
             $accountData = $this->studentModel->createLearnerAccount(
                 $studentData['id'],
                 $studentData['lrn'],
-                $enrollment
+                $enrollmentDataForAccount
             );
-            
-            // Update enrollment status to verified
-            $this->enrollmentModel->updateStatus($id, 'verified', $this->userId);
             
             // Mark learner account as created
             $this->enrollmentModel->update($id, [
@@ -144,28 +155,33 @@ class VerificationController {
                 'lrn' => $studentData['lrn']
             ]);
             
-            // Send notification to parent (email + in-app)
-            $this->notifyParentVerified($enrollment, $studentData['lrn'], $accountData);
+            // Send notification to parent (email + in-app) - don't let this fail the whole process
+            try {
+                $this->notifyParentVerified($enrollment, $studentData['lrn'], $accountData);
+            } catch (Throwable $e) {
+                error_log("Failed to send parent notification (non-fatal): " . $e->getMessage());
+            }
             
             // Log activity
             $this->logActivity(
                 'enrollment.verified',
                 'enrollment_submissions',
                 $id,
-                "Verified enrollment and created learner account with LRN: {$studentData['lrn']}"
+                "Created learner account with LRN: {$studentData['lrn']}"
             );
             
             echo json_encode([
                 'success' => true,
-                'message' => 'Enrollment verified successfully',
+                'message' => 'Learner account created successfully',
                 'lrn' => $studentData['lrn'],
                 'learner_id' => $accountData['user_id']
             ]);
             
         } catch (Exception $e) {
             error_log("VerificationController->verify() ERROR: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'Error verifying enrollment']);
+            echo json_encode(['success' => false, 'message' => 'Error creating learner account: ' . $e->getMessage()]);
         }
     }
 
@@ -219,7 +235,7 @@ class VerificationController {
             <p>Best regards,<br>SPED LMS System</p>
             ";
             
-            MailHelper::send($enrollment['parent_email'], $subject, $body);
+            @MailHelper::sendNotification($enrollment['parent_email'], $enrollment['parent_name'], $subject, $body);
             
             error_log("Verification notification sent to parent ID: {$parent['id']} for enrollment: {$enrollment['id']}");
             

@@ -106,8 +106,21 @@ $statusIcons = [
                             </div>
                         <?php elseif ($enrollment['status'] === 'rejected'): ?>
                             <div class="alert alert-danger mb-3">
-                                <i class="bi bi-exclamation-triangle"></i> 
-                                Some documents were rejected. Please review the feedback and resubmit.
+                                <h6 class="alert-heading">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> 
+                                    Enrollment Rejected
+                                </h6>
+                                <?php if (!empty($enrollment['review_note'])): ?>
+                                    <hr>
+                                    <p class="mb-0">
+                                        <strong>Reason:</strong><br>
+                                        <?php echo nl2br(htmlspecialchars($enrollment['review_note'])); ?>
+                                    </p>
+                                <?php else: ?>
+                                    <p class="mb-0">
+                                        Your enrollment was rejected. Please contact the school for more information.
+                                    </p>
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
 

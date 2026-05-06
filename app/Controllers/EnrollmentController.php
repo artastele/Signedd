@@ -103,7 +103,32 @@ class EnrollmentController {
         // Load previous enrollment for returning students
         $previousEnrollment = null;
         if ($enrollmentType === 'returning') {
-            $previousEnrollment = $this->enrollmentModel->getLatestByParentId($userId);
+            // Check if previous_id is provided (from search)
+            $previousId = $_GET['previous_id'] ?? null;
+            
+            if ($previousId) {
+                // Load specific previous enrollment
+                $previousEnrollment = $this->enrollmentModel->findById($previousId);
+                
+                if (!$previousEnrollment) {
+                    $_SESSION['error'] = 'Previous enrollment not found';
+                    header('Location: ' . $this->basePath . '/enrollment/returning-lookup');
+                    exit;
+                }
+                
+                error_log("=== RETURNING ENROLLMENT AUTO-FILL ===");
+                error_log("Previous ID: $previousId");
+                error_log("Student: " . $previousEnrollment['first_name'] . ' ' . $previousEnrollment['last_name']);
+                error_log("LRN: " . ($previousEnrollment['lrn'] ?? 'none'));
+            } else {
+                // Load latest enrollment by same parent (old behavior)
+                $previousEnrollment = $this->enrollmentModel->getLatestByParentId($userId);
+                
+                if ($previousEnrollment) {
+                    error_log("=== RETURNING ENROLLMENT (SAME PARENT) ===");
+                    error_log("Student: " . $previousEnrollment['first_name'] . ' ' . $previousEnrollment['last_name']);
+                }
+            }
         }
 
         // Pass basePath to view
@@ -258,8 +283,15 @@ class EnrollmentController {
 
             error_log("Enrollment ID for document upload: $enrollmentId");
 
-            // Handle document uploads
-            $this->handleDocumentUploads($enrollmentId);
+            // Handle document uploads OR copy from previous enrollment
+            if ($data['enrollment_type'] === 'returning' && !empty($data['previous_enrollment_id'])) {
+                // RETURNING STUDENT: Copy documents from previous enrollment
+                error_log("=== RETURNING STUDENT: Copying documents from previous enrollment ===");
+                $this->copyDocumentsFromPreviousEnrollment($data['previous_enrollment_id'], $enrollmentId);
+            } else {
+                // NEW/TRANSFER STUDENT: Handle new document uploads
+                $this->handleDocumentUploads($enrollmentId);
+            }
 
             // Create notification for parent
             $this->notificationModel->create(
@@ -389,124 +421,306 @@ class EnrollmentController {
 
         $documents = $this->enrollmentModel->getDocuments($id);
 
-        require_once __DIR__ . '/../Views/enrollment/review_detail.php';
+        // Pass basePath to view
+        $basePath = $this->basePath;
+
+        require_once __DIR__ . '/../Views/enrollment/review_detail_v2.php';
     }
 
     /**
-     * SPED Teacher: Approve document
+     * SPED Teacher: Approve entire enrollment (Simplified - Single Action)
      */
-    public function approveDocument($documentId) {
+    public function approveEnrollment($enrollmentId) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Invalid request method';
             header('Location: ' . $this->basePath . '/enrollment/review');
             exit;
         }
 
         if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'sped_teacher') {
-            $_SESSION['error'] = 'Access denied';
+            $_SESSION['error'] = 'Access denied - SPED teachers only';
             header('Location: ' . $this->basePath . '/dashboard');
             exit;
         }
 
         $userId = $_SESSION['user_id'];
-        
-        // Update document status
-        $this->enrollmentModel->updateDocumentStatus($documentId, 'approved', $userId);
 
-        // Get enrollment ID
-        $documents = $this->enrollmentModel->getDocuments($_POST['enrollment_id']);
-        $enrollmentId = $_POST['enrollment_id'];
+        try {
+            // 1. Get enrollment details
+            $enrollment = $this->enrollmentModel->findById($enrollmentId);
+            
+            if (!$enrollment) {
+                throw new Exception('Enrollment not found');
+            }
 
-        // Check if all documents are approved
-        if ($this->enrollmentModel->areAllDocumentsApproved($enrollmentId)) {
-            // Update enrollment status to verified
+            if ($enrollment['status'] !== 'pending') {
+                throw new Exception('Enrollment is not pending review');
+            }
+
+            // 2. Approve ALL documents (if any exist)
+            $documents = $this->enrollmentModel->getDocuments($enrollmentId);
+            
+            if (!empty($documents)) {
+                foreach ($documents as $doc) {
+                    $this->enrollmentModel->updateDocumentStatus($doc['id'], 'approved', $userId);
+                }
+            }
+
+            // 3. Mark enrollment as verified
             $this->enrollmentModel->updateStatus($enrollmentId, 'verified', $userId);
 
-            // Notify parent - all approved
-            $enrollment = $this->enrollmentModel->findById($enrollmentId);
+            // 4. Notify parent - enrollment fully approved
             $this->notificationModel->create(
                 $enrollment['parent_id'],
                 'enrollment_approved',
-                'Enrollment Approved!',
-                'Your enrollment application has been approved. All documents have been verified.',
+                'Enrollment Approved! ✅',
+                'All documents have been verified. Your enrollment is now complete!',
                 ['enrollment_id' => $enrollmentId]
             );
 
-            // Send email
+            // 5. Send email notification
             if (class_exists('MailHelper')) {
                 MailHelper::sendNotification(
                     $enrollment['parent_email'],
-                    $enrollment['parent_name'],
+                    $enrollment['parent_name'] ?? 'Parent',
                     'Enrollment Approved - SPED LMS',
-                    "<h2>Enrollment Approved</h2><p>Your enrollment application for <strong>{$enrollment['first_name']} {$enrollment['last_name']}</strong> has been approved!</p>"
+                    "<h2>Enrollment Approved</h2><p>Your enrollment application for <strong>{$enrollment['first_name']} {$enrollment['last_name']}</strong> has been fully approved!</p><p>All documents have been verified.</p>"
                 );
             }
-        } else {
-            // Notify parent - document approved
-            $enrollment = $this->enrollmentModel->findById($enrollmentId);
-            $docType = str_replace('_', ' ', ucwords($_POST['document_type'] ?? 'document'));
-            
-            $this->notificationModel->create(
-                $enrollment['parent_id'],
-                'document_approved',
-                'Document Approved',
-                "Your {$docType} has been approved.",
-                ['enrollment_id' => $enrollmentId, 'document_id' => $documentId]
-            );
+
+            $_SESSION['success'] = 'Enrollment approved successfully! All documents verified. Parent has been notified.';
+
+        } catch (Exception $e) {
+            error_log('Approve enrollment error: ' . $e->getMessage());
+            $_SESSION['error'] = 'Failed to approve enrollment: ' . $e->getMessage();
         }
 
-        $_SESSION['success'] = 'Document approved successfully';
-        header('Location: ' . $this->basePath . '/enrollment/review/' . $enrollmentId);
+        // Redirect back to review list
+        header('Location: ' . $this->basePath . '/enrollment/review');
         exit;
     }
 
     /**
-     * SPED Teacher: Reject document
+     * SPED Teacher: Reject entire enrollment (Simplified - Single Action)
      */
-    public function rejectDocument($documentId) {
+    public function rejectEnrollment($enrollmentId) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Invalid request method';
             header('Location: ' . $this->basePath . '/enrollment/review');
             exit;
         }
 
         if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'sped_teacher') {
-            $_SESSION['error'] = 'Access denied';
+            $_SESSION['error'] = 'Access denied - SPED teachers only';
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
+        }
+
+        $userId = $_SESSION['user_id'];
+        $rejectionReason = $_POST['rejection_reason'] ?? '';
+
+        if (empty($rejectionReason) || trim($rejectionReason) === '') {
+            $_SESSION['error'] = 'Please provide a reason for rejection';
+            header('Location: ' . $this->basePath . '/enrollment/review/' . $enrollmentId);
+            exit;
+        }
+
+        try {
+            // 1. Get enrollment details
+            $enrollment = $this->enrollmentModel->findById($enrollmentId);
+            
+            if (!$enrollment) {
+                throw new Exception('Enrollment not found');
+            }
+
+            if ($enrollment['status'] !== 'pending') {
+                throw new Exception('Enrollment is not pending review');
+            }
+
+            // 2. Mark enrollment as rejected with reason
+            $this->enrollmentModel->updateStatus($enrollmentId, 'rejected', $userId, $rejectionReason);
+
+            // 3. Mark all documents as rejected with the same reason
+            $documents = $this->enrollmentModel->getDocuments($enrollmentId);
+            
+            foreach ($documents as $doc) {
+                $this->enrollmentModel->updateDocumentStatus($doc['id'], 'rejected', $userId, $rejectionReason);
+            }
+
+            // 4. Notify parent with rejection reason
+            $this->notificationModel->create(
+                $enrollment['parent_id'],
+                'enrollment_rejected',
+                'Enrollment Rejected ❌',
+                "Your enrollment has been rejected. Reason: {$rejectionReason}. Please review and resubmit.",
+                ['enrollment_id' => $enrollmentId]
+            );
+
+            // 5. Send email notification
+            if (class_exists('MailHelper')) {
+                MailHelper::sendNotification(
+                    $enrollment['parent_email'],
+                    $enrollment['parent_name'] ?? 'Parent',
+                    'Enrollment Rejected - SPED LMS',
+                    "<h2>Enrollment Rejected</h2><p>Your enrollment application for <strong>{$enrollment['first_name']} {$enrollment['last_name']}</strong> has been rejected.</p><p><strong>Reason:</strong> {$rejectionReason}</p><p>Please review the feedback and resubmit your application.</p>"
+                );
+            }
+
+            $_SESSION['success'] = 'Enrollment rejected. Parent has been notified with feedback.';
+
+        } catch (Exception $e) {
+            error_log('Reject enrollment error: ' . $e->getMessage());
+            $_SESSION['error'] = 'Failed to reject enrollment: ' . $e->getMessage();
+        }
+
+        // Redirect back to review list
+        header('Location: ' . $this->basePath . '/enrollment/review');
+        exit;
+    }
+
+    /**
+     * SPED Teacher: Approve document (Simplified)
+     * NOTE: This method is kept for backward compatibility but is no longer used in the UI
+     */
+    public function approveDocument($documentId) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Invalid request method';
+            header('Location: ' . $this->basePath . '/enrollment/review');
+            exit;
+        }
+
+        if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'sped_teacher') {
+            $_SESSION['error'] = 'Access denied - SPED teachers only';
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
+        }
+
+        $userId = $_SESSION['user_id'];
+        $enrollmentId = $_POST['enrollment_id'] ?? null;
+
+        if (!$enrollmentId) {
+            $_SESSION['error'] = 'Missing enrollment ID';
+            header('Location: ' . $this->basePath . '/enrollment/review');
+            exit;
+        }
+
+        try {
+            // 1. Update this document to approved
+            $this->enrollmentModel->updateDocumentStatus($documentId, 'approved', $userId);
+
+            // 2. Check if ALL uploaded documents are now approved
+            $allApproved = $this->enrollmentModel->areAllDocumentsApproved($enrollmentId);
+
+            if ($allApproved) {
+                // 3. All documents approved → Mark enrollment as verified
+                $this->enrollmentModel->updateStatus($enrollmentId, 'verified', $userId);
+
+                // 4. Notify parent - enrollment fully approved
+                $enrollment = $this->enrollmentModel->findById($enrollmentId);
+                $this->notificationModel->create(
+                    $enrollment['parent_id'],
+                    'enrollment_approved',
+                    'Enrollment Approved! ✅',
+                    'All documents have been verified. Your enrollment is now complete!',
+                    ['enrollment_id' => $enrollmentId]
+                );
+
+                // Send email
+                if (class_exists('MailHelper')) {
+                    MailHelper::sendNotification(
+                        $enrollment['parent_email'],
+                        $enrollment['parent_name'] ?? 'Parent',
+                        'Enrollment Approved - SPED LMS',
+                        "<h2>Enrollment Approved</h2><p>Your enrollment application for <strong>{$enrollment['first_name']} {$enrollment['last_name']}</strong> has been fully approved!</p><p>All documents have been verified.</p>"
+                    );
+                }
+
+                $_SESSION['success'] = 'Document approved! All documents verified - Enrollment is now complete.';
+            } else {
+                // 5. Some documents still pending
+                $docType = str_replace('_', ' ', ucwords($_POST['document_type'] ?? 'document'));
+                $_SESSION['success'] = "Document approved: {$docType}. Waiting for other documents to be reviewed.";
+            }
+
+        } catch (Exception $e) {
+            error_log('Approve document error: ' . $e->getMessage());
+            $_SESSION['error'] = 'Failed to approve document: ' . $e->getMessage();
+        }
+
+        // Redirect back to review page
+        header('Location: ' . $this->basePath . '/enrollment/review/' . $enrollmentId);
+        exit;
+    }
+
+    /**
+     * SPED Teacher: Reject document (Simplified)
+     */
+    public function rejectDocument($documentId) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Invalid request method';
+            header('Location: ' . $this->basePath . '/enrollment/review');
+            exit;
+        }
+
+        if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'sped_teacher') {
+            $_SESSION['error'] = 'Access denied - SPED teachers only';
             header('Location: ' . $this->basePath . '/dashboard');
             exit;
         }
 
         $userId = $_SESSION['user_id'];
         $reviewNote = $_POST['review_note'] ?? 'Document rejected';
-        $enrollmentId = $_POST['enrollment_id'];
+        $enrollmentId = $_POST['enrollment_id'] ?? null;
 
-        // Update document status
-        $this->enrollmentModel->updateDocumentStatus($documentId, 'rejected', $userId, $reviewNote);
-
-        // Update enrollment status to rejected
-        $this->enrollmentModel->updateStatus($enrollmentId, 'rejected', $userId);
-
-        // Notify parent
-        $enrollment = $this->enrollmentModel->findById($enrollmentId);
-        $docType = str_replace('_', ' ', ucwords($_POST['document_type'] ?? 'document'));
-        
-        $this->notificationModel->create(
-            $enrollment['parent_id'],
-            'document_rejected',
-            'Document Rejected',
-            "Your {$docType} has been rejected. Reason: {$reviewNote}. Please resubmit.",
-            ['enrollment_id' => $enrollmentId, 'document_id' => $documentId]
-        );
-
-        // Send email
-        if (class_exists('MailHelper')) {
-            MailHelper::sendNotification(
-                $enrollment['parent_email'],
-                $enrollment['parent_name'],
-                'Document Rejected - SPED LMS',
-                "<h2>Document Rejected</h2><p>Your {$docType} for <strong>{$enrollment['first_name']} {$enrollment['last_name']}</strong> has been rejected.</p><p><strong>Reason:</strong> {$reviewNote}</p><p>Please upload a new document.</p>"
-            );
+        if (!$enrollmentId) {
+            $_SESSION['error'] = 'Missing enrollment ID';
+            header('Location: ' . $this->basePath . '/enrollment/review');
+            exit;
         }
 
-        $_SESSION['success'] = 'Document rejected. Parent has been notified.';
+        if (empty($reviewNote) || trim($reviewNote) === '') {
+            $_SESSION['error'] = 'Please provide a reason for rejection';
+            header('Location: ' . $this->basePath . '/enrollment/review/' . $enrollmentId);
+            exit;
+        }
+
+        try {
+            // 1. Update this document to rejected
+            $this->enrollmentModel->updateDocumentStatus($documentId, 'rejected', $userId, $reviewNote);
+
+            // 2. Mark entire enrollment as rejected (any rejected document = rejected enrollment)
+            $this->enrollmentModel->updateStatus($enrollmentId, 'rejected', $userId);
+
+            // 3. Notify parent
+            $enrollment = $this->enrollmentModel->findById($enrollmentId);
+            $docType = str_replace('_', ' ', ucwords($_POST['document_type'] ?? 'document'));
+            
+            $this->notificationModel->create(
+                $enrollment['parent_id'],
+                'document_rejected',
+                'Document Rejected ❌',
+                "Your {$docType} has been rejected. Reason: {$reviewNote}. Please resubmit.",
+                ['enrollment_id' => $enrollmentId, 'document_id' => $documentId]
+            );
+
+            // Send email
+            if (class_exists('MailHelper')) {
+                MailHelper::sendNotification(
+                    $enrollment['parent_email'],
+                    $enrollment['parent_name'] ?? 'Parent',
+                    'Document Rejected - SPED LMS',
+                    "<h2>Document Rejected</h2><p>Your {$docType} for <strong>{$enrollment['first_name']} {$enrollment['last_name']}</strong> has been rejected.</p><p><strong>Reason:</strong> {$reviewNote}</p><p>Please upload a new document.</p>"
+                );
+            }
+
+            $_SESSION['success'] = "Document rejected: {$docType}. Parent has been notified.";
+
+        } catch (Exception $e) {
+            error_log('Reject document error: ' . $e->getMessage());
+            $_SESSION['error'] = 'Failed to reject document: ' . $e->getMessage();
+        }
+
+        // Redirect back to review page
         header('Location: ' . $this->basePath . '/enrollment/review/' . $enrollmentId);
         exit;
     }
@@ -653,11 +867,41 @@ class EnrollmentController {
     }
 
     /**
-     * Upload file helper
+     * Copy documents from previous enrollment (for returning students)
+     */
+    private function copyDocumentsFromPreviousEnrollment($previousEnrollmentId, $newEnrollmentId) {
+        error_log("Copying documents from enrollment $previousEnrollmentId to $newEnrollmentId");
+        
+        // Get documents from previous enrollment
+        $previousDocuments = $this->enrollmentModel->getDocuments($previousEnrollmentId);
+        
+        if (empty($previousDocuments)) {
+            error_log("No documents found in previous enrollment $previousEnrollmentId");
+            return;
+        }
+        
+        $copiedCount = 0;
+        foreach ($previousDocuments as $doc) {
+            // Only copy approved documents
+            if ($doc['status'] === 'approved') {
+                // Link the same file to new enrollment (no need to copy physical file)
+                $this->enrollmentModel->addDocument(
+                    $newEnrollmentId, 
+                    $doc['document_type'], 
+                    $doc['file_path']
+                );
+                $copiedCount++;
+                error_log("Copied document: {$doc['document_type']} from previous enrollment");
+            }
+        }
+        
+        error_log("Total documents copied: $copiedCount");
+    }
+
+    /**
+     * Upload file helper (simplified - no encryption)
      */
     private function uploadFile($file, $uploadDir, $prefix) {
-        require_once __DIR__ . '/../Helpers/FileEncryptionHelper.php';
-        
         $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
         $maxSize = 5 * 1024 * 1024; // 5MB
 
@@ -673,23 +917,12 @@ class EnrollmentController {
         $filename = $prefix . time() . '_' . uniqid() . '.' . $extension;
         $filepath = $uploadDir . $filename;
 
-        // First, move uploaded file to temp location
         if (move_uploaded_file($file['tmp_name'], $filepath)) {
-            // Encrypt the file
-            $originalName = $file['name'];
-            $encryptResult = FileEncryptionHelper::encryptFile($filepath, $originalName);
-            
-            if ($encryptResult['success']) {
-                return [
-                    'success' => true, 
-                    'path' => $encryptResult['encrypted_path'],
-                    'original_name' => $originalName
-                ];
-            } else {
-                // If encryption fails, keep unencrypted file
-                error_log('File encryption failed: ' . $encryptResult['error']);
-                return ['success' => true, 'path' => 'uploads/enrollment/' . $filename];
-            }
+            return [
+                'success' => true, 
+                'path' => 'uploads/enrollment/' . $filename,
+                'original_name' => $file['name']
+            ];
         }
 
         return ['success' => false, 'error' => 'Upload failed'];
@@ -712,5 +945,82 @@ class EnrollmentController {
                 ['enrollment_id' => $enrollmentId]
             );
         }
+    }
+
+    /**
+     * Show returning student lookup page
+     */
+    public function returningLookup() {
+        if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'parent') {
+            header('Location: ' . $this->basePath . '/login');
+            exit;
+        }
+
+        $basePath = $this->basePath;
+        require __DIR__ . '/../Views/enrollment/returning_lookup.php';
+    }
+
+    /**
+     * Search student for returning enrollment (AJAX)
+     */
+    public function searchStudent() {
+        header('Content-Type: application/json');
+        
+        if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'parent') {
+            echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+            exit;
+        }
+
+        $searchType = $_GET['search_type'] ?? '';
+        
+        try {
+            $students = [];
+            
+            // Get optional school year filter
+            $schoolYear = $_GET['school_year'] ?? null;
+            
+            if ($searchType === 'lrn') {
+                $lrn = $_GET['lrn'] ?? '';
+                
+                if (empty($lrn) || !preg_match('/^\d{12}$/', $lrn)) {
+                    echo json_encode(['success' => false, 'message' => 'Invalid LRN format']);
+                    exit;
+                }
+                
+                $student = $this->enrollmentModel->searchByLRN($lrn, $schoolYear);
+                if ($student) {
+                    $students = [$student];
+                }
+                
+            } elseif ($searchType === 'name') {
+                $lastName = $_GET['last_name'] ?? '';
+                $firstName = $_GET['first_name'] ?? '';
+                $middleName = $_GET['middle_name'] ?? '';
+                $suffix = $_GET['suffix'] ?? '';
+                
+                if (empty($lastName) || empty($firstName)) {
+                    echo json_encode(['success' => false, 'message' => 'Last name and first name are required']);
+                    exit;
+                }
+                
+                $students = $this->enrollmentModel->searchByName($lastName, $firstName, $middleName, $suffix, $schoolYear);
+                
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Invalid search type']);
+                exit;
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'students' => $students,
+                'count' => count($students)
+            ]);
+            
+        } catch (Exception $e) {
+            error_log("Search student error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Search failed']);
+        }
+        
+        exit;
     }
 }

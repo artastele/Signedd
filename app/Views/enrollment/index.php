@@ -121,18 +121,18 @@ require_once __DIR__ . '/../layouts/header.php';
                         <li><i class="bi bi-check-circle text-success"></i> Faster enrollment process</li>
                     </ul>
                     <?php if (isset($previousEnrollment) && $previousEnrollment): ?>
-                        <a href="<?php echo $basePath; ?>/enrollment/create?type=returning" class="btn btn-success w-100">
-                            <i class="bi bi-arrow-right-circle"></i> Continue as Returning
+                        <a href="<?php echo $basePath; ?>/enrollment/returning-lookup" class="btn btn-success w-100">
+                            <i class="bi bi-search"></i> Find Returning Student
                         </a>
                         <small class="text-muted d-block mt-2">
-                            Last enrolled: <?php echo date('Y', strtotime($previousEnrollment['created_at'])); ?>
+                            Search by LRN or name to auto-fill data
                         </small>
                     <?php else: ?>
-                        <button class="btn btn-success w-100" disabled>
-                            <i class="bi bi-x-circle"></i> No Previous Enrollment
-                        </button>
+                        <a href="<?php echo $basePath; ?>/enrollment/returning-lookup" class="btn btn-success w-100">
+                            <i class="bi bi-search"></i> Find Returning Student
+                        </a>
                         <small class="text-muted d-block mt-2">
-                            You must have a previous enrollment to use this option
+                            Search by LRN or name to auto-fill data
                         </small>
                     <?php endif; ?>
                 </div>

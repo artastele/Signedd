@@ -1,291 +1,277 @@
-# SPED LMS - Setup and Testing Guide
+# SPED LMS — Setup and Testing Guide
 
-## Prerequisites
+## XAMPP Setup Instructions
 
+### Prerequisites
+- XAMPP installed (with Apache and MySQL)
 - PHP 7.4 or higher
-- MySQL 8.0 or higher
-- Apache with mod_rewrite enabled
-- Composer
-- Gmail account (for email sending)
-- Google Cloud Console account (for Google Sign-In)
+- Composer installed
 
 ---
 
 ## Step 1: Database Setup
 
-1. Create a new MySQL database:
-```sql
-CREATE DATABASE sped_lms CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
+### 1.1 Start XAMPP Services
+1. Open XAMPP Control Panel
+2. Start **Apache** and **MySQL** services
+3. Verify both services are running (green indicators)
 
-2. The schema will be automatically applied on first run via SchemaManager
+### 1.2 Create Database
+1. Open your browser and go to: `http://localhost/phpmyadmin`
+2. Click on **"New"** in the left sidebar
+3. Database name: `sped_lms`
+4. Collation: `utf8mb4_unicode_ci`
+5. Click **"Create"**
 
----
+### 1.3 Import Schema
+**Option A: Using phpMyAdmin**
+1. Select the `sped_lms` database
+2. Click on **"Import"** tab
+3. Click **"Choose File"** and select: `config/schema.sql`
+4. Click **"Go"** at the bottom
+5. Wait for success message
 
-## Step 2: Environment Configuration
-
-1. Copy `.env.example` to `.env`:
+**Option B: Using Command Line**
 ```bash
-cp .env.example .env
-```
+# Navigate to your project directory
+cd C:/xampp/htdocs/Signedd
 
-2. Update `.env` with your actual values:
-```env
-# Database
-DB_HOST=localhost
-DB_NAME=sped_lms
-DB_USER=root
-DB_PASS=your_password
-
-# Email (Gmail)
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USERNAME=your_email@gmail.com
-MAIL_PASSWORD=your_app_password
-MAIL_FROM_ADDRESS=your_email@gmail.com
-MAIL_FROM_NAME="SPED LMS"
-
-# Google OAuth
-GOOGLE_CLIENT_ID=your_client_id
-GOOGLE_CLIENT_SECRET=your_client_secret
-GOOGLE_REDIRECT_URI=http://localhost/Signedd/public/auth/google/callback
-
-# Application
-APP_URL=http://localhost/Signedd/public
+# Import schema
+C:/xampp/mysql/bin/mysql -u root -p sped_lms < config/schema.sql
+# Press Enter when prompted for password (default is empty)
 ```
 
 ---
 
-## Step 3: Install Dependencies
+## Step 2: Install PHP Dependencies
 
-Run Composer to install PHPMailer and Google API Client:
+Open Command Prompt or Terminal in your project directory:
 
 ```bash
+# Navigate to project
+cd C:/xampp/htdocs/Signedd
+
+# Install dependencies using Composer
 composer install
 ```
 
-This will install:
-- `phpmailer/phpmailer` - For sending emails
-- `google/apiclient` - For Google Sign-In
-
----
-
-## Step 4: Gmail App Password Setup
-
-1. Go to your Google Account settings
-2. Enable 2-Factor Authentication
-3. Go to Security → App Passwords
-4. Generate a new app password for "Mail"
-5. Copy the 16-character password
-6. Use this in `.env` as `MAIL_PASSWORD`
-
----
-
-## Step 5: Google OAuth Setup
-
-Follow the detailed guide in `GOOGLE-OAUTH-SETUP.md`:
-
-1. Create Google Cloud project
-2. Enable Google+ API
-3. Create OAuth 2.0 credentials
-4. Add authorized redirect URI
-5. Copy Client ID and Secret to `.env`
-
----
-
-## Step 6: Apache Configuration
-
-Ensure `.htaccess` is working:
-
-1. Check if `mod_rewrite` is enabled:
+If you don't have Composer installed globally, use the included composer.phar:
 ```bash
-# On Ubuntu/Debian
-sudo a2enmod rewrite
-sudo service apache2 restart
-```
-
-2. Verify `.htaccess` exists in `/public/` folder
-
-3. Ensure Apache allows `.htaccess` overrides in your virtual host config
-
----
-
-## Step 7: File Permissions
-
-Set proper permissions for upload directories:
-
-```bash
-chmod 755 public/uploads
-chmod 755 public/uploads/enrollment
-chmod 755 public/uploads/role_verification
-chmod 755 logs
+php composer.phar install
 ```
 
 ---
 
-## Testing Guide
+## Step 3: Configure Environment
 
-### Test 1: Email/Password Registration with OTP
+The `.env` file has been created with XAMPP defaults. Review and update if needed:
 
-1. Go to `/register`
-2. Fill in all fields:
-   - First Name: John
-   - Last Name: Doe
-   - Email: test@example.com
-   - Contact: 09123456789
-   - Password: Test@123
-3. Click "Register"
-4. **Expected:** Redirected to OTP verification page
-5. Check email for 6-digit code
-6. Enter OTP code
-7. **Expected:** Email verified, welcome email sent, redirected to dashboard
+### Required Updates:
+1. **Email Settings** (if you want to test email notifications):
+   - Update `MAIL_USERNAME` with your Gmail address
+   - Update `MAIL_PASSWORD` with your Gmail App Password
+   - [How to get Gmail App Password](https://support.google.com/accounts/answer/185833)
 
-### Test 2: OTP Resend
+2. **Encryption Key** (for production):
+   - Generate a secure key: `openssl rand -base64 32`
+   - Replace `ENCRYPTION_KEY` value
 
-1. On verification page, wait 60 seconds
-2. Click "Resend Code"
-3. **Expected:** New OTP sent, countdown timer starts
+3. **Google OAuth** (optional, for Google login):
+   - Get credentials from [Google Cloud Console](https://console.cloud.google.com/)
+   - Update `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
 
-### Test 3: OTP Expiration
+---
 
-1. Wait 10 minutes after receiving OTP
-2. Try to verify with old code
-3. **Expected:** "Verification code expired" error
+## Step 4: Set File Permissions
 
-### Test 4: OTP Attempt Limit
+Ensure these directories are writable:
 
-1. Enter wrong OTP 3 times
-2. **Expected:** "Too many attempts" error
-3. Must request new OTP
+```bash
+# Windows (run as Administrator in Command Prompt)
+icacls logs /grant Everyone:F
+icacls public/uploads /grant Everyone:F /T
+```
 
-### Test 5: Google Sign-In (New User)
+Or manually:
+1. Right-click on `logs` folder → Properties → Security
+2. Edit permissions → Add "Everyone" → Full Control
+3. Repeat for `public/uploads` folder
 
-1. Go to `/login`
-2. Click "Sign in with Google"
-3. Authorize with Google account
-4. **Expected:** 
-   - Account created automatically
-   - Email auto-verified
-   - Welcome email sent
-   - Redirected to dashboard
-   - Must select role
+---
 
-### Test 6: Google Sign-In (Existing Email)
+## Step 5: Access the Application
 
-1. Register normally with email: existing@example.com
-2. Verify email
-3. Logout
-4. Click "Sign in with Google" using same email
-5. **Expected:** Google account linked to existing account
+1. Open your browser
+2. Navigate to: `http://localhost/Signedd/public/`
+3. You should see the login page
 
-### Test 7: Email Verification Enforcement
+### Default Admin Account
+- **Email:** `admin@spedlms.local`
+- **Password:** `password` (default Laravel hash)
 
-1. Register new account
-2. Don't verify email
-3. Try to access `/dashboard` directly
-4. **Expected:** Redirected to `/auth/verify-email`
+**⚠️ IMPORTANT:** Change the admin password immediately after first login!
 
-### Test 8: Login Without Verification
+---
 
-1. Register account but don't verify
-2. Logout
-3. Try to login with email/password
-4. **Expected:** 
-   - Login successful
-   - New OTP sent
-   - Redirected to verification page
+## Step 6: Verify Installation
 
-### Test 9: Admin Login Logs
+### 6.1 Check Database Connection
+Create a test file: `test-db.php` in the project root:
 
-1. Login as admin
-2. Go to `/admin/login-logs`
-3. **Expected:** 
-   - See all login attempts
-   - Filter by status (success/failure)
-   - Search by email
-   - View statistics (24h totals)
+```php
+<?php
+require_once 'config/db.php';
 
-### Test 10: Admin Activity Logs
+try {
+    $db = Database::getInstance();
+    $conn = $db->getConnection();
+    
+    // Test query
+    $stmt = $conn->query("SELECT COUNT(*) as count FROM users");
+    $result = $stmt->fetch();
+    
+    echo "✓ Database connection successful!\n";
+    echo "✓ Users table exists\n";
+    echo "✓ Found {$result['count']} user(s)\n";
+    
+} catch (Exception $e) {
+    echo "✗ Error: " . $e->getMessage();
+}
+```
 
-1. Login as admin
-2. Go to `/admin/activity-logs`
-3. **Expected:**
-   - See all user activities
-   - Filter by action type
-   - Search by user/description
-   - View user details
+Run it:
+```bash
+php test-db.php
+```
+
+Expected output:
+```
+✓ Database connection successful!
+✓ Users table exists
+✓ Found 1 user(s)
+```
+
+### 6.2 Check PHP Extensions
+```bash
+php -m
+```
+
+Verify these extensions are enabled:
+- ✓ PDO
+- ✓ pdo_mysql
+- ✓ mbstring
+- ✓ openssl
+- ✓ json
+- ✓ fileinfo
+
+### 6.3 Check Composer Autoload
+```bash
+php -r "require 'vendor/autoload.php'; echo 'Autoload OK';"
+```
 
 ---
 
 ## Common Issues and Solutions
 
-### Issue: OTP email not received
+### Issue 1: "Access denied for user 'root'@'localhost'"
+**Solution:** Update `.env` file with correct MySQL credentials
+```env
+DB_USER=root
+DB_PASS=your_mysql_password
+```
 
-**Solutions:**
-- Check spam folder
-- Verify Gmail app password is correct
-- Check `logs/` folder for PHP errors
-- Test email sending with a simple script
+### Issue 2: "Database 'sped_lms' doesn't exist"
+**Solution:** Create the database in phpMyAdmin first (Step 1.2)
 
-### Issue: Google Sign-In not working
+### Issue 3: "Class 'Database' not found"
+**Solution:** Run `composer install` to generate autoload files
 
-**Solutions:**
-- Run `composer install` to install Google API client
-- Verify Client ID and Secret in `.env`
-- Check redirect URI matches exactly
-- See `GOOGLE-OAUTH-SETUP.md` for detailed troubleshooting
+### Issue 4: "Permission denied" on logs folder
+**Solution:** Set folder permissions (Step 4)
 
-### Issue: 404 errors on routes
+### Issue 5: Port 80 already in use
+**Solution:** 
+1. Stop IIS or other web servers
+2. Or change Apache port in XAMPP config
+3. Update `APP_URL` in `.env` accordingly
 
-**Solutions:**
-- Check if `.htaccess` exists in `/public/`
-- Verify `mod_rewrite` is enabled
-- Check Apache virtual host allows `.htaccess` overrides
-
-### Issue: Database migrations not running
-
-**Solutions:**
-- Check database connection in `.env`
-- Manually run `config/schema.sql` in phpMyAdmin
-- Check `db_version` table for applied migrations
-
-### Issue: Session timeout too fast
-
-**Solutions:**
-- Increase `TIMEOUT_DURATION` in `SessionMiddleware.php`
-- Default is 900 seconds (15 minutes)
+### Issue 6: "Headers already sent" error
+**Solution:** Check for whitespace before `<?php` tags in PHP files
 
 ---
 
-## Security Checklist
+## Testing Checklist
 
-- [ ] Change default admin password
-- [ ] Use strong passwords (8+ chars, uppercase, number, special char)
-- [ ] Enable HTTPS in production
-- [ ] Set `session.cookie_secure = 1` in production
-- [ ] Keep `.env` file secure (never commit to git)
-- [ ] Regularly review login logs for suspicious activity
-- [ ] Monitor activity logs for unauthorized actions
-- [ ] Keep dependencies updated (`composer update`)
-- [ ] Backup database regularly
+After setup, test these features:
+
+### Authentication
+- [ ] Can access login page
+- [ ] Can register new user
+- [ ] Can login with admin account
+- [ ] Can logout successfully
+
+### Database
+- [ ] All tables created (check phpMyAdmin)
+- [ ] Default admin user exists
+- [ ] DLP settings populated
+
+### File System
+- [ ] Can upload files (test enrollment documents)
+- [ ] Logs directory is writable
+- [ ] Uploads directory is writable
+
+### Email (Optional)
+- [ ] Can send test email
+- [ ] Email verification works
+- [ ] Role request notifications work
 
 ---
 
 ## Next Steps
 
-After successful testing:
+Once setup is complete:
 
-1. Create admin account
-2. Test role approval workflow
-3. Proceed to Process 1: Parent Enrollment Submission
-4. Continue with remaining DFD processes
+1. **Change Admin Password**
+   - Login as admin
+   - Go to Profile → Change Password
+
+2. **Configure System Settings**
+   - Admin Dashboard → Settings
+   - Review session timeout, login attempts, etc.
+
+3. **Create Test Users**
+   - Register as Parent
+   - Register as SPED Teacher
+   - Test role request workflow
+
+4. **Review Documentation**
+   - Read `DOCUMENTATION-INDEX.md` for feature guides
+   - Check `CHANGELOG.md` for implemented features
+
+---
+
+## Development Mode
+
+For development, you can enable error reporting:
+
+Edit `public/index.php` (if exists) or create `.htaccess`:
+```apache
+php_flag display_errors on
+php_value error_reporting E_ALL
+```
+
+**⚠️ Disable in production!**
 
 ---
 
 ## Support
 
-For issues or questions:
-- Check `NOTIFICATION-TROUBLESHOOTING.md` for notification issues
-- Check `GOOGLE-OAUTH-SETUP.md` for OAuth issues
-- Review error logs in `logs/` folder
-- Check Apache error log for server issues
+If you encounter issues:
+1. Check XAMPP error logs: `C:/xampp/apache/logs/error.log`
+2. Check PHP error logs: `C:/xampp/php/logs/php_error_log`
+3. Check application logs: `logs/activity.log`
+
+---
+
+**Last Updated:** 2026-05-05
+**Version:** Initial Setup Guide

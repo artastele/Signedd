@@ -7,9 +7,30 @@
             </h4>
             
             <div class="row">
+                <!-- School Year -->
+                <div class="col-md-6 mb-3">
+                    <label for="school_year" class="form-label">School Year <span class="text-danger">*</span></label>
+                    <select class="form-select" id="school_year" name="school_year" required>
+                        <?php
+                        // Generate school years (current and next 2 years)
+                        $currentYear = date('Y');
+                        $defaultSY = $currentYear . '-' . ($currentYear + 1);
+                        
+                        for ($i = 0; $i <= 2; $i++) {
+                            $startYear = $currentYear + $i;
+                            $endYear = $startYear + 1;
+                            $sy = $startYear . '-' . $endYear;
+                            $selected = (getFormValue('school_year', $defaultSY) === $sy) ? 'selected' : '';
+                            echo "<option value=\"$sy\" $selected>$sy</option>";
+                        }
+                        ?>
+                    </select>
+                    <div class="form-text">Select the school year for this enrollment</div>
+                </div>
+                
                 <!-- Grade Level to Enroll -->
                 <div class="col-md-6 mb-3">
-                    <label for="grade_level_to_enroll" class="form-label">Grade Level to Enroll *</label>
+                    <label for="grade_level_to_enroll" class="form-label">Grade Level to Enroll <span class="text-danger">*</span></label>
                     <select class="form-select" id="grade_level_to_enroll" name="grade_level_to_enroll" required>
                         <option value="">-- Select Grade Level --</option>
                         <option value="Kinder" <?php echo getFormValue('grade_level_to_enroll') === 'Kinder' ? 'selected' : ''; ?>>Kinder</option>

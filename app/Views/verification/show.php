@@ -566,8 +566,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <?php 
                                     $fileExt = pathinfo($doc['file_path'], PATHINFO_EXTENSION);
                                     $isImage = in_array(strtolower($fileExt), ['jpg', 'jpeg', 'png', 'gif']);
-                                    $encodedPath = base64_encode($doc['file_path']);
-                                    $fileUrl = $basePath . '/file/serve/' . $encodedPath;
+                                    // Use direct file path (no encryption)
+                                    $fileUrl = $basePath . '/' . $doc['file_path'];
                                     ?>
                                     
                                     <?php if ($isImage): ?>
@@ -608,15 +608,10 @@ require_once __DIR__ . '/../layouts/header.php';
                                     </div>
                                 <?php endif; ?>
                                 
-                                <!-- Action Buttons (only if pending) -->
+                                <!-- Document status only - no per-document buttons -->
                                 <?php if ($doc['status'] === 'pending'): ?>
-                                    <div class="doc-actions">
-                                        <button class="btn btn-sm btn-approve" onclick="approveDocument(<?php echo $doc['id']; ?>)">
-                                            <i class="bi bi-check-circle"></i> Approve
-                                        </button>
-                                        <button class="btn btn-sm btn-reject" onclick="rejectDocument(<?php echo $doc['id']; ?>)">
-                                            <i class="bi bi-x-circle"></i> Reject
-                                        </button>
+                                    <div class="alert alert-info small mb-0">
+                                        <i class="bi bi-clock"></i> Pending review - use buttons at bottom to approve/reject entire enrollment
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -624,7 +619,37 @@ require_once __DIR__ . '/../layouts/header.php';
                     <?php endforeach; ?>
                 </div>
                 
-                <!-- Verify Enrollment Button -->
+                <!-- Simplified Approval Buttons (Only if enrollment is pending) -->
+                <?php if ($enrollment['status'] === 'pending'): ?>
+                    <div class="card mt-4 border-success">
+                        <div class="card-body">
+                            <h5 class="mb-3"><i class="bi bi-clipboard-check"></i> Review Decision</h5>
+                            <p class="text-muted">After reviewing all documents and information above, make your decision:</p>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <form method="POST" action="<?php echo $basePath; ?>enrollment/approve/<?php echo $enrollment['id']; ?>" 
+                                          onsubmit="return confirm('Are you sure you want to APPROVE this enrollment? All documents will be marked as verified.');">
+                                        <button type="submit" class="btn btn-success btn-lg w-100">
+                                            <i class="bi bi-check-circle-fill"></i> Approve Enrollment
+                                        </button>
+                                        <small class="text-muted d-block mt-2">This will verify all documents and approve the enrollment</small>
+                                    </form>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <button type="button" class="btn btn-danger btn-lg w-100" 
+                                            data-bs-toggle="modal" data-bs-target="#rejectEnrollmentModal">
+                                        <i class="bi bi-x-circle-fill"></i> Reject Enrollment
+                                    </button>
+                                    <small class="text-muted d-block mt-2">Provide feedback on what needs to be corrected</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+                
+                <!-- Verify Enrollment Button (Only if all approved) -->
                 <?php if ($allApproved): ?>
                     <div class="mt-4">
                         <button class="btn btn-lg btn-success btn-verify" onclick="verifyEnrollment(<?php echo $enrollment['id']; ?>)" style="background-color: #3b6d11; border-color: #3b6d11;">
@@ -639,7 +664,7 @@ require_once __DIR__ . '/../layouts/header.php';
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>
 
-<!-- Rejection Modal -->
+<!-- Rejection Modal for Per-Document (Legacy - Not Used) -->
 <div class="modal fade" id="rejectModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -655,6 +680,43 @@ require_once __DIR__ . '/../layouts/header.php';
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-danger" onclick="submitRejection()">Reject Document</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Enrollment Modal (NEW - Simplified) -->
+<div class="modal fade" id="rejectEnrollmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-x-circle"></i> Reject Enrollment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="<?php echo $basePath; ?>enrollment/reject/<?php echo $enrollment['id']; ?>">
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <strong>Note:</strong> The parent will be notified and can resubmit the enrollment with corrections.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="rejection_reason" class="form-label">
+                            <strong>Reason for Rejection <span class="text-danger">*</span></strong>
+                        </label>
+                        <textarea class="form-control" id="rejection_reason" 
+                                  name="rejection_reason" rows="5" required
+                                  placeholder="Please explain what needs to be corrected or why this enrollment is being rejected..."></textarea>
+                        <div class="form-text">Be specific so the parent knows what to fix</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-arrow-left"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-circle-fill"></i> Reject Enrollment
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

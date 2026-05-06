@@ -60,15 +60,23 @@ class AuthController {
             exit;
         }
 
-        $email = trim($_POST['email'] ?? '');
+        $emailOrLrn = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
         $ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 
         // Validation
-        if (empty($email) || empty($password)) {
-            $_SESSION['error'] = 'Email and password are required.';
+        if (empty($emailOrLrn) || empty($password)) {
+            $_SESSION['error'] = 'Email/LRN and password are required.';
             header('Location: ' . $basePath . '/login');
             exit;
+        }
+
+        // Check if input is LRN (12 digits) and convert to email
+        $email = $emailOrLrn;
+        if (preg_match('/^\d{12}$/', $emailOrLrn)) {
+            // LRN format detected - convert to learner email
+            $email = 'learner_' . $emailOrLrn . '@spedlms.local';
+            error_log("LRN login detected: $emailOrLrn -> $email");
         }
 
         // Check rate limiting

@@ -61,7 +61,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <?php if ($material['file_path']): ?>
                 <div class="attached-file">
                     <h5>📎 Attached File:</h5>
-                    <a href="<?php echo $basePath; ?>/file/serve/<?php echo base64_encode($material['file_path']); ?>" 
+                    <a href="<?php echo $basePath; ?>/<?php echo $material['file_path']; ?>" 
                        target="_blank"
                        class="btn-cartoon btn-view-file">
                         View File 👀
@@ -92,7 +92,7 @@ require_once __DIR__ . '/../layouts/header.php';
                         <?php if ($submission['file_path']): ?>
                             <div class="file-submission">
                                 <strong>Uploaded File:</strong>
-                                <a href="<?php echo $basePath; ?>/file/serve/<?php echo base64_encode($submission['file_path']); ?>" 
+                                <a href="<?php echo $basePath; ?>/<?php echo $submission['file_path']; ?>" 
                                    target="_blank"
                                    class="btn-cartoon btn-view-submission">
                                     View Your File 📄
