@@ -405,6 +405,18 @@ class EnrollmentModel {
         ]);
     }
 
+    /**
+     * Mark learner account as created
+     */
+    public function markLearnerAccountCreated($enrollmentId) {
+        $stmt = $this->db->prepare("
+            UPDATE enrollment_submissions
+            SET learner_account_created = TRUE
+            WHERE id = :id
+        ");
+        return $stmt->execute(['id' => $enrollmentId]);
+    }
+
     // ============================================
     // DOCUMENT MANAGEMENT
     // ============================================

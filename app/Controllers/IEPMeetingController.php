@@ -1,15 +1,12 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 4
-// Last modified: 2026-05-04
+// Last modified: 2026-05-07
 // Part of: SPED LMS — IEP Meeting Controller
 
 require_once __DIR__ . '/../Models/IEPMeetingModel.php';
-require_once __DIR__ . '/../Models/AssessmentModel.php';
-require_once __DIR__ . '/../Helpers/MailHelper.php';
 
 class IEPMeetingController {
     private $meetingModel;
-    private $assessmentModel;
     private $userId;
     private $userRole;
 
@@ -24,7 +21,717 @@ class IEPMeetingController {
         $this->userRole = $_SESSION['role'] ?? 'user';
         
         $this->meetingModel = new IEPMeetingModel();
-        $this->assessmentModel = new AssessmentModel();
+    }
+
+    /**
+     * Show meeting details
+     */
+    public function show($meetingId) {
+        try {
+            // Check permission
+            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'parent', 'admin'])) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied';
+                header('Location: ' . BASE_PATH . '/dashboard');
+                exit;
+            }
+            
+            // Get meeting
+            $meeting = $this->meetingModel->findById($meetingId);
+            if (!$meeting) {
+                $_SESSION['error'] = 'Meeting not found';
+                header('Location: ' . BASE_PATH . '/iep/meetings');
+                exit;
+            }
+            
+            // Determine if user has read-only access
+            $isReadOnly = in_array($this->userRole, ['guidance', 'principal', 'parent']);
+            
+            // Get PDSP status if exists
+            require_once __DIR__ . '/../Models/PDSPModel.php';
+            $pdspModel = new PDSPModel();
+            $pdsp = $pdspModel->getByMeetingId($meetingId);
+            
+            // Log activity
+            $this->logActivity('meeting.view', 'iep_meetings', $meetingId, 'Viewed meeting details');
+            
+            // Load view
+            $basePath = BASE_PATH;
+            require __DIR__ . '/../Views/iep_meeting/show.php';
+            
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->show() ERROR: " . $e->getMessage());
+            $_SESSION['error'] = 'Error loading meeting';
+            header('Location: ' . BASE_PATH . '/iep/meetings');
+            exit;
+        }
+    }
+
+    /**
+     * Show PDSP form for a meeting
+     */
+    public function pdspForm($meetingId) {
+        try {
+            // Check permission
+            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'parent', 'admin'])) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied';
+                header('Location: ' . BASE_PATH . '/iep/meetings');
+                exit;
+            }
+            
+            // Get meeting
+            $meeting = $this->meetingModel->findById($meetingId);
+            if (!$meeting) {
+                $_SESSION['error'] = 'Meeting not found';
+                header('Location: ' . BASE_PATH . '/iep/meetings');
+                exit;
+            }
+            
+            // Get or create PDSP record
+            require_once __DIR__ . '/../Models/PDSPModel.php';
+            $pdspModel = new PDSPModel();
+            
+            $pdsp = $pdspModel->getByMeetingId($meetingId);
+            if (!$pdsp) {
+                // Create new PDSP record
+                $pdspId = $pdspModel->create($meetingId, $meeting['student_id'], $this->userId);
+                $pdsp = $pdspModel->findById($pdspId);
+            }
+            
+            // Get existing domains
+            $domains = $pdspModel->getDomains($pdsp['id']);
+            
+            // Get signatories
+            $signatories = $pdspModel->getSignatories($pdsp['id']);
+            
+            // Define domain structure
+            $domainNames = [
+                'Perceptuo-Cognitive',
+                'Psychosocial',
+                'Socio-Emotional',
+                'Psychomotor',
+                'Daily Living Skills',
+                'Communication and Language'
+            ];
+            
+            // Performance levels
+            $performanceLevels = [
+                'beginning' => 'Beginning (74% and below)',
+                'developing' => 'Developing (75-79%)',
+                'approaching' => 'Approaching Proficiency (80-84%)',
+                'proficient' => 'Proficient (85-89%)',
+                'advanced' => 'Advanced (90% and above)'
+            ];
+            
+            // Determine permissions
+            $canEdit = ($this->userRole === 'sped_teacher' && $pdsp['status'] === 'draft');
+            $canUploadDocument = in_array($this->userRole, ['sped_teacher', 'guidance', 'principal']);
+            $canMarkAsSigned = ($this->userRole === 'sped_teacher' && $pdsp['status'] === 'draft');
+            $isReadOnly = !$canEdit;
+            
+            // Check if signed document exists
+            $hasSignedDocument = $pdspModel->hasSignedDocument($pdsp['id']);
+            
+            // Log activity
+            $this->logActivity('pdsp.view', 'pdsp_records', $pdsp['id'], 'Viewed PDSP form');
+            
+            // Load simplified view (upload only)
+            $basePath = BASE_PATH;
+            require __DIR__ . '/../Views/iep_meeting/pdsp_form_simplified.php';
+            
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->pdspForm() ERROR: " . $e->getMessage());
+            $_SESSION['error'] = 'Error loading PDSP form';
+            header('Location: ' . BASE_PATH . '/iep/meetings');
+            exit;
+        }
+    }
+
+    /**
+     * Save PDSP form data
+     */
+    public function savePDSP() {
+        try {
+            // Check permission
+            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'admin'])) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied';
+                header('Location: ' . BASE_PATH . '/iep/meetings');
+                exit;
+            }
+            
+            $pdspId = $_POST['pdsp_id'] ?? null;
+            $meetingId = $_POST['meeting_id'] ?? null;
+            
+            if (!$pdspId) {
+                $_SESSION['error'] = 'PDSP ID required';
+                header('Location: ' . BASE_PATH . '/iep/meetings');
+                exit;
+            }
+            
+            require_once __DIR__ . '/../Models/PDSPModel.php';
+            $pdspModel = new PDSPModel();
+            
+            // Delete existing domains first
+            $pdspModel->deleteDomains($pdspId);
+            
+            // Save each domain with all sub-domains
+            $domains = $_POST['domains'] ?? [];
+            foreach ($domains as $domainName => $subDomains) {
+                if (is_array($subDomains)) {
+                    foreach ($subDomains as $subDomainData) {
+                        // Skip empty rows
+                        if (empty($subDomainData['sub_domain']) && empty($subDomainData['skills_description'])) {
+                            continue;
+                        }
+                        
+                        $pdspModel->saveDomain($pdspId, [
+                            'domain_name' => $domainName,
+                            'sub_domain' => $subDomainData['sub_domain'] ?? '',
+                            'skills_description' => $subDomainData['skills_description'] ?? '',
+                            'mastered' => isset($subDomainData['mastered']) && $subDomainData['mastered'] == '1',
+                            'educational_recommendation' => $subDomainData['educational_recommendation'] ?? '',
+                            'q1_level' => $subDomainData['q1_level'] ?? null,
+                            'q2_level' => $subDomainData['q2_level'] ?? null
+                        ]);
+                    }
+                }
+            }
+            
+            // Log activity
+            $this->logActivity('pdsp.save', 'pdsp_records', $pdspId, 'Saved PDSP form data');
+            
+            $_SESSION['success'] = 'PDSP form saved successfully';
+            header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId . '/pdsp');
+            exit;
+            
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->savePDSP() ERROR: " . $e->getMessage());
+            $_SESSION['error'] = 'Error saving PDSP form: ' . $e->getMessage();
+            header('Location: ' . BASE_PATH . '/iep/meetings');
+            exit;
+        }
+    }
+
+    /**
+     * Show signature page
+     */
+    public function signPDSP($pdspId) {
+        try {
+            // Check permission
+            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'admin', 'parent'])) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied';
+                header('Location: ' . BASE_PATH . '/dashboard');
+                exit;
+            }
+            
+            require_once __DIR__ . '/../Models/PDSPModel.php';
+            $pdspModel = new PDSPModel();
+            
+            $pdsp = $pdspModel->findById($pdspId);
+            if (!$pdsp) {
+                $_SESSION['error'] = 'PDSP not found';
+                header('Location: ' . BASE_PATH . '/iep/meetings');
+                exit;
+            }
+            
+            // Determine signatory role for current user
+            $signatoryRole = $this->determineSignatoryRole();
+            
+            // Pass data to view
+            $basePath = BASE_PATH;
+            
+            // Load view
+            require __DIR__ . '/../Views/iep_meeting/pdsp_sign.php';
+            
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->signPDSP() ERROR: " . $e->getMessage());
+            $_SESSION['error'] = 'Error loading signature page';
+            header('Location: ' . BASE_PATH . '/iep/meetings');
+            exit;
+        }
+    }
+
+    /**
+     * Save signature
+     */
+    public function saveSignature() {
+        header('Content-Type: application/json');
+        
+        try {
+            // Get JSON input
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            $pdspId = $input['pdsp_id'] ?? null;
+            $signatoryRole = $input['signatory_role'] ?? null;
+            $signatoryName = $input['signatory_name'] ?? null;
+            $signatureData = $input['signature_data'] ?? null;
+            
+            if (!$pdspId || !$signatoryRole || !$signatoryName || !$signatureData) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Missing required fields']);
+                exit;
+            }
+            
+            // Decode base64 signature image
+            $signatureData = str_replace('data:image/png;base64,', '', $signatureData);
+            $signatureData = str_replace(' ', '+', $signatureData);
+            $imageData = base64_decode($signatureData);
+            
+            // Create signatures directory
+            $uploadDir = __DIR__ . '/../../public/uploads/signatures/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            
+            // Generate unique filename
+            $filename = 'signature_' . $pdspId . '_' . $signatoryRole . '_' . time() . '.png';
+            $filepath = $uploadDir . $filename;
+            
+            // Save image
+            if (!file_put_contents($filepath, $imageData)) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to save signature image']);
+                exit;
+            }
+            
+            // Save to database
+            require_once __DIR__ . '/../Models/PDSPModel.php';
+            $pdspModel = new PDSPModel();
+            
+            $result = $pdspModel->saveSignature($pdspId, $signatoryRole, $signatoryName, 'uploads/signatures/' . $filename);
+            
+            if ($result) {
+                // Check if all signatures are complete
+                if ($pdspModel->areAllSignaturesComplete($pdspId)) {
+                    // Update PDSP status to complete
+                    $pdspModel->update($pdspId, ['status' => 'complete']);
+                    
+                    // Update meeting status to completed
+                    $pdsp = $pdspModel->findById($pdspId);
+                    $this->meetingModel->update($pdsp['meeting_id'], ['status' => 'completed']);
+                    
+                    // Send notification to SPED Teacher
+                    require_once __DIR__ . '/../Models/NotificationModel.php';
+                    $notificationModel = new NotificationModel();
+                    $notificationModel->create(
+                        $pdsp['filled_by'],
+                        'pdsp_complete',
+                        'PDSP Form Complete',
+                        'All signatures have been collected for ' . $pdsp['student_name'] . '. Process 5 is now unlocked.',
+                        ['pdsp_id' => $pdspId]
+                    );
+                    
+                    // TODO: Send PHPMailer email notification
+                }
+                
+                // Log activity
+                $this->logActivity('pdsp.sign', 'pdsp_signatures', null, 
+                    "Signed PDSP as $signatoryRole");
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Signature saved successfully'
+                ]);
+            } else {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to save signature']);
+            }
+            
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->saveSignature() ERROR: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Error saving signature']);
+        }
+    }
+
+    /**
+     * AI Extract PDSP data from uploaded image using Tesseract OCR
+     */
+    public function aiExtract() {
+        header('Content-Type: application/json');
+        
+        try {
+            // Check permission
+            if (!in_array($this->userRole, ['sped_teacher', 'admin'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. SPED teachers only.']);
+                exit;
+            }
+            
+            // Check if Tesseract OCR is installed
+            require_once __DIR__ . '/../../config/tesseract.php';
+            
+            if (!TESSERACT_ENABLED) {
+                http_response_code(503);
+                echo json_encode([
+                    'success' => false, 
+                    'message' => 'OCR auto-fill is not available. Tesseract OCR is not installed. Please install Tesseract or fill the form manually.',
+                    'install_required' => true,
+                    'install_url' => 'https://github.com/tesseract-ocr/tesseract'
+                ]);
+                exit;
+            }
+            
+            $pdspId = $_POST['pdsp_id'] ?? null;
+            if (!$pdspId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'PDSP ID required']);
+                exit;
+            }
+            
+            // Check if signed document exists
+            require_once __DIR__ . '/../Models/PDSPModel.php';
+            $pdspModel = new PDSPModel();
+            
+            if (!$pdspModel->hasSignedDocument($pdspId)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Please upload signed document first before using OCR extraction']);
+                exit;
+            }
+            
+            // Get PDSP record
+            $pdsp = $pdspModel->findById($pdspId);
+            if (!$pdsp) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'PDSP not found']);
+                exit;
+            }
+            
+            // Use the already uploaded signed document
+            $filepath = __DIR__ . '/../../public/' . $pdsp['signed_document_path'];
+            
+            if (!file_exists($filepath)) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Signed document file not found']);
+                exit;
+            }
+            
+            // Extract text using Tesseract OCR
+            require_once __DIR__ . '/../Helpers/TesseractHelper.php';
+            
+            $ocrResult = TesseractHelper::extractText($filepath);
+            
+            if (!$ocrResult['success']) {
+                error_log("Tesseract OCR error: " . $ocrResult['error']);
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false, 
+                    'message' => 'OCR extraction failed. Please fill the form manually.',
+                    'error' => $ocrResult['error']
+                ]);
+                exit;
+            }
+            
+            // Parse extracted text into PDSP structure
+            $domains = TesseractHelper::parsePDSPText($ocrResult['text']);
+            
+            if (empty($domains)) {
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false, 
+                    'message' => 'Could not extract form data. Please fill the form manually.',
+                    'hint' => 'Make sure the document is clear and legible'
+                ]);
+                exit;
+            }
+            
+            // Update PDSP record
+            $pdspModel->update($pdspId, [
+                'ai_extracted' => true
+            ]);
+            
+            // Log activity
+            $this->logActivity('pdsp.ocr_extract', 'pdsp_records', $pdspId, 'OCR extracted PDSP data from signed document using Tesseract');
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Form auto-filled successfully. Please review and correct all fields.',
+                'domains' => $domains,
+                'note' => 'OCR accuracy depends on document quality. Please verify all extracted data.'
+            ]);
+            
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->aiExtract() ERROR: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'OCR extraction unavailable. Please fill the form manually.']);
+        }
+    }
+
+    /**
+     * Upload signed handwritten document
+     */
+    public function uploadSignedDocument() {
+        header('Content-Type: application/json');
+        
+        try {
+            // Check permission
+            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'admin'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied']);
+                exit;
+            }
+            
+            $pdspId = $_POST['pdsp_id'] ?? null;
+            if (!$pdspId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'PDSP ID required']);
+                exit;
+            }
+            
+            // Validate file upload
+            if (!isset($_FILES['signed_document']) || $_FILES['signed_document']['error'] !== UPLOAD_ERR_OK) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'File upload failed']);
+                exit;
+            }
+            
+            $file = $_FILES['signed_document'];
+            
+            // Validate file type
+            $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+            $fileType = mime_content_type($file['tmp_name']);
+            if (!in_array($fileType, $allowedTypes)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Only JPG, PNG, and PDF files are accepted']);
+                exit;
+            }
+            
+            // Validate file size (10MB)
+            if ($file['size'] > 10 * 1024 * 1024) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'File too large. Maximum size is 10MB']);
+                exit;
+            }
+            
+            // Create upload directory
+            $uploadDir = __DIR__ . '/../../public/uploads/pdsp_signed/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            
+            // Generate unique filename
+            $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+            $filename = 'pdsp_signed_' . $pdspId . '_' . time() . '.' . $extension;
+            $filepath = $uploadDir . $filename;
+            
+            // Move uploaded file
+            if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to save uploaded file']);
+                exit;
+            }
+            
+            // Save to database
+            require_once __DIR__ . '/../Models/PDSPModel.php';
+            $pdspModel = new PDSPModel();
+            
+            $result = $pdspModel->uploadSignedDocument($pdspId, 'uploads/pdsp_signed/' . $filename);
+            
+            if ($result) {
+                // Log activity
+                $this->logActivity('pdsp.upload_signed_document', 'pdsp_records', $pdspId, 
+                    'Uploaded signed handwritten document');
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Signed document uploaded successfully',
+                    'filename' => $filename,
+                    'filepath' => 'uploads/pdsp_signed/' . $filename
+                ]);
+            } else {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to save document path']);
+            }
+            
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->uploadSignedDocument() ERROR: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Error uploading document']);
+        }
+    }
+
+    /**
+     * Mark PDSP as signed with validation
+     */
+    public function markAsSigned() {
+        header('Content-Type: application/json');
+        
+        try {
+            // Check permission
+            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'admin'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied']);
+                exit;
+            }
+            
+            // Get POST data
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            $pdspId = $input['pdsp_id'] ?? null;
+            $signatories = $input['signatories'] ?? [];
+            $domains = $input['domains'] ?? [];
+            
+            if (!$pdspId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'PDSP ID required']);
+                exit;
+            }
+            
+            // Validation errors array
+            $errors = [];
+            
+            // Load PDSP
+            require_once __DIR__ . '/../Models/PDSPModel.php';
+            $pdspModel = new PDSPModel();
+            $pdsp = $pdspModel->findById($pdspId);
+            
+            if (!$pdsp) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'PDSP not found']);
+                exit;
+            }
+            
+            // Validate signed document uploaded
+            if (empty($pdsp['signed_document_path'])) {
+                $errors[] = 'Signed handwritten document must be uploaded';
+            }
+            
+            // Validate signatories
+            if (empty($signatories)) {
+                $errors[] = 'At least one signatory must be selected';
+            } else {
+                foreach ($signatories as $signatory) {
+                    if (empty($signatory['name'])) {
+                        $errors[] = 'Signatory name is required for ' . ($signatory['role'] ?? 'unknown role');
+                    }
+                }
+            }
+            
+            // Validate domains
+            $domainNames = [
+                'Perceptuo-Cognitive',
+                'Psychosocial',
+                'Socio-Emotional',
+                'Psychomotor',
+                'Daily Living Skills',
+                'Communication and Language'
+            ];
+            
+            foreach ($domainNames as $domainName) {
+                if (!isset($domains[$domainName]) || empty($domains[$domainName])) {
+                    $errors[] = "Domain '$domainName' has no entries";
+                    continue;
+                }
+                
+                foreach ($domains[$domainName] as $index => $row) {
+                    $rowNum = $index + 1;
+                    
+                    if (empty($row['sub_domain'])) {
+                        $errors[] = "$domainName - Row $rowNum: Sub-Domain is required";
+                    }
+                    if (empty($row['skills_description'])) {
+                        $errors[] = "$domainName - Row $rowNum: Skills Description is required";
+                    }
+                    if (!isset($row['mastered']) || $row['mastered'] === '') {
+                        $errors[] = "$domainName - Row $rowNum: Mastered status must be selected";
+                    }
+                    if (empty($row['educational_recommendation'])) {
+                        $errors[] = "$domainName - Row $rowNum: Educational Recommendation is required";
+                    }
+                    if (empty($row['q1_level'])) {
+                        $errors[] = "$domainName - Row $rowNum: Q1 Level is required";
+                    }
+                    if (empty($row['q2_level'])) {
+                        $errors[] = "$domainName - Row $rowNum: Q2 Level is required";
+                    }
+                }
+            }
+            
+            // If validation fails, return errors
+            if (!empty($errors)) {
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $errors
+                ]);
+                exit;
+            }
+            
+            // Mark as signed
+            $result = $pdspModel->markAsSigned($pdspId, $signatories);
+            
+            if ($result) {
+                // Update meeting status to completed
+                $this->meetingModel->update($pdsp['meeting_id'], ['status' => 'completed']);
+                
+                // Send notifications to Guidance and Principal
+                require_once __DIR__ . '/../Models/NotificationModel.php';
+                $notificationModel = new NotificationModel();
+                
+                // Get Guidance and Principal users
+                $db = Database::getInstance()->getConnection();
+                $stmt = $db->prepare("
+                    SELECT id, name, email FROM users
+                    WHERE role IN ('guidance', 'principal') AND status = 'active'
+                ");
+                $stmt->execute();
+                $staff = $stmt->fetchAll();
+                
+                $signatoryNames = array_map(function($s) { return $s['name']; }, $signatories);
+                $signatoryList = implode(', ', $signatoryNames);
+                
+                foreach ($staff as $user) {
+                    $notificationModel->create(
+                        $user['id'],
+                        'pdsp_signed',
+                        'PDSP Form Signed',
+                        "PDSP for {$pdsp['student_name']} has been signed. Signatories: $signatoryList. Process 5 is now unlocked.",
+                        ['pdsp_id' => $pdspId, 'meeting_id' => $pdsp['meeting_id']]
+                    );
+                    
+                    // TODO: Send PHPMailer email notification
+                }
+                
+                // Log activity
+                $this->logActivity('pdsp.mark_signed', 'pdsp_records', $pdspId, 
+                    "Marked PDSP as signed with signatories: $signatoryList");
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'PDSP marked as signed successfully'
+                ]);
+            } else {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to mark as signed']);
+            }
+            
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->markAsSigned() ERROR: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Error marking as signed']);
+        }
+    }
+
+    /**
+     * Determine signatory role for current user
+     */
+    private function determineSignatoryRole() {
+        switch ($this->userRole) {
+            case 'sped_teacher':
+                return 'sped_teacher';
+            case 'guidance':
+                return 'ilrc_supervisor';
+            case 'principal':
+                return 'school_head';
+            case 'parent':
+                return 'parent_guardian';
+            default:
+                return null;
+        }
     }
 
     /**
@@ -32,307 +739,600 @@ class IEPMeetingController {
      */
     public function index() {
         try {
-            // Get all meetings for this user
-            $db = Database::getInstance()->getConnection();
-            
-            if ($this->userRole === 'sped_teacher') {
-                $stmt = $db->prepare("
-                    SELECT im.*, sr.student_name, sr.lrn
-                    FROM iep_meetings im
-                    JOIN student_records sr ON im.student_id = sr.id
-                    WHERE im.scheduled_by = ?
-                    ORDER BY im.meeting_date DESC
-                ");
-                $stmt->execute([$this->userId]);
-            } elseif ($this->userRole === 'parent') {
-                // Parent sees meetings for their children
-                $stmt = $db->prepare("
-                    SELECT im.*, sr.student_name, sr.lrn
-                    FROM iep_meetings im
-                    JOIN student_records sr ON im.student_id = sr.id
-                    JOIN enrollment_submissions es ON sr.enrollment_id = es.id
-                    WHERE es.parent_id = ?
-                    ORDER BY im.meeting_date DESC
-                ");
-                $stmt->execute([$this->userId]);
-            } else {
-                // Guidance or Principal
-                $stmt = $db->prepare("
-                    SELECT im.*, sr.student_name, sr.lrn
-                    FROM iep_meetings im
-                    JOIN student_records sr ON im.student_id = sr.id
-                    WHERE im.guidance_id = ? OR im.principal_id = ?
-                    ORDER BY im.meeting_date DESC
-                ");
-                $stmt->execute([$this->userId, $this->userId]);
+            // Check permission
+            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'admin'])) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied';
+                header('Location: ' . BASE_PATH . '/dashboard');
+                exit;
             }
             
-            $meetings = $stmt->fetchAll();
+            // Get meetings
+            $upcomingMeetings = $this->meetingModel->getAll(['upcoming' => true]);
+            $pastMeetings = $this->meetingModel->getAll();
             
-            $this->logActivity('iep_meeting.list', 'iep_meetings', null, 'Viewed meetings list');
+            // Pass data to view
+            $basePath = BASE_PATH;
             
-            // Use parent view if parent role
-            if ($this->userRole === 'parent') {
-                require __DIR__ . '/../Views/iep_meeting/parent_list.php';
-            } else {
-                require __DIR__ . '/../Views/iep_meeting/index.php';
-            }
+            // Log activity
+            $this->logActivity('meeting.list', 'iep_meetings', null, 'Viewed meeting list');
+            
+            // Load view
+            require __DIR__ . '/../Views/iep_meeting/index.php';
             
         } catch (Exception $e) {
             error_log("IEPMeetingController->index() ERROR: " . $e->getMessage());
-            error_log("Stack trace: " . $e->getTraceAsString());
-            http_response_code(500);
-            echo "Error loading meetings: " . htmlspecialchars($e->getMessage());
+            $_SESSION['error'] = 'Error loading meetings';
+            header('Location: ' . BASE_PATH . '/dashboard');
+            exit;
         }
     }
 
     /**
-     * Display schedule meeting form
+     * Show meeting scheduler form
      */
     public function schedule() {
         try {
-            // Check permission
-            if ($this->userRole !== 'sped_teacher' && $this->userRole !== 'admin') {
+            // Check permission - only SPED Teacher can schedule
+            if (!in_array($this->userRole, ['sped_teacher', 'admin'])) {
                 http_response_code(403);
-                echo "Access Denied";
+                $_SESSION['error'] = 'Access denied. SPED teachers only.';
+                header('Location: ' . BASE_PATH . '/iep/meetings');
                 exit;
             }
             
-            // Get approved assessments
+            // Get students with finalized assessments
+            require_once __DIR__ . '/../Models/AssessmentModel.php';
+            require_once __DIR__ . '/../Models/StudentModel.php';
+            
+            $assessmentModel = new AssessmentModel();
+            $studentModel = new StudentModel();
+            
+            // Get students with finalized assessments
             $db = Database::getInstance()->getConnection();
-            $stmt = $db->prepare("
-                SELECT ar.*, sr.student_name, sr.lrn
-                FROM assessment_records ar
-                JOIN student_records sr ON ar.student_id = sr.id
-                WHERE ar.status = 'approved'
-                ORDER BY ar.submitted_at DESC
+            $stmt = $db->query("
+                SELECT DISTINCT s.id, s.student_name, s.lrn
+                FROM student_records s
+                JOIN assessment_records ar ON s.id = ar.student_id
+                WHERE ar.status = 'finalized'
+                ORDER BY s.student_name
             ");
-            $stmt->execute();
-            $approvedAssessments = $stmt->fetchAll();
+            $students = $stmt->fetchAll();
             
-            // Get guidance and principal users
-            $stmt = $db->prepare("
-                SELECT id, name, email FROM users
-                WHERE role IN ('guidance', 'principal')
-                ORDER BY role, name
-            ");
-            $stmt->execute();
-            $participants = $stmt->fetchAll();
+            // Get suggested dates (when all participants available)
+            $suggestedDates = $this->meetingModel->getSuggestedDates();
             
-            $this->logActivity('iep_meeting.schedule_form', 'iep_meetings', null, 'Opened schedule meeting form');
+            // Pass data to view
+            $basePath = BASE_PATH;
             
+            // Log activity
+            $this->logActivity('meeting.schedule_form', 'iep_meetings', null, 'Opened meeting scheduler');
+            
+            // Load view
             require __DIR__ . '/../Views/iep_meeting/schedule.php';
             
         } catch (Exception $e) {
             error_log("IEPMeetingController->schedule() ERROR: " . $e->getMessage());
-            http_response_code(500);
-            echo "Error loading schedule form";
+            $_SESSION['error'] = 'Error loading scheduler';
+            header('Location: ' . BASE_PATH . '/iep/meetings');
+            exit;
         }
     }
 
     /**
-     * Get available time slots for a user
-     */
-    public function getAvailability() {
-        try {
-            $userId = $_POST['user_id'] ?? null;
-            $date = $_POST['date'] ?? null;
-            
-            if (!$userId || !$date) {
-                echo json_encode(['success' => false, 'message' => 'Missing parameters']);
-                return;
-            }
-            
-            $slots = $this->meetingModel->getAvailableSlots($userId, $date);
-            
-            echo json_encode([
-                'success' => true,
-                'slots' => $slots
-            ]);
-            
-        } catch (Exception $e) {
-            error_log("IEPMeetingController->getAvailability() ERROR: " . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => 'Error getting availability']);
-        }
-    }
-
-    /**
-     * Create meeting
+     * Create IEP meeting
      */
     public function createMeeting() {
         try {
             // Check permission
-            if ($this->userRole !== 'sped_teacher' && $this->userRole !== 'admin') {
+            if (!in_array($this->userRole, ['sped_teacher', 'admin'])) {
                 http_response_code(403);
-                echo json_encode(['success' => false, 'message' => 'Access Denied']);
+                $_SESSION['error'] = 'Access denied';
+                header('Location: ' . BASE_PATH . '/iep/meetings');
                 exit;
             }
             
-            // Validate input
-            $assessmentId = $_POST['assessment_id'] ?? null;
+            // Get form data
+            $studentId = $_POST['student_id'] ?? null;
             $meetingDate = $_POST['meeting_date'] ?? null;
             $meetingTime = $_POST['meeting_time'] ?? null;
-            $meetingLocation = $_POST['meeting_location'] ?? '';
-            $agenda = $_POST['agenda'] ?? '';
-            $guidanceId = $_POST['guidance_id'] ?? null;
-            $principalId = $_POST['principal_id'] ?? null;
+            $meetingLocation = $_POST['meeting_location'] ?? $_POST['venue'] ?? null;
+            $agendaNotes = $_POST['agenda_notes'] ?? $_POST['agenda'] ?? null;
+            $manualOverride = isset($_POST['manual_override']) && $_POST['manual_override'] === '1';
+            $overrideReason = $_POST['override_reason'] ?? null;
             
-            if (!$assessmentId || !$meetingDate || !$meetingTime) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Missing required fields']);
-                return;
+            // Validate required fields
+            if (!$studentId || !$meetingDate || !$meetingTime) {
+                $_SESSION['error'] = 'Student, date, and time are required';
+                header('Location: ' . BASE_PATH . '/iep/meetings/schedule');
+                exit;
             }
             
-            // Get assessment and student
-            $assessment = $this->assessmentModel->findById($assessmentId);
-            if (!$assessment) {
-                http_response_code(404);
-                echo json_encode(['success' => false, 'message' => 'Assessment not found']);
-                return;
+            if (!$meetingLocation) {
+                $_SESSION['error'] = 'Meeting location (venue) is required';
+                header('Location: ' . BASE_PATH . '/iep/meetings/schedule');
+                exit;
             }
             
-            // Combine date and time
-            $meetingDateTime = $meetingDate . ' ' . $meetingTime;
+            // Get latest finalized assessment for student
+            require_once __DIR__ . '/../Models/AssessmentModel.php';
+            $assessmentModel = new AssessmentModel();
+            $assessment = $assessmentModel->getLatest($studentId);
+            $assessmentId = ($assessment && $assessment['status'] === 'finalized') ? $assessment['id'] : null;
             
             // Create meeting
-            $meetingId = $this->meetingModel->create(
-                $assessment['student_id'],
-                $assessmentId,
-                [
-                    'meeting_date' => $meetingDateTime,
-                    'meeting_location' => $meetingLocation,
-                    'agenda' => $agenda,
-                    'guidance_id' => $guidanceId,
-                    'principal_id' => $principalId,
-                    'scheduled_by' => $this->userId
-                ]
-            );
+            $meetingData = [
+                'student_id' => $studentId,
+                'assessment_id' => $assessmentId,
+                'scheduled_by' => $this->userId,
+                'meeting_date' => $meetingDate,
+                'meeting_time' => $meetingTime,
+                'meeting_location' => $meetingLocation,
+                'agenda_notes' => $agendaNotes
+            ];
             
-            // Send invitations
-            $this->sendInvitations($meetingId, $assessment);
+            if ($manualOverride && $overrideReason) {
+                $meetingData['agenda_notes'] = "MANUAL OVERRIDE: $overrideReason\n\n" . $agendaNotes;
+            }
             
-            $this->logActivity('iep_meeting.created', 'iep_meetings', $meetingId, "Created meeting for student: {$assessment['student_name']}");
+            $meetingId = $this->meetingModel->create($meetingData);
             
-            echo json_encode([
-                'success' => true,
-                'message' => 'Meeting scheduled successfully',
-                'meeting_id' => $meetingId
-            ]);
+            // Send notifications
+            $this->sendMeetingNotifications($meetingId);
+            
+            // Log activity
+            $this->logActivity('meeting.create', 'iep_meetings', $meetingId, 
+                "Created IEP meeting for student: $studentId on $meetingDate");
+            
+            $_SESSION['success'] = 'IEP meeting scheduled successfully. Notifications sent to all participants.';
+            header('Location: ' . BASE_PATH . '/iep/meetings');
+            exit;
             
         } catch (Exception $e) {
             error_log("IEPMeetingController->createMeeting() ERROR: " . $e->getMessage());
-            http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'Error creating meeting']);
+            $_SESSION['error'] = 'Error creating meeting: ' . $e->getMessage();
+            header('Location: ' . BASE_PATH . '/iep/meetings/schedule');
+            exit;
         }
     }
 
     /**
-     * View meeting details
+     * Send meeting notifications to all participants
      */
-    public function show($id) {
+    private function sendMeetingNotifications($meetingId) {
         try {
-            $meeting = $this->meetingModel->findById($id);
+            require_once __DIR__ . '/../Helpers/MailHelper.php';
+            require_once __DIR__ . '/../Models/NotificationModel.php';
             
+            $meeting = $this->meetingModel->findById($meetingId);
             if (!$meeting) {
-                http_response_code(404);
-                echo "Meeting not found";
                 return;
             }
             
-            $this->logActivity('iep_meeting.viewed', 'iep_meetings', $id, 'Viewed meeting details');
-            
-            require __DIR__ . '/../Views/iep_meeting/show.php';
-            
-        } catch (Exception $e) {
-            error_log("IEPMeetingController->show() ERROR: " . $e->getMessage());
-            http_response_code(500);
-            echo "Error loading meeting";
-        }
-    }
-
-    /**
-     * Send meeting invitations
-     */
-    private function sendInvitations($meetingId, $assessment) {
-        try {
-            $meeting = $this->meetingModel->findById($meetingId);
-            
-            // Get parent email
+            // Get participants: Guidance, Principal, Parent
             $db = Database::getInstance()->getConnection();
+            
+            // Get Guidance and Principal
             $stmt = $db->prepare("
-                SELECT u.email, u.name FROM users u
+                SELECT id, name, email FROM users
+                WHERE role IN ('guidance', 'principal') AND status = 'active'
+            ");
+            $stmt->execute();
+            $staff = $stmt->fetchAll();
+            
+            // Get Parent
+            $stmt = $db->prepare("
+                SELECT u.id, u.name, u.email
+                FROM users u
                 JOIN enrollment_submissions es ON u.id = es.parent_id
                 JOIN student_records sr ON es.id = sr.enrollment_id
                 WHERE sr.id = :student_id
                 LIMIT 1
             ");
-            $stmt->execute(['student_id' => $assessment['student_id']]);
+            $stmt->execute(['student_id' => $meeting['student_id']]);
             $parent = $stmt->fetch();
             
-            $meetingDateFormatted = date('F d, Y H:i', strtotime($meeting['meeting_date']));
-            
-            // Send to parent
+            $participants = $staff;
             if ($parent) {
-                $subject = "IEP Meeting Scheduled - {$assessment['student_name']}";
+                $participants[] = $parent;
+            }
+            
+            // Prepare email content
+            $subject = "IEP Meeting Scheduled - {$meeting['student_name']}";
+            $meetingDateTime = date('F d, Y', strtotime($meeting['meeting_date'])) . ' at ' . 
+                              date('g:i A', strtotime($meeting['meeting_time']));
+            $location = $meeting['meeting_location'] ?? 'TBA';
+            
+            foreach ($participants as $participant) {
+                // Send email
                 $body = "
                 <h2>IEP Meeting Scheduled</h2>
-                <p>Dear {$parent['name']},</p>
-                <p>An IEP meeting has been scheduled for your child.</p>
+                <p>Dear {$participant['name']},</p>
+                <p>An IEP meeting has been scheduled for the following student:</p>
                 
                 <h3>Meeting Details</h3>
-                <p><strong>Student:</strong> {$assessment['student_name']}</p>
-                <p><strong>Date & Time:</strong> $meetingDateFormatted</p>
-                <p><strong>Location:</strong> {$meeting['meeting_location']}</p>
-                <p><strong>Agenda:</strong> {$meeting['agenda']}</p>
+                <p><strong>Student:</strong> {$meeting['student_name']} (LRN: {$meeting['lrn']})</p>
+                <p><strong>Date & Time:</strong> $meetingDateTime</p>
+                <p><strong>Venue:</strong> $location</p>
                 
-                <p>Please confirm your attendance.</p>
+                <h3>Agenda</h3>
+                <p>" . nl2br(htmlspecialchars($meeting['agenda'] ?? $meeting['agenda_notes'] ?? '')) . "</p>
+                
+                <p><strong>Scheduled by:</strong> {$meeting['scheduled_by_name']}</p>
+                
+                <p>Please mark your calendar and attend this important meeting.</p>
+                
                 <p>Best regards,<br>SPED LMS System</p>
                 ";
-                MailHelper::send($parent['email'], $subject, $body);
+                
+                @MailHelper::sendNotification($participant['email'], $participant['name'], $subject, $body);
+                
+                // Create in-system notification
+                $notificationModel = new NotificationModel();
+                $notificationModel->create(
+                    $participant['id'],
+                    'iep_meeting_scheduled',
+                    'IEP Meeting Scheduled',
+                    "IEP meeting for {$meeting['student_name']} on $meetingDateTime. Venue: $location",
+                    [
+                        'meeting_id' => $meetingId,
+                        'student_name' => $meeting['student_name'],
+                        'meeting_date' => $meeting['meeting_date'],
+                        'meeting_time' => $meeting['meeting_time']
+                    ]
+                );
+                
+                // Save notification record
+                $this->meetingModel->saveNotification($meetingId, $participant['id'], 'both');
             }
             
-            // Send to guidance
-            if ($meeting['guidance_email']) {
-                $subject = "IEP Meeting Invitation - {$assessment['student_name']}";
-                $body = "
-                <h2>IEP Meeting Invitation</h2>
-                <p>Dear {$meeting['guidance_name']},</p>
-                <p>You are invited to an IEP meeting.</p>
-                
-                <h3>Meeting Details</h3>
-                <p><strong>Student:</strong> {$assessment['student_name']}</p>
-                <p><strong>Date & Time:</strong> $meetingDateFormatted</p>
-                <p><strong>Location:</strong> {$meeting['meeting_location']}</p>
-                
-                <p><a href='" . BASE_PATH . "/iep/meetings/$meetingId' style='background-color: #a01422; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;'>View Meeting</a></p>
-                
-                <p>Best regards,<br>SPED LMS System</p>
-                ";
-                MailHelper::send($meeting['guidance_email'], $subject, $body);
+            error_log("Sent meeting notifications for meeting ID: $meetingId");
+            
+        } catch (Exception $e) {
+            error_log("Failed to send meeting notifications: " . $e->getMessage());
+            // Don't throw - notification failure shouldn't block meeting creation
+        }
+    }
+
+    /**
+     * Show availability calendar for current user
+     */
+    public function availability() {
+        try {
+            // Check permission - only staff roles can manage availability
+            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'admin'])) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied. Staff only.';
+                header('Location: ' . BASE_PATH . '/dashboard');
+                exit;
             }
             
-            // Send to principal
-            if ($meeting['principal_email']) {
-                $subject = "IEP Meeting Invitation - {$assessment['student_name']}";
-                $body = "
-                <h2>IEP Meeting Invitation</h2>
-                <p>Dear {$meeting['principal_name']},</p>
-                <p>You are invited to an IEP meeting.</p>
+            // Get current month or requested month
+            $year = $_GET['year'] ?? date('Y');
+            $month = $_GET['month'] ?? date('m');
+            
+            // Validate year and month
+            $year = (int)$year;
+            $month = (int)$month;
+            if ($month < 1) { $month = 12; $year--; }
+            if ($month > 12) { $month = 1; $year++; }
+            
+            // Get recurring availability
+            $recurringAvailability = $this->meetingModel->getRecurringAvailability($this->userId);
+            
+            // Get exceptions for this month
+            $startDate = sprintf('%04d-%02d-01', $year, $month);
+            $endDate = date('Y-m-t', strtotime($startDate));
+            $exceptions = $this->meetingModel->getExceptions($this->userId, $startDate, $endDate);
+            
+            // Generate calendar data
+            $calendarData = $this->generateCalendarData($year, $month, $recurringAvailability, $exceptions);
+            
+            // Pass data to view
+            $basePath = BASE_PATH;
+            $currentYear = $year;
+            $currentMonth = $month;
+            
+            // Log activity
+            $this->logActivity('availability.view', 'user_availability', null, 'Viewed availability calendar');
+            
+            // Load view
+            require __DIR__ . '/../Views/iep_meeting/availability.php';
+            
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->availability() ERROR: " . $e->getMessage());
+            $_SESSION['error'] = 'Error loading availability calendar';
+            header('Location: ' . BASE_PATH . '/dashboard');
+            exit;
+        }
+    }
+
+    /**
+     * Save recurring availability (weekly schedule)
+     */
+    public function saveRecurringAvailability() {
+        header('Content-Type: application/json');
+        
+        try {
+            // Check permission
+            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'admin'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied']);
+                exit;
+            }
+            
+            // Get selected days from POST
+            $days = $_POST['days'] ?? [];
+            
+            // Validate days (0-6)
+            $validDays = [];
+            foreach ($days as $day) {
+                $day = (int)$day;
+                if ($day >= 0 && $day <= 6) {
+                    $validDays[] = $day;
+                }
+            }
+            
+            // Save to database
+            $result = $this->meetingModel->saveRecurringAvailability($this->userId, $validDays);
+            
+            if ($result) {
+                // Log activity
+                $this->logActivity('availability.save_recurring', 'user_availability', null, 
+                    'Saved recurring availability: ' . implode(',', $validDays));
                 
-                <h3>Meeting Details</h3>
-                <p><strong>Student:</strong> {$assessment['student_name']}</p>
-                <p><strong>Date & Time:</strong> $meetingDateFormatted</p>
-                <p><strong>Location:</strong> {$meeting['meeting_location']}</p>
-                
-                <p><a href='" . BASE_PATH . "/iep/meetings/$meetingId' style='background-color: #a01422; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;'>View Meeting</a></p>
-                
-                <p>Best regards,<br>SPED LMS System</p>
-                ";
-                MailHelper::send($meeting['principal_email'], $subject, $body);
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Weekly schedule saved successfully'
+                ]);
+            } else {
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Failed to save weekly schedule'
+                ]);
             }
             
         } catch (Exception $e) {
-            error_log("Failed to send invitations: " . $e->getMessage());
+            error_log("IEPMeetingController->saveRecurringAvailability() ERROR: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Error saving availability']);
+        }
+    }
+
+    /**
+     * Toggle exception date
+     */
+    public function toggleExceptionDate() {
+        header('Content-Type: application/json');
+        
+        try {
+            // Check permission
+            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'admin'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied']);
+                exit;
+            }
+            
+            // Get date and availability from POST
+            $date = $_POST['date'] ?? null;
+            $isAvailable = isset($_POST['is_available']) ? (bool)$_POST['is_available'] : true;
+            
+            if (!$date) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Date required']);
+                exit;
+            }
+            
+            // Validate date format
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Invalid date format']);
+                exit;
+            }
+            
+            // Toggle exception
+            $result = $this->meetingModel->toggleException($this->userId, $date, $isAvailable);
+            
+            if ($result) {
+                // Log activity
+                $this->logActivity('availability.toggle_exception', 'user_availability', null, 
+                    "Toggled exception for date: $date");
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Exception toggled successfully'
+                ]);
+            } else {
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Failed to toggle exception'
+                ]);
+            }
+            
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->toggleExceptionDate() ERROR: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Error toggling exception']);
+        }
+    }
+
+    /**
+     * Generate calendar data for a month
+     */
+    private function generateCalendarData($year, $month, $recurringAvailability, $exceptions) {
+        $firstDay = mktime(0, 0, 0, $month, 1, $year);
+        $daysInMonth = date('t', $firstDay);
+        $dayOfWeek = date('w', $firstDay); // 0=Sunday
+        
+        $calendar = [];
+        $week = [];
+        
+        // Fill empty days before month starts
+        for ($i = 0; $i < $dayOfWeek; $i++) {
+            $week[] = null;
+        }
+        
+        // Fill days of month
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $date = sprintf('%04d-%02d-%02d', $year, $month, $day);
+            $currentDayOfWeek = date('w', strtotime($date));
+            
+            // Check if available
+            $isAvailable = false;
+            $isException = false;
+            
+            if (isset($exceptions[$date])) {
+                // Exception overrides recurring
+                $isAvailable = $exceptions[$date];
+                $isException = true;
+            } elseif (isset($recurringAvailability[$currentDayOfWeek])) {
+                // Use recurring availability
+                $isAvailable = $recurringAvailability[$currentDayOfWeek];
+            }
+            
+            $week[] = [
+                'day' => $day,
+                'date' => $date,
+                'is_available' => $isAvailable,
+                'is_exception' => $isException,
+                'is_today' => $date === date('Y-m-d')
+            ];
+            
+            // Start new week on Sunday
+            if (count($week) === 7) {
+                $calendar[] = $week;
+                $week = [];
+            }
+        }
+        
+        // Fill remaining days
+        while (count($week) < 7 && count($week) > 0) {
+            $week[] = null;
+        }
+        if (!empty($week)) {
+            $calendar[] = $week;
+        }
+        
+        return $calendar;
+    }
+
+    /**
+     * Submit PDSP (Simplified - Upload Only)
+     */
+    public function submitPDSP() {
+        header('Content-Type: application/json');
+        
+        try {
+            // Check permission
+            if (!in_array($this->userRole, ['sped_teacher', 'admin'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. SPED teachers only.']);
+                exit;
+            }
+            
+            // Get JSON input
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            $pdspId = $input['pdsp_id'] ?? null;
+            $meetingId = $input['meeting_id'] ?? null;
+            $signatories = $input['signatories'] ?? [];
+            
+            if (!$pdspId || !$meetingId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'PDSP ID and Meeting ID required']);
+                exit;
+            }
+            
+            // Validate signatories
+            if (empty($signatories)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'At least one signatory is required']);
+                exit;
+            }
+            
+            // Load PDSP
+            require_once __DIR__ . '/../Models/PDSPModel.php';
+            $pdspModel = new PDSPModel();
+            $pdsp = $pdspModel->findById($pdspId);
+            
+            if (!$pdsp) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'PDSP not found']);
+                exit;
+            }
+            
+            // Validate document uploaded
+            if (empty($pdsp['signed_document_path'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Please upload PDSP document first']);
+                exit;
+            }
+            
+            // Update PDSP status to 'signed' and save signatories
+            $result = $pdspModel->update($pdspId, [
+                'status' => 'signed',
+                'signatories' => json_encode($signatories),
+                'completed_at' => date('Y-m-d H:i:s')
+            ]);
+            
+            if (!$result) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to update PDSP']);
+                exit;
+            }
+            
+            // Update meeting status to 'completed'
+            $meetingResult = $this->meetingModel->update($meetingId, [
+                'status' => 'completed'
+            ]);
+            
+            if (!$meetingResult) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to update meeting status']);
+                exit;
+            }
+            
+            // Send notifications to Guidance and Principal
+            require_once __DIR__ . '/../Models/NotificationModel.php';
+            $notificationModel = new NotificationModel();
+            
+            // Get Guidance and Principal users
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("
+                SELECT id, name, email FROM users
+                WHERE role IN ('guidance', 'principal') AND status = 'active'
+            ");
+            $stmt->execute();
+            $staff = $stmt->fetchAll();
+            
+            $signatoryNames = array_map(function($s) { return $s['name']; }, $signatories);
+            $signatoryList = implode(', ', $signatoryNames);
+            
+            foreach ($staff as $user) {
+                $notificationModel->create(
+                    $user['id'],
+                    'pdsp_completed',
+                    'PDSP Completed',
+                    "PDSP for {$pdsp['student_name']} has been completed. Signatories: $signatoryList.",
+                    ['pdsp_id' => $pdspId, 'meeting_id' => $meetingId]
+                );
+            }
+            
+            // Log activity
+            $this->logActivity('pdsp.submit', 'pdsp_records', $pdspId, 
+                "Submitted PDSP with signatories: $signatoryList. Meeting marked as completed.");
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'PDSP submitted successfully. Meeting status updated to Completed.'
+            ]);
+            
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->submitPDSP() ERROR: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Error submitting PDSP']);
         }
     }
 
@@ -357,156 +1357,6 @@ class IEPMeetingController {
             ]);
         } catch (Exception $e) {
             error_log("Failed to log activity: " . $e->getMessage());
-        }
-    }
-
-    /**
-     * Upload calendar availability
-     */
-    public function uploadCalendar() {
-        try {
-            // Only Guidance and Principal can upload calendars
-            if (!in_array($this->userRole, ['guidance', 'principal'])) {
-                http_response_code(403);
-                echo json_encode(['success' => false, 'message' => 'Access Denied']);
-                exit;
-            }
-            
-            // Check if file was uploaded
-            if (!isset($_FILES['calendar_file'])) {
-                echo json_encode(['success' => false, 'message' => 'No file uploaded']);
-                exit;
-            }
-            
-            $file = $_FILES['calendar_file'];
-            $validFrom = $_POST['valid_from'] ?? date('Y-m-d');
-            $validUntil = $_POST['valid_until'] ?? date('Y-m-d', strtotime('+1 month'));
-            
-            // Validate file
-            $allowedTypes = ['text/calendar', 'application/pdf', 'text/plain'];
-            if (!in_array($file['type'], $allowedTypes)) {
-                echo json_encode(['success' => false, 'message' => 'Invalid file type. Only ICS, PDF, or text files allowed']);
-                exit;
-            }
-            
-            // Create uploads directory if it doesn't exist
-            $uploadDir = __DIR__ . '/../../public/uploads/calendars/';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0755, true);
-            }
-            
-            // Generate unique filename
-            $filename = 'calendar_' . $this->userId . '_' . time() . '.' . pathinfo($file['name'], PATHINFO_EXTENSION);
-            $filePath = $uploadDir . $filename;
-            
-            // Move uploaded file
-            if (!move_uploaded_file($file['tmp_name'], $filePath)) {
-                echo json_encode(['success' => false, 'message' => 'Failed to upload file']);
-                exit;
-            }
-            
-            // Parse calendar data (basic parsing for ICS files)
-            $availabilityData = [];
-            if ($file['type'] === 'text/calendar') {
-                $availabilityData = $this->parseICSFile($filePath);
-            }
-            
-            // Save to database
-            $model = new IEPMeetingModel();
-            $calendarId = $model->uploadCalendar(
-                $this->userId,
-                '/uploads/calendars/' . $filename,
-                $availabilityData,
-                $validFrom,
-                $validUntil
-            );
-            
-            $this->logActivity('calendar.upload', 'iep_meeting_calendars', $calendarId, 'Uploaded calendar availability');
-            
-            echo json_encode([
-                'success' => true,
-                'message' => 'Calendar uploaded successfully',
-                'calendar_id' => $calendarId
-            ]);
-            
-        } catch (Exception $e) {
-            error_log("IEPMeetingController->uploadCalendar() ERROR: " . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-        }
-    }
-
-    /**
-     * Parse ICS calendar file
-     */
-    private function parseICSFile($filePath) {
-        $availabilityData = [];
-        
-        try {
-            $content = file_get_contents($filePath);
-            $lines = explode("\n", $content);
-            
-            foreach ($lines as $line) {
-                if (strpos($line, 'DTSTART') === 0) {
-                    preg_match('/DTSTART[^:]*:(.*)/', $line, $matches);
-                    if (isset($matches[1])) {
-                        $availabilityData[] = ['start' => trim($matches[1])];
-                    }
-                }
-                if (strpos($line, 'DTEND') === 0) {
-                    preg_match('/DTEND[^:]*:(.*)/', $line, $matches);
-                    if (isset($matches[1]) && !empty($availabilityData)) {
-                        $availabilityData[count($availabilityData) - 1]['end'] = trim($matches[1]);
-                    }
-                }
-            }
-        } catch (Exception $e) {
-            error_log("Failed to parse ICS file: " . $e->getMessage());
-        }
-        
-        return $availabilityData;
-    }
-
-    /**
-     * Get meetings for current user (Guidance/Principal view)
-     */
-    public function listMeetings() {
-        try {
-            if (!in_array($this->userRole, ['guidance', 'principal', 'sped_teacher'])) {
-                http_response_code(403);
-                echo "Access Denied";
-                exit;
-            }
-            
-            $model = new IEPMeetingModel();
-            
-            if ($this->userRole === 'sped_teacher') {
-                // SPED Teacher sees all meetings they scheduled
-                $db = Database::getInstance()->getConnection();
-                $stmt = $db->prepare("
-                    SELECT im.*, sr.student_name, sr.lrn, 
-                           u_guidance.name as guidance_name, u_principal.name as principal_name
-                    FROM iep_meetings im
-                    JOIN student_records sr ON im.student_id = sr.id
-                    LEFT JOIN users u_guidance ON im.guidance_id = u_guidance.id
-                    LEFT JOIN users u_principal ON im.principal_id = u_principal.id
-                    WHERE im.scheduled_by = ?
-                    ORDER BY im.meeting_date DESC
-                ");
-                $stmt->execute([$this->userId]);
-                $meetings = $stmt->fetchAll();
-            } else {
-                // Guidance or Principal
-                $meetings = $model->getMeetingsForUser($this->userId, $this->userRole);
-            }
-            
-            $this->logActivity('iep_meeting.list', 'iep_meetings', null, 'Viewed meetings list');
-            
-            require __DIR__ . '/../Views/iep_meeting/index.php';
-            
-        } catch (Exception $e) {
-            error_log("IEPMeetingController->listMeetings() ERROR: " . $e->getMessage());
-            http_response_code(500);
-            echo "Error loading meetings: " . htmlspecialchars($e->getMessage());
         }
     }
 }

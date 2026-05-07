@@ -12,50 +12,53 @@ require __DIR__ . '/../layouts/topbar.php';
     <div class="container-fluid py-4">
         <!-- Page Header -->
         <div class="row mb-4">
-            <div class="col-12">
-                <h1 class="h3 mb-0" style="color: #a01422;">
-                    <i class="fas fa-tasks"></i> Review Assessments
-                </h1>
-                <p class="text-muted mt-2">Pending assessments for review and approval</p>
+            <div class="col-12 d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0" style="color: #a01422;">
+                        <i class="fas fa-clipboard-list"></i> Assessment History
+                    </h1>
+                    <p class="text-muted mt-2">View all submitted and draft assessments</p>
+                </div>
+                <div>
+                    <a href="<?php echo BASE_PATH; ?>/assessment/conduct" class="btn btn-primary" style="background-color: #a01422; border-color: #a01422;">
+                        <i class="fas fa-plus"></i> Conduct New Assessment
+                    </a>
+                </div>
             </div>
         </div>
 
         <!-- Statistics Cards -->
         <div class="row mb-4">
             <div class="col-md-3">
-                <div class="card text-center" style="border-top: 3px solid #a01422;">
-                    <div class="card-body">
-                        <h6 class="text-muted mb-2">Total Pending</h6>
-                        <h3 style="color: #a01422;"><?php echo count($pendingAssessments); ?></h3>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center" style="border-top: 3px solid #1e4072;">
-                    <div class="card-body">
-                        <h6 class="text-muted mb-2">Q1 Assessments</h6>
-                        <h3 style="color: #1e4072;">
-                            <?php echo count(array_filter($pendingAssessments, fn($a) => $a['quarter'] === 'Q1')); ?>
-                        </h3>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
                 <div class="card text-center" style="border-top: 3px solid #3b6d11;">
                     <div class="card-body">
-                        <h6 class="text-muted mb-2">Q2 Assessments</h6>
-                        <h3 style="color: #3b6d11;">
-                            <?php echo count(array_filter($pendingAssessments, fn($a) => $a['quarter'] === 'Q2')); ?>
-                        </h3>
+                        <h6 class="text-muted mb-2">Finalized</h6>
+                        <h3 style="color: #3b6d11;"><?php echo count($finalized); ?></h3>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="card text-center" style="border-top: 3px solid #ffc107;">
                     <div class="card-body">
-                        <h6 class="text-muted mb-2">Awaiting Action</h6>
-                        <h3 style="color: #ffc107;">
-                            <?php echo count(array_filter($pendingAssessments, fn($a) => $a['status'] === 'pending')); ?>
+                        <h6 class="text-muted mb-2">Drafts</h6>
+                        <h3 style="color: #ffc107;"><?php echo count($drafts); ?></h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center" style="border-top: 3px solid #1e4072;">
+                    <div class="card-body">
+                        <h6 class="text-muted mb-2">Total Assessments</h6>
+                        <h3 style="color: #1e4072;"><?php echo count($allAssessments); ?></h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center" style="border-top: 3px solid #a01422;">
+                    <div class="card-body">
+                        <h6 class="text-muted mb-2">Students Assessed</h6>
+                        <h3 style="color: #a01422;">
+                            <?php echo count(array_unique(array_column($allAssessments, 'student_id'))); ?>
                         </h3>
                     </div>
                 </div>
@@ -70,19 +73,16 @@ require __DIR__ . '/../layouts/topbar.php';
                         <input type="text" id="searchInput" class="form-control" placeholder="Search by student name or LRN...">
                     </div>
                     <div class="col-md-3">
-                        <select id="filterQuarter" class="form-control">
-                            <option value="">All Quarters</option>
-                            <option value="Q1">Q1</option>
-                            <option value="Q2">Q2</option>
+                        <select id="filterStatus" class="form-control">
+                            <option value="">All Status</option>
+                            <option value="finalized">Finalized</option>
+                            <option value="draft">Draft</option>
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <select id="filterStatus" class="form-control">
-                            <option value="">All Status</option>
-                            <option value="pending">Pending</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                            <i class="fas fa-redo"></i> Clear Filters
+                        </button>
                     </div>
                 </div>
             </div>
@@ -90,52 +90,66 @@ require __DIR__ . '/../layouts/topbar.php';
 
         <!-- Assessments Table -->
         <div class="card">
+            <div class="card-header" style="background-color: #1e4072; color: white;">
+                <h5 class="mb-0"><i class="fas fa-list"></i> All Assessments</h5>
+            </div>
             <div class="table-responsive">
                 <table class="table table-hover mb-0" id="assessmentsTable">
-                    <thead style="background-color: #1e4072; color: white;">
+                    <thead style="background-color: #f5f5f5;">
                         <tr>
                             <th>Student Name</th>
                             <th>LRN</th>
-                            <th>Quarter</th>
-                            <th>Submitted</th>
+                            <th>Version</th>
                             <th>Status</th>
-                            <th>Parent</th>
+                            <th>Conducted By</th>
+                            <th>Date</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if (empty($pendingAssessments)): ?>
+                        <?php if (empty($allAssessments)): ?>
                             <tr>
                                 <td colspan="7" class="text-center py-4 text-muted">
-                                    <i class="fas fa-inbox"></i> No pending assessments
+                                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                                    <p>No assessments found</p>
+                                    <a href="<?php echo BASE_PATH; ?>/assessment/conduct" class="btn btn-primary" style="background-color: #a01422; border-color: #a01422;">
+                                        <i class="fas fa-plus"></i> Conduct First Assessment
+                                    </a>
                                 </td>
                             </tr>
                         <?php else: ?>
-                            <?php foreach ($pendingAssessments as $assessment): ?>
-                                <tr class="assessment-row" data-quarter="<?php echo htmlspecialchars($assessment['quarter']); ?>" 
+                            <?php foreach ($allAssessments as $assessment): ?>
+                                <tr class="assessment-row" 
                                     data-status="<?php echo htmlspecialchars($assessment['status']); ?>"
                                     data-search="<?php echo strtolower($assessment['student_name'] . ' ' . $assessment['lrn']); ?>">
                                     <td>
                                         <strong><?php echo htmlspecialchars($assessment['student_name']); ?></strong>
+                                        <?php if (!empty($assessment['services'])): ?>
+                                            <br>
+                                            <small class="text-muted">
+                                                <i class="bi bi-folder"></i> <?php echo count($assessment['services']); ?> service(s)
+                                                <?php 
+                                                $totalDocs = array_sum(array_column($assessment['services'], 'document_count'));
+                                                if ($totalDocs > 0): 
+                                                ?>
+                                                | <i class="bi bi-file-earmark"></i> <?php echo $totalDocs; ?> document(s)
+                                                <?php endif; ?>
+                                            </small>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <code><?php echo htmlspecialchars($assessment['lrn']); ?></code>
                                     </td>
                                     <td>
-                                        <span class="badge" style="background-color: #1e4072;">
-                                            <?php echo htmlspecialchars($assessment['quarter']); ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <small class="text-muted">
-                                            <?php echo date('M d, Y', strtotime($assessment['submitted_at'])); ?>
-                                        </small>
+                                        <span class="badge bg-secondary">v<?php echo $assessment['version']; ?></span>
                                     </td>
                                     <td>
                                         <?php 
                                         $statusColor = match($assessment['status']) {
-                                            'pending' => '#ffc107',
-                                            'approved' => '#3b6d11',
+                                            'finalized' => '#3b6d11',
+                                            'draft' => '#ffc107',
+                                            'pending' => '#17a2b8',
+                                            'approved' => '#28a745',
                                             'rejected' => '#dc3545',
                                             default => '#6c757d'
                                         };
@@ -146,13 +160,25 @@ require __DIR__ . '/../layouts/topbar.php';
                                         </span>
                                     </td>
                                     <td>
-                                        <small><?php echo htmlspecialchars($assessment['parent_name']); ?></small>
+                                        <small><?php echo htmlspecialchars($assessment['conducted_by_name'] ?? 'N/A'); ?></small>
                                     </td>
                                     <td>
-                                        <a href="<?php echo BASE_PATH; ?>/assessment/view/<?php echo $assessment['id']; ?>" 
-                                           class="btn btn-sm btn-outline-primary">
-                                            <i class="fas fa-eye"></i> Review
-                                        </a>
+                                        <small class="text-muted">
+                                            <?php echo date('M d, Y', strtotime($assessment['created_at'])); ?>
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <?php if ($assessment['status'] === 'draft'): ?>
+                                            <a href="<?php echo BASE_PATH; ?>/assessment/conduct/<?php echo $assessment['student_id']; ?>" 
+                                               class="btn btn-sm btn-warning">
+                                                <i class="fas fa-edit"></i> Continue
+                                            </a>
+                                        <?php else: ?>
+                                            <a href="<?php echo BASE_PATH; ?>/assessment/view/<?php echo $assessment['id']; ?>" 
+                                               class="btn btn-sm" style="background-color: #1e4072; color: white;">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -167,13 +193,11 @@ require __DIR__ . '/../layouts/topbar.php';
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchInput');
-    const filterQuarter = document.getElementById('filterQuarter');
     const filterStatus = document.getElementById('filterStatus');
     const rows = document.querySelectorAll('.assessment-row');
 
     function filterTable() {
         const searchTerm = searchInput.value.toLowerCase();
-        const quarterFilter = filterQuarter.value;
         const statusFilter = filterStatus.value;
 
         rows.forEach(row => {
@@ -181,11 +205,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Search filter
             if (searchTerm && !row.dataset.search.includes(searchTerm)) {
-                show = false;
-            }
-
-            // Quarter filter
-            if (quarterFilter && row.dataset.quarter !== quarterFilter) {
                 show = false;
             }
 
@@ -198,8 +217,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    window.clearFilters = function() {
+        searchInput.value = '';
+        filterStatus.value = '';
+        filterTable();
+    };
+
     searchInput.addEventListener('keyup', filterTable);
-    filterQuarter.addEventListener('change', filterTable);
     filterStatus.addEventListener('change', filterTable);
 });
 </script>

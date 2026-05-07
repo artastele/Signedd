@@ -567,4 +567,118 @@ class StudentModel {
         return $stmt->fetch();
     }
 
+    /**
+     * Get verified students ready for assessment (Process 3)
+     * Returns students with verified enrollment status
+     */
+    public function getVerifiedStudents() {
+        $stmt = $this->db->query("
+            SELECT DISTINCT
+                sr.id,
+                sr.lrn,
+                sr.student_name,
+                sr.date_of_birth,
+                sr.disability_type,
+                es.school_year,
+                es.grade_level_to_enroll
+            FROM student_records sr
+            JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+            WHERE es.status = 'verified'
+            ORDER BY sr.student_name ASC
+        ");
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Get full student details for assessment auto-fill (Process 3)
+     * Returns all data needed for Part I Section A
+     */
+    public function getFullDetails($studentId) {
+        $stmt = $this->db->prepare("
+            SELECT 
+                sr.*,
+                es.last_name,
+                es.first_name,
+                es.middle_name,
+                es.extension_name,
+                es.birth_date,
+                es.sex,
+                es.birth_place,
+                es.mother_tongue,
+                es.is_indigenous_people,
+                es.indigenous_group,
+                es.is_4ps_beneficiary,
+                es.fourps_household_id,
+                es.current_house_no,
+                es.current_barangay,
+                es.current_city,
+                es.current_province,
+                es.current_zip_code,
+                es.father_last_name,
+                es.father_first_name,
+                es.father_middle_name,
+                es.father_contact_number,
+                es.mother_maiden_last_name,
+                es.mother_first_name,
+                es.mother_middle_name,
+                es.mother_contact_number,
+                es.guardian_last_name,
+                es.guardian_first_name,
+                es.guardian_middle_name,
+                es.guardian_contact_number,
+                es.previous_school_name,
+                es.previous_grade_level,
+                es.previous_school_year,
+                es.grade_level_to_enroll,
+                es.school_year,
+                es.enrollment_type,
+                u.name as parent_name,
+                u.email as parent_email
+            FROM student_records sr
+            JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+            LEFT JOIN users u ON es.parent_id = u.id
+            WHERE sr.id = :id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $studentId]);
+        $result = $stmt->fetch();
+        
+        if ($result) {
+            // Calculate age from birth_date
+            $birthDate = new DateTime($result['birth_date']);
+            $today = new DateTime();
+            $result['age'] = $today->diff($birthDate)->y;
+            
+            // Format full address
+            $result['full_address'] = trim(
+                ($result['current_house_no'] ? $result['current_house_no'] . ', ' : '') .
+                ($result['current_barangay'] ? $result['current_barangay'] . ', ' : '') .
+                ($result['current_city'] ? $result['current_city'] . ', ' : '') .
+                ($result['current_province'] ? $result['current_province'] . ' ' : '') .
+                ($result['current_zip_code'] ? $result['current_zip_code'] : '')
+            );
+            
+            // Format parent names
+            $result['father_full_name'] = trim(
+                ($result['father_first_name'] ?? '') . ' ' .
+                ($result['father_middle_name'] ?? '') . ' ' .
+                ($result['father_last_name'] ?? '')
+            );
+            
+            $result['mother_full_name'] = trim(
+                ($result['mother_first_name'] ?? '') . ' ' .
+                ($result['mother_middle_name'] ?? '') . ' ' .
+                ($result['mother_maiden_last_name'] ?? '')
+            );
+            
+            $result['guardian_full_name'] = trim(
+                ($result['guardian_first_name'] ?? '') . ' ' .
+                ($result['guardian_middle_name'] ?? '') . ' ' .
+                ($result['guardian_last_name'] ?? '')
+            );
+        }
+        
+        return $result;
+    }
+
 }

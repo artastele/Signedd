@@ -5,6 +5,566 @@
 
 ---
 
+## [v1.35] — PDSP Form (Part II) Complete Implementation (Process 4 - Feature)
+- **Built:** Complete PDSP (Present Levels of Development and Performance) form with manual fill, optional AI extraction, and digital signatures
+- **Purpose:** Document student development across 6 DepEd domains with multi-party digital signatures
+- **Features Implemented:**
+  1. **Manual Form Fill:**
+     - 6 DepEd domains: Perceptuo-Cognitive, Psychosocial, Socio-Emotional, Psychomotor, Daily Living Skills, Communication and Language
+     - Dynamic sub-domain rows (add/remove per domain)
+     - Fields per row: Sub-Domain, Skills Description, Mastered (Yes/No toggle), Educational Recommendation, Q1 Level, Q2 Level
+     - Performance levels: Beginning (74% and below), Developing (75-79%), Approaching Proficiency (80-84%), Proficient (85-89%), Advanced (90% and above)
+     - Navy-bordered domain cards with crimson headers
+     - Crimson/gray mastered toggle switch
+     - Save as draft functionality
+  2. **Optional AI Extraction:**
+     - Secondary navy button (top-right): "Upload handwritten form (AI auto-fill)"
+     - Upload modal with drag-drop zone (dashed crimson border)
+     - Accepts JPG, PNG, PDF (max 10MB)
+     - Claude Vision API integration (claude-sonnet-4-20250514)
+     - Extracts JSON: domain_name, sub_domain, skills_description, mastered, educational_recommendation, q1_level, q2_level
+     - Pre-fills form with extracted data
+     - Toast notification: "Form auto-filled. Please review..."
+     - Graceful failure handling (never blocks manual flow)
+     - API key stored in `/config/claude.php`
+  3. **Digital Signatures:**
+     - 8 signature slots: SPED Teacher, Gen Ed Teacher, School Head, ILRC Supervisor, Parent/Guardian, 3x Medical Allied Health
+     - signature_pad.js from CDN
+     - Canvas drawing (finger/mouse) → save as PNG to `/public/uploads/signatures/`
+     - Once signed → read-only display with name and date
+     - Any order signing (no sequence enforced)
+     - Dashed border (gray = unsigned, green = signed)
+  4. **Document Passing:**
+     - Guidance/Principal can access from dashboard
+     - Real-time signature status display
+     - Shows who signed and who's pending
+  5. **Completion Trigger:**
+     - After every signature save → checks if all 8 roles signed
+     - When complete → auto-update `pdsp_records.status = 'complete'`
+     - Auto-update `iep_meetings.status = 'completed'`
+     - Send in-system notification to SPED Teacher
+     - Unlock Process 5 for this student
+- **Database Schema:**
+  - **pdsp_records:** id, meeting_id, student_id, filled_by, status (draft/complete), ai_extracted, uploaded_image_path, created_at, updated_at
+  - **pdsp_domains:** id, pdsp_id, domain_name, sub_domain, skills_description, mastered, educational_recommendation, q1_level, q2_level
+  - **pdsp_signatures:** id, pdsp_id, signatory_role, signatory_name, signature_image_path, signed_at
+- **Implementation:**
+  - **PDSPModel.php:** Complete CRUD operations for PDSP records, domains, and signatures
+  - **IEPMeetingController.php:**
+    - `pdspForm()` - Display form with existing data
+    - `savePDSP()` - Save all domain data
+    - `aiExtract()` - Claude Vision API integration
+    - `saveSignature()` - Save signature + check completion
+  - **pdsp_form.php:** Complete UI with all features
+  - **claude.php:** API configuration
+- **UI Design:**
+  - Color scheme: #a01422 crimson, #1e4072 navy
+  - Domain cards: Navy border, crimson headers
+  - Mastered toggle: Crimson when checked
+  - Performance dropdowns: Navy border, crimson focus
+  - Signature slots: Dashed border (gray/green)
+  - AI button: Secondary navy style (not primary)
+  - Upload modal: Dashed crimson border
+- **Benefits:**
+  - ✅ Complete DepEd PDSP form implementation
+  - ✅ Optional AI assistance (doesn't block manual flow)
+  - ✅ Digital signatures (no paper needed)
+  - ✅ Automatic workflow progression
+  - ✅ Multi-party collaboration
+  - ✅ Real-time status tracking
+  - ✅ Process 5 auto-unlock when complete
+- **Files Created:**
+  - `app/Models/PDSPModel.php` - PDSP data operations
+  - `app/Views/iep_meeting/pdsp_form.php` - Complete form UI
+  - `config/claude.php` - Claude API configuration
+- **Files Modified:**
+  - `app/Controllers/IEPMeetingController.php` - Added pdspForm, savePDSP, aiExtract, saveSignature methods
+  - `routes/web.php` - Added PDSP routes
+  - `config/schema.sql` - Added pdsp_records, pdsp_domains, pdsp_signatures tables (migration v31)
+- **Tables modified:** 
+  - Created: `pdsp_records`, `pdsp_domains`, `pdsp_signatures`
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-07
+
+---
+
+## [v1.34] — IEP Meeting Storage Fix + JavaScript Alerts (Process 4 - Bug Fix)
+- **Fixed:** IEP meetings not saving to database + added JavaScript alert dialogs
+- **Issues Fixed:**
+  1. ❌ IEP meetings not storing in database (column name mismatch)
+  2. ❌ Assessment view not found (parent_id join issue)
+  3. ❌ No JavaScript alerts for confirmations/submissions
+- **Solutions:**
+  - **IEP Meeting Storage Fix:**
+    - Fixed column name mismatch in `IEPMeetingModel::create()`
+    - Database uses: `meeting_location`, `agenda`
+    - Code was using: `venue`, `online_link`, `agenda_notes`
+    - Updated model to map correctly: `venue` → `meeting_location`, `agenda_notes` → `agenda`
+    - Meetings now save successfully
+  - **Assessment View Fix:**
+    - Fixed `AssessmentModel::findById()` query
+    - Changed from `JOIN users ON parent_id` to `LEFT JOIN users ON conducted_by`
+    - Now works with new assessment structure (no parent_id required)
+    - Decodes all JSON fields: `section_a_data`, `services_checked`, `screening_types`
+  - **JavaScript Alerts Added:**
+    - Integrated SweetAlert2 library (beautiful alert dialogs)
+    - All flash messages now show as popup alerts:
+      - Success messages: Green checkmark icon, 3-second auto-close
+      - Error messages: Red X icon, manual close
+      - Warning messages: Yellow warning icon
+      - Info messages: Blue info icon
+    - Color-coded buttons match SPED LMS theme:
+      - Success: #3b6d11 (green)
+      - Error: #a01422 (crimson)
+      - Warning: #ffc107 (yellow)
+      - Info: #1e4072 (navy)
+    - Auto-clears session variables after display
+- **Implementation:**
+  - **IEPMeetingModel.php:**
+    - Updated `create()` method with correct column names
+    - Maps `venue`/`online_link` to `meeting_location`
+    - Maps `agenda_notes` to `agenda`
+  - **AssessmentModel.php:**
+    - Fixed `findById()` to use `conducted_by` instead of `parent_id`
+    - Added LEFT JOIN for optional user info
+    - Decodes all new JSON fields
+  - **layouts/footer.php:**
+    - Added SweetAlert2 CDN
+    - Added PHP code to convert session flash messages to JavaScript alerts
+    - Supports: success, error, warning, info
+- **Benefits:**
+  - ✅ IEP meetings now save correctly
+  - ✅ Assessment view works for all assessments
+  - ✅ Beautiful popup alerts for all actions
+  - ✅ Better user feedback
+  - ✅ Professional UI/UX
+  - ✅ Auto-close for success messages
+  - ✅ Color-coded by message type
+- **Files Modified:**
+  - `app/Models/IEPMeetingModel.php` - Fixed create() method
+  - `app/Models/AssessmentModel.php` - Fixed findById() method
+  - `app/Views/layouts/footer.php` - Added SweetAlert2 alerts
+- **Tables modified:** None (fixed code to match existing schema)
+- **Tested:** ✅ Meeting insertion successful, alerts working
+- **Status:** ✅ Complete - Fixed
+- **Date:** 2026-05-07
+
+---
+
+## [v1.33] — Multiple Bug Fixes & Navigation Improvements (Process 3 & 4 - Bug Fixes)
+- **Fixed:** Multiple critical bugs and navigation issues
+- **Issues Fixed:**
+  1. ❌ Meeting schedule submission error (missing `meeting_time` column)
+  2. ❌ Assessment view 404 error
+  3. ❌ Part 3 Final IEP 403 error for SPED Teacher
+  4. ❌ Wrong IEP Procedure navigation for Guidance/Principal
+  5. ❌ Assessment History not in sidebar
+- **Solutions:**
+  - **Database Fix:**
+    - Added `meeting_time TIME NOT NULL` column to `iep_meetings` table
+    - Meeting schedule submissions now work correctly
+  - **Permissions Fix:**
+    - Added `iep.create` permission to SPED Teacher, Guidance, Principal
+    - Added `iep.sign` permission to SPED Teacher (already had for Guidance/Principal)
+    - SPED Teacher can now access Part 3 Final IEP
+  - **Sidebar Navigation Fix:**
+    - **SPED Teacher:** Collapsible "IEP Procedure" with 4 items:
+      - Assessment History (new!)
+      - Part 1: Assessment
+      - Part 2: Meeting & PDSP
+      - Part 3: Final IEP
+    - **Guidance:** Simple links (no collapsible):
+      - My Availability
+      - IEP Meetings
+      - PDSP Forms
+      - Sign Final IEP
+    - **Principal:** Simple links (no collapsible):
+      - My Availability
+      - IEP Approval Queue
+      - IEP Meetings
+      - PDSP Forms
+      - Sign Final IEP
+      - Staff Requests
+      - Reports
+- **Verified Working:**
+  - ✅ Meeting notifications already implemented (PHPMailer)
+  - ✅ Assessment submission success messages already exist
+  - ✅ Parent IEP meeting permission already exists
+  - ✅ All staff roles already have student records permissions
+- **Benefits:**
+  - ✅ Meeting scheduling works correctly
+  - ✅ Clear role-based navigation
+  - ✅ SPED Teacher has full IEP workflow access
+  - ✅ Guidance/Principal have simplified navigation
+  - ✅ Assessment History easily accessible
+- **Files Modified:**
+  - `config/permissions.php` - Added permissions to SPED Teacher
+  - `app/Views/layouts/sidebar.php` - Fixed navigation for all roles
+  - Database: `iep_meetings` table - Added meeting_time column
+- **Tables modified:** `iep_meetings` - Added meeting_time column
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Fixed
+- **Date:** 2026-05-07
+
+---
+
+## [v1.32] — Assessment History View (Process 3 - Enhancement)
+- **Built:** Assessment history page showing all submitted and draft assessments
+- **Purpose:** Allow SPED Teachers to view all assessments (finalized and drafts) in one place
+- **Features:**
+  - **Assessment List View:**
+    - Shows all assessments with student info (name, LRN)
+    - Displays version number for each assessment
+    - Color-coded status badges (Finalized = green, Draft = yellow)
+    - Shows who conducted the assessment
+    - Shows creation date
+  - **Statistics Cards:**
+    - Finalized count (green)
+    - Drafts count (yellow)
+    - Total assessments (navy)
+    - Students assessed (crimson)
+  - **Search & Filter:**
+    - Search by student name or LRN
+    - Filter by status (Finalized / Draft)
+    - Clear filters button
+  - **Action Buttons:**
+    - Draft assessments: "Continue" button (yellow) → Resume editing
+    - Finalized assessments: "View" button (navy) → View details
+    - "Conduct New Assessment" button at top
+  - **Empty State:**
+    - Shows friendly message when no assessments exist
+    - "Conduct First Assessment" button
+- **Implementation:**
+  - **AssessmentController::index():**
+    - Changed from showing pending assessments to showing all assessments
+    - Separates finalized and draft assessments
+    - Passes both arrays to view
+  - **AssessmentModel::getAllWithStudentInfo():**
+    - New method to get all assessments with student and user info
+    - Joins: assessment_records → student_records → users
+    - Returns: id, student_id, status, version, dates, student_name, lrn, conducted_by_name
+    - Ordered by created_at DESC (newest first)
+  - **assessment/index.php:**
+    - Complete redesign from "Review Assessments" to "Assessment History"
+    - New statistics cards
+    - Simplified filter (removed quarter filter)
+    - Action buttons based on status
+- **Benefits:**
+  - ✅ See all assessments in one place
+  - ✅ Track assessment versions per student
+  - ✅ Resume draft assessments easily
+  - ✅ View finalized assessments
+  - ✅ Search and filter functionality
+  - ✅ Clear visual status indicators
+- **UI Design:**
+  - Consistent color scheme (crimson/navy/green/yellow)
+  - Bootstrap cards and badges
+  - Responsive table
+  - Clear action buttons
+  - Professional layout
+- **Files Modified:**
+  - `app/Controllers/AssessmentController.php` - Updated index() method
+  - `app/Models/AssessmentModel.php` - Added getAllWithStudentInfo() method
+  - `app/Views/assessment/index.php` - Complete redesign
+- **Tables modified:** None
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-07
+
+---
+
+## [v1.31] — Assessment Submission Database Fix (Process 3 - Bug Fix)
+- **Fixed:** Assessment form not submitting, database column errors
+- **Issues Fixed:**
+  1. Missing `conducted_by` column in assessment_records table
+  2. Missing `updated_at` column in assessment_records table
+  3. Missing `assessed_by` value in insert query
+  4. Wrong status enum values (missing 'draft' and 'finalized')
+- **Root Causes:**
+  - Schema had columns defined but migrations were missing
+  - Table was created before columns were added to schema
+  - Model insert query didn't include assessed_by field
+  - Status enum was outdated (only had pending/approved/rejected)
+- **Solution:** Added migrations and fixed model queries
+- **Changes:**
+  - **Migration v28 (conducted_by):**
+    - Added `conducted_by INT` column to assessment_records
+    - Foreign key to users(id) ON DELETE SET NULL
+    - Allows tracking who conducted the assessment
+  - **Migration v29 (updated_at):**
+    - Added `updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
+    - Provides audit trail for record changes
+  - **Migration v30 (status enum):**
+    - Modified status enum to include all values: 'draft', 'finalized', 'pending', 'approved', 'rejected'
+    - Default value: 'draft'
+    - Allows proper workflow tracking
+  - **AssessmentModel Fix:**
+    - Updated `createFinalized()` to include both `assessed_by` and `conducted_by`
+    - Both set to same user ID (SPED Teacher who conducts assessment)
+    - Prevents foreign key constraint violation
+- **Database Verification:**
+  - ✅ conducted_by column exists
+  - ✅ updated_at column exists
+  - ✅ created_at column exists
+  - ✅ section_a_data column exists
+  - ✅ services_checked column exists
+  - ✅ screening_types column exists
+  - ✅ Status enum includes all 5 values
+- **Test Results:**
+  - ✅ Assessment record inserts successfully
+  - ✅ Status correctly set to 'finalized'
+  - ✅ Timestamps auto-populate
+  - ✅ Foreign keys resolve correctly
+  - ✅ JSON fields store data properly
+- **Benefits:**
+  - ✅ Assessment form now submits successfully
+  - ✅ Data saves to database correctly
+  - ✅ Proper audit trail with timestamps
+  - ✅ Workflow tracking with status values
+  - ✅ No more database errors
+- **Files Modified:**
+  - `config/schema.sql` - Added migrations v28, v29, v30
+  - `app/Models/AssessmentModel.php` - Fixed createFinalized() to include assessed_by
+- **Tables modified:** 
+  - `assessment_records` - Added conducted_by, updated_at columns, fixed status enum
+- **Tested:** ✅ Database verified, test insertion successful
+- **Status:** ✅ Complete - Fixed
+- **Date:** 2026-05-07
+
+---
+
+## [v1.30.1] — Assessment Form UX Improvements (Process 3 - Enhancement)
+- **Built:** Improved conduct assessment form UX based on user feedback
+- **Purpose:** Better form layout and conditional logic for services
+- **Changes:**
+  - **Load Data Button Alignment (Fixed):**
+    - Moved label outside of row for proper alignment
+    - Used `row g-2` (gap-2) for consistent spacing
+    - Button height set to 48px to match select height
+    - Button uses `btn-lg` class for consistency
+    - Student selector now col-md-10, button col-md-2
+  - **Support Services Conditional Logic:**
+    - Added `onchange="toggleServiceCheckboxes()"` to "With Support Services?" dropdown
+    - If "No" selected → All service checkboxes disabled and unchecked
+    - If "No" selected → All screening checkboxes disabled and unchecked
+    - If "No" selected → Both containers grayed out (opacity 0.5, pointer-events none)
+    - If "Yes" selected → All checkboxes enabled
+    - Added help text: "If 'No', service checkboxes below will be disabled"
+  - **Removed Redundant Field:**
+    - Removed "Support Services Detail" text input field
+    - Services are now tracked via checkboxes only (cleaner)
+    - Reduced from col-md-3/3/6 to col-md-4/4 layout
+  - **Screening Checkboxes:**
+    - Added `screening-checkbox` class to all screening inputs
+    - Wrapped in `screening-checklist-container` div
+    - Now disabled/enabled together with service checkboxes
+  - **JavaScript Functions:**
+    - Updated `toggleServiceCheckboxes()` to include screening checkboxes
+    - Calls `updateMDTTable()` when services disabled (clears MDT table)
+    - Initializes on page load via `DOMContentLoaded`
+- **Benefits:**
+  - ✅ Button properly aligned with select dropdown
+  - ✅ Conditional logic prevents confusion (can't check services/screening if "No")
+  - ✅ Removed redundant field (services tracked via checkboxes)
+  - ✅ Better UX with visual feedback (grayed out when disabled)
+  - ✅ Automatic MDT table clearing when services disabled
+  - ✅ Consistent behavior for both services and screening
+- **Files Modified:**
+  - `app/Views/assessment/conduct.php` - Updated layout and added conditional logic
+- **Tables modified:** None
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-07
+
+---
+
+## [v1.30] — Sidebar Reorganization: IEP Procedure + Scrollable + Collapsible (UX Enhancement)
+- **Built:** Reorganized sidebar navigation with collapsible IEP Procedure section and scrollable menu
+- **Purpose:** Better organize IEP workflow and improve navigation UX
+- **Changes:**
+  - **IEP Procedure Section (Collapsible):**
+    - Created new collapsible section: "IEP Procedure"
+    - Part 1: Conduct Assessment → `/assessment/conduct`
+    - Part 2: PDSP Form → `/iep/meetings`
+    - Part 3: Final IEP → `/iep/p3/sign`
+    - Auto-expands when any IEP part is active
+    - Numbered icons (1-circle, 2-circle, 3-circle) for clear workflow
+  - **Scrollable Sidebar:**
+    - Sidebar menu now scrollable (overflow-y: auto)
+    - Custom scrollbar styling (navy theme)
+    - Fixed height with flex layout
+    - Smooth scrolling experience
+  - **Mobile Collapsible:**
+    - Toggle button for mobile devices
+    - Sidebar slides in/out on mobile
+    - Click outside to close on mobile
+    - Responsive breakpoint at 768px
+  - **Text Updates:**
+    - "Review P2 Assessments" → "Part 2: PDSP Form" (clearer)
+    - "Sign IEP Documents" → "Part 3: Final IEP" (clearer)
+    - Parent: "Sign IEP Documents" → "Sign Final IEP"
+  - **Roles with IEP Procedure:**
+    - SPED Teacher ✅
+    - Guidance ✅
+    - Principal ✅
+- **UI Features:**
+  - Collapsible section with chevron icon animation
+  - Submenu items indented with left border
+  - Active state highlighting (crimson)
+  - Hover effects with smooth transitions
+  - Mobile-friendly toggle button
+  - Custom scrollbar (6px width, navy theme)
+- **Benefits:**
+  - ✅ Clear IEP workflow (Part 1 → Part 2 → Part 3)
+  - ✅ Organized navigation (less clutter)
+  - ✅ Scrollable for long menus
+  - ✅ Mobile-friendly collapsible sidebar
+  - ✅ Better UX with visual hierarchy
+  - ✅ Auto-expand when on IEP pages
+- **Files Modified:**
+  - `app/Views/layouts/sidebar.php` - Complete reorganization with collapsible sections
+- **Files Created:**
+  - `app/Views/layouts/sidebar.php.backup` - Backup of old sidebar
+- **Tables modified:** None
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-07
+
+---
+
+## [v1.29.2] — P2 Review Permission Fix (Process 4 - Bug Fix)
+- **Fixed:** 403 Forbidden error when SPED Teacher accesses "Review P2 Assessments"
+- **Issue:** Route `/iep/p2/review` required `iep.sign` permission, but SPED Teacher doesn't have this
+- **Root Cause:** Wrong permission on route - SPED Teacher needs to view P2 documents they created
+- **Solution:** Changed route permission from `iep.sign` to `iep.view`
+- **Impact:**
+  - ✅ SPED Teacher can now access P2 review list
+  - ✅ Guidance can still access (has `iep.view`)
+  - ✅ Principal can still access (has `iep.view`)
+  - ✅ View-only route uses view permission (more logical)
+  - ✅ Submit review still requires `iep.sign` (correct)
+- **Permission Logic:**
+  - `iep.view` - View P2 documents (SPED Teacher, Guidance, Principal)
+  - `iep.sign` - Sign/approve P2 documents (Guidance, Principal only)
+- **Files Modified:**
+  - `routes/web.php` - Changed `/iep/p2/review` permission from `iep.sign` to `iep.view`
+  - `routes/web.php` - Changed `/iep/p2/{id}/review` permission from `iep.sign` to `iep.view`
+- **Tables modified:** None
+- **Tested:** Permission logic verified
+- **Status:** ✅ Complete - Fixed
+- **Date:** 2026-05-07
+
+---
+
+## [v1.29.1] — Assessment Controller HTTP 500 Fix (Process 3 - Bug Fix)
+- **Fixed:** HTTP 500 error when accessing "Conduct Assessment" page
+- **Issue:** Duplicate `submit()` method in AssessmentController causing fatal error
+- **Root Cause:** Two `submit()` methods existed:
+  1. Line 161: SPED Teacher submit (Process 3 - current implementation)
+  2. Line 550: Parent submit (old Process 3 - deprecated)
+- **Solution:** Removed duplicate parent submit method (line 545-625)
+- **Impact:** 
+  - ✅ "Conduct Assessment" page now loads correctly
+  - ✅ SPED Teacher can access assessment form
+  - ✅ No functionality lost (parent submit was deprecated)
+- **Files Modified:**
+  - `app/Controllers/AssessmentController.php` - Removed duplicate submit() method
+- **Tables modified:** None
+- **Tested:** ✅ PHP syntax verified, no errors
+- **Status:** ✅ Complete - Fixed
+- **Date:** 2026-05-07
+
+---
+
+## [v1.29] — Navigation Links + Testing Checklist (Process 3 & 4 - Enhancement)
+- **Built:** Updated sidebar navigation and created comprehensive testing checklist
+- **Purpose:** Make Process 3 & 4 features easily accessible and provide testing guide
+- **Navigation Updates:**
+  - **SPED Teacher Sidebar:**
+    - Changed "Conduct Assessment" link from `/assessment` to `/assessment/conduct` (direct access)
+    - Added "My Availability" link to `/iep/availability` (calendar icon)
+    - Reordered links for better workflow: Verify → Review → Assess → Availability → Meetings
+  - **Guidance Sidebar:**
+    - Added "My Availability" link at top (calendar icon)
+    - Existing links: Schedule Meeting, IEP Meetings, Review P2, Sign IEP
+  - **Principal Sidebar:**
+    - Added "My Availability" link at top (calendar icon)
+    - Existing links: Approval Queue, IEP Meetings, Review P2, Sign IEP, Staff Requests, Reports
+- **Testing Checklist Created:**
+  - Comprehensive 500+ test cases for Process 3 & 4
+  - Organized by feature and test scenario
+  - Includes: functional tests, UI/UX tests, security tests, performance tests, regression tests
+  - Pass/fail tracking with results summary section
+  - Edge cases and error handling scenarios
+  - Mobile and responsive design tests
+  - Accessibility checks
+- **Benefits:**
+  - ✅ All staff can easily access availability calendar
+  - ✅ SPED Teacher has direct link to conduct assessment
+  - ✅ Clear navigation flow matches process workflow
+  - ✅ Comprehensive testing guide ensures quality
+  - ✅ Reduces testing time with organized checklist
+- **Files Modified:**
+  - `app/Views/layouts/sidebar.php` - Updated navigation for 3 roles
+- **Files Created:**
+  - `PROCESS-3-4-TEST-CHECKLIST.md` - Comprehensive testing guide (500+ test cases)
+- **Tables modified:** None
+- **Tested:** Navigation links verified, checklist ready for use
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-07
+
+---
+
+## [v1.22] — Process 3 Database Schema Enhancement (Process 3 - Schema)
+- **Built:** Enhanced database schema for Process 3 (Conducting Initial Assessment)
+- **Purpose:** Support DepEd SPED Part I assessment with dynamic MDT table, service-driven uploads, and versioning
+- **Schema Changes:**
+  - **Modified `assessment_records` table:**
+    - Added `conducted_by` column (FK to users) - separate from assessed_by
+    - Added `updated_at` timestamp for audit trail
+    - Modified `status` ENUM: added 'draft' and 'finalized' (kept old values for backward compatibility)
+    - Status values now: 'draft', 'finalized', 'pending', 'approved', 'rejected'
+  - **Created `assessment_services` table:**
+    - Links to assessment_records (one-to-many)
+    - Stores service name, MDT members (JSON), assessment date
+    - Supports dynamic MDT table driven by checked services
+  - **Created `assessment_documents` table:**
+    - Links to assessment_services (one-to-many)
+    - Stores file path, type (jpg/png/pdf), original name
+    - One upload slot per service
+  - **Created `assessment_checklists` table:**
+    - Links to assessment_records (one-to-many)
+    - Stores which services were checked (Section A)
+    - UNIQUE constraint prevents duplicate service entries
+- **Table Relationships:**
+  ```
+  assessment_records (main)
+    ├─→ assessment_checklists (services checked)
+    └─→ assessment_services (MDT details)
+          └─→ assessment_documents (files per service)
+  ```
+- **Features Enabled:**
+  - ✅ Versioned assessments (never overwrite old versions)
+  - ✅ Service-driven MDT table (only checked services appear)
+  - ✅ File upload per service (jpg/png/pdf)
+  - ✅ Draft and finalized states
+  - ✅ Audit trail with timestamps
+- **Backward Compatibility:**
+  - Old status values ('pending', 'approved', 'rejected') preserved
+  - Existing assessment_records data remains intact
+  - New columns nullable or have defaults
+- **Files Modified:**
+  - `config/schema.sql` - Added 3 new tables, modified 1 existing table
+- **Tables modified:** 
+  - Modified: `assessment_records`
+  - Created: `assessment_services`, `assessment_documents`, `assessment_checklists`
+- **Tested:** Schema migration ready for testing
+- **Status:** ✅ Complete - Ready for Feature Development
+- **Date:** 2026-05-06
+
+---
+
 ## [v1.21] — Show Rejection Reason on Status Page & Dashboard (Process 1 - Enhancement)
 - **Built:** Display rejection reason prominently on enrollment status page and parent dashboard
 - **Issue:** Parents couldn't see WHY their enrollment was rejected (only saw "rejected" status)
@@ -2112,3 +2672,463 @@
 - **Tested:** Pending user testing
 - **Status:** Ready for Testing
 - **Date:** 2026-05-06
+
+
+---
+
+## [v1.23] — Process 3 Section A Routes & Draft Saving (Process 3 - Feature)
+- **Built:** Routes and draft saving functionality for Process 3 Section A
+- **Purpose:** Enable SPED teachers to conduct assessments with auto-fill and draft saving
+- **Features:**
+  - **Routes Added:**
+    - `GET /assessment/conduct` - Open assessment form (student selector)
+    - `GET /assessment/conduct/{id}` - Open assessment form with student auto-fill
+    - `GET /assessment/get-student-data/{id}` - AJAX endpoint for student data
+    - `POST /assessment/save-draft` - Save Section A as draft
+  - **Draft Saving:**
+    - SPED teacher can save Section A progress as draft
+    - Draft includes: Section A data, services checklist, screening types
+    - Draft can be updated multiple times before finalization
+    - Auto-loads existing draft when reopening assessment
+  - **Controller Methods:**
+    - `AssessmentController::conduct()` - Load form with student selector and auto-fill
+    - `AssessmentController::getStudentData()` - AJAX endpoint returns student JSON
+    - `AssessmentController::saveDraft()` - Save/update draft assessment
+  - **Model Methods:**
+    - `AssessmentModel::createDraft()` - Create new draft assessment
+    - `AssessmentModel::updateDraft()` - Update existing draft
+    - `AssessmentModel::saveServiceChecklist()` - Save checked services to checklist table
+  - **Schema Changes:**
+    - Added `section_a_data` JSON column to `assessment_records`
+    - Added `services_checked` JSON column to `assessment_records`
+    - Added `screening_types` JSON column to `assessment_records`
+    - Migration v1.23 applied successfully
+- **Workflow:**
+  1. SPED Teacher opens `/assessment/conduct`
+  2. Selects verified student from dropdown
+  3. Clicks "Load Student Data" → Auto-fills Section A
+  4. Reviews and edits auto-filled fields
+  5. Checks applicable services
+  6. Clicks "Save Draft" → Draft saved to database
+  7. Can return later to continue from draft
+  8. Clicks "Save & Continue to Section B" → Proceeds to MDT table (next feature)
+- **Auto-Fill Behavior:**
+  - All fields from student records auto-populate
+  - Green background on auto-filled fields
+  - Age auto-calculated from birth date
+  - All fields remain editable
+  - Success alert shows "Auto-filled from student records"
+- **Files Modified:**
+  - `routes/web.php` - Added 4 new assessment routes
+  - `app/Controllers/AssessmentController.php` - Added saveDraft() method
+  - `app/Models/AssessmentModel.php` - Added createDraft(), updateDraft(), saveServiceChecklist()
+  - `config/schema.sql` - Added 3 JSON columns, migration block v1.23
+- **Tables modified:**
+  - Modified: `assessment_records` (added 3 columns)
+  - Used: `assessment_checklists` (saves checked services)
+- **Tested:** Schema migration applied, ready for feature testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-07
+
+
+
+---
+
+## [v1.24] — Process 3 Section B - Dynamic MDT Assessment Table (Process 3 - Feature)
+- **Built:** Complete Section B implementation with dynamic MDT table driven by checked services
+- **Purpose:** Enable SPED teachers to record MDT details and upload supporting documents per service
+- **Features:**
+  - **Dynamic MDT Table:**
+    - Table rows appear/disappear based on checked services in Section A
+    - Each row includes: Service name, MDT members, Assessment date, Document upload
+    - Real-time JavaScript updates when services are checked/unchecked
+  - **MDT Member Management:**
+    - "Add Member" button per service row
+    - Each member has: Name field, Designation field, Remove button
+    - Members stored as JSON array in database
+    - Validation: At least one member required per service
+  - **File Upload per Service:**
+    - One upload slot per service (jpg, png, pdf only)
+    - File size limit: 10MB per file
+    - File preview with filename display
+    - Remove file functionality
+    - Files stored in `/uploads/assessments/`
+  - **Form Validation:**
+    - Client-side validation before submission
+    - Checks: Student selected, at least one service checked
+    - Per-service validation: At least one member, assessment date required
+    - File type and size validation
+  - **Backend Processing:**
+    - `AssessmentController::submit()` updated to handle Section B data
+    - File upload handling with security validation
+    - MDT data saved to `assessment_services` table
+    - Documents saved to `assessment_documents` table
+  - **Model Methods:**
+    - `createFinalized()` - Creates complete assessment (Section A + B)
+    - `finalizeDraft()` - Updates draft to finalized status
+    - `saveAssessmentServices()` - Saves MDT data per service
+    - `saveServiceDocument()` - Saves uploaded files
+- **UI Components:**
+  - Professional table with navy header (#1e4072)
+  - Green success indicators (#4caf50)
+  - Crimson action buttons (#a01422)
+  - File upload slots with drag-drop styling
+  - Member management with add/remove functionality
+- **Workflow:**
+  1. SPED Teacher checks services in Section A
+  2. MDT table rows appear for each checked service
+  3. Teacher adds MDT members (name + designation) for each service
+  4. Teacher selects assessment date for each service
+  5. Teacher uploads supporting document for each service (optional)
+  6. Teacher clicks "Save & Continue to Section B" → Form validates
+  7. If validation passes → Assessment saved as "finalized"
+  8. Files uploaded to server and linked to service records
+- **Security:**
+  - File type validation (jpg, png, pdf only)
+  - File size limit (10MB)
+  - Sanitized filenames
+  - Files stored outside public directory
+  - Prepared statements for all database operations
+- **Files Modified:**
+  - `app/Views/assessment/conduct.php` - Added Section B table, JavaScript, CSS
+  - `app/Controllers/AssessmentController.php` - Updated submit(), added file upload handling
+  - `app/Models/AssessmentModel.php` - Added 4 new methods for Section B
+- **Files Created:**
+  - `/uploads/assessments/` directory for file storage
+- **Tables Used:**
+  - `assessment_services` - Stores MDT data per service
+  - `assessment_documents` - Stores uploaded files
+  - `assessment_records` - Updated to "finalized" status
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-07
+
+
+
+---
+
+## [v1.25] — Process 3 Assessment History View (Process 3 - Feature)
+- **Built:** Complete assessment history view showing all versions for a student
+- **Purpose:** Allow staff to view complete assessment history with all versions preserved
+- **Features:**
+  - **Assessment History Page:**
+    - Shows all assessment versions for a student
+    - Version timeline with version numbers (v1, v2, v3...)
+    - Color-coded status badges (draft, finalized, approved, rejected)
+    - Expandable accordion for each version
+    - Latest version expanded by default
+  - **Version Details:**
+    - **Section A Data:** Complete learner information in table format
+    - **Services Checklist:** All checked services displayed as badges
+    - **Screening Types:** All screening types displayed
+    - **Section B MDT Data:** Complete MDT table with members, dates, documents
+    - **Timestamps:** Created and last updated dates
+  - **Document Access:**
+    - View/download links for all uploaded documents
+    - Documents organized by service
+    - Original filenames preserved
+  - **Student Info Card:**
+    - Student name, LRN, birth date, disability type
+    - Quick reference at top of page
+  - **Navigation:**
+    - Back to Student button
+    - Print button for print-friendly view
+    - Link from student detail page
+  - **Print-Friendly:**
+    - Hides buttons and navigation when printing
+    - Shows all accordion sections expanded
+    - Clean, professional layout
+  - **Access Control:**
+    - SPED Teacher, Guidance, Principal, Admin can view all
+    - Parent can only view their own child's assessments
+    - RBAC enforced in controller
+  - **Model Methods:**
+    - `getHistoryWithDetails()` - Gets all versions with full details
+    - `getAssessmentServices()` - Gets MDT data for an assessment
+    - `getServiceDocuments()` - Gets documents for a service
+    - `getVersionDetails()` - Gets specific version details
+  - **Controller Updates:**
+    - Enhanced `history()` method with RBAC checks
+    - Loads complete assessment history with all related data
+    - Proper error handling and redirects
+- **UI Design:**
+  - Bootstrap accordion for version expansion
+  - Navy header (#1e4072) for tables
+  - Color-coded status badges
+  - Professional table layouts
+  - Responsive design
+  - Print-optimized styles
+- **Workflow:**
+  1. Staff navigates to student detail page
+  2. Clicks "View Assessment History" button
+  3. Sees all assessment versions in timeline
+  4. Clicks version to expand details
+  5. Views Section A data, services, MDT details
+  6. Downloads documents if needed
+  7. Prints for records if needed
+- **Files Modified:**
+  - `app/Models/AssessmentModel.php` - Added 4 new methods
+  - `app/Controllers/AssessmentController.php` - Enhanced history() method
+  - `app/Views/students/view.php` - Added assessment history link
+  - `routes/web.php` - Updated history route path
+- **Files Created:**
+  - `app/Views/assessment/history.php` - Complete history view
+- **Tables Used:**
+  - `assessment_records` - Main assessment data
+  - `assessment_services` - MDT data per service
+  - `assessment_documents` - Uploaded files
+  - `student_records` - Student information
+- **Tested:** Ready for user testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-07
+
+
+
+---
+
+## [v1.26] — Process 4 Availability Calendar (Process 4 - Feature Part 1)
+- **Built:** Complete availability calendar system for IEP meeting scheduling
+- **Purpose:** Allow staff to set their availability so system can suggest meeting dates when all participants are available
+- **Features:**
+  - **Weekly Schedule Setter:**
+    - Checkboxes for each day of week (Sunday-Saturday)
+    - Save recurring availability pattern
+    - Shows current weekly schedule
+  - **Monthly Calendar View:**
+    - Visual calendar grid showing availability
+    - Navy background for available days
+    - Gray background for unavailable days
+    - Crimson dot indicator for exception dates
+    - Amber border for today's date
+    - Click any date to toggle exception
+  - **Exception Date System:**
+    - Override recurring schedule for specific dates
+    - Toggle between available/unavailable
+    - Exception indicator (crimson dot) on calendar
+    - Exceptions stored separately from recurring
+  - **Calendar Navigation:**
+    - Previous/Next month buttons
+    - "Today" button to jump to current month
+    - Month and year display
+  - **Hybrid Availability Model:**
+    - Recurring: Weekly pattern (e.g., every Monday, Wednesday, Friday)
+    - Exception: Specific date overrides (e.g., unavailable Dec 25 even though it's Monday)
+    - Exception takes precedence over recurring
+  - **Model Methods:**
+    - `getRecurringAvailability()` - Get weekly schedule
+    - `saveRecurringAvailability()` - Save weekly schedule
+    - `getExceptions()` - Get exception dates
+    - `toggleException()` - Toggle specific date
+    - `isUserAvailable()` - Check if user available on date
+    - `getCommonAvailableDates()` - Find dates when all users available
+  - **Controller Methods:**
+    - `availability()` - Show calendar view
+    - `saveRecurringAvailability()` - Save weekly schedule
+    - `toggleExceptionDate()` - Toggle exception
+    - `generateCalendarData()` - Generate calendar grid
+  - **AJAX Updates:**
+    - Save weekly schedule without page reload
+    - Toggle exception dates with confirmation
+    - Reload calendar after changes
+- **Schema:**
+  - **Created `user_availability` table:**
+    - id, user_id, type (recurring/exception)
+    - day_of_week (0-6 for recurring, NULL for exception)
+    - specific_date (DATE for exception, NULL for recurring)
+    - is_available (BOOLEAN)
+    - created_at
+    - UNIQUE constraints prevent duplicates
+    - Indexes for performance
+- **UI Design:**
+  - Professional calendar grid layout
+  - Color-coded availability indicators
+  - Hover effects on calendar days
+  - Responsive design
+  - Legend explaining colors
+  - Info alert with usage instructions
+- **Access Control:**
+  - RBAC: SPED Teacher, Guidance, Principal, Admin only
+  - Each user manages their own availability
+  - AJAX endpoints validate user ownership
+- **Workflow:**
+  1. Staff navigates to /iep/availability
+  2. Sets weekly schedule (check days available)
+  3. Clicks "Save Weekly Schedule"
+  4. Calendar updates to show recurring availability
+  5. Clicks specific dates to create exceptions
+  6. Exception dates marked with crimson dot
+  7. System uses this data to suggest meeting dates
+- **Files Created:**
+  - `app/Models/IEPMeetingModel.php` - Availability model
+  - `app/Controllers/IEPMeetingController.php` - Meeting controller
+  - `app/Views/iep_meeting/availability.php` - Calendar view
+- **Files Modified:**
+  - `config/schema.sql` - Added user_availability table, migration v1.26
+  - `routes/web.php` - Added availability routes
+- **Tables Created:**
+  - `user_availability` - Stores recurring and exception availability
+- **Tested:** Schema migration applied, ready for feature testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-07
+
+
+
+---
+
+## [v1.27] — Process 4 Meeting Scheduling (Process 4 - Feature Part 2)
+- **Built:** Complete IEP meeting scheduling system with availability-based suggestions
+- **Purpose:** Allow SPED Teachers to schedule IEP meetings with automatic participant notifications
+- **Features:**
+  - **Meeting Scheduler Form:**
+    - Student selector (students with finalized assessments only)
+    - Suggested available dates (when all 3 participants available)
+    - Manual date override with reason field
+    - Time picker
+    - Location toggle: In-person venue OR Online link
+    - Agenda notes textarea
+  - **Suggested Dates System:**
+    - Queries availability calendar for SPED Teacher, Guidance, Principal
+    - Finds dates when ALL THREE are available (next 60 days)
+    - Displays as green badges (clickable to select)
+    - Shows first 10 suggested dates
+    - Falls back to manual scheduling if no suggestions
+  - **Manual Override:**
+    - Checkbox to schedule on non-suggested date
+    - Requires reason field when checked
+    - Reason prepended to agenda notes
+    - Allows flexibility for urgent meetings
+  - **Meeting List View:**
+    - Upcoming meetings section
+    - Past meetings section
+    - Color-coded status badges
+    - Student name, LRN, date/time, location
+    - View button for each meeting
+  - **Automatic Notifications:**
+    - PHPMailer sends email to: Guidance, Principal, Parent
+    - In-system notifications for all participants
+    - Email contains: Student name, date/time, location, agenda
+    - Notification tracking in database
+  - **Model Methods:**
+    - `getSuggestedDates()` - Find common available dates
+    - `create()` - Create meeting record
+    - `getAll()` - Get all meetings with filters
+    - `findById()` - Get meeting by ID
+    - `update()` - Update meeting
+    - `reschedule()` - Reschedule with reason
+    - `saveNotification()` - Track notifications
+  - **Controller Methods:**
+    - `index()` - List all meetings
+    - `schedule()` - Show scheduler form
+    - `createMeeting()` - Create meeting and send notifications
+    - `sendMeetingNotifications()` - Email + in-system notifications
+  - **Access Control:**
+    - Only SPED Teacher can schedule meetings
+    - Guidance, Principal, Admin can view meetings
+    - Parent can view meetings for their child only
+    - RBAC enforced on all endpoints
+- **Schema:**
+  - **Created `iep_meetings` table:**
+    - id, student_id, assessment_id, scheduled_by
+    - meeting_date, meeting_time, venue, online_link
+    - agenda_notes, status, reschedule_reason
+    - created_at, updated_at
+  - **Created `meeting_notifications` table:**
+    - id, meeting_id, user_id, notified_via, sent_at
+- **UI Design:**
+  - Two-column layout (form + info sidebar)
+  - Suggested dates as clickable badges
+  - Location type toggle (venue/online)
+  - Professional form styling
+  - Info card with participant list
+  - Link to availability calendar
+- **Workflow:**
+  1. SPED Teacher navigates to /iep/meetings/schedule
+  2. Selects student with finalized assessment
+  3. System shows suggested available dates
+  4. Teacher clicks suggested date OR enters manual date
+  5. If manual, provides override reason
+  6. Selects time, location (venue or online link)
+  7. Adds agenda notes
+  8. Clicks "Schedule Meeting"
+  9. System creates meeting record
+  10. Sends email to Guidance, Principal, Parent
+  11. Creates in-system notifications
+  12. Redirects to meeting list with success message
+- **Files Created:**
+  - `app/Views/iep_meeting/index.php` - Meeting list view
+  - `app/Views/iep_meeting/schedule.php` - Scheduler form
+- **Files Modified:**
+  - `app/Models/IEPMeetingModel.php` - Added 7 new methods
+  - `app/Controllers/IEPMeetingController.php` - Added 4 new methods
+  - `config/schema.sql` - Added 2 tables, migration v1.27
+  - `routes/web.php` - Added 2 routes
+- **Tables Created:**
+  - `iep_meetings` - Meeting records
+  - `meeting_notifications` - Notification tracking
+- **Tested:** Schema migration applied, ready for feature testing
+- **Status:** ✅ Complete - Ready for Testing
+- **Date:** 2026-05-07
+
+
+
+---
+
+## [v1.28] — Process 4 Part II PDSP Form Schema (Process 4 - Feature Part 3 Schema)
+- **Built:** Database schema for Part II PDSP (Present Developmental Status Profile) form
+- **Purpose:** Support DepEd SPED Part II assessment with domain-based evaluation and signature collection
+- **Schema Changes:**
+  - **Created `pdsp_records` table:**
+    - id, meeting_id, student_id, filled_by
+    - status (draft/complete)
+    - ai_extracted (boolean flag for future AI feature)
+    - uploaded_image_path (for future AI extraction)
+    - created_at, updated_at
+    - UNIQUE constraint on meeting_id (one PDSP per meeting)
+  - **Created `pdsp_domains` table:**
+    - id, pdsp_id, domain_name, sub_domain
+    - skills_description, mastered (boolean)
+    - educational_recommendation
+    - q1_level, q2_level (Beginning/Developing/Approaching/Proficient/Advanced)
+    - Supports 6 DepEd domains
+  - **Created `pdsp_signatures` table:**
+    - id, pdsp_id, signatory_role, signatory_name
+    - signature_image_path, signed_at
+    - 8 signatory roles: sped_teacher, gen_ed_teacher, school_head, ilrc_supervisor, parent_guardian, medical_allied_1/2/3
+    - UNIQUE constraint prevents duplicate signatures per role
+- **Model Created:**
+  - `PDSPModel` with complete CRUD operations
+  - Methods: create(), getByMeeting(), findById(), getDomains(), saveDomain()
+  - Signature methods: getSignatures(), saveSignature(), checkCompletion()
+  - Auto-completion trigger when all required signatures collected
+- **Features Enabled:**
+  - ✅ Domain-based assessment storage
+  - ✅ Signature collection and tracking
+  - ✅ Auto-completion when all signatures collected
+  - ✅ Meeting status update to 'completed'
+  - ✅ Versioning support (one PDSP per meeting)
+  - ✅ Ready for AI extraction feature (schema prepared)
+- **Required Signatures:**
+  - SPED Teacher
+  - General Education Teacher
+  - School Head
+  - ILRC Supervisor
+  - Parent/Guardian
+  - Optional: Medical/Allied professionals (3 slots)
+- **Completion Trigger:**
+  - When all 5 required signatures collected
+  - PDSP status → 'complete'
+  - Meeting status → 'completed'
+  - Unlocks Process 5 (IEP Generation)
+- **Files Created:**
+  - `app/Models/PDSPModel.php` - Complete PDSP model with 10+ methods
+- **Files Modified:**
+  - `config/schema.sql` - Added 3 tables, migration v1.28
+- **Tables Created:**
+  - `pdsp_records` - Main PDSP data
+  - `pdsp_domains` - Domain assessments (6 DepEd domains)
+  - `pdsp_signatures` - Signature collection (8 signatory roles)
+- **Migration:** v1.28 applied successfully ✅
+- **Status:** ✅ Schema Complete - Ready for Form Implementation
+- **Date:** 2026-05-07
+- **Note:** Form UI and AI extraction feature to be implemented in next phase
+

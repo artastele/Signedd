@@ -107,38 +107,91 @@ require __DIR__ . '/../layouts/topbar.php';
         <div class="card mb-4 border-left-crimson">
             <div class="card-header bg-light" style="border-left: 4px solid #a01422;">
                 <h5 class="mb-0" style="color: #1e4072;">
-                    <i class="fas fa-table"></i> Section B: Assessment Information
+                    <i class="fas fa-table"></i> Section B: MDT Assessment Information
                 </h5>
             </div>
             <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-bordered">
-                        <thead style="background-color: #f9f9f9;">
-                            <tr>
-                                <th>Assessment Service/s Availed</th>
-                                <th>Members of MDT</th>
-                                <th>Date/s of Assessment/s</th>
-                                <th>Supporting Documents</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (!empty($assessment['assessment_info'])): ?>
-                                <?php foreach ($assessment['assessment_info'] as $item): ?>
-                                    <tr>
-                                        <td><?php echo htmlspecialchars($item['service'] ?? ''); ?></td>
-                                        <td><?php echo htmlspecialchars($item['mdt_members'] ?? ''); ?></td>
-                                        <td><?php echo htmlspecialchars($item['assessment_date'] ?? ''); ?></td>
-                                        <td><?php echo htmlspecialchars($item['supporting_documents'] ?? ''); ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted">No assessment information provided</td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
+                <?php if (!empty($assessment['mdt_services'])): ?>
+                    <?php foreach ($assessment['mdt_services'] as $service): ?>
+                        <div class="card mb-3" style="border-left: 3px solid #1e4072;">
+                            <div class="card-body">
+                                <h6 class="text-primary mb-3" style="color: #a01422 !important;">
+                                    <i class="bi bi-briefcase"></i> <?php echo htmlspecialchars($service['service_name']); ?>
+                                </h6>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <p class="mb-1"><strong>MDT Members:</strong></p>
+                                        <?php 
+                                        $members = is_string($service['mdt_members']) ? json_decode($service['mdt_members'], true) : $service['mdt_members'];
+                                        if (!empty($members)): 
+                                        ?>
+                                            <ul class="list-unstyled ms-3">
+                                                <?php foreach ($members as $member): ?>
+                                                    <li class="mb-1">
+                                                        <i class="bi bi-person-fill text-muted"></i>
+                                                        <?php echo htmlspecialchars($member['name']); ?>
+                                                        <?php if (!empty($member['designation'])): ?>
+                                                            <small class="text-muted">(<?php echo htmlspecialchars($member['designation']); ?>)</small>
+                                                        <?php endif; ?>
+                                                    </li>
+                                                <?php endforeach; ?>
+                                            </ul>
+                                        <?php else: ?>
+                                            <p class="text-muted ms-3">No members listed</p>
+                                        <?php endif; ?>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <p class="mb-1"><strong>Date of Assessment:</strong></p>
+                                        <p class="text-muted ms-3">
+                                            <?php echo $service['date_of_assessment'] ? date('M d, Y', strtotime($service['date_of_assessment'])) : 'Not specified'; ?>
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <!-- Supporting Documents -->
+                                <?php if (!empty($service['documents'])): ?>
+                                    <div class="mt-3">
+                                        <p class="mb-2"><strong>Supporting Documents:</strong></p>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <?php foreach ($service['documents'] as $doc): ?>
+                                                <div class="card" style="width: 200px;">
+                                                    <div class="card-body p-2">
+                                                        <div class="d-flex align-items-center">
+                                                            <i class="bi bi-file-earmark-pdf text-danger me-2" style="font-size: 1.5rem;"></i>
+                                                            <div class="flex-grow-1" style="min-width: 0;">
+                                                                <p class="mb-0 small text-truncate" title="<?php echo htmlspecialchars($doc['original_name']); ?>">
+                                                                    <?php echo htmlspecialchars($doc['original_name']); ?>
+                                                                </p>
+                                                                <small class="text-muted">
+                                                                    <?php echo date('M d, Y', strtotime($doc['uploaded_at'])); ?>
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                        <a href="<?php echo BASE_PATH; ?>/uploads/<?php echo htmlspecialchars($doc['file_path']); ?>" 
+                                                           target="_blank" 
+                                                           class="btn btn-sm btn-outline-primary w-100 mt-2">
+                                                            <i class="bi bi-download"></i> Download
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="alert alert-info mb-0">
+                                        <i class="bi bi-info-circle"></i> No documents uploaded for this service
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> No MDT assessment information available
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 

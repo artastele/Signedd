@@ -128,12 +128,15 @@ route('POST', '/enrollment/document/reject/{id}', 'EnrollmentController', 'rejec
 
 // Assessment (Process 3)
 route('GET', '/assessment', 'AssessmentController', 'index', 'assessment.manage');
+route('GET', '/assessment/conduct', 'AssessmentController', 'conduct', 'assessment.conduct');
 route('GET', '/assessment/conduct/{id}', 'AssessmentController', 'conduct', 'assessment.conduct');
+route('GET', '/assessment/get-student-data/{id}', 'AssessmentController', 'getStudentData', 'assessment.conduct');
+route('POST', '/assessment/save-draft', 'AssessmentController', 'saveDraft', 'assessment.conduct');
 route('POST', '/assessment/submit', 'AssessmentController', 'submit', 'assessment.conduct');
 route('GET', '/assessment/view/{id}', 'AssessmentController', 'view', 'assessment.view');
+route('GET', '/assessment/history/{id}', 'AssessmentController', 'history', 'assessment.view');
 route('POST', '/assessment/{id}/approve', 'AssessmentController', 'approve', 'assessment.manage');
 route('POST', '/assessment/{id}/reject', 'AssessmentController', 'reject', 'assessment.manage');
-route('GET', '/assessment/{id}/history', 'AssessmentController', 'history', 'assessment.view');
 
 // IEP Implementation (Process 6 - Teacher Side)
 route('GET', '/iep/implementation', 'IEPImplementationController', 'index', 'iep.implement');
@@ -174,8 +177,27 @@ route('POST', '/learning/log-activity', 'LearningController', 'logActivity', 'le
 // GUIDANCE ROUTES
 // ============================================
 
-// IEP Meeting (Process 4)
+// ============================================
+// IEP MEETING (Process 4)
+// ============================================
+
+// Availability Calendar
+route('GET', '/iep/availability', 'IEPMeetingController', 'availability', 'iep.meeting');
+route('POST', '/iep/availability/save-recurring', 'IEPMeetingController', 'saveRecurringAvailability', 'iep.meeting');
+route('POST', '/iep/availability/toggle-exception', 'IEPMeetingController', 'toggleExceptionDate', 'iep.meeting');
+
+// Meeting Scheduling
 route('GET', '/iep/meetings', 'IEPMeetingController', 'index', 'iep.meeting');
+route('GET', '/iep/meetings/schedule', 'IEPMeetingController', 'schedule', 'iep.meeting');
+route('POST', '/iep/meetings/create', 'IEPMeetingController', 'createMeeting', 'iep.meeting');
+
+// PDSP Form (Part II)
+route('GET', '/iep/meetings/{id}/pdsp', 'IEPMeetingController', 'pdspForm', 'iep.meeting');
+route('POST', '/iep/meetings/pdsp/save', 'IEPMeetingController', 'savePDSP', 'iep.meeting');
+route('POST', '/iep/meetings/pdsp/submit', 'IEPMeetingController', 'submitPDSP', 'iep.meeting');
+route('POST', '/iep/meetings/pdsp/ai-extract', 'IEPMeetingController', 'aiExtract', 'iep.meeting');
+route('POST', '/iep/meetings/pdsp/upload-signed-document', 'IEPMeetingController', 'uploadSignedDocument', 'iep.meeting');
+route('POST', '/iep/meetings/pdsp/mark-as-signed', 'IEPMeetingController', 'markAsSigned', 'iep.meeting');
 route('GET', '/iep/meetings/schedule', 'IEPMeetingController', 'schedule', 'iep.meeting');
 route('POST', '/iep/meetings/schedule', 'IEPMeetingController', 'createMeeting', 'iep.meeting');
 route('POST', '/iep/meetings/availability', 'IEPMeetingController', 'getAvailability', 'iep.meeting');
@@ -183,12 +205,12 @@ route('GET', '/iep/meetings/{id}', 'IEPMeetingController', 'show', 'iep.meeting'
 route('POST', '/iep/meetings/upload-calendar', 'IEPMeetingController', 'uploadCalendar', 'iep.meeting');
 
 // IEP P2 Documents (Process 4)
-route('GET', '/iep/p2/review', 'IEPDocumentController', 'listP2ForReview', 'iep.sign');
+route('GET', '/iep/p2/review', 'IEPDocumentController', 'listP2ForReview', 'iep.view');
 route('GET', '/iep/p2/create/{id}', 'IEPDocumentController', 'createP2', 'iep.create');
 route('POST', '/iep/p2/submit', 'IEPDocumentController', 'submitP2', 'iep.create');
 route('POST', '/iep/p2/upload', 'IEPDocumentController', 'uploadP2', 'iep.create');
 route('POST', '/iep/p2/send-review', 'IEPDocumentController', 'sendP2ForReview', 'iep.create');
-route('GET', '/iep/p2/{id}/review', 'IEPDocumentController', 'reviewP2', 'iep.sign');
+route('GET', '/iep/p2/{id}/review', 'IEPDocumentController', 'reviewP2', 'iep.view');
 route('POST', '/iep/p2/review-submit', 'IEPDocumentController', 'submitP2Review', 'iep.sign');
 
 // IEP P3 Documents (Process 5)

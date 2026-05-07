@@ -9,26 +9,9 @@ function isActive($path) {
     $fullPath = $basePath . $path;
     return strpos($currentPath, $fullPath) === 0 ? 'active' : '';
 }
-
-// Check if any IEP Procedure link is active
-function isIEPProcedureActive() {
-    global $currentPath, $basePath;
-    $iepPaths = ['/assessment/conduct', '/iep/meetings', '/iep/p2/', '/iep/p3/'];
-    foreach ($iepPaths as $path) {
-        if (strpos($currentPath, $basePath . $path) === 0) {
-            return true;
-        }
-    }
-    return false;
-}
 ?>
 
-<div class="sidebar" id="sidebar">
-    <!-- Toggle Button (Mobile) -->
-    <button class="sidebar-toggle" id="sidebarToggle">
-        <i class="bi bi-list"></i>
-    </button>
-
+<div class="sidebar">
     <!-- Logo -->
     <div class="sidebar-logo">
         <?php if (file_exists(__DIR__ . '/../../../public/images/logo.png')): ?>
@@ -39,7 +22,7 @@ function isIEPProcedureActive() {
         <h4>SPED LMS</h4>
     </div>
 
-    <!-- Navigation Menu (Scrollable) -->
+    <!-- Navigation Menu -->
     <div class="sidebar-menu">
         <a href="<?php echo $basePath; ?>/dashboard" class="<?php echo isActive('/dashboard'); ?>">
             <i class="bi bi-house-door-fill"></i>
@@ -61,13 +44,17 @@ function isIEPProcedureActive() {
                 <i class="bi bi-plus-circle"></i>
                 <span>Enroll Child</span>
             </a>
+            <a href="<?php echo $basePath; ?>/assessment/conduct" class="<?php echo isActive('/assessment/conduct'); ?>">
+                <i class="bi bi-clipboard-data"></i>
+                <span>Submit Assessment</span>
+            </a>
             <a href="<?php echo $basePath; ?>/iep/meetings" class="<?php echo isActive('/iep/meetings'); ?>">
                 <i class="bi bi-calendar-check"></i>
                 <span>IEP Meetings</span>
             </a>
             <a href="<?php echo $basePath; ?>/iep/p3/sign" class="<?php echo isActive('/iep/p3/sign'); ?>">
                 <i class="bi bi-pen"></i>
-                <span>Sign Final IEP</span>
+                <span>Sign IEP Documents</span>
             </a>
             <a href="<?php echo $basePath; ?>/services" class="<?php echo isActive('/services'); ?>">
                 <i class="bi bi-grid-3x3-gap"></i>
@@ -83,37 +70,25 @@ function isIEPProcedureActive() {
                 <i class="bi bi-clipboard-check"></i>
                 <span>Review Enrollments</span>
             </a>
-
-            <!-- IEP Procedure (Collapsible) -->
-            <div class="sidebar-section">
-                <a href="#" class="sidebar-section-toggle <?php echo isIEPProcedureActive() ? 'active' : ''; ?>" data-bs-toggle="collapse" data-bs-target="#iepProcedureMenu" aria-expanded="<?php echo isIEPProcedureActive() ? 'true' : 'false'; ?>">
-                    <i class="bi bi-file-earmark-medical"></i>
-                    <span>IEP Procedure</span>
-                    <i class="bi bi-chevron-down toggle-icon"></i>
-                </a>
-                <div class="collapse <?php echo isIEPProcedureActive() ? 'show' : ''; ?>" id="iepProcedureMenu">
-                    <a href="<?php echo $basePath; ?>/assessment" class="sidebar-submenu-item <?php echo isActive('/assessment') && !isActive('/assessment/conduct'); ?>">
-                        <i class="bi bi-clock-history"></i>
-                        <span>Assessment History</span>
-                    </a>
-                    <a href="<?php echo $basePath; ?>/assessment/conduct" class="sidebar-submenu-item <?php echo isActive('/assessment/conduct'); ?>">
-                        <i class="bi bi-1-circle"></i>
-                        <span>Part 1: Assessment</span>
-                    </a>
-                    <a href="<?php echo $basePath; ?>/iep/meetings" class="sidebar-submenu-item <?php echo isActive('/iep/meetings'); ?>">
-                        <i class="bi bi-2-circle"></i>
-                        <span>Part 2: Meeting & PDSP</span>
-                    </a>
-                    <a href="<?php echo $basePath; ?>/iep/p3/sign" class="sidebar-submenu-item <?php echo isActive('/iep/p3/sign'); ?>">
-                        <i class="bi bi-3-circle"></i>
-                        <span>Part 3: Final IEP</span>
-                    </a>
-                </div>
-            </div>
-
+            <a href="<?php echo $basePath; ?>/assessment/conduct" class="<?php echo isActive('/assessment/conduct'); ?>">
+                <i class="bi bi-clipboard-data"></i>
+                <span>Conduct Assessment</span>
+            </a>
             <a href="<?php echo $basePath; ?>/iep/availability" class="<?php echo isActive('/iep/availability'); ?>">
                 <i class="bi bi-calendar3"></i>
                 <span>My Availability</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/iep/meetings" class="<?php echo isActive('/iep/meetings'); ?>">
+                <i class="bi bi-calendar-check"></i>
+                <span>IEP Meetings</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/iep/p2/review" class="<?php echo isActive('/iep/p2/review'); ?>">
+                <i class="bi bi-clipboard-check"></i>
+                <span>Review P2 Assessments</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/iep/p3/sign" class="<?php echo isActive('/iep/p3/sign'); ?>">
+                <i class="bi bi-pen"></i>
+                <span>Sign IEP Documents</span>
             </a>
             <a href="<?php echo $basePath; ?>/iep/implementation" class="<?php echo isActive('/iep/implementation'); ?>">
                 <i class="bi bi-book"></i>
@@ -129,17 +104,21 @@ function isIEPProcedureActive() {
                 <i class="bi bi-calendar3"></i>
                 <span>My Availability</span>
             </a>
-            <a href="<?php echo $basePath; ?>/iep/meetings" class="<?php echo isActive('/iep/meetings'); ?>">
+            <a href="<?php echo $basePath; ?>/iep/meetings/schedule" class="<?php echo isActive('/iep/meetings/schedule'); ?>">
                 <i class="bi bi-calendar-event"></i>
+                <span>Schedule IEP Meeting</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/iep/meetings" class="<?php echo isActive('/iep/meetings'); ?>">
+                <i class="bi bi-calendar-check"></i>
                 <span>IEP Meetings</span>
             </a>
             <a href="<?php echo $basePath; ?>/iep/p2/review" class="<?php echo isActive('/iep/p2/review'); ?>">
-                <i class="bi bi-file-earmark-text"></i>
-                <span>PDSP Forms</span>
+                <i class="bi bi-clipboard-check"></i>
+                <span>Review P2 Assessments</span>
             </a>
             <a href="<?php echo $basePath; ?>/iep/p3/sign" class="<?php echo isActive('/iep/p3/sign'); ?>">
                 <i class="bi bi-pen"></i>
-                <span>Sign Final IEP</span>
+                <span>Sign IEP Documents</span>
             </a>
 
         <?php elseif ($role === 'principal'): ?>
@@ -152,16 +131,16 @@ function isIEPProcedureActive() {
                 <span>IEP Approval Queue</span>
             </a>
             <a href="<?php echo $basePath; ?>/iep/meetings" class="<?php echo isActive('/iep/meetings'); ?>">
-                <i class="bi bi-calendar-event"></i>
+                <i class="bi bi-calendar-check"></i>
                 <span>IEP Meetings</span>
             </a>
             <a href="<?php echo $basePath; ?>/iep/p2/review" class="<?php echo isActive('/iep/p2/review'); ?>">
-                <i class="bi bi-file-earmark-text"></i>
-                <span>PDSP Forms</span>
+                <i class="bi bi-clipboard-check"></i>
+                <span>Review P2 Assessments</span>
             </a>
             <a href="<?php echo $basePath; ?>/iep/p3/sign" class="<?php echo isActive('/iep/p3/sign'); ?>">
                 <i class="bi bi-pen"></i>
-                <span>Sign Final IEP</span>
+                <span>Sign IEP Documents</span>
             </a>
             <a href="<?php echo $basePath; ?>/principal/staff-requests" class="<?php echo isActive('/principal/staff-requests'); ?>">
                 <i class="bi bi-person-check"></i>
@@ -235,193 +214,3 @@ function isIEPProcedureActive() {
         </a>
     </div>
 </div>
-
-<!-- Sidebar Toggle Script -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const sidebar = document.getElementById('sidebar');
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    
-    if (sidebarToggle) {
-        sidebarToggle.addEventListener('click', function() {
-            sidebar.classList.toggle('collapsed');
-        });
-    }
-    
-    // Close sidebar on mobile when clicking outside
-    document.addEventListener('click', function(event) {
-        if (window.innerWidth <= 768) {
-            if (!sidebar.contains(event.target) && !sidebarToggle.contains(event.target)) {
-                sidebar.classList.add('collapsed');
-            }
-        }
-    });
-});
-</script>
-
-<style>
-/* Sidebar Scrollable */
-.sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 100vh;
-    width: 260px;
-    background: linear-gradient(180deg, #a01422 0%, #1e4072 100%);
-    color: white;
-    display: flex;
-    flex-direction: column;
-    transition: all 0.3s ease;
-    z-index: 1000;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-}
-
-.sidebar-menu {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding-bottom: 20px;
-}
-
-/* Custom Scrollbar */
-.sidebar-menu::-webkit-scrollbar {
-    width: 6px;
-}
-
-.sidebar-menu::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.sidebar-menu::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 3px;
-}
-
-.sidebar-menu::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.5);
-}
-
-/* Sidebar Toggle Button */
-.sidebar-toggle {
-    display: none;
-    position: absolute;
-    top: 15px;
-    right: -40px;
-    background: #1e4072;
-    color: white;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 0 5px 5px 0;
-    cursor: pointer;
-    z-index: 1001;
-}
-
-.sidebar-toggle:hover {
-    background: #a01422;
-}
-
-/* Collapsible Section */
-.sidebar-section {
-    margin: 5px 0;
-}
-
-.sidebar-section-toggle {
-    display: flex;
-    align-items: center;
-    padding: 12px 20px;
-    color: rgba(255, 255, 255, 0.9);
-    text-decoration: none;
-    transition: all 0.3s;
-    cursor: pointer;
-    position: relative;
-}
-
-.sidebar-section-toggle:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    padding-left: 25px;
-}
-
-.sidebar-section-toggle.active {
-    background: rgba(160, 20, 34, 0.3);
-    border-left: 4px solid #a01422;
-    color: white;
-}
-
-.sidebar-section-toggle i:first-child {
-    margin-right: 12px;
-    font-size: 1.1rem;
-}
-
-.sidebar-section-toggle .toggle-icon {
-    margin-left: auto;
-    transition: transform 0.3s;
-    font-size: 0.9rem;
-}
-
-.sidebar-section-toggle[aria-expanded="true"] .toggle-icon {
-    transform: rotate(180deg);
-}
-
-/* Submenu Items */
-.sidebar-submenu-item {
-    display: flex;
-    align-items: center;
-    padding: 10px 20px 10px 45px;
-    color: rgba(255, 255, 255, 0.8);
-    text-decoration: none;
-    transition: all 0.3s;
-    font-size: 0.9rem;
-    border-left: 3px solid transparent;
-}
-
-.sidebar-submenu-item:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    padding-left: 50px;
-    border-left-color: rgba(255, 255, 255, 0.3);
-}
-
-.sidebar-submenu-item.active {
-    background: rgba(160, 20, 34, 0.4);
-    border-left-color: #a01422;
-    color: white;
-}
-
-.sidebar-submenu-item i {
-    margin-right: 10px;
-    font-size: 1rem;
-}
-
-/* Collapsed State (Mobile) */
-.sidebar.collapsed {
-    left: -260px;
-}
-
-/* Mobile Responsive */
-@media (max-width: 768px) {
-    .sidebar {
-        left: -260px;
-    }
-    
-    .sidebar-toggle {
-        display: block;
-    }
-    
-    .sidebar:not(.collapsed) {
-        left: 0;
-    }
-}
-
-/* Adjust main content for sidebar */
-.main-content {
-    margin-left: 260px;
-    transition: margin-left 0.3s ease;
-}
-
-@media (max-width: 768px) {
-    .main-content {
-        margin-left: 0;
-    }
-}
-</style>

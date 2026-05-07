@@ -466,29 +466,56 @@ class EnrollmentController {
                 }
             }
 
-            // 3. Mark enrollment as verified
+            // 3. Create student record (generates LRN if needed)
+            require_once __DIR__ . '/../Models/StudentModel.php';
+            $studentModel = new StudentModel();
+            $studentData = $studentModel->createStudentRecord($enrollmentId, $userId);
+            
+            // 4. Create learner account with credentials
+            $accountData = $studentModel->createLearnerAccount(
+                $studentData['id'],
+                $studentData['lrn'],
+                $enrollment
+            );
+            
+            // 5. Mark enrollment as verified and learner account created
             $this->enrollmentModel->updateStatus($enrollmentId, 'verified', $userId);
+            $this->enrollmentModel->markLearnerAccountCreated($enrollmentId);
 
-            // 4. Notify parent - enrollment fully approved
+            // 6. Notify parent - enrollment fully approved with credentials
             $this->notificationModel->create(
                 $enrollment['parent_id'],
                 'enrollment_approved',
                 'Enrollment Approved! ✅',
-                'All documents have been verified. Your enrollment is now complete!',
-                ['enrollment_id' => $enrollmentId]
+                "Enrollment approved for {$enrollment['first_name']} {$enrollment['last_name']}. LRN: {$studentData['lrn']}. Temporary password: {$accountData['temp_password']}",
+                ['enrollment_id' => $enrollmentId, 'student_id' => $studentData['id']]
             );
 
-            // 5. Send email notification
+            // 7. Send email notification with credentials
             if (class_exists('MailHelper')) {
+                $credentialsHtml = "
+                    <h2>Enrollment Approved! 🎉</h2>
+                    <p>Your enrollment application for <strong>{$enrollment['first_name']} {$enrollment['last_name']}</strong> has been fully approved!</p>
+                    
+                    <div style='background-color: #f0f8ff; padding: 20px; border-left: 4px solid #1e4072; margin: 20px 0;'>
+                        <h3 style='color: #1e4072; margin-top: 0;'>Learner Login Credentials</h3>
+                        <p><strong>LRN (Username):</strong> <code style='background: #fff; padding: 5px 10px; border-radius: 3px;'>{$studentData['lrn']}</code></p>
+                        <p><strong>Temporary Password:</strong> <code style='background: #fff; padding: 5px 10px; border-radius: 3px;'>{$accountData['temp_password']}</code></p>
+                        <p style='color: #a01422; margin-top: 15px;'><strong>⚠️ Important:</strong> Please change this password after first login.</p>
+                    </div>
+                    
+                    <p>The learner can now log in to the SPED LMS portal using these credentials.</p>
+                ";
+                
                 MailHelper::sendNotification(
                     $enrollment['parent_email'],
                     $enrollment['parent_name'] ?? 'Parent',
                     'Enrollment Approved - SPED LMS',
-                    "<h2>Enrollment Approved</h2><p>Your enrollment application for <strong>{$enrollment['first_name']} {$enrollment['last_name']}</strong> has been fully approved!</p><p>All documents have been verified.</p>"
+                    $credentialsHtml
                 );
             }
 
-            $_SESSION['success'] = 'Enrollment approved successfully! All documents verified. Parent has been notified.';
+            $_SESSION['success'] = "Enrollment approved! Learner account created. LRN: {$studentData['lrn']}, Password: {$accountData['temp_password']}";
 
         } catch (Exception $e) {
             error_log('Approve enrollment error: ' . $e->getMessage());

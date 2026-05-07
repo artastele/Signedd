@@ -1,470 +1,866 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 3
-// Last modified: 2026-05-04
-// Part of: SPED LMS — Assessment Form (Parent Submission)
+// Last modified: 2026-05-06
+// Part of: SPED LMS — Assessment Form (Part I - Section A)
 
-require __DIR__ . '/../layouts/header.php';
-require __DIR__ . '/../layouts/sidebar.php';
-require __DIR__ . '/../layouts/topbar.php';
+$pageTitle = 'Conduct Assessment - SPED LMS';
+require_once __DIR__ . '/../layouts/header.php';
 ?>
 
+<body data-logged-in="true">
+
+<?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
+<?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
+
 <div class="main-content">
-    <div class="container-fluid py-4">
-        <!-- Page Header -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <h1 class="h3 mb-0" style="color: #a01422;">
-                    <i class="fas fa-clipboard-list"></i> Learner's Educational Assessment
-                </h1>
-                <p class="text-muted mt-2">IEP Part 1 - Assessment Form</p>
+    <h1 class="mb-4">
+        <i class="bi bi-clipboard-check text-primary"></i> 
+        Part I: Learner's Educational Assessment
+    </h1>
+
+    <!-- Student Selector -->
+    <div class="card border-primary mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="bi bi-person-circle"></i> Select Student
+            </h5>
+        </div>
+        <div class="card-body">
+            <label for="student_selector" class="form-label">
+                <strong>Student to Assess</strong> <span class="text-danger">*</span>
+            </label>
+            <div class="row g-2">
+                <div class="col-md-10">
+                    <select class="form-select form-select-lg" id="student_selector" required>
+                        <option value="">-- Select a verified student --</option>
+                        <?php foreach ($students as $student): ?>
+                            <option value="<?php echo $student['id']; ?>" 
+                                    <?php echo ($studentId == $student['id']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($student['student_name']); ?> 
+                                (LRN: <?php echo htmlspecialchars($student['lrn']); ?>) - 
+                                <?php echo htmlspecialchars($student['grade_level_to_enroll']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text">Select a student with verified enrollment status</div>
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-primary btn-lg w-100" onclick="loadStudentData()" style="height: 48px;">
+                        <i class="bi bi-arrow-clockwise"></i> Load Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assessment Form -->
+    <form id="assessmentForm" method="POST" action="<?php echo $basePath; ?>/assessment/submit" enctype="multipart/form-data">
+        <input type="hidden" name="student_id" id="student_id" value="<?php echo $studentId ?? ''; ?>">
+        <input type="hidden" name="assessment_id" id="assessment_id" value="">
+
+        <!-- Section A: Learner Information (Auto-fill) -->
+        <div class="card mb-4">
+            <div class="card-header" style="background-color: #1e4072; color: white;">
+                <h5 class="mb-0">
+                    <i class="bi bi-person-badge"></i> Section A: Learner Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Auto-fill Indicator -->
+                <div id="autofill-indicator" class="alert alert-success d-none" role="alert">
+                    <i class="bi bi-check-circle-fill"></i> 
+                    <strong>Auto-filled from student records.</strong> All fields are editable - please review and update if needed.
+                </div>
+
+                <!-- Personal Information -->
+                <h6 class="text-secondary mb-3">Personal Information</h6>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control auto-fill-field" name="last_name" id="last_name" 
+                               value="<?php echo htmlspecialchars($studentData['last_name'] ?? ''); ?>" required>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">First Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control auto-fill-field" name="first_name" id="first_name" 
+                               value="<?php echo htmlspecialchars($studentData['first_name'] ?? ''); ?>" required>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Middle Name</label>
+                        <input type="text" class="form-control auto-fill-field" name="middle_name" id="middle_name" 
+                               value="<?php echo htmlspecialchars($studentData['middle_name'] ?? ''); ?>">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Name Extension</label>
+                        <input type="text" class="form-control auto-fill-field" name="extension_name" id="extension_name" 
+                               value="<?php echo htmlspecialchars($studentData['extension_name'] ?? ''); ?>" 
+                               placeholder="Jr., Sr., III">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control auto-fill-field" name="birth_date" id="birth_date" 
+                               value="<?php echo $studentData['birth_date'] ?? ''; ?>" required>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Age</label>
+                        <input type="number" class="form-control auto-fill-field" name="age" id="age" 
+                               value="<?php echo $studentData['age'] ?? ''; ?>" readonly>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Sex <span class="text-danger">*</span></label>
+                        <select class="form-select auto-fill-field" name="sex" id="sex" required>
+                            <option value="">--</option>
+                            <option value="Male" <?php echo ($studentData['sex'] ?? '') === 'Male' ? 'selected' : ''; ?>>Male</option>
+                            <option value="Female" <?php echo ($studentData['sex'] ?? '') === 'Female' ? 'selected' : ''; ?>>Female</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5 mb-3">
+                        <label class="form-label">Religion</label>
+                        <input type="text" class="form-control" name="religion" id="religion" value="">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <label class="form-label">Home Address <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control auto-fill-field" name="home_address" id="home_address" 
+                               value="<?php echo htmlspecialchars($studentData['full_address'] ?? ''); ?>" required>
+                    </div>
+                </div>
+
+                <!-- School Information -->
+                <h6 class="text-secondary mb-3 mt-4">School Information</h6>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">LRN <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control auto-fill-field" name="lrn" id="lrn" 
+                               value="<?php echo htmlspecialchars($studentData['lrn'] ?? ''); ?>" 
+                               pattern="\d{12}" maxlength="12" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">School</label>
+                        <input type="text" class="form-control" name="school" id="school" value="">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">School Year <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control auto-fill-field" name="school_year" id="school_year" 
+                               value="<?php echo htmlspecialchars($studentData['school_year'] ?? ''); ?>" required>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <label class="form-label">Name of Adviser</label>
+                        <input type="text" class="form-control" name="adviser_name" id="adviser_name" value="">
+                    </div>
+                </div>
+
+                <!-- Parent/Guardian Information -->
+                <h6 class="text-secondary mb-3 mt-4">Parent/Guardian Information</h6>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Father's Name</label>
+                        <input type="text" class="form-control auto-fill-field" name="father_name" id="father_name" 
+                               value="<?php echo htmlspecialchars($studentData['father_full_name'] ?? ''); ?>">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Father's Contact</label>
+                        <input type="text" class="form-control auto-fill-field" name="father_contact" id="father_contact" 
+                               value="<?php echo htmlspecialchars($studentData['father_contact_number'] ?? ''); ?>">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Father's Occupation</label>
+                        <input type="text" class="form-control" name="father_occupation" id="father_occupation" value="">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Mother's Name</label>
+                        <input type="text" class="form-control auto-fill-field" name="mother_name" id="mother_name" 
+                               value="<?php echo htmlspecialchars($studentData['mother_full_name'] ?? ''); ?>">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Mother's Contact</label>
+                        <input type="text" class="form-control auto-fill-field" name="mother_contact" id="mother_contact" 
+                               value="<?php echo htmlspecialchars($studentData['mother_contact_number'] ?? ''); ?>">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Mother's Occupation</label>
+                        <input type="text" class="form-control" name="mother_occupation" id="mother_occupation" value="">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Guardian/Caregiver Name</label>
+                        <input type="text" class="form-control auto-fill-field" name="guardian_name" id="guardian_name" 
+                               value="<?php echo htmlspecialchars($studentData['guardian_full_name'] ?? ''); ?>">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Guardian Contact</label>
+                        <input type="text" class="form-control auto-fill-field" name="guardian_contact" id="guardian_contact" 
+                               value="<?php echo htmlspecialchars($studentData['guardian_contact_number'] ?? ''); ?>">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Guardian Occupation</label>
+                        <input type="text" class="form-control" name="guardian_occupation" id="guardian_occupation" value="">
+                    </div>
+                </div>
+
+                <!-- Education History -->
+                <h6 class="text-secondary mb-3 mt-4">Education History</h6>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Previous School Attended</label>
+                        <input type="text" class="form-control auto-fill-field" name="previous_school" id="previous_school" 
+                               value="<?php echo htmlspecialchars($studentData['previous_school_name'] ?? ''); ?>">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">Grade Level</label>
+                        <input type="text" class="form-control auto-fill-field" name="previous_grade_level" id="previous_grade_level" 
+                               value="<?php echo htmlspecialchars($studentData['previous_grade_level'] ?? ''); ?>">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">School Year</label>
+                        <input type="text" class="form-control auto-fill-field" name="previous_school_year" id="previous_school_year" 
+                               value="<?php echo htmlspecialchars($studentData['previous_school_year'] ?? ''); ?>">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">With IEP?</label>
+                        <select class="form-select" name="with_iep" id="with_iep">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">With Support Services?</label>
+                        <select class="form-select" name="with_support_services" id="with_support_services" onchange="toggleServiceCheckboxes()">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                        <div class="form-text">If "No", service checkboxes below will be disabled</div>
+                    </div>
+                </div>
+
+                <!-- Services/Screening Unified Checklist -->
+                <h6 class="text-secondary mb-3 mt-4">Services / Screening Checklist</h6>
+                <p class="text-muted small">Check all services and screening types that apply to this assessment</p>
+                
+                <div id="services-checklist-container">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input service-checkbox" type="checkbox" name="services[]" 
+                                       value="Occupational Therapy" id="service_ot">
+                                <label class="form-check-label" for="service_ot">
+                                    Occupational Therapy
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input service-checkbox" type="checkbox" name="services[]" 
+                                       value="Physical Therapy" id="service_pt">
+                                <label class="form-check-label" for="service_pt">
+                                    Physical Therapy
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input service-checkbox" type="checkbox" name="services[]" 
+                                       value="Behavioral Therapy" id="service_bt">
+                                <label class="form-check-label" for="service_bt">
+                                    Behavioral Therapy
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input service-checkbox" type="checkbox" name="services[]" 
+                                       value="Psychosocial Intervention" id="service_psi">
+                                <label class="form-check-label" for="service_psi">
+                                    Psychosocial Intervention
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input service-checkbox" type="checkbox" name="services[]" 
+                                       value="Speech and Language Therapy" id="service_slt">
+                                <label class="form-check-label" for="service_slt">
+                                    Speech and Language Therapy
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input service-checkbox" type="checkbox" name="services[]" 
+                                       value="Daily Living Skills" id="service_dls">
+                                <label class="form-check-label" for="service_dls">
+                                    Daily Living Skills
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input service-checkbox" type="checkbox" name="services[]" 
+                                       value="Skills Development" id="service_sd">
+                                <label class="form-check-label" for="service_sd">
+                                    Skills Development
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input service-checkbox" type="checkbox" name="services[]" 
+                                       value="MFAT" id="service_mfat">
+                                <label class="form-check-label" for="service_mfat">
+                                    MFAT
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input service-checkbox" type="checkbox" name="services[]" 
+                                       value="ECCD Checklist" id="service_eccd">
+                                <label class="form-check-label" for="service_eccd">
+                                    ECCD Checklist
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input service-checkbox" type="checkbox" name="services[]" 
+                                       value="Psycho-Educational" id="service_psycho">
+                                <label class="form-check-label" for="service_psycho">
+                                    Psycho-Educational
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input service-checkbox" type="checkbox" name="services[]" 
+                                       value="Others" id="service_others" onchange="toggleOthersInput()">
+                                <label class="form-check-label" for="service_others">
+                                    Others (specify)
+                                </label>
+                            </div>
+                            <input type="text" class="form-control mt-2 d-none" name="services_others_specify" 
+                                   id="services_others_specify" placeholder="Specify other services">
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Alert Messages -->
-        <div id="alertContainer"></div>
-
-        <!-- Assessment Form -->
-        <form id="assessmentForm" method="POST" action="<?php echo BASE_PATH; ?>/assessment/submit">
-            <input type="hidden" name="student_id" value="<?php echo htmlspecialchars($student['id']); ?>">
-
-            <!-- Card: Section A - Learner Information (Read-Only) -->
-            <div class="card mb-4 border-left-crimson">
-                <div class="card-header bg-light" style="border-left: 4px solid #a01422;">
-                    <h5 class="mb-0" style="color: #1e4072;">
-                        <i class="fas fa-user"></i> Section A: Learner's Information Background (Pre-filled)
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label class="form-label">Last Name</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['last_name']); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label class="form-label">First Name</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['first_name']); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label class="form-label">Middle Name</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['middle_name'] ?? ''); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label class="form-label">Name Extension</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['extension_name'] ?? ''); ?>" readonly>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-2">
-                            <div class="form-group">
-                                <label class="form-label">Date of Birth</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['birth_date']); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-2">
-                            <div class="form-group">
-                                <label class="form-label">Age</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['age'] ?? ''); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-2">
-                            <div class="form-group">
-                                <label class="form-label">Religion</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['mother_tongue'] ?? ''); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-2">
-                            <div class="form-group">
-                                <label class="form-label">Sex</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['sex']); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label class="form-label">Home Address</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['current_house_no'] . ' ' . $student['current_barangay'] . ', ' . $student['current_city']); ?>" readonly>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label class="form-label">LRN</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['lrn']); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label class="form-label">School</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['current_city'] . ' SPED School'); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label class="form-label">School Year</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars(date('Y') . ' - ' . (date('Y') + 1)); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label class="form-label">Name of Adviser</label>
-                                <input type="text" class="form-control" value="SPED Teacher" readonly>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Sources of Information -->
-                    <hr class="my-4">
-                    <h6 style="color: #1e4072; font-weight: bold;">Sources of Information</h6>
-
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label class="form-label">Name of Father</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['father_first_name'] . ' ' . $student['father_last_name']); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label class="form-label">Contact Number</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['father_contact_number'] ?? ''); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label class="form-label">Occupation</label>
-                                <input type="text" class="form-control" value="" readonly>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label class="form-label">Name of Mother</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['mother_first_name'] . ' ' . $student['mother_maiden_last_name']); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label class="form-label">Contact Number</label>
-                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['mother_contact_number'] ?? ''); ?>" readonly>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label class="form-label">Occupation</label>
-                                <input type="text" class="form-control" value="" readonly>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <!-- Section B: MDT Assessment Table (Dynamic, Service-Driven) -->
+        <div class="card mb-4">
+            <div class="card-header" style="background-color: #1e4072; color: white;">
+                <h5 class="mb-0">
+                    <i class="bi bi-table"></i> Section B: Multi-Disciplinary Team (MDT) Assessment
+                </h5>
             </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    <i class="bi bi-info-circle"></i> 
+                    This table is driven by the services you checked in Section A. 
+                    Only checked services will appear as rows below.
+                </p>
 
-            <!-- Card: Section A.2 - Education History (Parent Fills) -->
-            <div class="card mb-4 border-left-navy">
-                <div class="card-header bg-light" style="border-left: 4px solid #1e4072;">
-                    <h5 class="mb-0" style="color: #1e4072;">
-                        <i class="fas fa-book"></i> Section A.2: Education History
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label class="form-label">Previous School Attended <span class="text-danger">*</span></label>
-                                <input type="text" name="previous_school" class="form-control" 
-                                       value="<?php echo htmlspecialchars($existingAssessment['education_history']['previous_school'] ?? ''); ?>" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label class="form-label">Grade Level</label>
-                                <input type="text" name="grade_level" class="form-control"
-                                       value="<?php echo htmlspecialchars($existingAssessment['education_history']['grade_level'] ?? ''); ?>">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label class="form-label">With IEP?</label>
-                                <div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="with_iep" id="with_iep_yes" value="yes"
-                                               <?php echo ($existingAssessment['education_history']['with_iep'] ?? 'no') === 'yes' ? 'checked' : ''; ?>>
-                                        <label class="form-check-label" for="with_iep_yes">Yes</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="with_iep" id="with_iep_no" value="no"
-                                               <?php echo ($existingAssessment['education_history']['with_iep'] ?? 'no') === 'no' ? 'checked' : ''; ?>>
-                                        <label class="form-check-label" for="with_iep_no">No</label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label class="form-label">With Support Services?</label>
-                                <div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="with_support_services" id="with_support_yes" value="yes"
-                                               <?php echo ($existingAssessment['education_history']['with_support_services'] ?? 'no') === 'yes' ? 'checked' : ''; ?>>
-                                        <label class="form-check-label" for="with_support_yes">Yes</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="with_support_services" id="with_support_no" value="no"
-                                               <?php echo ($existingAssessment['education_history']['with_support_services'] ?? 'no') === 'no' ? 'checked' : ''; ?>>
-                                        <label class="form-check-label" for="with_support_no">No</label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">If Yes, Specify the Support Service/s Availed</label>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="support_services[]" value="screening_assessment" id="support_screening">
-                                    <label class="form-check-label" for="support_screening">Screening and Assessment (e.g. MFAT, ECCD Checklist, Psycho-Educational)</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="support_services[]" value="occupational_therapy" id="support_ot">
-                                    <label class="form-check-label" for="support_ot">Occupational Therapy</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="support_services[]" value="physical_therapy" id="support_pt">
-                                    <label class="form-check-label" for="support_pt">Physical Therapy</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="support_services[]" value="behavioral_therapy" id="support_behavioral">
-                                    <label class="form-check-label" for="support_behavioral">Behavioral Therapy</label>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="support_services[]" value="psychosocial_intervention" id="support_psychosocial">
-                                    <label class="form-check-label" for="support_psychosocial">Psychosocial Intervention</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="support_services[]" value="speech_language" id="support_speech">
-                                    <label class="form-check-label" for="support_speech">Speech and Language Therapy</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="support_services[]" value="daily_living_skills" id="support_daily">
-                                    <label class="form-check-label" for="support_daily">Daily Living Skills</label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="support_services[]" value="skills_development" id="support_skills">
-                                    <label class="form-check-label" for="support_skills">Skills Development</label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Card: Section B - Assessment Information (Parent Fills) -->
-            <div class="card mb-4 border-left-crimson">
-                <div class="card-header bg-light" style="border-left: 4px solid #a01422;">
-                    <h5 class="mb-0" style="color: #1e4072;">
-                        <i class="fas fa-table"></i> Section B: Assessment Information
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted mb-3">Add assessment services, MDT members, dates, and supporting documents</p>
-
+                <div id="mdt-table-container">
                     <div class="table-responsive">
-                        <table class="table table-bordered" id="assessmentTable">
+                        <table class="table table-bordered" id="mdt-table">
                             <thead style="background-color: #1e4072; color: white;">
                                 <tr>
-                                    <th>Assessment Service/s Availed</th>
-                                    <th>Members of MDT</th>
-                                    <th>Date/s of Assessment/s</th>
-                                    <th>Supporting Documents</th>
-                                    <th style="width: 80px;">Action</th>
+                                    <th style="width: 20%;">Service</th>
+                                    <th style="width: 35%;">MDT Members</th>
+                                    <th style="width: 20%;">Date/s of Assessment</th>
+                                    <th style="width: 25%;">Supporting Documents</th>
                                 </tr>
                             </thead>
-                            <tbody id="assessmentRows">
-                                <?php if ($existingAssessment && !empty($existingAssessment['assessment_info'])): ?>
-                                    <?php foreach ($existingAssessment['assessment_info'] as $index => $item): ?>
-                                        <tr class="assessment-row">
-                                            <td>
-                                                <input type="text" name="assessment_service[]" class="form-control form-control-sm" 
-                                                       value="<?php echo htmlspecialchars($item['service']); ?>" required>
-                                            </td>
-                                            <td>
-                                                <input type="text" name="mdt_members[]" class="form-control form-control-sm"
-                                                       value="<?php echo htmlspecialchars($item['mdt_members']); ?>">
-                                            </td>
-                                            <td>
-                                                <input type="date" name="assessment_dates[]" class="form-control form-control-sm"
-                                                       value="<?php echo htmlspecialchars($item['assessment_date']); ?>">
-                                            </td>
-                                            <td>
-                                                <input type="text" name="supporting_docs[]" class="form-control form-control-sm"
-                                                       value="<?php echo htmlspecialchars($item['supporting_documents']); ?>">
-                                            </td>
-                                            <td>
-                                                <button type="button" class="btn btn-sm btn-danger remove-row">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <tr class="assessment-row">
-                                        <td><input type="text" name="assessment_service[]" class="form-control form-control-sm" required></td>
-                                        <td><input type="text" name="mdt_members[]" class="form-control form-control-sm"></td>
-                                        <td><input type="date" name="assessment_dates[]" class="form-control form-control-sm"></td>
-                                        <td><input type="text" name="supporting_docs[]" class="form-control form-control-sm"></td>
-                                        <td>
-                                            <button type="button" class="btn btn-sm btn-danger remove-row">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                <?php endif; ?>
+                            <tbody id="mdt-table-body">
+                                <!-- Rows will be dynamically added here based on checked services -->
                             </tbody>
                         </table>
                     </div>
 
-                    <button type="button" class="btn btn-sm" style="background-color: #1e4072; color: white;" id="addRowBtn">
-                        <i class="fas fa-plus"></i> Add Assessment Service
-                    </button>
+                    <div id="no-services-message" class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <strong>No services selected.</strong> Please check at least one service in Section A above.
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Form Actions -->
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button type="submit" class="btn" style="background-color: #a01422; color: white;">
-                        <i class="fas fa-check"></i> Submit Assessment
-                    </button>
-                    <button type="reset" class="btn btn-secondary">
-                        <i class="fas fa-redo"></i> Clear Form
-                    </button>
-                    <a href="<?php echo BASE_PATH; ?>/dashboard" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left"></i> Back to Dashboard
-                    </a>
-                </div>
+        <!-- Form Actions -->
+        <div class="d-flex justify-content-between mb-4">
+            <a href="<?php echo $basePath; ?>/assessment" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Cancel
+            </a>
+            <div>
+                <button type="button" class="btn btn-outline-primary me-2" onclick="saveDraft()">
+                    <i class="bi bi-save"></i> Save Draft
+                </button>
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check-circle"></i> Save & Continue to Section B
+                </button>
             </div>
-        </form>
-    </div>
+        </div>
+    </form>
 </div>
 
-<!-- Remove signature pad script since not needed -->
-
-
 <style>
-.border-left-crimson {
-    border-left: 4px solid #a01422 !important;
+.auto-fill-field {
+    background-color: #e8f5e9 !important;
+    border-left: 3px solid #4caf50 !important;
 }
-
-.border-left-navy {
-    border-left: 4px solid #1e4072 !important;
+.auto-fill-field:focus {
+    background-color: #c8e6c9 !important;
 }
-
 .form-check-input:checked {
     background-color: #a01422;
     border-color: #a01422;
 }
-
-.form-control:focus {
-    border-color: #a01422;
-    box-shadow: 0 0 0 0.2rem rgba(160, 20, 34, 0.25);
+#mdt-table thead th {
+    background-color: #1e4072;
+    color: white;
+    font-weight: 600;
+}
+#mdt-table tbody td {
+    vertical-align: middle;
+}
+.mdt-member-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 8px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+.mdt-member-item input {
+    flex: 1;
+}
+.btn-remove-member {
+    padding: 2px 8px;
+    font-size: 12px;
+}
+.file-upload-slot {
+    border: 2px dashed #dee2e6;
+    border-radius: 4px;
+    padding: 12px;
+    text-align: center;
+    transition: all 0.3s;
+}
+.file-upload-slot:hover {
+    border-color: #1e4072;
+    background-color: #f8f9fa;
+}
+.file-upload-slot.has-file {
+    border-color: #4caf50;
+    background-color: #e8f5e9;
+}
+.file-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    background-color: #e8f5e9;
+    border-radius: 4px;
+    margin-top: 8px;
+}
+.file-preview i {
+    font-size: 24px;
+    color: #4caf50;
+}
+.file-item {
+    animation: slideIn 0.3s ease-out;
+}
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+.file-upload-container {
+    min-height: 80px;
 }
 </style>
 
 <script>
+// MDT Table Management
+const mdtTableBody = document.getElementById('mdt-table-body');
+const noServicesMessage = document.getElementById('no-services-message');
+const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
+
+// Track MDT data per service
+const mdtData = {};
+
+// Initialize MDT table on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Add row button
-    document.getElementById('addRowBtn').addEventListener('click', function() {
-        const tbody = document.getElementById('assessmentRows');
-        const newRow = document.createElement('tr');
-        newRow.className = 'assessment-row';
-        newRow.innerHTML = `
-            <td><input type="text" name="assessment_service[]" class="form-control form-control-sm" required></td>
-            <td><input type="text" name="mdt_members[]" class="form-control form-control-sm"></td>
-            <td><input type="date" name="assessment_dates[]" class="form-control form-control-sm"></td>
-            <td><input type="text" name="supporting_docs[]" class="form-control form-control-sm"></td>
-            <td>
-                <button type="button" class="btn btn-sm btn-danger remove-row">
-                    <i class="fas fa-trash"></i>
+    updateMDTTable();
+    
+    // Add event listeners to service checkboxes
+    serviceCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateMDTTable);
+    });
+});
+
+// Update MDT table based on checked services
+function updateMDTTable() {
+    const checkedServices = Array.from(serviceCheckboxes)
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+    
+    // Clear table
+    mdtTableBody.innerHTML = '';
+    
+    if (checkedServices.length === 0) {
+        noServicesMessage.style.display = 'block';
+        document.getElementById('mdt-table').style.display = 'none';
+        return;
+    }
+    
+    noServicesMessage.style.display = 'none';
+    document.getElementById('mdt-table').style.display = 'table';
+    
+    // Add row for each checked service
+    checkedServices.forEach(service => {
+        const row = createMDTRow(service);
+        mdtTableBody.appendChild(row);
+    });
+}
+
+// Create MDT row for a service
+function createMDTRow(serviceName) {
+    const row = document.createElement('tr');
+    row.dataset.service = serviceName;
+    
+    // Initialize data structure if not exists
+    if (!mdtData[serviceName]) {
+        mdtData[serviceName] = {
+            members: [],
+            date: '',
+            file: null
+        };
+    }
+    
+    row.innerHTML = `
+        <td>
+            <strong>${serviceName}</strong>
+            <input type="hidden" name="mdt_services[]" value="${serviceName}">
+        </td>
+        <td>
+            <div class="mdt-members-container" id="members-${sanitizeId(serviceName)}">
+                <!-- Members will be added here -->
+            </div>
+            <button type="button" class="btn btn-sm btn-primary mt-2" onclick="addMDTMember('${serviceName}')">
+                <i class="bi bi-plus-circle"></i> Add Member
+            </button>
+        </td>
+        <td>
+            <input type="date" class="form-control" name="mdt_date_${sanitizeId(serviceName)}" 
+                   id="date-${sanitizeId(serviceName)}" 
+                   onchange="saveMDTDate('${serviceName}', this.value)">
+        </td>
+        <td>
+            <div class="file-upload-container" id="upload-container-${sanitizeId(serviceName)}">
+                <input type="file" class="d-none" id="file-${sanitizeId(serviceName)}" 
+                       name="mdt_file_${sanitizeId(serviceName)}[]" 
+                       accept=".jpg,.jpeg,.png,.pdf"
+                       multiple
+                       onchange="handleMultipleFileUpload('${serviceName}', this)">
+                <button type="button" class="btn btn-sm" style="background-color: #1e4072; color: white;" 
+                        onclick="document.getElementById('file-${sanitizeId(serviceName)}').click()">
+                    <i class="bi bi-plus-circle"></i> Add Document
                 </button>
-            </td>
-        `;
-        tbody.appendChild(newRow);
-        attachRemoveListener(newRow.querySelector('.remove-row'));
-    });
+                <div id="file-list-${sanitizeId(serviceName)}" class="mt-2">
+                    <!-- Files will be listed here -->
+                </div>
+                <small class="text-muted d-block mt-1">JPG, PNG, or PDF (max 10MB each)</small>
+            </div>
+        </td>
+    `;
+    
+    return row;
+}
 
-    // Remove row listeners
-    document.querySelectorAll('.remove-row').forEach(btn => {
-        attachRemoveListener(btn);
-    });
+// Sanitize service name for use as ID
+function sanitizeId(str) {
+    return str.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+}
 
-    function attachRemoveListener(btn) {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const rows = document.querySelectorAll('.assessment-row');
-            if (rows.length > 1) {
-                this.closest('tr').remove();
-            } else {
-                alert('At least one assessment service is required');
-            }
-        });
+// Add MDT member to a service
+function addMDTMember(serviceName) {
+    const container = document.getElementById(`members-${sanitizeId(serviceName)}`);
+    const memberIndex = mdtData[serviceName].members.length;
+    
+    const memberDiv = document.createElement('div');
+    memberDiv.className = 'mdt-member-item';
+    memberDiv.innerHTML = `
+        <input type="text" class="form-control form-control-sm" 
+               name="mdt_member_name_${sanitizeId(serviceName)}[]" 
+               placeholder="Member name" required>
+        <input type="text" class="form-control form-control-sm" 
+               name="mdt_member_designation_${sanitizeId(serviceName)}[]" 
+               placeholder="Designation" required>
+        <button type="button" class="btn btn-sm btn-danger btn-remove-member" 
+                onclick="removeMDTMember(this, '${serviceName}', ${memberIndex})">
+            <i class="bi bi-trash"></i>
+        </button>
+    `;
+    
+    container.appendChild(memberDiv);
+    mdtData[serviceName].members.push({ name: '', designation: '' });
+}
+
+// Remove MDT member
+function removeMDTMember(button, serviceName, index) {
+    button.closest('.mdt-member-item').remove();
+    mdtData[serviceName].members.splice(index, 1);
+}
+
+// Save MDT date
+function saveMDTDate(serviceName, date) {
+    mdtData[serviceName].date = date;
+}
+
+// Track uploaded files per service
+const uploadedFiles = {};
+
+// Handle multiple file upload
+function handleMultipleFileUpload(serviceName, input) {
+    const files = Array.from(input.files);
+    const serviceId = sanitizeId(serviceName);
+    
+    if (!uploadedFiles[serviceName]) {
+        uploadedFiles[serviceName] = [];
     }
+    
+    files.forEach(file => {
+        // Validate file type
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+        if (!allowedTypes.includes(file.type)) {
+            alert(`Invalid file type: ${file.name}. Only JPG, PNG, PDF allowed.`);
+            return;
+        }
+        
+        // Validate file size (10MB)
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+            alert(`File too large: ${file.name}. Maximum size is 10MB.`);
+            return;
+        }
+        
+        // Add to uploaded files
+        uploadedFiles[serviceName].push(file);
+    });
+    
+    // Update file list display
+    updateFileList(serviceName);
+    
+    // Reset input to allow re-selecting same files
+    input.value = '';
+}
 
-    // Form submission
-    document.getElementById('assessmentForm').addEventListener('submit', function(e) {
+function updateFileList(serviceName) {
+    const serviceId = sanitizeId(serviceName);
+    const container = document.getElementById(`file-list-${serviceId}`);
+    const files = uploadedFiles[serviceName] || [];
+    
+    if (files.length === 0) {
+        container.innerHTML = '<small class="text-muted">No documents uploaded</small>';
+        return;
+    }
+    
+    container.innerHTML = files.map((file, index) => `
+        <div class="file-item d-flex align-items-center gap-2 p-2 mb-2" 
+             style="background-color: #e8f5e9; border-radius: 4px; border-left: 3px solid #3b6d11;">
+            <i class="bi bi-file-earmark-check-fill text-success"></i>
+            <span class="flex-grow-1 small text-truncate" title="${file.name}">${file.name}</span>
+            <span class="badge" style="background-color: #3b6d11;">${formatFileSize(file.size)}</span>
+            <button type="button" class="btn btn-sm btn-danger" 
+                    onclick="removeUploadedFile('${serviceName}', ${index})">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+function removeUploadedFile(serviceName, index) {
+    if (uploadedFiles[serviceName]) {
+        uploadedFiles[serviceName].splice(index, 1);
+        updateFileList(serviceName);
+    }
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// Auto-calculate age from birth date
+document.getElementById('birth_date').addEventListener('change', function() {
+    const birthDate = new Date(this.value);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    document.getElementById('age').value = age;
+});
+
+// Load student data via AJAX
+function loadStudentData() {
+    const studentId = document.getElementById('student_selector').value;
+    
+    if (!studentId) {
+        alert('Please select a student first');
+        return;
+    }
+    
+    // Redirect to conduct page with student ID
+    window.location.href = '<?php echo $basePath; ?>/assessment/conduct/' + studentId;
+}
+
+// Student selector change
+document.getElementById('student_selector').addEventListener('change', function() {
+    if (this.value) {
+        document.getElementById('student_id').value = this.value;
+    }
+});
+
+// Toggle "Others" input
+function toggleOthersInput() {
+    const checkbox = document.getElementById('service_others');
+    const input = document.getElementById('services_others_specify');
+    
+    if (checkbox.checked) {
+        input.classList.remove('d-none');
+        input.required = true;
+    } else {
+        input.classList.add('d-none');
+        input.required = false;
+        input.value = '';
+    }
+}
+
+// Toggle service checkboxes based on "With Support Services?" selection
+function toggleServiceCheckboxes() {
+    const withServices = document.getElementById('with_support_services').value;
+    const serviceCheckboxes = document.querySelectorAll('.service-checkbox');
+    const servicesContainer = document.getElementById('services-checklist-container');
+    
+    if (withServices === 'no') {
+        // Disable all service checkboxes and uncheck them
+        serviceCheckboxes.forEach(checkbox => {
+            checkbox.disabled = true;
+            checkbox.checked = false;
+        });
+        servicesContainer.style.opacity = '0.5';
+        servicesContainer.style.pointerEvents = 'none';
+        
+        // Clear MDT table
+        updateMDTTable();
+    } else {
+        // Enable all service checkboxes
+        serviceCheckboxes.forEach(checkbox => {
+            checkbox.disabled = false;
+        });
+        servicesContainer.style.opacity = '1';
+        servicesContainer.style.pointerEvents = 'auto';
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleServiceCheckboxes();
+});
+
+// Show auto-fill indicator if student data loaded
+<?php if ($studentData): ?>
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('autofill-indicator').classList.remove('d-none');
+});
+<?php endif; ?>
+
+// Save draft
+function saveDraft() {
+    const form = document.getElementById('assessmentForm');
+    const formData = new FormData(form);
+    formData.append('save_draft', '1');
+    
+    fetch('<?php echo $basePath; ?>/assessment/save-draft', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Draft saved successfully');
+        } else {
+            alert('Error saving draft: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error saving draft');
+    });
+}
+
+// Form validation before submit
+document.getElementById('assessmentForm').addEventListener('submit', function(e) {
+    const studentId = document.getElementById('student_id').value;
+    
+    if (!studentId) {
         e.preventDefault();
-
-        const formData = new FormData(this);
-
-        fetch('<?php echo BASE_PATH; ?>/assessment/submit', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showAlert('Assessment submitted successfully!', 'success');
-                setTimeout(() => {
-                    window.location.href = '<?php echo BASE_PATH; ?>/dashboard';
-                }, 2000);
-            } else {
-                showAlert(data.message || 'Error submitting assessment', 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showAlert('Error submitting assessment', 'danger');
-        });
-    });
-
-    function showAlert(message, type) {
-        const alertContainer = document.getElementById('alertContainer');
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-        alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        alertContainer.appendChild(alertDiv);
+        alert('Please select a student first');
+        return false;
     }
+    
+    // Check if "With Support Services?" is "Yes"
+    const withServices = document.getElementById('with_support_services').value;
+    
+    if (withServices === 'yes') {
+        // Only validate services if "With Support Services?" is "Yes"
+        
+        // Check if at least one service is checked
+        const checkedServices = Array.from(serviceCheckboxes).filter(cb => cb.checked);
+        if (checkedServices.length === 0) {
+            e.preventDefault();
+            alert('Please check at least one service in Section A');
+            return false;
+        }
+        
+        // Validate MDT data for each checked service
+        let validationErrors = [];
+        
+        checkedServices.forEach(checkbox => {
+            const serviceName = checkbox.value;
+            const serviceId = sanitizeId(serviceName);
+            
+            // Check if at least one member added
+            const memberInputs = document.querySelectorAll(`input[name="mdt_member_name_${serviceId}[]"]`);
+            if (memberInputs.length === 0) {
+                validationErrors.push(`${serviceName}: Please add at least one MDT member`);
+            }
+            
+            // Check if date is filled
+            const dateInput = document.getElementById(`date-${serviceId}`);
+            if (!dateInput || !dateInput.value) {
+                validationErrors.push(`${serviceName}: Please select assessment date`);
+            }
+        });
+        
+        if (validationErrors.length > 0) {
+            e.preventDefault();
+            alert('Please complete the following:\n\n' + validationErrors.join('\n'));
+            return false;
+        }
+    } else {
+        // If "With Support Services?" is "No", skip service validation
+        // Allow submission without services
+        console.log('No support services required - skipping service validation');
+    }
+    
+    return true;
 });
 </script>
 
-<?php require __DIR__ . '/../layouts/footer.php'; ?>
+<?php require_once __DIR__ . '/../layouts/footer.php'; ?>

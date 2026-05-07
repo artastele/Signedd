@@ -228,12 +228,16 @@ CREATE TABLE IF NOT EXISTS assessment_records (
     student_id INT NOT NULL,
     parent_id INT,
     assessed_by INT NOT NULL,
+    conducted_by INT,
     assessment_type VARCHAR(100),
     assessment_data JSON,
     submitted_data JSON,
     education_history JSON,
     assessment_info JSON,
-    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+    section_a_data JSON,
+    services_checked JSON,
+    screening_types JSON,
+    status ENUM('draft', 'finalized', 'pending', 'approved', 'rejected') DEFAULT 'draft',
     reviewed_by INT,
     review_note TEXT,
     quarter VARCHAR(2),
@@ -241,15 +245,56 @@ CREATE TABLE IF NOT EXISTS assessment_records (
     reviewed_at TIMESTAMP NULL,
     version INT DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
     FOREIGN KEY (parent_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (assessed_by) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (conducted_by) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_student_id (student_id),
     INDEX idx_version (version),
     INDEX idx_assessment_status (status),
     INDEX idx_assessment_quarter (quarter),
     INDEX idx_assessment_submitted (submitted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Assessment services table (MDT details per service)
+CREATE TABLE IF NOT EXISTS assessment_services (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    assessment_id INT NOT NULL,
+    service_name VARCHAR(255) NOT NULL,
+    mdt_members JSON,
+    date_of_assessment DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (assessment_id) REFERENCES assessment_records(id) ON DELETE CASCADE,
+    INDEX idx_assessment_id (assessment_id),
+    INDEX idx_service_name (service_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Assessment documents table (files per service)
+CREATE TABLE IF NOT EXISTS assessment_documents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    assessment_service_id INT NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_type VARCHAR(10) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (assessment_service_id) REFERENCES assessment_services(id) ON DELETE CASCADE,
+    INDEX idx_service_id (assessment_service_id),
+    INDEX idx_file_type (file_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Assessment checklists table (which services were checked)
+CREATE TABLE IF NOT EXISTS assessment_checklists (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    assessment_id INT NOT NULL,
+    service_type VARCHAR(255) NOT NULL,
+    checked BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (assessment_id) REFERENCES assessment_records(id) ON DELETE CASCADE,
+    INDEX idx_assessment_id (assessment_id),
+    INDEX idx_service_type (service_type),
+    UNIQUE KEY unique_assessment_service (assessment_id, service_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
@@ -862,3 +907,276 @@ CREATE TABLE IF NOT EXISTS learner_progress (
 
 -- Mark migration as applied
 INSERT IGNORE INTO db_version (version) VALUES (23);
+
+-- ============================================
+-- MIGRATION: v1.23 - Process 3 Section A Data Columns
+-- ============================================
+
+-- Add columns for Process 3 Section A data storage
+ALTER TABLE assessment_records 
+ADD COLUMN IF NOT EXISTS section_a_data JSON AFTER assessment_info,
+ADD COLUMN IF NOT EXISTS services_checked JSON AFTER section_a_data,
+ADD COLUMN IF NOT EXISTS screening_types JSON AFTER services_checked;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (24);
+
+-- END MIGRATION: v1.23
+
+-- ============================================
+-- MIGRATION: v1.26 - Process 4 Availability Calendar
+-- ============================================
+
+-- User availability table (recurring + exceptions)
+CREATE TABLE IF NOT EXISTS user_availability (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    type ENUM('recurring', 'exception') NOT NULL,
+    day_of_week TINYINT NULL COMMENT '0=Sunday, 1=Monday, ..., 6=Saturday (for recurring)',
+    specific_date DATE NULL COMMENT 'For exception dates',
+    is_available BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_type (user_id, type),
+    INDEX idx_specific_date (specific_date),
+    UNIQUE KEY unique_recurring (user_id, type, day_of_week),
+    UNIQUE KEY unique_exception (user_id, type, specific_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (25);
+
+-- END MIGRATION: v1.26
+
+-- ============================================
+-- MIGRATION: v1.27 - Process 4 IEP Meeting Tables
+-- ============================================
+
+-- IEP meetings table
+CREATE TABLE IF NOT EXISTS iep_meetings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    assessment_id INT NULL COMMENT 'Link to finalized assessment',
+    scheduled_by INT NOT NULL COMMENT 'User who scheduled (SPED Teacher)',
+    meeting_date DATE NOT NULL,
+    meeting_time TIME NOT NULL,
+    venue VARCHAR(255) NULL,
+    online_link VARCHAR(500) NULL,
+    agenda_notes TEXT NULL,
+    status ENUM('scheduled', 'rescheduled', 'completed', 'cancelled') DEFAULT 'scheduled',
+    reschedule_reason TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (assessment_id) REFERENCES assessment_records(id) ON DELETE SET NULL,
+    FOREIGN KEY (scheduled_by) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_meeting_date (meeting_date),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Meeting notifications table
+CREATE TABLE IF NOT EXISTS meeting_notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    meeting_id INT NOT NULL,
+    user_id INT NOT NULL,
+    notified_via ENUM('email', 'system', 'both') DEFAULT 'both',
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES iep_meetings(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_meeting_user (meeting_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (26);
+
+-- END MIGRATION: v1.27
+
+-- ============================================
+-- MIGRATION: v1.28 - Process 4 Part II PDSP Form
+-- ============================================
+
+-- PDSP records table
+CREATE TABLE IF NOT EXISTS pdsp_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    meeting_id INT NOT NULL,
+    student_id INT NOT NULL,
+    filled_by INT NOT NULL COMMENT 'User who filled the form',
+    status ENUM('draft', 'complete') DEFAULT 'draft',
+    ai_extracted BOOLEAN DEFAULT FALSE COMMENT 'Was data extracted via AI',
+    uploaded_image_path VARCHAR(500) NULL COMMENT 'Path to uploaded handwritten form',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES iep_meetings(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (filled_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_meeting (meeting_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- PDSP domains table
+CREATE TABLE IF NOT EXISTS pdsp_domains (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pdsp_id INT NOT NULL,
+    domain_name VARCHAR(100) NOT NULL,
+    sub_domain VARCHAR(200) NULL,
+    skills_description TEXT NULL,
+    mastered BOOLEAN DEFAULT FALSE,
+    educational_recommendation TEXT NULL,
+    q1_level ENUM('Beginning', 'Developing', 'Approaching Proficiency', 'Proficient', 'Advanced') NULL,
+    q2_level ENUM('Beginning', 'Developing', 'Approaching Proficiency', 'Proficient', 'Advanced') NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pdsp_id) REFERENCES pdsp_records(id) ON DELETE CASCADE,
+    INDEX idx_pdsp_domain (pdsp_id, domain_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- PDSP signatures table
+CREATE TABLE IF NOT EXISTS pdsp_signatures (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pdsp_id INT NOT NULL,
+    signatory_role ENUM('sped_teacher', 'gen_ed_teacher', 'school_head', 'ilrc_supervisor', 
+                        'parent_guardian', 'medical_allied_1', 'medical_allied_2', 'medical_allied_3') NOT NULL,
+    signatory_name VARCHAR(200) NOT NULL,
+    signature_image_path VARCHAR(500) NOT NULL,
+    signed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pdsp_id) REFERENCES pdsp_records(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_pdsp_signatory (pdsp_id, signatory_role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (27);
+
+-- END MIGRATION: v1.28
+
+
+-- ============================================
+-- MIGRATION: v1.29 - Add conducted_by column to assessment_records
+-- ============================================
+
+ALTER TABLE assessment_records 
+ADD COLUMN IF NOT EXISTS conducted_by INT AFTER assessed_by,
+ADD FOREIGN KEY IF NOT EXISTS (conducted_by) REFERENCES users(id) ON DELETE SET NULL;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (28);
+
+-- END MIGRATION: v1.29
+
+
+-- ============================================
+-- MIGRATION: v1.30 - Add updated_at column to assessment_records
+-- ============================================
+
+ALTER TABLE assessment_records 
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (29);
+
+-- END MIGRATION: v1.30
+
+
+-- ============================================
+-- MIGRATION: v1.31 - Fix assessment_records status enum
+-- ============================================
+
+ALTER TABLE assessment_records 
+MODIFY COLUMN status ENUM('draft', 'finalized', 'pending', 'approved', 'rejected') DEFAULT 'draft';
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (30);
+
+-- END MIGRATION: v1.31
+
+
+-- ============================================
+-- MIGRATION: v1.32 - PDSP Signature Flow Update (Handwritten Document Upload)
+-- ============================================
+
+-- Drop pdsp_signatures table (no longer needed - using handwritten document upload instead)
+DROP TABLE IF EXISTS pdsp_signatures;
+
+-- Add signed_document_path and signatories columns to pdsp_records
+ALTER TABLE pdsp_records 
+ADD COLUMN IF NOT EXISTS signed_document_path VARCHAR(255) AFTER status,
+ADD COLUMN IF NOT EXISTS signatories TEXT AFTER signed_document_path;
+
+-- Update status enum to use 'signed' instead of 'complete'
+ALTER TABLE pdsp_records 
+MODIFY COLUMN status ENUM('draft', 'signed') DEFAULT 'draft';
+
+-- Remove ai_extracted column (not needed for this flow)
+ALTER TABLE pdsp_records 
+DROP COLUMN IF EXISTS ai_extracted;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (31);
+
+-- END MIGRATION: v1.32
+
+
+-- ============================================
+-- MIGRATION: v1.33 - Process 3, 4, and PDSP Complete Update
+-- ============================================
+
+-- Remove online_link from iep_meetings if it exists (all meetings are face-to-face)
+-- Note: Current table uses meeting_location, not venue
+-- No changes needed - online_link doesn't exist in current schema
+
+-- Add completed_at to pdsp_records
+ALTER TABLE pdsp_records 
+ADD COLUMN IF NOT EXISTS completed_at DATETIME NULL AFTER updated_at;
+
+-- Create pdsp_signatories table (normalized storage)
+CREATE TABLE IF NOT EXISTS pdsp_signatories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pdsp_id INT NOT NULL,
+    signatory_role ENUM('sped_teacher', 'gen_ed_teacher', 'school_head', 'ilrc_supervisor', 
+                        'parent_guardian', 'medical_allied_1', 'medical_allied_2', 'medical_allied_3') NOT NULL,
+    signatory_name VARCHAR(200) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pdsp_id) REFERENCES pdsp_records(id) ON DELETE CASCADE,
+    INDEX idx_pdsp_id (pdsp_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (32);
+
+-- END MIGRATION: v1.33
+
+-- ============================================
+-- MIGRATION: v1.34 - Add review_note column to assessment_records
+-- ============================================
+
+-- Add review_note column if it doesn't exist
+ALTER TABLE assessment_records 
+ADD COLUMN IF NOT EXISTS review_note TEXT AFTER reviewed_by;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (34);
+
+-- END MIGRATION: v1.34
+
+-- ============================================
+-- MIGRATION: v1.35 - Add review_note column to enrollment_documents
+-- ============================================
+
+-- Add review_note column if it doesn't exist
+ALTER TABLE enrollment_documents 
+ADD COLUMN IF NOT EXISTS review_note TEXT AFTER reviewed_by;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (35);
+
+-- END MIGRATION: v1.35
+
+-- ============================================
+-- MIGRATION: v1.36 - Add review_note column to enrollment_submissions
+-- ============================================
+
+-- Add review_note column if it doesn't exist
+ALTER TABLE enrollment_submissions 
+ADD COLUMN IF NOT EXISTS review_note TEXT AFTER verified_by;
+
+-- Mark migration as applied
+INSERT IGNORE INTO db_version (version) VALUES (36);
+
+-- END MIGRATION: v1.36

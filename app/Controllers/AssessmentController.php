@@ -42,8 +42,12 @@ class AssessmentController {
                 exit;
             }
             
-            // Get pending assessments
-            $pendingAssessments = $this->assessmentModel->getPendingForReview();
+            // Get all assessments with student info
+            $allAssessments = $this->assessmentModel->getAllWithStudentInfo();
+            
+            // Separate by status
+            $finalized = array_filter($allAssessments, fn($a) => $a['status'] === 'finalized');
+            $drafts = array_filter($allAssessments, fn($a) => $a['status'] === 'draft');
             
             // Log activity
             $this->logActivity('assessment.list', 'assessment_records', null, 'Viewed assessment dashboard');
@@ -59,9 +63,381 @@ class AssessmentController {
     }
 
     /**
-     * Assessment form - Parent fills education history and assessment info
+     * Assessment form - SPED Teacher conducts assessment (Process 3 Part I)
      */
-    public function conduct($studentId) {
+    public function conduct($studentId = null) {
+        try {
+            // Check permission
+            if ($this->userRole !== 'sped_teacher' && $this->userRole !== 'admin') {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied. SPED teachers only.';
+                header('Location: ' . BASE_PATH . '/dashboard');
+                exit;
+            }
+            
+            // Get verified students for selector
+            $students = $this->studentModel->getVerifiedStudents();
+            
+            // If student ID provided, get their details for auto-fill
+            $studentData = null;
+            if ($studentId) {
+                $studentData = $this->studentModel->getFullDetails($studentId);
+                
+                if (!$studentData) {
+                    $_SESSION['error'] = 'Student not found';
+                    header('Location: ' . BASE_PATH . '/assessment');
+                    exit;
+                }
+            }
+            
+            // Get existing draft if any
+            $draft = null;
+            if ($studentId) {
+                $draft = $this->assessmentModel->getLatest($studentId);
+                if ($draft && $draft['status'] === 'draft') {
+                    // Load draft data
+                    $studentData['draft'] = $draft;
+                }
+            }
+            
+            // Pass basePath to view
+            $basePath = BASE_PATH;
+            
+            // Log activity
+            $this->logActivity('assessment.form', 'assessment_records', null, 
+                $studentId ? "Opened assessment form for student: $studentId" : "Opened assessment form");
+            
+            // Load view
+            require __DIR__ . '/../Views/assessment/conduct.php';
+            
+        } catch (Exception $e) {
+            error_log("AssessmentController->conduct() ERROR: " . $e->getMessage());
+            $_SESSION['error'] = 'Error loading assessment form';
+            header('Location: ' . BASE_PATH . '/assessment');
+            exit;
+        }
+    }
+
+    /**
+     * AJAX endpoint - Get student data for auto-fill
+     */
+    public function getStudentData($studentId) {
+        header('Content-Type: application/json');
+        
+        try {
+            // Check permission
+            if ($this->userRole !== 'sped_teacher' && $this->userRole !== 'admin') {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied']);
+                exit;
+            }
+            
+            // Get student details
+            $studentData = $this->studentModel->getFullDetails($studentId);
+            
+            if (!$studentData) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Student not found']);
+                exit;
+            }
+            
+            // Get existing draft if any
+            $draft = $this->assessmentModel->getLatest($studentId);
+            if ($draft && $draft['status'] === 'draft') {
+                $studentData['draft'] = $draft;
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'data' => $studentData
+            ]);
+            
+        } catch (Exception $e) {
+            error_log("AssessmentController->getStudentData() ERROR: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Error loading student data']);
+        }
+    }
+
+    /**
+     * Submit assessment - SPED Teacher submits complete Part I (Section A + B)
+     */
+    public function submit() {
+        try {
+            // Check permission
+            if ($this->userRole !== 'sped_teacher' && $this->userRole !== 'admin') {
+                $_SESSION['error'] = 'Access denied. SPED teachers only.';
+                header('Location: ' . BASE_PATH . '/assessment');
+                exit;
+            }
+            
+            // Get POST data
+            $studentId = $_POST['student_id'] ?? null;
+            
+            if (!$studentId) {
+                $_SESSION['error'] = 'Student ID required';
+                header('Location: ' . BASE_PATH . '/assessment');
+                exit;
+            }
+            
+            // Collect Section A data
+            $sectionAData = [
+                'last_name' => $_POST['last_name'] ?? '',
+                'first_name' => $_POST['first_name'] ?? '',
+                'middle_name' => $_POST['middle_name'] ?? '',
+                'extension_name' => $_POST['extension_name'] ?? '',
+                'birth_date' => $_POST['birth_date'] ?? '',
+                'age' => $_POST['age'] ?? '',
+                'sex' => $_POST['sex'] ?? '',
+                'religion' => $_POST['religion'] ?? '',
+                'home_address' => $_POST['home_address'] ?? '',
+                'lrn' => $_POST['lrn'] ?? '',
+                'school' => $_POST['school'] ?? '',
+                'school_year' => $_POST['school_year'] ?? '',
+                'adviser_name' => $_POST['adviser_name'] ?? '',
+                'father_name' => $_POST['father_name'] ?? '',
+                'father_contact' => $_POST['father_contact'] ?? '',
+                'father_occupation' => $_POST['father_occupation'] ?? '',
+                'mother_name' => $_POST['mother_name'] ?? '',
+                'mother_contact' => $_POST['mother_contact'] ?? '',
+                'mother_occupation' => $_POST['mother_occupation'] ?? '',
+                'guardian_name' => $_POST['guardian_name'] ?? '',
+                'guardian_contact' => $_POST['guardian_contact'] ?? '',
+                'guardian_occupation' => $_POST['guardian_occupation'] ?? '',
+                'previous_school' => $_POST['previous_school'] ?? '',
+                'previous_grade_level' => $_POST['previous_grade_level'] ?? '',
+                'previous_school_year' => $_POST['previous_school_year'] ?? '',
+                'with_iep' => $_POST['with_iep'] ?? 'no',
+                'with_support_services' => $_POST['with_support_services'] ?? 'no',
+                'support_services_detail' => $_POST['support_services_detail'] ?? ''
+            ];
+            
+            // Collect services checklist
+            $services = $_POST['services'] ?? [];
+            if (in_array('Others', $services) && !empty($_POST['services_others_specify'])) {
+                $services[] = 'Others: ' . $_POST['services_others_specify'];
+            }
+            
+            $screening = $_POST['screening'] ?? [];
+            
+            // Get "With Support Services?" value
+            $withSupportServices = $_POST['with_support_services'] ?? 'no';
+            
+            // Validate: at least one service must be checked ONLY if "With Support Services?" is "yes"
+            if ($withSupportServices === 'yes' && empty($services)) {
+                $_SESSION['error'] = 'Please check at least one service';
+                header('Location: ' . BASE_PATH . '/assessment/conduct/' . $studentId);
+                exit;
+            }
+            
+            // Collect Section B data (MDT services) - only if services exist
+            $mdtServices = $_POST['mdt_services'] ?? [];
+            $sectionBData = [];
+            
+            // Only process MDT data if "With Support Services?" is "yes"
+            if ($withSupportServices === 'yes') {
+                foreach ($mdtServices as $serviceName) {
+                    $serviceId = $this->sanitizeId($serviceName);
+                    
+                    // Get MDT members
+                    $memberNames = $_POST["mdt_member_name_{$serviceId}"] ?? [];
+                    $memberDesignations = $_POST["mdt_member_designation_{$serviceId}"] ?? [];
+                    
+                    $members = [];
+                    for ($i = 0; $i < count($memberNames); $i++) {
+                        if (!empty($memberNames[$i])) {
+                            $members[] = [
+                                'name' => $memberNames[$i],
+                                'designation' => $memberDesignations[$i] ?? ''
+                            ];
+                        }
+                    }
+                    
+                    // Get assessment date
+                    $assessmentDate = $_POST["mdt_date_{$serviceId}"] ?? null;
+                    
+                    // Validate: each service must have at least one member and a date
+                    if (empty($members)) {
+                        $_SESSION['error'] = "Please add at least one MDT member for: $serviceName";
+                        header('Location: ' . BASE_PATH . '/assessment/conduct/' . $studentId);
+                        exit;
+                    }
+                    
+                    if (empty($assessmentDate)) {
+                        $_SESSION['error'] = "Please select assessment date for: $serviceName";
+                        header('Location: ' . BASE_PATH . '/assessment/conduct/' . $studentId);
+                        exit;
+                    }
+                    
+                    $sectionBData[$serviceName] = [
+                        'members' => $members,
+                        'date' => $assessmentDate
+                    ];
+                }
+            }
+            
+            // Create or update assessment record
+            $existingDraft = $this->assessmentModel->getLatest($studentId);
+            
+            if ($existingDraft && $existingDraft['status'] === 'draft') {
+                // Finalize existing draft
+                $assessmentId = $this->assessmentModel->finalizeDraft(
+                    $existingDraft['id'],
+                    $sectionAData,
+                    $services,
+                    $screening,
+                    $sectionBData
+                );
+            } else {
+                // Create new finalized assessment
+                $assessmentId = $this->assessmentModel->createFinalized(
+                    $studentId,
+                    $this->userId,
+                    $sectionAData,
+                    $services,
+                    $screening,
+                    $sectionBData
+                );
+            }
+            
+            // Handle file uploads for each service (multiple files per service)
+            $uploadErrors = [];
+            foreach ($mdtServices as $serviceName) {
+                $serviceId = $this->sanitizeId($serviceName);
+                $fileKey = "mdt_file_{$serviceId}";
+                
+                // Check if files were uploaded for this service
+                if (isset($_FILES[$fileKey]) && is_array($_FILES[$fileKey]['name'])) {
+                    $fileCount = count($_FILES[$fileKey]['name']);
+                    
+                    for ($i = 0; $i < $fileCount; $i++) {
+                        // Skip if no file or error
+                        if ($_FILES[$fileKey]['error'][$i] !== UPLOAD_ERR_OK) {
+                            continue;
+                        }
+                        
+                        // Create temporary file array for single file
+                        $singleFile = [
+                            'name' => $_FILES[$fileKey]['name'][$i],
+                            'type' => $_FILES[$fileKey]['type'][$i],
+                            'tmp_name' => $_FILES[$fileKey]['tmp_name'][$i],
+                            'error' => $_FILES[$fileKey]['error'][$i],
+                            'size' => $_FILES[$fileKey]['size'][$i]
+                        ];
+                        
+                        $uploadResult = $this->handleServiceFileUpload(
+                            $singleFile,
+                            $assessmentId,
+                            $serviceName
+                        );
+                        
+                        if (!$uploadResult['success']) {
+                            $uploadErrors[] = $serviceName . ' - ' . $singleFile['name'] . ': ' . $uploadResult['message'];
+                        }
+                    }
+                }
+            }
+            
+            // Log activity
+            $this->logActivity('assessment.submit', 'assessment_records', $assessmentId, 
+                "Submitted Part I assessment for student: $studentId");
+            
+            // Set success message
+            if (!empty($uploadErrors)) {
+                $_SESSION['warning'] = 'Assessment submitted but some files failed to upload: ' . implode(', ', $uploadErrors);
+            } else {
+                $_SESSION['success'] = 'Assessment submitted successfully';
+            }
+            
+            header('Location: ' . BASE_PATH . '/assessment');
+            exit;
+            
+        } catch (Exception $e) {
+            error_log("AssessmentController->submit() ERROR: " . $e->getMessage());
+            $_SESSION['error'] = 'Error submitting assessment: ' . $e->getMessage();
+            header('Location: ' . BASE_PATH . '/assessment/conduct/' . ($studentId ?? ''));
+            exit;
+        }
+    }
+
+    /**
+     * Handle file upload for a service
+     */
+    private function handleServiceFileUpload($file, $assessmentId, $serviceName) {
+        try {
+            // Validate file type
+            $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+            $fileType = mime_content_type($file['tmp_name']);
+            
+            if (!in_array($fileType, $allowedTypes)) {
+                return [
+                    'success' => false,
+                    'message' => 'Invalid file type. Only JPG, PNG, and PDF allowed.'
+                ];
+            }
+            
+            // Validate file size (10MB)
+            $maxSize = 10 * 1024 * 1024;
+            if ($file['size'] > $maxSize) {
+                return [
+                    'success' => false,
+                    'message' => 'File too large. Maximum size is 10MB.'
+                ];
+            }
+            
+            // Create upload directory if not exists
+            $uploadDir = __DIR__ . '/../../uploads/assessments/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            
+            // Generate unique filename
+            $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+            $filename = 'assessment_' . $assessmentId . '_' . $this->sanitizeId($serviceName) . '_' . time() . '.' . $extension;
+            $filepath = $uploadDir . $filename;
+            
+            // Move uploaded file
+            if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+                return [
+                    'success' => false,
+                    'message' => 'Failed to save file'
+                ];
+            }
+            
+            // Save to database
+            $this->assessmentModel->saveServiceDocument(
+                $assessmentId,
+                $serviceName,
+                'assessments/' . $filename,
+                $fileType,
+                $file['name']
+            );
+            
+            return [
+                'success' => true,
+                'filename' => $filename
+            ];
+            
+        } catch (Exception $e) {
+            error_log("File upload error: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Upload failed: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Sanitize string for use as ID
+     */
+    private function sanitizeId($str) {
+        return preg_replace('/[^a-zA-Z0-9]/', '_', strtolower($str));
+    }
+
+    /**
+     * Assessment form - Parent fills education history and assessment info (OLD - DEPRECATED)
+     */
+    public function conductOld($studentId) {
         try {
             // Get student with enrollment data
             $student = $this->studentModel->getWithDetails($studentId);
@@ -96,78 +472,142 @@ class AssessmentController {
     }
 
     /**
-     * Submit assessment - Parent submits education history and assessment info
+     * AJAX endpoint - Delete service document
      */
-    public function submit() {
+    public function deleteServiceDocument($documentId) {
+        header('Content-Type: application/json');
+        
         try {
             // Check permission
-            if ($this->userRole !== 'parent' && $this->userRole !== 'admin') {
+            if ($this->userRole !== 'sped_teacher' && $this->userRole !== 'admin') {
                 http_response_code(403);
-                echo json_encode(['success' => false, 'message' => 'Access Denied']);
+                echo json_encode(['success' => false, 'message' => 'Access denied']);
+                exit;
+            }
+            
+            // Delete document
+            $result = $this->assessmentModel->deleteServiceDocument($documentId);
+            
+            if ($result) {
+                // Log activity
+                $this->logActivity('assessment.delete_document', 'assessment_documents', $documentId, 
+                    "Deleted service document");
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Document deleted successfully'
+                ]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Document not found']);
+            }
+            
+        } catch (Exception $e) {
+            error_log("AssessmentController->deleteServiceDocument() ERROR: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Error deleting document']);
+        }
+    }
+
+    /**
+     * Save draft - SPED Teacher saves Section A as draft
+     */
+    public function saveDraft() {
+        header('Content-Type: application/json');
+        
+        try {
+            // Check permission
+            if ($this->userRole !== 'sped_teacher' && $this->userRole !== 'admin') {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied']);
                 exit;
             }
             
             // Get POST data
             $studentId = $_POST['student_id'] ?? null;
-            $educationHistory = [
+            
+            if (!$studentId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Student ID required']);
+                exit;
+            }
+            
+            // Collect Section A data
+            $sectionAData = [
+                'last_name' => $_POST['last_name'] ?? '',
+                'first_name' => $_POST['first_name'] ?? '',
+                'middle_name' => $_POST['middle_name'] ?? '',
+                'extension_name' => $_POST['extension_name'] ?? '',
+                'birth_date' => $_POST['birth_date'] ?? '',
+                'age' => $_POST['age'] ?? '',
+                'sex' => $_POST['sex'] ?? '',
+                'religion' => $_POST['religion'] ?? '',
+                'home_address' => $_POST['home_address'] ?? '',
+                'lrn' => $_POST['lrn'] ?? '',
+                'school' => $_POST['school'] ?? '',
+                'school_year' => $_POST['school_year'] ?? '',
+                'adviser_name' => $_POST['adviser_name'] ?? '',
+                'father_name' => $_POST['father_name'] ?? '',
+                'father_contact' => $_POST['father_contact'] ?? '',
+                'father_occupation' => $_POST['father_occupation'] ?? '',
+                'mother_name' => $_POST['mother_name'] ?? '',
+                'mother_contact' => $_POST['mother_contact'] ?? '',
+                'mother_occupation' => $_POST['mother_occupation'] ?? '',
+                'guardian_name' => $_POST['guardian_name'] ?? '',
+                'guardian_contact' => $_POST['guardian_contact'] ?? '',
+                'guardian_occupation' => $_POST['guardian_occupation'] ?? '',
                 'previous_school' => $_POST['previous_school'] ?? '',
-                'grade_level' => $_POST['grade_level'] ?? '',
+                'previous_grade_level' => $_POST['previous_grade_level'] ?? '',
+                'previous_school_year' => $_POST['previous_school_year'] ?? '',
                 'with_iep' => $_POST['with_iep'] ?? 'no',
                 'with_support_services' => $_POST['with_support_services'] ?? 'no',
-                'support_services' => isset($_POST['support_services']) ? $_POST['support_services'] : []
+                'support_services_detail' => $_POST['support_services_detail'] ?? ''
             ];
             
-            // Assessment info - dynamic table rows
-            $assessmentInfo = [];
-            if (isset($_POST['assessment_service'])) {
-                $services = $_POST['assessment_service'];
-                $mdtMembers = $_POST['mdt_members'] ?? [];
-                $assessmentDates = $_POST['assessment_dates'] ?? [];
-                $supportingDocs = $_POST['supporting_docs'] ?? [];
-                
-                foreach ($services as $index => $service) {
-                    if (!empty($service)) {
-                        $assessmentInfo[] = [
-                            'service' => $service,
-                            'mdt_members' => $mdtMembers[$index] ?? '',
-                            'assessment_date' => $assessmentDates[$index] ?? '',
-                            'supporting_documents' => $supportingDocs[$index] ?? ''
-                        ];
-                    }
-                }
+            // Collect services checklist
+            $services = $_POST['services'] ?? [];
+            if (in_array('Others', $services) && !empty($_POST['services_others_specify'])) {
+                $services[] = 'Others: ' . $_POST['services_others_specify'];
             }
             
-            // Validate required fields
-            if (!$studentId || empty($educationHistory['previous_school']) || empty($assessmentInfo)) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Missing required fields']);
-                return;
-            }
+            $screening = $_POST['screening'] ?? [];
             
-            // Create or update assessment
-            $assessmentId = $this->assessmentModel->create(
-                $studentId,
-                $educationHistory,
-                $assessmentInfo,
-                $this->userId
-            );
+            // Check if draft already exists
+            $existingDraft = $this->assessmentModel->getLatest($studentId);
+            
+            if ($existingDraft && $existingDraft['status'] === 'draft') {
+                // Update existing draft
+                $assessmentId = $this->assessmentModel->updateDraft(
+                    $existingDraft['id'],
+                    $sectionAData,
+                    $services,
+                    $screening
+                );
+            } else {
+                // Create new draft
+                $assessmentId = $this->assessmentModel->createDraft(
+                    $studentId,
+                    $this->userId,
+                    $sectionAData,
+                    $services,
+                    $screening
+                );
+            }
             
             // Log activity
-            $this->logActivity('assessment.submit', 'assessment_records', $assessmentId, "Parent submitted assessment for student: $studentId");
-            
-            // Send notification to SPED teacher
-            $this->notifySpedTeacherNewAssessment($studentId);
+            $this->logActivity('assessment.draft', 'assessment_records', $assessmentId, 
+                "Saved draft for student: $studentId");
             
             echo json_encode([
                 'success' => true,
-                'message' => 'Assessment submitted successfully',
+                'message' => 'Draft saved successfully',
                 'assessment_id' => $assessmentId
             ]);
             
         } catch (Exception $e) {
-            error_log("AssessmentController->submit() ERROR: " . $e->getMessage());
+            error_log("AssessmentController->saveDraft() ERROR: " . $e->getMessage());
             http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'Error submitting assessment']);
+            echo json_encode(['success' => false, 'message' => 'Error saving draft']);
         }
     }
 
@@ -190,6 +630,16 @@ class AssessmentController {
                 http_response_code(404);
                 echo "Assessment not found";
                 return;
+            }
+            
+            // Get MDT services with documents
+            require_once __DIR__ . '/../Models/AssessmentServiceModel.php';
+            $serviceModel = new AssessmentServiceModel();
+            $assessment['mdt_services'] = $serviceModel->getByAssessmentId($assessmentId);
+            
+            // Decode education history if it's JSON
+            if (!empty($assessment['education_history']) && is_string($assessment['education_history'])) {
+                $assessment['education_history'] = json_decode($assessment['education_history'], true);
             }
             
             // Log activity
@@ -298,34 +748,49 @@ class AssessmentController {
     public function history($studentId) {
         try {
             // Get student
-            $student = $this->studentModel->getWithDetails($studentId);
+            $student = $this->studentModel->findById($studentId);
             
             if (!$student) {
                 http_response_code(404);
-                echo "Student not found";
-                return;
-            }
-            
-            // Check permission
-            if ($this->userRole === 'parent' && $student['parent_id'] !== $this->userId) {
-                http_response_code(403);
-                echo "Access Denied";
+                $_SESSION['error'] = 'Student not found';
+                header('Location: ' . BASE_PATH . '/students');
                 exit;
             }
             
-            // Get assessment history
-            $history = $this->assessmentModel->getHistory($studentId);
+            // Check permission
+            if ($this->userRole === 'parent') {
+                // Parent can only view their own child's assessments
+                if ($student['parent_id'] !== $this->userId) {
+                    http_response_code(403);
+                    $_SESSION['error'] = 'Access denied';
+                    header('Location: ' . BASE_PATH . '/dashboard');
+                    exit;
+                }
+            } elseif (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'admin'])) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied';
+                header('Location: ' . BASE_PATH . '/dashboard');
+                exit;
+            }
+            
+            // Get assessment history with full details
+            $history = $this->assessmentModel->getHistoryWithDetails($studentId);
+            
+            // Pass basePath to view
+            $basePath = BASE_PATH;
             
             // Log activity
-            $this->logActivity('assessment.history', 'assessment_records', null, "Viewed assessment history for student: $studentId");
+            $this->logActivity('assessment.history', 'assessment_records', null, 
+                "Viewed assessment history for student: $studentId");
             
             // Load view
             require __DIR__ . '/../Views/assessment/history.php';
             
         } catch (Exception $e) {
             error_log("AssessmentController->history() ERROR: " . $e->getMessage());
-            http_response_code(500);
-            echo "Error loading assessment history";
+            $_SESSION['error'] = 'Error loading assessment history';
+            header('Location: ' . BASE_PATH . '/students');
+            exit;
         }
     }
 
