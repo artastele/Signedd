@@ -1,6 +1,8 @@
--- SPED LMS — Database Schema (Clean Version)
+-- SPED LMS  Database Schema (Clean Version)
 -- DO NOT ALTER WITHOUT APPROVAL
--- All tables created with proper constraints and defaults
+-- Last modified: 2026-05-08
+-- All tables use CREATE TABLE IF NOT EXISTS (idempotent, safe to re-run)
+-- All ALTER TABLE use INFORMATION_SCHEMA checks (MariaDB compatible)
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -13,7 +15,7 @@ CREATE TABLE IF NOT EXISTS db_version (
 );
 
 -- ============================================
--- SECURITY MODULE 1 & 2 — Authentication & Authorization
+-- SECURITY  Authentication & Authorization
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS users (
@@ -26,27 +28,31 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     contact_number VARCHAR(20),
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('user', 'parent', 'sped_teacher', 'guidance', 'principal', 'master_teacher', 'learner', 'admin') DEFAULT 'user',
-    status ENUM('active', 'inactive', 'pending') DEFAULT 'active',
+    role ENUM('user','parent','sped_teacher','guidance','principal','master_teacher','learner','admin') DEFAULT 'user',
+    status ENUM('active','inactive','pending') DEFAULT 'active',
     email_verified BOOLEAN DEFAULT FALSE,
     email_verification_token VARCHAR(10),
     email_verification_expires DATETIME,
     verification_attempts INT DEFAULT 0,
     google_id VARCHAR(255) UNIQUE,
     profile_picture VARCHAR(255),
-    auth_provider ENUM('local', 'google') DEFAULT 'local',
+    auth_provider ENUM('local','google') DEFAULT 'local',
+    deleted_at TIMESTAMP NULL,
+    locked_until TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_email (email),
-    INDEX idx_role (role)
+    INDEX idx_role (role),
+    INDEX idx_deleted_at (deleted_at),
+    INDEX idx_locked_until (locked_until)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS role_requests (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
-    requested_role ENUM('sped_teacher', 'guidance', 'principal', 'master_teacher') NOT NULL,
-    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-    approver_role ENUM('admin', 'principal') DEFAULT 'principal',
+    requested_role ENUM('sped_teacher','guidance','principal','master_teacher') NOT NULL,
+    status ENUM('pending','approved','rejected') DEFAULT 'pending',
+    approver_role ENUM('admin','principal') DEFAULT 'principal',
     submitted_docs JSON,
     reviewed_by INT,
     review_note TEXT,
@@ -69,24 +75,24 @@ CREATE TABLE IF NOT EXISTS role_documents (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- PROCESS 1 — Parent Complying Enrollment Requirements
+-- PROCESS 1  Parent Complying Enrollment Requirements
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS enrollment_submissions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     parent_id INT NOT NULL,
-    enrollment_type ENUM('new', 'transfer', 'returning') NOT NULL,
+    enrollment_type ENUM('new','transfer','returning') NOT NULL,
     school_year VARCHAR(20) NOT NULL,
     previous_enrollment_id INT NULL,
     is_draft BOOLEAN DEFAULT TRUE,
-    status ENUM('draft', 'pending', 'verified', 'rejected') DEFAULT 'draft',
+    status ENUM('draft','pending','verified','rejected') DEFAULT 'draft',
     lrn VARCHAR(12),
     last_name VARCHAR(100) NOT NULL,
     first_name VARCHAR(100) NOT NULL,
     middle_name VARCHAR(100),
     extension_name VARCHAR(20),
     birth_date DATE NOT NULL,
-    sex ENUM('Male', 'Female') NOT NULL,
+    sex ENUM('Male','Female') NOT NULL,
     age INT,
     birth_place VARCHAR(255),
     mother_tongue VARCHAR(100),
@@ -132,7 +138,7 @@ CREATE TABLE IF NOT EXISTS enrollment_submissions (
     previous_school_address TEXT,
     previous_grade_level VARCHAR(50),
     previous_school_year VARCHAR(20),
-    previous_school_type ENUM('Public', 'Private'),
+    previous_school_type ENUM('Public','Private'),
     grade_level_to_enroll VARCHAR(50) NOT NULL,
     is_balik_aral BOOLEAN DEFAULT FALSE,
     is_pept_passer BOOLEAN DEFAULT FALSE,
@@ -141,7 +147,7 @@ CREATE TABLE IF NOT EXISTS enrollment_submissions (
     als_rating VARCHAR(20),
     shs_track VARCHAR(50),
     shs_strand VARCHAR(100),
-    shs_semester ENUM('1st', '2nd'),
+    shs_semester ENUM('1st','2nd'),
     modality_modular_print BOOLEAN DEFAULT FALSE,
     modality_modular_digital BOOLEAN DEFAULT FALSE,
     modality_online BOOLEAN DEFAULT FALSE,
@@ -156,6 +162,7 @@ CREATE TABLE IF NOT EXISTS enrollment_submissions (
     submitted_at TIMESTAMP NULL,
     verified_by INT,
     verified_at TIMESTAMP NULL,
+    review_note TEXT,
     learner_account_created BOOLEAN DEFAULT FALSE,
     last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -172,9 +179,9 @@ CREATE TABLE IF NOT EXISTS enrollment_submissions (
 CREATE TABLE IF NOT EXISTS enrollment_documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     enrollment_id INT NOT NULL,
-    document_type ENUM('psa_birth_cert', 'pwd_id', 'medical_record', 'beef_form') NOT NULL,
+    document_type ENUM('psa_birth_cert','pwd_id','medical_record','beef_form') NOT NULL,
     file_path VARCHAR(500) NOT NULL,
-    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+    status ENUM('pending','approved','rejected') DEFAULT 'pending',
     reviewed_by INT,
     review_note TEXT,
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -187,7 +194,7 @@ CREATE TABLE IF NOT EXISTS enrollment_documents (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- PROCESS 2 — Verifying Enrollment Requirements
+-- PROCESS 2  Verifying Enrollment Requirements
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS student_records (
@@ -220,7 +227,7 @@ CREATE TABLE IF NOT EXISTS education_history (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- PROCESS 3 — Conducting Initial Assessment
+-- PROCESS 3  Conducting Initial Assessment
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS assessment_records (
@@ -237,7 +244,7 @@ CREATE TABLE IF NOT EXISTS assessment_records (
     section_a_data JSON,
     services_checked JSON,
     screening_types JSON,
-    status ENUM('draft', 'finalized', 'pending', 'approved', 'rejected') DEFAULT 'draft',
+    status ENUM('draft','finalized','pending','approved','rejected') DEFAULT 'draft',
     reviewed_by INT,
     review_note TEXT,
     quarter VARCHAR(2),
@@ -258,7 +265,6 @@ CREATE TABLE IF NOT EXISTS assessment_records (
     INDEX idx_assessment_submitted (submitted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Assessment services table (MDT details per service)
 CREATE TABLE IF NOT EXISTS assessment_services (
     id INT AUTO_INCREMENT PRIMARY KEY,
     assessment_id INT NOT NULL,
@@ -271,7 +277,6 @@ CREATE TABLE IF NOT EXISTS assessment_services (
     INDEX idx_service_name (service_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Assessment documents table (files per service)
 CREATE TABLE IF NOT EXISTS assessment_documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     assessment_service_id INT NOT NULL,
@@ -284,7 +289,6 @@ CREATE TABLE IF NOT EXISTS assessment_documents (
     INDEX idx_file_type (file_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Assessment checklists table (which services were checked)
 CREATE TABLE IF NOT EXISTS assessment_checklists (
     id INT AUTO_INCREMENT PRIMARY KEY,
     assessment_id INT NOT NULL,
@@ -298,8 +302,12 @@ CREATE TABLE IF NOT EXISTS assessment_checklists (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- PROCESS 4 — Facilitating IEP Meeting
+-- PROCESS 4  Facilitating IEP Meeting
 -- ============================================
+-- NOTE: iep_meetings uses DATETIME (combined date+time) and meeting_location.
+-- The duplicate definition that existed in migration v1.27 has been removed.
+-- The v1.27 block used separate DATE + TIME columns and "venue"  that was
+-- superseded by this definition. This is the single authoritative definition.
 
 CREATE TABLE IF NOT EXISTS iep_meetings (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -311,8 +319,9 @@ CREATE TABLE IF NOT EXISTS iep_meetings (
     agenda TEXT,
     guidance_id INT,
     principal_id INT,
-    status ENUM('scheduled', 'rescheduled', 'completed', 'cancelled') DEFAULT 'scheduled',
+    status ENUM('scheduled','rescheduled','completed','cancelled') DEFAULT 'scheduled',
     notes TEXT,
+    reschedule_reason TEXT,
     cancellation_reason TEXT,
     scheduled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMP NULL,
@@ -328,25 +337,85 @@ CREATE TABLE IF NOT EXISTS iep_meetings (
     INDEX idx_meeting_date (meeting_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- PROCESS 4 — IEP Meeting Calendar Availability
--- ============================================
-
-CREATE TABLE IF NOT EXISTS iep_meeting_calendars (
+CREATE TABLE IF NOT EXISTS meeting_notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    meeting_id INT NOT NULL,
     user_id INT NOT NULL,
-    calendar_file_path VARCHAR(500) NOT NULL,
-    availability_data JSON,
-    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    valid_from DATE,
-    valid_until DATE,
+    notified_via ENUM('email','system','both') DEFAULT 'both',
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES iep_meetings(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_user_id (user_id),
-    INDEX idx_uploaded_at (uploaded_at)
+    INDEX idx_meeting_user (meeting_id, user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- User availability (recurring weekly schedule + exception dates)
+-- Replaces the old iep_meeting_calendars file-upload approach (removed)
+CREATE TABLE IF NOT EXISTS user_availability (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    type ENUM('recurring','exception') NOT NULL,
+    day_of_week TINYINT NULL COMMENT '0=Sunday ... 6=Saturday (recurring only)',
+    specific_date DATE NULL COMMENT 'Exception dates only',
+    is_available BOOLEAN NOT NULL DEFAULT TRUE,
+    note VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_type (user_id, type),
+    INDEX idx_specific_date (specific_date),
+    UNIQUE KEY unique_recurring (user_id, type, day_of_week),
+    UNIQUE KEY unique_exception (user_id, type, specific_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- PDSP records (Part II  filled during IEP meeting)
+CREATE TABLE IF NOT EXISTS pdsp_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    meeting_id INT NOT NULL,
+    student_id INT NOT NULL,
+    filled_by INT NOT NULL,
+    status ENUM('draft','signed') DEFAULT 'draft',
+    signed_document_path VARCHAR(255) NULL,
+    signatories TEXT NULL,
+    uploaded_image_path VARCHAR(500) NULL,
+    completed_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES iep_meetings(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (filled_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_meeting (meeting_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS pdsp_domains (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pdsp_id INT NOT NULL,
+    domain_name VARCHAR(100) NOT NULL,
+    sub_domain VARCHAR(200) NULL,
+    skills_description TEXT NULL,
+    mastered BOOLEAN DEFAULT FALSE,
+    educational_recommendation TEXT NULL,
+    q1_level ENUM('Beginning','Developing','Approaching Proficiency','Proficient','Advanced') NULL,
+    q2_level ENUM('Beginning','Developing','Approaching Proficiency','Proficient','Advanced') NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pdsp_id) REFERENCES pdsp_records(id) ON DELETE CASCADE,
+    INDEX idx_pdsp_domain (pdsp_id, domain_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Normalized signatory list per PDSP record
+CREATE TABLE IF NOT EXISTS pdsp_signatories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pdsp_id INT NOT NULL,
+    signatory_role ENUM('sped_teacher','gen_ed_teacher','school_head','ilrc_supervisor',
+                        'parent_guardian','medical_allied_1','medical_allied_2','medical_allied_3') NOT NULL,
+    signatory_name VARCHAR(200) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pdsp_id) REFERENCES pdsp_records(id) ON DELETE CASCADE,
+    INDEX idx_pdsp_id (pdsp_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
 -- ============================================
--- PROCESS 4 — IEP P2 Documents
+-- PROCESS 4 (continued) -- IEP P2 Documents and PDSP Signatures
+-- Actively used by IEPP2DocumentModel, IEPDocumentController, FileController
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS iep_p2_documents (
@@ -355,7 +424,7 @@ CREATE TABLE IF NOT EXISTS iep_p2_documents (
     student_id INT NOT NULL,
     iep_data JSON NOT NULL,
     pdf_path VARCHAR(500),
-    status ENUM('draft', 'pending_review', 'reviewed_signed') DEFAULT 'draft',
+    status ENUM('draft','pending_review','reviewed_signed') DEFAULT 'draft',
     created_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -371,7 +440,7 @@ CREATE TABLE IF NOT EXISTS iep_p2_reviews (
     id INT AUTO_INCREMENT PRIMARY KEY,
     iep_p2_id INT NOT NULL,
     reviewer_id INT NOT NULL,
-    reviewer_role ENUM('guidance', 'principal', 'parent', 'sped_teacher', 'school_head', 'ilrc_supervisor') NOT NULL,
+    reviewer_role ENUM('guidance','principal','parent','sped_teacher','school_head','ilrc_supervisor') NOT NULL,
     feedback TEXT,
     signature_data TEXT,
     reviewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -382,38 +451,23 @@ CREATE TABLE IF NOT EXISTS iep_p2_reviews (
     INDEX idx_reviewed_at (reviewed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- PROCESS 5 — Generating IEP
--- ============================================
-
-CREATE TABLE IF NOT EXISTS iep_documents (
+-- PDSP digital signatures (canvas-based per signatory)
+-- Used by IEPMeetingController::saveSignature()
+CREATE TABLE IF NOT EXISTS pdsp_signatures (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id INT NOT NULL,
-    student_id INT NOT NULL,
-    iep_content JSON NOT NULL,
-    status ENUM('draft', 'pending_signatures', 'signed', 'locked') DEFAULT 'draft',
-    created_by INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    locked_at TIMESTAMP NULL,
-    FOREIGN KEY (meeting_id) REFERENCES iep_meetings(id) ON DELETE CASCADE,
-    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_status (status),
-    INDEX idx_student_id (student_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS iep_signatures (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    iep_id INT NOT NULL,
-    signer_id INT NOT NULL,
-    signer_role ENUM('guidance', 'principal') NOT NULL,
-    signature_data TEXT,
-    remarks TEXT,
+    pdsp_id INT NOT NULL,
+    signatory_role ENUM('sped_teacher','gen_ed_teacher','school_head','ilrc_supervisor',
+                        'parent_guardian','medical_allied_1','medical_allied_2','medical_allied_3') NOT NULL,
+    signatory_name VARCHAR(200) NOT NULL,
+    signature_image_path VARCHAR(500) NOT NULL,
     signed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (iep_id) REFERENCES iep_documents(id) ON DELETE CASCADE,
-    FOREIGN KEY (signer_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_signer_per_iep (iep_id, signer_role)
+    FOREIGN KEY (pdsp_id) REFERENCES pdsp_records(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_pdsp_signatory (pdsp_id, signatory_role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- PROCESS 5  Generating IEP (P3 Documents)
+-- ============================================
 
 CREATE TABLE IF NOT EXISTS iep_p3_documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -421,7 +475,7 @@ CREATE TABLE IF NOT EXISTS iep_p3_documents (
     student_id INT NOT NULL,
     iep_data JSON NOT NULL,
     pdf_path VARCHAR(500),
-    status ENUM('draft', 'pending_signatures', 'signed_approved') DEFAULT 'draft',
+    status ENUM('draft','pending_signatures','signed_approved') DEFAULT 'draft',
     created_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -437,7 +491,7 @@ CREATE TABLE IF NOT EXISTS iep_p3_signatures (
     id INT AUTO_INCREMENT PRIMARY KEY,
     iep_p3_id INT NOT NULL,
     signer_id INT NOT NULL,
-    signer_role ENUM('parent', 'guidance', 'teacher', 'sped_teacher', 'principal', 'school_head', 'ilrc_supervisor') NOT NULL,
+    signer_role ENUM('parent','guidance','teacher','sped_teacher','principal','school_head','ilrc_supervisor') NOT NULL,
     signature_data TEXT,
     remarks TEXT,
     signed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -450,7 +504,7 @@ CREATE TABLE IF NOT EXISTS iep_p3_signatures (
 
 CREATE TABLE IF NOT EXISTS iep_audit_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    document_type ENUM('p2', 'p3') NOT NULL,
+    document_type ENUM('p2','p3') NOT NULL,
     document_id INT NOT NULL,
     user_id INT NOT NULL,
     action VARCHAR(100) NOT NULL,
@@ -465,21 +519,21 @@ CREATE TABLE IF NOT EXISTS iep_audit_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- PROCESS 6 — Implementing IEP
+-- PROCESS 6  Implementing IEP
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS learner_iep (
     id INT AUTO_INCREMENT PRIMARY KEY,
     student_id INT NOT NULL,
-    iep_id INT NOT NULL,
+    iep_p3_id INT NOT NULL,
     teacher_id INT NOT NULL,
-    implementation_status ENUM('not_started', 'in_progress', 'completed') DEFAULT 'not_started',
+    implementation_status ENUM('not_started','in_progress','completed') DEFAULT 'not_started',
     start_date DATE,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
-    FOREIGN KEY (iep_id) REFERENCES iep_documents(id) ON DELETE CASCADE,
+    FOREIGN KEY (iep_p3_id) REFERENCES iep_p3_documents(id) ON DELETE CASCADE,
     FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_student_id (student_id),
     INDEX idx_status (implementation_status)
@@ -492,6 +546,9 @@ CREATE TABLE IF NOT EXISTS learning_materials (
     material_type VARCHAR(100),
     file_path VARCHAR(500),
     description TEXT,
+    is_assignment BOOLEAN DEFAULT FALSE,
+    due_date DATETIME NULL,
+    points INT DEFAULT 0,
     uploaded_by INT NOT NULL,
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (learner_iep_id) REFERENCES learner_iep(id) ON DELETE CASCADE,
@@ -499,8 +556,80 @@ CREATE TABLE IF NOT EXISTS learning_materials (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- PROCESS 7 — Learner Engaging in Learning Activities
+-- PROCESS 7  Learner Engaging in Learning Activities
 -- ============================================
+
+CREATE TABLE IF NOT EXISTS activity_templates (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    material_id INT NOT NULL,
+    activity_type ENUM('multiple_choice','true_false','fill_blanks','matching',
+                       'drag_drop_sort','image_label','sequencing','flashcards') NOT NULL,
+    instructions TEXT,
+    activity_data JSON NOT NULL,
+    total_points INT DEFAULT 0,
+    time_limit_minutes INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (material_id) REFERENCES learning_materials(id) ON DELETE CASCADE,
+    INDEX idx_material_id (material_id),
+    INDEX idx_activity_type (activity_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS activity_attempts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    activity_id INT NOT NULL,
+    student_id INT NOT NULL,
+    attempt_number INT DEFAULT 1,
+    answers JSON NOT NULL,
+    score INT DEFAULT 0,
+    total_points INT DEFAULT 0,
+    percentage DECIMAL(5,2) DEFAULT 0,
+    time_spent_minutes INT DEFAULT 0,
+    completed BOOLEAN DEFAULT FALSE,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP NULL,
+    FOREIGN KEY (activity_id) REFERENCES activity_templates(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    INDEX idx_activity_id (activity_id),
+    INDEX idx_student_id (student_id),
+    INDEX idx_completed (completed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    material_id INT NOT NULL,
+    student_id INT NOT NULL,
+    submission_type ENUM('file','text','both') NOT NULL,
+    file_path VARCHAR(500),
+    text_answer TEXT,
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    graded BOOLEAN DEFAULT FALSE,
+    grade INT,
+    teacher_feedback TEXT,
+    graded_at TIMESTAMP NULL,
+    graded_by INT,
+    FOREIGN KEY (material_id) REFERENCES learning_materials(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (graded_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_material_id (material_id),
+    INDEX idx_student_id (student_id),
+    INDEX idx_graded (graded)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS learner_progress (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    material_id INT NOT NULL,
+    status ENUM('not_started','in_progress','completed') DEFAULT 'not_started',
+    started_at TIMESTAMP NULL,
+    completed_at TIMESTAMP NULL,
+    time_spent_minutes INT DEFAULT 0,
+    stars_earned INT DEFAULT 0,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (material_id) REFERENCES learning_materials(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_student_material (student_id, material_id),
+    INDEX idx_student_id (student_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS activity_records (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -530,7 +659,7 @@ CREATE TABLE IF NOT EXISTS module_access_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================
--- SECURITY MODULE 4 — Logging and Monitoring
+-- SECURITY  Logging, Notifications, CSRF, Rate Limiting, DLP
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS login_log (
@@ -538,7 +667,7 @@ CREATE TABLE IF NOT EXISTS login_log (
     user_id INT NULL,
     email VARCHAR(255) NOT NULL,
     ip_address VARCHAR(45),
-    result ENUM('success', 'failure') NOT NULL,
+    result ENUM('success','failure') NOT NULL,
     attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_email (email),
@@ -561,10 +690,6 @@ CREATE TABLE IF NOT EXISTS activity_log (
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- SECURITY MODULE 3 — In-App Notifications
--- ============================================
-
 CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -579,26 +704,18 @@ CREATE TABLE IF NOT EXISTS notifications (
     INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- SECURITY MODULE 3 — Encrypted Sensitive Fields
--- ============================================
-
 CREATE TABLE IF NOT EXISTS encryption_audit (
     id INT AUTO_INCREMENT PRIMARY KEY,
     table_name VARCHAR(100) NOT NULL,
     record_id INT NOT NULL,
     field_name VARCHAR(100) NOT NULL,
-    action ENUM('encrypted', 'decrypted') NOT NULL,
+    action ENUM('encrypted','decrypted') NOT NULL,
     performed_by INT,
     performed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (performed_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_table_record (table_name, record_id),
     INDEX idx_performed_at (performed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ============================================
--- SECURITY MODULE 4 — CSRF Protection
--- ============================================
 
 CREATE TABLE IF NOT EXISTS csrf_tokens (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -615,25 +732,17 @@ CREATE TABLE IF NOT EXISTS csrf_tokens (
     INDEX idx_expires_at (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- SECURITY MODULE 5 — Login Rate Limiting
--- ============================================
-
 CREATE TABLE IF NOT EXISTS rate_limit_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255),
     ip_address VARCHAR(45),
-    attempt_type ENUM('login', 'registration', 'password_reset') NOT NULL,
+    attempt_type ENUM('login','registration','password_reset') NOT NULL,
     success BOOLEAN DEFAULT FALSE,
     attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_email_time (email, attempted_at),
     INDEX idx_ip_time (ip_address, attempted_at),
     INDEX idx_attempted_at (attempted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ============================================
--- SECURITY MODULE 6 — DLP (Data Loss Prevention)
--- ============================================
 
 CREATE TABLE IF NOT EXISTS dlp_settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -643,55 +752,6 @@ CREATE TABLE IF NOT EXISTS dlp_settings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_setting_key (setting_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ============================================
--- DEFAULT DATA
--- ============================================ 
-
-INSERT IGNORE INTO users (id, name, email, password_hash, role, status, email_verified, auth_provider)
-VALUES (1, 'System Admin', 'admin@spedlms.local', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 'active', TRUE, 'local');
-
-INSERT IGNORE INTO dlp_settings (setting_key, setting_value, description) VALUES
-('dlp_enable_watermark', 'true', 'Enable watermark on sensitive documents'),
-('dlp_enable_screenshot_block', 'true', 'Block screenshot attempts'),
-('dlp_enable_copy_block', 'true', 'Block copy/paste on sensitive pages'),
-('dlp_enable_print_block', 'true', 'Block printing of sensitive documents'),
-('dlp_enable_export_block', 'true', 'Block export functionality'),
-('dlp_watermark_format', '{user} | {timestamp} | {ip}', 'Watermark format string'),
-('dlp_sensitive_pages', 'iep,assessment,student_records', 'Comma-separated list of sensitive page types');
-
-SET FOREIGN_KEY_CHECKS = 1;
-
-
--- ============================================
--- MIGRATION v20: Add user_id to login_log
--- ============================================
-
--- Add user_id column if it doesn't exist
-SET @dbname = DATABASE();
-SET @tablename = 'login_log';
-SET @columnname = 'user_id';
-SET @preparedStatement = (SELECT IF(
-  (
-    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE
-      (table_name = @tablename)
-      AND (table_schema = @dbname)
-      AND (column_name = @columnname)
-  ) > 0,
-  'SELECT 1',
-  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' INT NULL AFTER id, ADD FOREIGN KEY (', @columnname, ') REFERENCES users(id) ON DELETE SET NULL, ADD INDEX idx_', @columnname, ' (', @columnname, ')')
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (20);
-
--- ============================================
--- MIGRATION v21: System Settings Table
--- ============================================
 
 CREATE TABLE IF NOT EXISTS system_settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -704,583 +764,123 @@ CREATE TABLE IF NOT EXISTS system_settings (
     INDEX idx_key (setting_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Insert default settings
+-- ============================================
+-- DEFAULT SEED DATA
+-- ============================================
+
+-- Default admin account (password: password)
+INSERT IGNORE INTO users (id, name, email, password_hash, role, status, email_verified, auth_provider)
+VALUES (1, 'System Admin', 'admin@spedlms.local',
+        '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+        'admin', 'active', TRUE, 'local');
+
+INSERT IGNORE INTO dlp_settings (setting_key, setting_value, description) VALUES
+('dlp_enable_watermark',        'true',                    'Enable watermark on sensitive documents'),
+('dlp_enable_screenshot_block', 'true',                    'Block screenshot attempts'),
+('dlp_enable_copy_block',       'true',                    'Block copy/paste on sensitive pages'),
+('dlp_enable_print_block',      'true',                    'Block printing of sensitive documents'),
+('dlp_enable_export_block',     'true',                    'Block export functionality'),
+('dlp_watermark_format',        '{user} | {timestamp} | {ip}', 'Watermark format string'),
+('dlp_sensitive_pages',         'iep,assessment,student_records', 'Comma-separated sensitive page types');
+
 INSERT IGNORE INTO system_settings (setting_key, setting_value, category, description) VALUES
-('session_timeout', '15', 'security', 'Session timeout in minutes'),
-('max_login_attempts', '5', 'security', 'Maximum failed login attempts before lockout'),
-('lockout_duration', '15', 'security', 'Account lockout duration in minutes'),
-('otp_expiration', '10', 'security', 'OTP expiration time in minutes'),
-('logout_warning', '2', 'security', 'Show logout warning X minutes before timeout');
+('session_timeout',    '15', 'security', 'Session timeout in minutes'),
+('max_login_attempts', '5',  'security', 'Maximum failed login attempts before lockout'),
+('lockout_duration',   '15', 'security', 'Account lockout duration in minutes'),
+('otp_expiration',     '10', 'security', 'OTP expiration time in minutes'),
+('logout_warning',     '2',  'security', 'Show logout warning X minutes before timeout');
 
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (21);
+-- Mark all migrations as applied on fresh install
+INSERT IGNORE INTO db_version (version) VALUES
+(20),(21),(22),(23),(24),(25),(26),(27),(28),(29),
+(30),(31),(32),(33),(34),(35),(36),(37),(38);
 
--- ============================================
--- MIGRATION v22: User Management Enhancements
--- ============================================
-
--- Add deleted_at column if it doesn't exist
-SET @dbname = DATABASE();
-SET @tablename = 'users';
-SET @columnname = 'deleted_at';
-SET @preparedStatement = (SELECT IF(
-  (
-    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE
-      (table_name = @tablename)
-      AND (table_schema = @dbname)
-      AND (column_name = @columnname)
-  ) > 0,
-  'SELECT 1',
-  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' TIMESTAMP NULL')
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
-
--- Add locked_until column if it doesn't exist
-SET @columnname = 'locked_until';
-SET @preparedStatement = (SELECT IF(
-  (
-    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE
-      (table_name = @tablename)
-      AND (table_schema = @dbname)
-      AND (column_name = @columnname)
-  ) > 0,
-  'SELECT 1',
-  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' TIMESTAMP NULL')
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
-
--- Add indexes (using INFORMATION_SCHEMA check for MariaDB compatibility)
-SET @dbname = DATABASE();
-SET @preparedStatement = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
-     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'users' AND INDEX_NAME = 'idx_deleted_at') > 0,
-    'SELECT 1',
-    'CREATE INDEX idx_deleted_at ON users(deleted_at)'
-));
-PREPARE createIndexIfNotExists FROM @preparedStatement;
-EXECUTE createIndexIfNotExists;
-DEALLOCATE PREPARE createIndexIfNotExists;
-
-SET @preparedStatement = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
-     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'users' AND INDEX_NAME = 'idx_locked_until') > 0,
-    'SELECT 1',
-    'CREATE INDEX idx_locked_until ON users(locked_until)'
-));
-PREPARE createIndexIfNotExists FROM @preparedStatement;
-EXECUTE createIndexIfNotExists;
-DEALLOCATE PREPARE createIndexIfNotExists;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (22);
+SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================
--- MIGRATION v23: Manual Activity System & Assignment Tracking
+-- MIGRATION: v39 -- Process 5 IEP Tables
 -- ============================================
 
--- Add assignment-specific fields to learning_materials
-SET @dbname = DATABASE();
-SET @tablename = 'learning_materials';
-
--- Add is_assignment column
-SET @columnname = 'is_assignment';
-SET @preparedStatement = (SELECT IF(
-  (
-    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE
-      (table_name = @tablename)
-      AND (table_schema = @dbname)
-      AND (column_name = @columnname)
-  ) > 0,
-  'SELECT 1',
-  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' BOOLEAN DEFAULT FALSE AFTER description')
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
-
--- Add due_date column
-SET @columnname = 'due_date';
-SET @preparedStatement = (SELECT IF(
-  (
-    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE
-      (table_name = @tablename)
-      AND (table_schema = @dbname)
-      AND (column_name = @columnname)
-  ) > 0,
-  'SELECT 1',
-  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' DATETIME NULL AFTER is_assignment')
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
-
--- Add points column
-SET @columnname = 'points';
-SET @preparedStatement = (SELECT IF(
-  (
-    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE
-      (table_name = @tablename)
-      AND (table_schema = @dbname)
-      AND (column_name = @columnname)
-  ) > 0,
-  'SELECT 1',
-  CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' INT DEFAULT 0 AFTER due_date')
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
-
--- Create activity_templates table for manual activities
-CREATE TABLE IF NOT EXISTS activity_templates (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    material_id INT NOT NULL,
-    activity_type ENUM(
-        'multiple_choice', 
-        'true_false', 
-        'fill_blanks', 
-        'matching', 
-        'drag_drop_sort', 
-        'image_label', 
-        'sequencing', 
-        'flashcards'
-    ) NOT NULL,
-    instructions TEXT,
-    activity_data JSON NOT NULL,
-    total_points INT DEFAULT 0,
-    time_limit_minutes INT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (material_id) REFERENCES learning_materials(id) ON DELETE CASCADE,
-    INDEX idx_material_id (material_id),
-    INDEX idx_activity_type (activity_type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Create activity_attempts table (learner answers)
-CREATE TABLE IF NOT EXISTS activity_attempts (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    activity_id INT NOT NULL,
-    student_id INT NOT NULL,
-    attempt_number INT DEFAULT 1,
-    answers JSON NOT NULL,
-    score INT DEFAULT 0,
-    total_points INT DEFAULT 0,
-    percentage DECIMAL(5,2) DEFAULT 0,
-    time_spent_minutes INT DEFAULT 0,
-    completed BOOLEAN DEFAULT FALSE,
-    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP NULL,
-    FOREIGN KEY (activity_id) REFERENCES activity_templates(id) ON DELETE CASCADE,
-    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
-    INDEX idx_activity_id (activity_id),
-    INDEX idx_student_id (student_id),
-    INDEX idx_completed (completed)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Create assignment_submissions table
-CREATE TABLE IF NOT EXISTS assignment_submissions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    material_id INT NOT NULL,
-    student_id INT NOT NULL,
-    submission_type ENUM('file', 'text', 'both') NOT NULL,
-    file_path VARCHAR(500),
-    text_answer TEXT,
-    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    graded BOOLEAN DEFAULT FALSE,
-    grade INT,
-    teacher_feedback TEXT,
-    graded_at TIMESTAMP NULL,
-    graded_by INT,
-    FOREIGN KEY (material_id) REFERENCES learning_materials(id) ON DELETE CASCADE,
-    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
-    FOREIGN KEY (graded_by) REFERENCES users(id) ON DELETE SET NULL,
-    INDEX idx_material_id (material_id),
-    INDEX idx_student_id (student_id),
-    INDEX idx_graded (graded)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Create learner_progress table
-CREATE TABLE IF NOT EXISTS learner_progress (
+CREATE TABLE IF NOT EXISTS iep_records (
     id INT AUTO_INCREMENT PRIMARY KEY,
     student_id INT NOT NULL,
-    material_id INT NOT NULL,
-    status ENUM('not_started', 'in_progress', 'completed') DEFAULT 'not_started',
-    started_at TIMESTAMP NULL,
-    completed_at TIMESTAMP NULL,
-    time_spent_minutes INT DEFAULT 0,
-    stars_earned INT DEFAULT 0,
-    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
-    FOREIGN KEY (material_id) REFERENCES learning_materials(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_student_material (student_id, material_id),
-    INDEX idx_student_id (student_id),
-    INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (23);
-
--- ============================================
--- MIGRATION: v1.23 - Process 3 Section A Data Columns
--- ============================================
-
--- Add columns for Process 3 Section A data storage (MariaDB-compatible)
-SET @dbname = DATABASE();
-SET @tbl = 'assessment_records';
-
-SET @col = 'section_a_data';
-SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME=@tbl AND COLUMN_NAME=@col)>0,'SELECT 1',CONCAT('ALTER TABLE ',@tbl,' ADD COLUMN ',@col,' JSON AFTER assessment_info')));
-PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
-
-SET @col = 'services_checked';
-SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME=@tbl AND COLUMN_NAME=@col)>0,'SELECT 1',CONCAT('ALTER TABLE ',@tbl,' ADD COLUMN ',@col,' JSON AFTER section_a_data')));
-PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
-
-SET @col = 'screening_types';
-SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME=@tbl AND COLUMN_NAME=@col)>0,'SELECT 1',CONCAT('ALTER TABLE ',@tbl,' ADD COLUMN ',@col,' JSON AFTER services_checked')));
-PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (24);
-
--- END MIGRATION: v1.23
-
--- ============================================
--- MIGRATION: v1.26 - Process 4 Availability Calendar
--- ============================================
-
--- User availability table (recurring + exceptions)
-CREATE TABLE IF NOT EXISTS user_availability (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    type ENUM('recurring', 'exception') NOT NULL,
-    day_of_week TINYINT NULL COMMENT '0=Sunday, 1=Monday, ..., 6=Saturday (for recurring)',
-    specific_date DATE NULL COMMENT 'For exception dates',
-    is_available BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_user_type (user_id, type),
-    INDEX idx_specific_date (specific_date),
-    UNIQUE KEY unique_recurring (user_id, type, day_of_week),
-    UNIQUE KEY unique_exception (user_id, type, specific_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (25);
-
--- END MIGRATION: v1.26
-
--- ============================================
--- MIGRATION: v1.27 - Process 4 IEP Meeting Tables
--- ============================================
-
--- IEP meetings table
-CREATE TABLE IF NOT EXISTS iep_meetings (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    student_id INT NOT NULL,
-    assessment_id INT NULL COMMENT 'Link to finalized assessment',
-    scheduled_by INT NOT NULL COMMENT 'User who scheduled (SPED Teacher)',
-    meeting_date DATE NOT NULL,
-    meeting_time TIME NOT NULL,
-    venue VARCHAR(255) NULL,
-    online_link VARCHAR(500) NULL,
-    agenda_notes TEXT NULL,
-    status ENUM('scheduled', 'rescheduled', 'completed', 'cancelled') DEFAULT 'scheduled',
-    reschedule_reason TEXT NULL,
+    pdsp_id INT NOT NULL,
+    drafted_by INT NOT NULL,
+    school_year VARCHAR(20) NOT NULL,
+    status ENUM('draft','signing','signed','locked') DEFAULT 'draft',
+    signing_method ENUM('print_upload','digital') NULL,
+    signed_document_path VARCHAR(500) NULL,
+    re_evaluation_date DATE NULL,
+    locked_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
-    FOREIGN KEY (assessment_id) REFERENCES assessment_records(id) ON DELETE SET NULL,
-    FOREIGN KEY (scheduled_by) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_meeting_date (meeting_date),
-    INDEX idx_status (status)
+    FOREIGN KEY (pdsp_id) REFERENCES pdsp_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (drafted_by) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_student_id (student_id),
+    INDEX idx_status (status),
+    INDEX idx_school_year (school_year)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Meeting notifications table
-CREATE TABLE IF NOT EXISTS meeting_notifications (
+CREATE TABLE IF NOT EXISTS iep_domains (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id INT NOT NULL,
-    user_id INT NOT NULL,
-    notified_via ENUM('email', 'system', 'both') DEFAULT 'both',
+    iep_id INT NOT NULL,
+    domain_name VARCHAR(200) NOT NULL,
+    display_order INT DEFAULT 0,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    INDEX idx_iep_id (iep_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_core (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    developmental_domain TEXT NULL,
+    priority_needs TEXT NULL,
+    terminal_objectives TEXT NULL,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_iep_core (iep_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_steps (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    step_number INT NOT NULL,
+    objectives TEXT NULL,
+    observation TEXT NULL,
+    activities TEXT NULL,
+    materials TEXT NULL,
+    evaluation TEXT NULL,
+    duration_lp VARCHAR(100) NULL,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    INDEX idx_iep_id (iep_id),
+    INDEX idx_step_number (step_number)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_signatories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    signatory_role ENUM('parent_guardian','guidance_counselor','teacher',
+                        'sned_teacher','school_head','ilrc_supervisor') NOT NULL,
+    signatory_name VARCHAR(200) NOT NULL,
+    signature_image_path VARCHAR(500) NULL,
+    signed_at TIMESTAMP NULL,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    INDEX idx_iep_id (iep_id),
+    INDEX idx_role (signatory_role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_copies (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    sent_to INT NOT NULL,
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (meeting_id) REFERENCES iep_meetings(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_meeting_user (meeting_id, user_id)
+    viewed_at TIMESTAMP NULL,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (sent_to) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_iep_id (iep_id),
+    INDEX idx_sent_to (sent_to)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (26);
+INSERT IGNORE INTO db_version (version) VALUES (39);
 
--- END MIGRATION: v1.27
-
--- ============================================
--- MIGRATION: v1.28 - Process 4 Part II PDSP Form
--- ============================================
-
--- PDSP records table
-CREATE TABLE IF NOT EXISTS pdsp_records (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    meeting_id INT NOT NULL,
-    student_id INT NOT NULL,
-    filled_by INT NOT NULL COMMENT 'User who filled the form',
-    status ENUM('draft', 'complete') DEFAULT 'draft',
-    ai_extracted BOOLEAN DEFAULT FALSE COMMENT 'Was data extracted via AI',
-    uploaded_image_path VARCHAR(500) NULL COMMENT 'Path to uploaded handwritten form',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (meeting_id) REFERENCES iep_meetings(id) ON DELETE CASCADE,
-    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
-    FOREIGN KEY (filled_by) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_meeting (meeting_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- PDSP domains table
-CREATE TABLE IF NOT EXISTS pdsp_domains (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    pdsp_id INT NOT NULL,
-    domain_name VARCHAR(100) NOT NULL,
-    sub_domain VARCHAR(200) NULL,
-    skills_description TEXT NULL,
-    mastered BOOLEAN DEFAULT FALSE,
-    educational_recommendation TEXT NULL,
-    q1_level ENUM('Beginning', 'Developing', 'Approaching Proficiency', 'Proficient', 'Advanced') NULL,
-    q2_level ENUM('Beginning', 'Developing', 'Approaching Proficiency', 'Proficient', 'Advanced') NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (pdsp_id) REFERENCES pdsp_records(id) ON DELETE CASCADE,
-    INDEX idx_pdsp_domain (pdsp_id, domain_name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- PDSP signatures table
-CREATE TABLE IF NOT EXISTS pdsp_signatures (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    pdsp_id INT NOT NULL,
-    signatory_role ENUM('sped_teacher', 'gen_ed_teacher', 'school_head', 'ilrc_supervisor', 
-                        'parent_guardian', 'medical_allied_1', 'medical_allied_2', 'medical_allied_3') NOT NULL,
-    signatory_name VARCHAR(200) NOT NULL,
-    signature_image_path VARCHAR(500) NOT NULL,
-    signed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (pdsp_id) REFERENCES pdsp_records(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_pdsp_signatory (pdsp_id, signatory_role)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (27);
-
--- END MIGRATION: v1.28
-
-
--- ============================================
--- MIGRATION: v1.29 - Add conducted_by column to assessment_records
--- ============================================
-
--- Add conducted_by column (MariaDB-compatible)
-SET @dbname = DATABASE();
-SET @col = 'conducted_by';
-SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='assessment_records' AND COLUMN_NAME=@col)>0,'SELECT 1','ALTER TABLE assessment_records ADD COLUMN conducted_by INT AFTER assessed_by'));
-PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
-
--- Add FK for conducted_by only if column was just created and FK doesn't exist
-SET @fkExists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='assessment_records' AND COLUMN_NAME='conducted_by' AND REFERENCED_TABLE_NAME='users');
-SET @preparedStatement = (SELECT IF(@fkExists>0,'SELECT 1','ALTER TABLE assessment_records ADD FOREIGN KEY (conducted_by) REFERENCES users(id) ON DELETE SET NULL'));
-PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (28);
-
--- END MIGRATION: v1.29
-
-
--- ============================================
--- MIGRATION: v1.30 - Add updated_at column to assessment_records
--- ============================================
-
--- Add updated_at to assessment_records (MariaDB-compatible)
-SET @dbname = DATABASE();
-SET @col = 'updated_at';
-SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='assessment_records' AND COLUMN_NAME=@col)>0,'SELECT 1','ALTER TABLE assessment_records ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at'));
-PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (29);
-
--- END MIGRATION: v1.30
-
-
--- ============================================
--- MIGRATION: v1.31 - Fix assessment_records status enum
--- ============================================
-
-ALTER TABLE assessment_records 
-MODIFY COLUMN status ENUM('draft', 'finalized', 'pending', 'approved', 'rejected') DEFAULT 'draft';
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (30);
-
--- END MIGRATION: v1.31
-
-
--- ============================================
--- MIGRATION: v1.32 - PDSP Signature Flow Update (Handwritten Document Upload)
--- ============================================
-
--- Drop pdsp_signatures table (no longer needed - using handwritten document upload instead)
-DROP TABLE IF EXISTS pdsp_signatures;
-
--- Add signed_document_path and signatories columns to pdsp_records (MariaDB-compatible)
-SET @dbname = DATABASE();
-
-SET @col = 'signed_document_path';
-SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='pdsp_records' AND COLUMN_NAME=@col)>0,'SELECT 1','ALTER TABLE pdsp_records ADD COLUMN signed_document_path VARCHAR(255) AFTER status'));
-PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
-
-SET @col = 'signatories';
-SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='pdsp_records' AND COLUMN_NAME=@col)>0,'SELECT 1','ALTER TABLE pdsp_records ADD COLUMN signatories TEXT AFTER signed_document_path'));
-PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
-
--- Update status enum to use 'signed' instead of 'complete'
-ALTER TABLE pdsp_records 
-MODIFY COLUMN status ENUM('draft', 'signed') DEFAULT 'draft';
-
--- Remove ai_extracted column if it exists (MariaDB-compatible)
-SET @dbname = DATABASE();
-SET @col = 'ai_extracted';
-SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='pdsp_records' AND COLUMN_NAME=@col)>0,'ALTER TABLE pdsp_records DROP COLUMN ai_extracted','SELECT 1'));
-PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (31);
-
--- END MIGRATION: v1.32
-
-
--- ============================================
--- MIGRATION: v1.33 - Process 3, 4, and PDSP Complete Update
--- ============================================
-
--- Remove online_link from iep_meetings if it exists (all meetings are face-to-face)
--- Note: Current table uses meeting_location, not venue
--- No changes needed - online_link doesn't exist in current schema
-
--- Add completed_at to pdsp_records (MariaDB-compatible)
-SET @dbname = DATABASE();
-SET @col = 'completed_at';
-SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='pdsp_records' AND COLUMN_NAME=@col)>0,'SELECT 1','ALTER TABLE pdsp_records ADD COLUMN completed_at DATETIME NULL AFTER updated_at'));
-PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
-
--- Create pdsp_signatories table (normalized storage)
-CREATE TABLE IF NOT EXISTS pdsp_signatories (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    pdsp_id INT NOT NULL,
-    signatory_role ENUM('sped_teacher', 'gen_ed_teacher', 'school_head', 'ilrc_supervisor', 
-                        'parent_guardian', 'medical_allied_1', 'medical_allied_2', 'medical_allied_3') NOT NULL,
-    signatory_name VARCHAR(200) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (pdsp_id) REFERENCES pdsp_records(id) ON DELETE CASCADE,
-    INDEX idx_pdsp_id (pdsp_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (32);
-
--- END MIGRATION: v1.33
-
--- ============================================
--- MIGRATION: v1.34 - Add review_note column to assessment_records
--- ============================================
-
-SET @dbname = DATABASE();
-SET @tablename = 'assessment_records';
-SET @columnname = 'review_note';
-SET @preparedStatement = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
-    'SELECT 1',
-    CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' TEXT AFTER reviewed_by')
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (34);
-
--- END MIGRATION: v1.34
-
--- ============================================
--- MIGRATION: v1.35 - Add review_note column to enrollment_documents
--- ============================================
-
-SET @dbname = DATABASE();
-SET @tablename = 'enrollment_documents';
-SET @columnname = 'review_note';
-SET @preparedStatement = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
-    'SELECT 1',
-    CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' TEXT AFTER reviewed_by')
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (35);
-
--- END MIGRATION: v1.35
-
--- ============================================
--- MIGRATION: v1.36 - Add review_note column to enrollment_submissions
--- ============================================
-
-SET @dbname = DATABASE();
-SET @tablename = 'enrollment_submissions';
-SET @columnname = 'review_note';
-SET @preparedStatement = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
-    'SELECT 1',
-    CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' TEXT AFTER verified_by')
-));
-PREPARE alterIfNotExists FROM @preparedStatement;
-EXECUTE alterIfNotExists;
-DEALLOCATE PREPARE alterIfNotExists;
-
--- Mark migration as applied
-INSERT IGNORE INTO db_version (version) VALUES (36);
-
--- END MIGRATION: v1.36
-
--- ============================================
--- MIGRATION: v1.37 - Add note column to user_availability
--- ============================================
-
-SET @dbname = DATABASE();
-SET @col = 'note';
-SET @preparedStatement = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'user_availability' AND COLUMN_NAME = @col) > 0,
-    'SELECT 1',
-    'ALTER TABLE user_availability ADD COLUMN note VARCHAR(255) NULL AFTER is_available'
-));
-PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
-
-INSERT IGNORE INTO db_version (version) VALUES (37);
-
--- END MIGRATION: v1.37
-
--- ============================================
--- MIGRATION: v1.38 - Add rescheduled to iep_meetings status enum
--- ============================================
-
-ALTER TABLE iep_meetings
-MODIFY COLUMN status ENUM('scheduled', 'rescheduled', 'completed', 'cancelled') DEFAULT 'scheduled';
-
-INSERT IGNORE INTO db_version (version) VALUES (38);
-
--- END MIGRATION: v1.38
+-- END MIGRATION: v39

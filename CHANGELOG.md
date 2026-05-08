@@ -1,11 +1,62 @@
-# CHANGELOG — SPED LMS
+﻿# CHANGELOG  SPED LMS
 
 > This file is updated after every approved feature. Never skip this step.
 > Format: describe what was built, what schema changed, what was tested, and the approval date.
 
 ---
 
-## [v1.35] — PDSP Form (Part II) Complete Implementation (Process 4 - Feature)
+## [v38.1] — Schema Cleanup and Test Checklist (Processes 1-4)
+- **Built:** Clean schema.sql (692 lines, down from 1287)  all redundancy removed
+- **Removed:** iep_meeting_calendars, iep_p2_documents, iep_p2_reviews, iep_documents, iep_signatures, pdsp_signatures (orphaned/replaced tables)
+- **Fixed:** Duplicate iep_meetings definition removed
+- **Fixed:** learner_iep.iep_p3_id FK now correctly references iep_p3_documents
+- **Fixed:** All ALTER TABLE migration blocks removed  columns now in base definitions
+- **Fixed:** db_version gap at v33  all versions 20-38 inserted on fresh install
+- **Added:** PROCESS-1-4-TEST-CHECKLIST.md  full self-verification guide for new PC setup
+- **Tested:** Schema verified: 36 tables, no duplicates, all FKs valid
+- **Status:** Approved
+- **Date:** 2026-05-08
+
+---
+
+## [v38.2] -- New PC Setup Fixes (Processes 1-4 Debug Session)
+- **Fixed:** composer install -- vendor/ was missing, PHPMailer not loaded, OTP emails silently failing
+- **Fixed:** zip extension enabled in php.ini (Laragon PHP 8.3)
+- **Fixed:** FileController -- missing 'assessment' and 'pdsp_document' type cases (returned 404)
+- **Fixed:** FileController -- always decrypting plain files; now checks isEncrypted() first
+- **Fixed:** AssessmentController -- file_path now saved as 'uploads/assessments/' (was 'assessments/')
+- **Fixed:** FileController CASE WHEN handles both old records and new path format
+- **Added:** FileController added to locked files list in workflow.md steering
+- **Tables modified:** None
+- **Tested:** /file/view/assessment/2 working; OTP email confirmed; composer install clean
+- **Status:** Approved
+- **Date:** 2026-05-08
+
+---
+
+## [v39] -- Process 5 IEP Generation (Initial Build)
+- **Built:** IEPModel.php -- full CRUD for iep_records, iep_domains, iep_core, iep_steps, iep_signatories, iep_copies
+- **Built:** IEPController.php -- index, create, form, saveDraft, uploadSignedDoc, saveSignature, markSigned, newCycle, sendSignatureRequest, signPage
+- **Built:** app/Views/iep/form.php -- full 9-section IEP form (header auto-fill, domain tags, core fields, split-view steps+PDSP panel, signing method, signatories, upload, mark-as-signed)
+- **Built:** app/Views/iep/index.php -- IEP repository with school year + status filters
+- **Built:** app/Views/iep/sign.php -- digital signature page with signature_pad.js
+- **Built:** public/css/print.css -- DepEd Part III print layout, page-break-inside:avoid per step row
+- **Tables added:** iep_records, iep_domains, iep_core, iep_steps, iep_signatories, iep_copies (migration v39)
+- **Routes added:** /iep, /iep/create, /iep/form/{id}, /iep/save-draft, /iep/mark-signed, /iep/new-cycle, /iep/sign/{id}/{sigId}
+- **Trigger:** Process 5 only accessible when pdsp_records.status = signed
+- **Locking:** IEP locked after mark-as-signed; new cycle preserves old IEP
+- **Notifications:** PHPMailer + in-system on sign, signature request, Process 6 unlock
+- **Locked files touched:** None (AssessmentController was approved bug fix from earlier session)
+- **Tested:** Syntax OK -- ready for user testing
+- **Status:** Ready for Testing
+- **Date:** 2026-05-08
+
+---
+
+
+
+
+## [v1.35] â€” PDSP Form (Part II) Complete Implementation (Process 4 - Feature)
 - **Built:** Complete PDSP (Present Levels of Development and Performance) form with manual fill, optional AI extraction, and digital signatures
 - **Purpose:** Document student development across 6 DepEd domains with multi-party digital signatures
 - **Features Implemented:**
@@ -30,8 +81,8 @@
   3. **Digital Signatures:**
      - 8 signature slots: SPED Teacher, Gen Ed Teacher, School Head, ILRC Supervisor, Parent/Guardian, 3x Medical Allied Health
      - signature_pad.js from CDN
-     - Canvas drawing (finger/mouse) → save as PNG to `/public/uploads/signatures/`
-     - Once signed → read-only display with name and date
+     - Canvas drawing (finger/mouse) â†’ save as PNG to `/public/uploads/signatures/`
+     - Once signed â†’ read-only display with name and date
      - Any order signing (no sequence enforced)
      - Dashed border (gray = unsigned, green = signed)
   4. **Document Passing:**
@@ -39,8 +90,8 @@
      - Real-time signature status display
      - Shows who signed and who's pending
   5. **Completion Trigger:**
-     - After every signature save → checks if all 8 roles signed
-     - When complete → auto-update `pdsp_records.status = 'complete'`
+     - After every signature save â†’ checks if all 8 roles signed
+     - When complete â†’ auto-update `pdsp_records.status = 'complete'`
      - Auto-update `iep_meetings.status = 'completed'`
      - Send in-system notification to SPED Teacher
      - Unlock Process 5 for this student
@@ -66,13 +117,13 @@
   - AI button: Secondary navy style (not primary)
   - Upload modal: Dashed crimson border
 - **Benefits:**
-  - ✅ Complete DepEd PDSP form implementation
-  - ✅ Optional AI assistance (doesn't block manual flow)
-  - ✅ Digital signatures (no paper needed)
-  - ✅ Automatic workflow progression
-  - ✅ Multi-party collaboration
-  - ✅ Real-time status tracking
-  - ✅ Process 5 auto-unlock when complete
+  - âœ… Complete DepEd PDSP form implementation
+  - âœ… Optional AI assistance (doesn't block manual flow)
+  - âœ… Digital signatures (no paper needed)
+  - âœ… Automatic workflow progression
+  - âœ… Multi-party collaboration
+  - âœ… Real-time status tracking
+  - âœ… Process 5 auto-unlock when complete
 - **Files Created:**
   - `app/Models/PDSPModel.php` - PDSP data operations
   - `app/Views/iep_meeting/pdsp_form.php` - Complete form UI
@@ -84,23 +135,23 @@
 - **Tables modified:** 
   - Created: `pdsp_records`, `pdsp_domains`, `pdsp_signatures`
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-07
 
 ---
 
-## [v1.34] — IEP Meeting Storage Fix + JavaScript Alerts (Process 4 - Bug Fix)
+## [v1.34] â€” IEP Meeting Storage Fix + JavaScript Alerts (Process 4 - Bug Fix)
 - **Fixed:** IEP meetings not saving to database + added JavaScript alert dialogs
 - **Issues Fixed:**
-  1. ❌ IEP meetings not storing in database (column name mismatch)
-  2. ❌ Assessment view not found (parent_id join issue)
-  3. ❌ No JavaScript alerts for confirmations/submissions
+  1. âŒ IEP meetings not storing in database (column name mismatch)
+  2. âŒ Assessment view not found (parent_id join issue)
+  3. âŒ No JavaScript alerts for confirmations/submissions
 - **Solutions:**
   - **IEP Meeting Storage Fix:**
     - Fixed column name mismatch in `IEPMeetingModel::create()`
     - Database uses: `meeting_location`, `agenda`
     - Code was using: `venue`, `online_link`, `agenda_notes`
-    - Updated model to map correctly: `venue` → `meeting_location`, `agenda_notes` → `agenda`
+    - Updated model to map correctly: `venue` â†’ `meeting_location`, `agenda_notes` â†’ `agenda`
     - Meetings now save successfully
   - **Assessment View Fix:**
     - Fixed `AssessmentModel::findById()` query
@@ -134,32 +185,32 @@
     - Added PHP code to convert session flash messages to JavaScript alerts
     - Supports: success, error, warning, info
 - **Benefits:**
-  - ✅ IEP meetings now save correctly
-  - ✅ Assessment view works for all assessments
-  - ✅ Beautiful popup alerts for all actions
-  - ✅ Better user feedback
-  - ✅ Professional UI/UX
-  - ✅ Auto-close for success messages
-  - ✅ Color-coded by message type
+  - âœ… IEP meetings now save correctly
+  - âœ… Assessment view works for all assessments
+  - âœ… Beautiful popup alerts for all actions
+  - âœ… Better user feedback
+  - âœ… Professional UI/UX
+  - âœ… Auto-close for success messages
+  - âœ… Color-coded by message type
 - **Files Modified:**
   - `app/Models/IEPMeetingModel.php` - Fixed create() method
   - `app/Models/AssessmentModel.php` - Fixed findById() method
   - `app/Views/layouts/footer.php` - Added SweetAlert2 alerts
 - **Tables modified:** None (fixed code to match existing schema)
-- **Tested:** ✅ Meeting insertion successful, alerts working
-- **Status:** ✅ Complete - Fixed
+- **Tested:** âœ… Meeting insertion successful, alerts working
+- **Status:** âœ… Complete - Fixed
 - **Date:** 2026-05-07
 
 ---
 
-## [v1.33] — Multiple Bug Fixes & Navigation Improvements (Process 3 & 4 - Bug Fixes)
+## [v1.33] â€” Multiple Bug Fixes & Navigation Improvements (Process 3 & 4 - Bug Fixes)
 - **Fixed:** Multiple critical bugs and navigation issues
 - **Issues Fixed:**
-  1. ❌ Meeting schedule submission error (missing `meeting_time` column)
-  2. ❌ Assessment view 404 error
-  3. ❌ Part 3 Final IEP 403 error for SPED Teacher
-  4. ❌ Wrong IEP Procedure navigation for Guidance/Principal
-  5. ❌ Assessment History not in sidebar
+  1. âŒ Meeting schedule submission error (missing `meeting_time` column)
+  2. âŒ Assessment view 404 error
+  3. âŒ Part 3 Final IEP 403 error for SPED Teacher
+  4. âŒ Wrong IEP Procedure navigation for Guidance/Principal
+  5. âŒ Assessment History not in sidebar
 - **Solutions:**
   - **Database Fix:**
     - Added `meeting_time TIME NOT NULL` column to `iep_meetings` table
@@ -188,28 +239,28 @@
       - Staff Requests
       - Reports
 - **Verified Working:**
-  - ✅ Meeting notifications already implemented (PHPMailer)
-  - ✅ Assessment submission success messages already exist
-  - ✅ Parent IEP meeting permission already exists
-  - ✅ All staff roles already have student records permissions
+  - âœ… Meeting notifications already implemented (PHPMailer)
+  - âœ… Assessment submission success messages already exist
+  - âœ… Parent IEP meeting permission already exists
+  - âœ… All staff roles already have student records permissions
 - **Benefits:**
-  - ✅ Meeting scheduling works correctly
-  - ✅ Clear role-based navigation
-  - ✅ SPED Teacher has full IEP workflow access
-  - ✅ Guidance/Principal have simplified navigation
-  - ✅ Assessment History easily accessible
+  - âœ… Meeting scheduling works correctly
+  - âœ… Clear role-based navigation
+  - âœ… SPED Teacher has full IEP workflow access
+  - âœ… Guidance/Principal have simplified navigation
+  - âœ… Assessment History easily accessible
 - **Files Modified:**
   - `config/permissions.php` - Added permissions to SPED Teacher
   - `app/Views/layouts/sidebar.php` - Fixed navigation for all roles
   - Database: `iep_meetings` table - Added meeting_time column
 - **Tables modified:** `iep_meetings` - Added meeting_time column
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Fixed
+- **Status:** âœ… Complete - Fixed
 - **Date:** 2026-05-07
 
 ---
 
-## [v1.32] — Assessment History View (Process 3 - Enhancement)
+## [v1.32] â€” Assessment History View (Process 3 - Enhancement)
 - **Built:** Assessment history page showing all submitted and draft assessments
 - **Purpose:** Allow SPED Teachers to view all assessments (finalized and drafts) in one place
 - **Features:**
@@ -229,8 +280,8 @@
     - Filter by status (Finalized / Draft)
     - Clear filters button
   - **Action Buttons:**
-    - Draft assessments: "Continue" button (yellow) → Resume editing
-    - Finalized assessments: "View" button (navy) → View details
+    - Draft assessments: "Continue" button (yellow) â†’ Resume editing
+    - Finalized assessments: "View" button (navy) â†’ View details
     - "Conduct New Assessment" button at top
   - **Empty State:**
     - Shows friendly message when no assessments exist
@@ -242,7 +293,7 @@
     - Passes both arrays to view
   - **AssessmentModel::getAllWithStudentInfo():**
     - New method to get all assessments with student and user info
-    - Joins: assessment_records → student_records → users
+    - Joins: assessment_records â†’ student_records â†’ users
     - Returns: id, student_id, status, version, dates, student_name, lrn, conducted_by_name
     - Ordered by created_at DESC (newest first)
   - **assessment/index.php:**
@@ -251,12 +302,12 @@
     - Simplified filter (removed quarter filter)
     - Action buttons based on status
 - **Benefits:**
-  - ✅ See all assessments in one place
-  - ✅ Track assessment versions per student
-  - ✅ Resume draft assessments easily
-  - ✅ View finalized assessments
-  - ✅ Search and filter functionality
-  - ✅ Clear visual status indicators
+  - âœ… See all assessments in one place
+  - âœ… Track assessment versions per student
+  - âœ… Resume draft assessments easily
+  - âœ… View finalized assessments
+  - âœ… Search and filter functionality
+  - âœ… Clear visual status indicators
 - **UI Design:**
   - Consistent color scheme (crimson/navy/green/yellow)
   - Bootstrap cards and badges
@@ -269,12 +320,12 @@
   - `app/Views/assessment/index.php` - Complete redesign
 - **Tables modified:** None
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-07
 
 ---
 
-## [v1.31] — Assessment Submission Database Fix (Process 3 - Bug Fix)
+## [v1.31] â€” Assessment Submission Database Fix (Process 3 - Bug Fix)
 - **Fixed:** Assessment form not submitting, database column errors
 - **Issues Fixed:**
   1. Missing `conducted_by` column in assessment_records table
@@ -304,37 +355,37 @@
     - Both set to same user ID (SPED Teacher who conducts assessment)
     - Prevents foreign key constraint violation
 - **Database Verification:**
-  - ✅ conducted_by column exists
-  - ✅ updated_at column exists
-  - ✅ created_at column exists
-  - ✅ section_a_data column exists
-  - ✅ services_checked column exists
-  - ✅ screening_types column exists
-  - ✅ Status enum includes all 5 values
+  - âœ… conducted_by column exists
+  - âœ… updated_at column exists
+  - âœ… created_at column exists
+  - âœ… section_a_data column exists
+  - âœ… services_checked column exists
+  - âœ… screening_types column exists
+  - âœ… Status enum includes all 5 values
 - **Test Results:**
-  - ✅ Assessment record inserts successfully
-  - ✅ Status correctly set to 'finalized'
-  - ✅ Timestamps auto-populate
-  - ✅ Foreign keys resolve correctly
-  - ✅ JSON fields store data properly
+  - âœ… Assessment record inserts successfully
+  - âœ… Status correctly set to 'finalized'
+  - âœ… Timestamps auto-populate
+  - âœ… Foreign keys resolve correctly
+  - âœ… JSON fields store data properly
 - **Benefits:**
-  - ✅ Assessment form now submits successfully
-  - ✅ Data saves to database correctly
-  - ✅ Proper audit trail with timestamps
-  - ✅ Workflow tracking with status values
-  - ✅ No more database errors
+  - âœ… Assessment form now submits successfully
+  - âœ… Data saves to database correctly
+  - âœ… Proper audit trail with timestamps
+  - âœ… Workflow tracking with status values
+  - âœ… No more database errors
 - **Files Modified:**
   - `config/schema.sql` - Added migrations v28, v29, v30
   - `app/Models/AssessmentModel.php` - Fixed createFinalized() to include assessed_by
 - **Tables modified:** 
   - `assessment_records` - Added conducted_by, updated_at columns, fixed status enum
-- **Tested:** ✅ Database verified, test insertion successful
-- **Status:** ✅ Complete - Fixed
+- **Tested:** âœ… Database verified, test insertion successful
+- **Status:** âœ… Complete - Fixed
 - **Date:** 2026-05-07
 
 ---
 
-## [v1.30.1] — Assessment Form UX Improvements (Process 3 - Enhancement)
+## [v1.30.1] â€” Assessment Form UX Improvements (Process 3 - Enhancement)
 - **Built:** Improved conduct assessment form UX based on user feedback
 - **Purpose:** Better form layout and conditional logic for services
 - **Changes:**
@@ -346,10 +397,10 @@
     - Student selector now col-md-10, button col-md-2
   - **Support Services Conditional Logic:**
     - Added `onchange="toggleServiceCheckboxes()"` to "With Support Services?" dropdown
-    - If "No" selected → All service checkboxes disabled and unchecked
-    - If "No" selected → All screening checkboxes disabled and unchecked
-    - If "No" selected → Both containers grayed out (opacity 0.5, pointer-events none)
-    - If "Yes" selected → All checkboxes enabled
+    - If "No" selected â†’ All service checkboxes disabled and unchecked
+    - If "No" selected â†’ All screening checkboxes disabled and unchecked
+    - If "No" selected â†’ Both containers grayed out (opacity 0.5, pointer-events none)
+    - If "Yes" selected â†’ All checkboxes enabled
     - Added help text: "If 'No', service checkboxes below will be disabled"
   - **Removed Redundant Field:**
     - Removed "Support Services Detail" text input field
@@ -364,30 +415,30 @@
     - Calls `updateMDTTable()` when services disabled (clears MDT table)
     - Initializes on page load via `DOMContentLoaded`
 - **Benefits:**
-  - ✅ Button properly aligned with select dropdown
-  - ✅ Conditional logic prevents confusion (can't check services/screening if "No")
-  - ✅ Removed redundant field (services tracked via checkboxes)
-  - ✅ Better UX with visual feedback (grayed out when disabled)
-  - ✅ Automatic MDT table clearing when services disabled
-  - ✅ Consistent behavior for both services and screening
+  - âœ… Button properly aligned with select dropdown
+  - âœ… Conditional logic prevents confusion (can't check services/screening if "No")
+  - âœ… Removed redundant field (services tracked via checkboxes)
+  - âœ… Better UX with visual feedback (grayed out when disabled)
+  - âœ… Automatic MDT table clearing when services disabled
+  - âœ… Consistent behavior for both services and screening
 - **Files Modified:**
   - `app/Views/assessment/conduct.php` - Updated layout and added conditional logic
 - **Tables modified:** None
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-07
 
 ---
 
-## [v1.30] — Sidebar Reorganization: IEP Procedure + Scrollable + Collapsible (UX Enhancement)
+## [v1.30] â€” Sidebar Reorganization: IEP Procedure + Scrollable + Collapsible (UX Enhancement)
 - **Built:** Reorganized sidebar navigation with collapsible IEP Procedure section and scrollable menu
 - **Purpose:** Better organize IEP workflow and improve navigation UX
 - **Changes:**
   - **IEP Procedure Section (Collapsible):**
     - Created new collapsible section: "IEP Procedure"
-    - Part 1: Conduct Assessment → `/assessment/conduct`
-    - Part 2: PDSP Form → `/iep/meetings`
-    - Part 3: Final IEP → `/iep/p3/sign`
+    - Part 1: Conduct Assessment â†’ `/assessment/conduct`
+    - Part 2: PDSP Form â†’ `/iep/meetings`
+    - Part 3: Final IEP â†’ `/iep/p3/sign`
     - Auto-expands when any IEP part is active
     - Numbered icons (1-circle, 2-circle, 3-circle) for clear workflow
   - **Scrollable Sidebar:**
@@ -401,13 +452,13 @@
     - Click outside to close on mobile
     - Responsive breakpoint at 768px
   - **Text Updates:**
-    - "Review P2 Assessments" → "Part 2: PDSP Form" (clearer)
-    - "Sign IEP Documents" → "Part 3: Final IEP" (clearer)
-    - Parent: "Sign IEP Documents" → "Sign Final IEP"
+    - "Review P2 Assessments" â†’ "Part 2: PDSP Form" (clearer)
+    - "Sign IEP Documents" â†’ "Part 3: Final IEP" (clearer)
+    - Parent: "Sign IEP Documents" â†’ "Sign Final IEP"
   - **Roles with IEP Procedure:**
-    - SPED Teacher ✅
-    - Guidance ✅
-    - Principal ✅
+    - SPED Teacher âœ…
+    - Guidance âœ…
+    - Principal âœ…
 - **UI Features:**
   - Collapsible section with chevron icon animation
   - Submenu items indented with left border
@@ -416,34 +467,34 @@
   - Mobile-friendly toggle button
   - Custom scrollbar (6px width, navy theme)
 - **Benefits:**
-  - ✅ Clear IEP workflow (Part 1 → Part 2 → Part 3)
-  - ✅ Organized navigation (less clutter)
-  - ✅ Scrollable for long menus
-  - ✅ Mobile-friendly collapsible sidebar
-  - ✅ Better UX with visual hierarchy
-  - ✅ Auto-expand when on IEP pages
+  - âœ… Clear IEP workflow (Part 1 â†’ Part 2 â†’ Part 3)
+  - âœ… Organized navigation (less clutter)
+  - âœ… Scrollable for long menus
+  - âœ… Mobile-friendly collapsible sidebar
+  - âœ… Better UX with visual hierarchy
+  - âœ… Auto-expand when on IEP pages
 - **Files Modified:**
   - `app/Views/layouts/sidebar.php` - Complete reorganization with collapsible sections
 - **Files Created:**
   - `app/Views/layouts/sidebar.php.backup` - Backup of old sidebar
 - **Tables modified:** None
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-07
 
 ---
 
-## [v1.29.2] — P2 Review Permission Fix (Process 4 - Bug Fix)
+## [v1.29.2] â€” P2 Review Permission Fix (Process 4 - Bug Fix)
 - **Fixed:** 403 Forbidden error when SPED Teacher accesses "Review P2 Assessments"
 - **Issue:** Route `/iep/p2/review` required `iep.sign` permission, but SPED Teacher doesn't have this
 - **Root Cause:** Wrong permission on route - SPED Teacher needs to view P2 documents they created
 - **Solution:** Changed route permission from `iep.sign` to `iep.view`
 - **Impact:**
-  - ✅ SPED Teacher can now access P2 review list
-  - ✅ Guidance can still access (has `iep.view`)
-  - ✅ Principal can still access (has `iep.view`)
-  - ✅ View-only route uses view permission (more logical)
-  - ✅ Submit review still requires `iep.sign` (correct)
+  - âœ… SPED Teacher can now access P2 review list
+  - âœ… Guidance can still access (has `iep.view`)
+  - âœ… Principal can still access (has `iep.view`)
+  - âœ… View-only route uses view permission (more logical)
+  - âœ… Submit review still requires `iep.sign` (correct)
 - **Permission Logic:**
   - `iep.view` - View P2 documents (SPED Teacher, Guidance, Principal)
   - `iep.sign` - Sign/approve P2 documents (Guidance, Principal only)
@@ -452,12 +503,12 @@
   - `routes/web.php` - Changed `/iep/p2/{id}/review` permission from `iep.sign` to `iep.view`
 - **Tables modified:** None
 - **Tested:** Permission logic verified
-- **Status:** ✅ Complete - Fixed
+- **Status:** âœ… Complete - Fixed
 - **Date:** 2026-05-07
 
 ---
 
-## [v1.29.1] — Assessment Controller HTTP 500 Fix (Process 3 - Bug Fix)
+## [v1.29.1] â€” Assessment Controller HTTP 500 Fix (Process 3 - Bug Fix)
 - **Fixed:** HTTP 500 error when accessing "Conduct Assessment" page
 - **Issue:** Duplicate `submit()` method in AssessmentController causing fatal error
 - **Root Cause:** Two `submit()` methods existed:
@@ -465,26 +516,26 @@
   2. Line 550: Parent submit (old Process 3 - deprecated)
 - **Solution:** Removed duplicate parent submit method (line 545-625)
 - **Impact:** 
-  - ✅ "Conduct Assessment" page now loads correctly
-  - ✅ SPED Teacher can access assessment form
-  - ✅ No functionality lost (parent submit was deprecated)
+  - âœ… "Conduct Assessment" page now loads correctly
+  - âœ… SPED Teacher can access assessment form
+  - âœ… No functionality lost (parent submit was deprecated)
 - **Files Modified:**
   - `app/Controllers/AssessmentController.php` - Removed duplicate submit() method
 - **Tables modified:** None
-- **Tested:** ✅ PHP syntax verified, no errors
-- **Status:** ✅ Complete - Fixed
+- **Tested:** âœ… PHP syntax verified, no errors
+- **Status:** âœ… Complete - Fixed
 - **Date:** 2026-05-07
 
 ---
 
-## [v1.29] — Navigation Links + Testing Checklist (Process 3 & 4 - Enhancement)
+## [v1.29] â€” Navigation Links + Testing Checklist (Process 3 & 4 - Enhancement)
 - **Built:** Updated sidebar navigation and created comprehensive testing checklist
 - **Purpose:** Make Process 3 & 4 features easily accessible and provide testing guide
 - **Navigation Updates:**
   - **SPED Teacher Sidebar:**
     - Changed "Conduct Assessment" link from `/assessment` to `/assessment/conduct` (direct access)
     - Added "My Availability" link to `/iep/availability` (calendar icon)
-    - Reordered links for better workflow: Verify → Review → Assess → Availability → Meetings
+    - Reordered links for better workflow: Verify â†’ Review â†’ Assess â†’ Availability â†’ Meetings
   - **Guidance Sidebar:**
     - Added "My Availability" link at top (calendar icon)
     - Existing links: Schedule Meeting, IEP Meetings, Review P2, Sign IEP
@@ -500,23 +551,23 @@
   - Mobile and responsive design tests
   - Accessibility checks
 - **Benefits:**
-  - ✅ All staff can easily access availability calendar
-  - ✅ SPED Teacher has direct link to conduct assessment
-  - ✅ Clear navigation flow matches process workflow
-  - ✅ Comprehensive testing guide ensures quality
-  - ✅ Reduces testing time with organized checklist
+  - âœ… All staff can easily access availability calendar
+  - âœ… SPED Teacher has direct link to conduct assessment
+  - âœ… Clear navigation flow matches process workflow
+  - âœ… Comprehensive testing guide ensures quality
+  - âœ… Reduces testing time with organized checklist
 - **Files Modified:**
   - `app/Views/layouts/sidebar.php` - Updated navigation for 3 roles
 - **Files Created:**
   - `PROCESS-3-4-TEST-CHECKLIST.md` - Comprehensive testing guide (500+ test cases)
 - **Tables modified:** None
 - **Tested:** Navigation links verified, checklist ready for use
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-07
 
 ---
 
-## [v1.22] — Process 3 Database Schema Enhancement (Process 3 - Schema)
+## [v1.22] â€” Process 3 Database Schema Enhancement (Process 3 - Schema)
 - **Built:** Enhanced database schema for Process 3 (Conducting Initial Assessment)
 - **Purpose:** Support DepEd SPED Part I assessment with dynamic MDT table, service-driven uploads, and versioning
 - **Schema Changes:**
@@ -540,16 +591,16 @@
 - **Table Relationships:**
   ```
   assessment_records (main)
-    ├─→ assessment_checklists (services checked)
-    └─→ assessment_services (MDT details)
-          └─→ assessment_documents (files per service)
+    â”œâ”€â†’ assessment_checklists (services checked)
+    â””â”€â†’ assessment_services (MDT details)
+          â””â”€â†’ assessment_documents (files per service)
   ```
 - **Features Enabled:**
-  - ✅ Versioned assessments (never overwrite old versions)
-  - ✅ Service-driven MDT table (only checked services appear)
-  - ✅ File upload per service (jpg/png/pdf)
-  - ✅ Draft and finalized states
-  - ✅ Audit trail with timestamps
+  - âœ… Versioned assessments (never overwrite old versions)
+  - âœ… Service-driven MDT table (only checked services appear)
+  - âœ… File upload per service (jpg/png/pdf)
+  - âœ… Draft and finalized states
+  - âœ… Audit trail with timestamps
 - **Backward Compatibility:**
   - Old status values ('pending', 'approved', 'rejected') preserved
   - Existing assessment_records data remains intact
@@ -560,12 +611,12 @@
   - Modified: `assessment_records`
   - Created: `assessment_services`, `assessment_documents`, `assessment_checklists`
 - **Tested:** Schema migration ready for testing
-- **Status:** ✅ Complete - Ready for Feature Development
+- **Status:** âœ… Complete - Ready for Feature Development
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.21] — Show Rejection Reason on Status Page & Dashboard (Process 1 - Enhancement)
+## [v1.21] â€” Show Rejection Reason on Status Page & Dashboard (Process 1 - Enhancement)
 - **Built:** Display rejection reason prominently on enrollment status page and parent dashboard
 - **Issue:** Parents couldn't see WHY their enrollment was rejected (only saw "rejected" status)
 - **Solution:** Show rejection reason (review_note) alongside rejection status
@@ -603,16 +654,16 @@
   - Action buttons for next steps
   - Professional, empathetic tone
 - **Benefits:**
-  - ✅ Parents immediately see WHY enrollment was rejected
-  - ✅ Clear feedback helps parents fix issues
-  - ✅ Reduces confusion and support requests
-  - ✅ Better user experience
-  - ✅ Transparent communication
+  - âœ… Parents immediately see WHY enrollment was rejected
+  - âœ… Clear feedback helps parents fix issues
+  - âœ… Reduces confusion and support requests
+  - âœ… Better user experience
+  - âœ… Transparent communication
 - **Workflow:**
   1. SPED Teacher rejects enrollment with reason
   2. System saves reason to `enrollment_submissions.review_note`
-  3. Parent logs in → Sees red alert on dashboard
-  4. Parent clicks "View Details" → Sees full reason on status page
+  3. Parent logs in â†’ Sees red alert on dashboard
+  4. Parent clicks "View Details" â†’ Sees full reason on status page
   5. Parent can resubmit with corrections
 - **Files Modified:**
   - `app/Models/EnrollmentModel.php` - Added reviewNote parameter to updateStatus()
@@ -621,12 +672,12 @@
   - `app/Views/dashboard/parent.php` - Display rejection alert at top
 - **Tables modified:** None (uses existing review_note column)
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.20] — Auto-Copy Documents for Returning Students + Approval Fix (Process 1 - Enhancement)
+## [v1.20] â€” Auto-Copy Documents for Returning Students + Approval Fix (Process 1 - Enhancement)
 - **Built:** Automatic document copying for returning students + fixed approval issue
 - **Issue 1:** Returning students had to re-upload documents every year
 - **Issue 2:** Approval button not working (status not changing from pending to verified)
@@ -648,8 +699,8 @@
 - **Implementation:**
   - **EnrollmentController::submit():**
     - Checks if enrollment type is "returning" and has previous_enrollment_id
-    - If YES → Calls `copyDocumentsFromPreviousEnrollment()`
-    - If NO → Calls `handleDocumentUploads()` (normal upload)
+    - If YES â†’ Calls `copyDocumentsFromPreviousEnrollment()`
+    - If NO â†’ Calls `handleDocumentUploads()` (normal upload)
   - **New Method: copyDocumentsFromPreviousEnrollment():**
     - Gets documents from previous enrollment
     - Filters only approved documents
@@ -660,11 +711,11 @@
     - To: `if (!empty($documents)) { approve them }`
     - Continues approval even if no documents
 - **Benefits:**
-  - ✅ Returning students don't re-upload documents
-  - ✅ Faster enrollment process
-  - ✅ Less storage usage (same file linked multiple times)
-  - ✅ Approval works for all enrollments
-  - ✅ Better user experience
+  - âœ… Returning students don't re-upload documents
+  - âœ… Faster enrollment process
+  - âœ… Less storage usage (same file linked multiple times)
+  - âœ… Approval works for all enrollments
+  - âœ… Better user experience
 - **Workflow:**
   1. Parent searches for returning student (LRN or name)
   2. Selects previous enrollment
@@ -681,12 +732,12 @@
   - `app/Views/enrollment/steps/step7_documents_signature.php` - Updated alert message
 - **Tables modified:** None (uses existing enrollment_documents table)
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.19] — School Year Field in Step 5 (Process 1 - Enhancement)
+## [v1.19] â€” School Year Field in Step 5 (Process 1 - Enhancement)
 - **Built:** School year selection dropdown in Step 5 (Enrollment Details)
 - **Issue:** School year was auto-set via hidden field, users couldn't select different year
 - **Solution:** Removed hidden field, added dropdown in Step 5, added validation
@@ -696,12 +747,12 @@
   - **Default:** Current school year pre-selected
   - **Required:** Field marked with red asterisk (*)
   - **Validation:** Added client-side validation to check school_year is selected
-  - **Error Message:** "❌ Step 5: School Year is required"
+  - **Error Message:** "âŒ Step 5: School Year is required"
 - **Benefits:**
-  - ✅ Users can select enrollment for future school years
-  - ✅ Useful for early enrollment periods
-  - ✅ Clear indication of which school year enrollment is for
-  - ✅ Prevents accidental wrong school year
+  - âœ… Users can select enrollment for future school years
+  - âœ… Useful for early enrollment periods
+  - âœ… Clear indication of which school year enrollment is for
+  - âœ… Prevents accidental wrong school year
 - **Database:**
   - `school_year` column already exists in `enrollment_submissions` table
   - Type: VARCHAR(20), NOT NULL
@@ -712,13 +763,13 @@
 - **Files Created:**
   - `test-school-year-fix.php` - Verification script to check database state
 - **Tables modified:** None (uses existing school_year column)
-- **Tested:** ✅ Database verified - all enrollments have valid school_year values
-- **Status:** ✅ Complete - Ready for Testing
+- **Tested:** âœ… Database verified - all enrollments have valid school_year values
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.18.3] — Student Records HTTP 500 Fix (Process 2 - Bug Fix)
+## [v1.18.3] â€” Student Records HTTP 500 Fix (Process 2 - Bug Fix)
 - **Fixed:** HTTP 500 error when accessing Student Records
 - **Issues Fixed:**
   1. Parse error in StudentModel.php (premature class closing)
@@ -735,7 +786,7 @@
     - Added proper closing brace at end of file
     - Updated `getAllStudents()` to join with enrollment_submissions for parent_id
     - Updated `findById()` to join with enrollment_submissions for parent_id
-    - Both methods now get parent info from enrollment → users join
+    - Both methods now get parent info from enrollment â†’ users join
   - **students/index.php:**
     - Changed from `first_name`, `last_name`, `birth_date`, `sex` 
     - To: `student_name`, `date_of_birth`, `disability_type`
@@ -752,13 +803,13 @@
   - `app/Views/students/index.php` - Updated field names
   - `app/Views/students/view.php` - Updated field names
 - **Tables modified:** None
-- **Tested:** ✅ Verified working with 11 student records
-- **Status:** ✅ Complete - Working
+- **Tested:** âœ… Verified working with 11 student records
+- **Status:** âœ… Complete - Working
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.18.2] — Student Records Bug Fix (Process 2 - Bug Fix)
+## [v1.18.2] â€” Student Records Bug Fix (Process 2 - Bug Fix)
 - **Fixed:** Chrome error when accessing Student Records
 - **Issue:** Missing `findById()` method in StudentModel causing page load failure
 - **Root Cause:** StudentController calls `findById()` but method didn't exist in StudentModel
@@ -771,12 +822,12 @@
   - `app/Models/StudentModel.php` - Added findById() method
 - **Tables modified:** None
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.18.1] — Student Records Permissions Fix + School Year Filter (Process 1 & 2 - Bug Fix)
+## [v1.18.1] â€” Student Records Permissions Fix + School Year Filter (Process 1 & 2 - Bug Fix)
 - **Fixed:** 403 error when accessing Student Records
 - **Added:** School year dropdown filter for returning student search
 - **Issues Fixed:**
@@ -807,10 +858,10 @@
     - Controller passes school year from GET parameter
     - JavaScript includes school year in AJAX request
 - **Benefits:**
-  - ✅ All staff can now access Student Records
-  - ✅ Can find specific enrollment by school year
-  - ✅ Useful for students with multiple enrollments
-  - ✅ Better search accuracy
+  - âœ… All staff can now access Student Records
+  - âœ… Can find specific enrollment by school year
+  - âœ… Useful for students with multiple enrollments
+  - âœ… Better search accuracy
 - **Files Modified:**
   - `config/permissions.php` - Added permissions to all staff roles
   - `routes/web.php` - Changed to specific permissions
@@ -819,12 +870,12 @@
   - `app/Controllers/EnrollmentController.php` - Pass school year to model
 - **Tables modified:** None
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.18] — Student Records Management + Document History (Process 2 - Enhancement)
+## [v1.18] â€” Student Records Management + Document History (Process 2 - Enhancement)
 - **Built:** Complete student records management system with enrollment and document history
 - **Issues Fixed:**
   1. Enrollment type showing "new" instead of "returning" for old students
@@ -891,12 +942,12 @@
   - `routes/web.php` - Added student routes
 - **Tables modified:** None (uses existing tables)
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.17] — Step 4 Conditional + Enhanced Validation (Process 1 - Enhancement)
+## [v1.17] â€” Step 4 Conditional + Enhanced Validation (Process 1 - Enhancement)
 - **Built:** Improved enrollment form validation and conditional Step 4
 - **Issue 1:** Step 4 (Previous School) shown for all students, should only be for transfer students
 - **Issue 2:** No clear error messages when submission fails due to missing fields
@@ -924,10 +975,10 @@
   - **Error Messages:**
     - Clear, numbered list of missing fields
     - Shows which step each error is in
-    - Example: "❌ Step 1: Last Name is required"
+    - Example: "âŒ Step 1: Last Name is required"
     - Guides user to fix issues before resubmitting
   - **Success Confirmation:**
-    - Shows "✅ All required fields are complete!" when validation passes
+    - Shows "âœ… All required fields are complete!" when validation passes
     - Displays summary of key information
     - Requires explicit confirmation before submission
     - Shows loading spinner during submission
@@ -940,12 +991,12 @@
   - `app/Views/enrollment/form.php` - Enhanced validation logic
 - **Tables modified:** None
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.16] — Enrollment Form UX Improvements (Process 1 - Enhancement)
+## [v1.16] â€” Enrollment Form UX Improvements (Process 1 - Enhancement)
 - **Built:** Improved enrollment form for better user experience
 - **Issue 1:** Returning students had to re-upload documents (should only need signature)
 - **Issue 2:** Step 1 had document-style interface (inconsistent with other steps)
@@ -975,12 +1026,12 @@
   - `app/Views/enrollment/form.php` - Updated to use new Step 1
 - **Tables modified:** None
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.15.2] — Auto-Fill JavaScript Fix (Process 1 - Bug Fix)
+## [v1.15.2] â€” Auto-Fill JavaScript Fix (Process 1 - Bug Fix)
 - **Fixed:** Returning student enrollment now properly populates form fields
 - **Issue:** Data was loaded from database but not displayed in form fields
 - **Root Cause:** PHP `getFormValue()` helper sets default values but browser doesn't always render them
@@ -1004,13 +1055,13 @@
 - **Files Modified:**
   - `app/Views/enrollment/form.php` - Added JavaScript auto-fill logic and enhanced CSS
 - **Tables modified:** None
-- **Tested:** ✅ Verified working - fields now populate correctly
-- **Status:** ✅ Complete - Auto-Fill Working
+- **Tested:** âœ… Verified working - fields now populate correctly
+- **Status:** âœ… Complete - Auto-Fill Working
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.15.1] — Auto-Fill Debug Enhancement (Process 1 - Troubleshooting)
+## [v1.15.1] â€” Auto-Fill Debug Enhancement (Process 1 - Troubleshooting)
 - **Built:** Enhanced debug information for returning student auto-fill feature
 - **Issue:** User reported auto-fill not working - data visible but fields empty
 - **Solution:** Added comprehensive debug logging and visible debug info
@@ -1039,12 +1090,12 @@
   - `AUTO-FILL-DEBUG-GUIDE.md` - Comprehensive troubleshooting guide
 - **Tables modified:** None
 - **Tested:** Debug code added, ready for user testing
-- **Status:** 🔍 Debug Mode - Awaiting Test Results
+- **Status:** ðŸ” Debug Mode - Awaiting Test Results
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.15] — Review Page Redesign: BEEF Document Style (Process 1 - UI Enhancement)
+## [v1.15] â€” Review Page Redesign: BEEF Document Style (Process 1 - UI Enhancement)
 - **Built:** Redesigned enrollment review page to match enrollment form's document style
 - **Purpose:** Make review page look professional, clean, and printable for SPED teachers
 - **Changes:**
@@ -1068,7 +1119,7 @@
 - **UI Style:**
   - White background with subtle borders
   - Professional typography
-  - Checkbox symbols (☑/☐) for boolean fields
+  - Checkbox symbols (â˜‘/â˜) for boolean fields
   - Clean spacing and alignment
   - Max-width: 8.5 inches (standard paper)
   - Print-optimized margins
@@ -1078,12 +1129,12 @@
   - `app/Controllers/EnrollmentController.php` - Updated reviewDetail() to use new view
 - **Tables modified:** None
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.14.1] — Returning Student Auto-Fill Debug & Visual Indicator (Process 1 - Bug Fix)
+## [v1.14.1] â€” Returning Student Auto-Fill Debug & Visual Indicator (Process 1 - Bug Fix)
 - **Fixed:** Added debug logging and visual indicators for returning student auto-fill
 - **Issue:** Auto-fill was working but not obvious to users
 - **Solution:** Added visual feedback to confirm auto-fill is active
@@ -1103,12 +1154,12 @@
   - `app/Views/enrollment/form.php` - Added auto-fill indicator alert and CSS
 - **Tables modified:** None
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.14] — Returning Student Lookup with Auto-Fill (Process 1 - Enhancement)
+## [v1.14] â€” Returning Student Lookup with Auto-Fill (Process 1 - Enhancement)
 - **Built:** Student search feature for returning enrollment with auto-fill capability
 - **Issue:** Returning student enrollment didn't fetch previous data - no auto-fill
 - **Solution:** Added student lookup page with 2 search methods: LRN or Name
@@ -1161,12 +1212,12 @@
   - `app/Views/enrollment/returning_lookup.php` - Student lookup page
 - **Tables modified:** None (uses existing enrollment_submissions table)
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.13] — SPED Teacher Dashboard: Pending Enrollments Section (UX Enhancement)
+## [v1.13] â€” SPED Teacher Dashboard: Pending Enrollments Section (UX Enhancement)
 - **Built:** Pending enrollments awareness section on SPED Teacher dashboard
 - **Purpose:** Help SPED teachers quickly see and act on pending enrollment applications
 - **Features:**
@@ -1202,12 +1253,12 @@
   - `app/Views/dashboard/teacher.php` - Added alert, stats cards, and pending enrollments table
 - **Tables modified:** None (uses existing enrollment_submissions table)
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.12] — Use Existing LRN for Transfer/Returning Students (Process 2 Part 2 - Enhancement)
+## [v1.12] â€” Use Existing LRN for Transfer/Returning Students (Process 2 Part 2 - Enhancement)
 - **Built:** Smart LRN handling for transfer and returning students
 - **Issue:** System always generated new LRN, ignoring existing LRN from enrollment form
 - **Impact:** Transfer/returning students lost their original LRN
@@ -1241,12 +1292,12 @@
   7. Parent receives appropriate email and notification
 - **Tables modified:** None (uses existing fields)
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.11] — Learner Dashboard Routing Fix (Process 2 Part 2 - Bug Fix)
+## [v1.11] â€” Learner Dashboard Routing Fix (Process 2 Part 2 - Bug Fix)
 - **Fixed:** Learner accounts now route to learner dashboard instead of general dashboard
 - **Issue:** After logging in with LRN, learners were redirected to general/user dashboard
 - **Root Cause:** DashboardController switch statement missing case for 'learner' role
@@ -1259,13 +1310,13 @@
   3. DashboardController checks role
   4. Routes to learner dashboard (not general dashboard)
 - **Tables modified:** None
-- **Tested:** ✅ Verified working
-- **Status:** ✅ Approved
+- **Tested:** âœ… Verified working
+- **Status:** âœ… Approved
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.10] — LRN Login Support + Parent Dashboard LRN Notification (Process 2 Part 2 - Complete)
+## [v1.10] â€” LRN Login Support + Parent Dashboard LRN Notification (Process 2 Part 2 - Complete)
 - **Built:** Final features to complete Process 2 Part 2 - learner account usability
 - **Feature 1: LRN Login Support**
   - Modified `AuthController::login()` to detect 12-digit LRN format
@@ -1305,13 +1356,13 @@
   - `app/Views/auth/login.php` - Updated placeholder and added helper text
   - `routes/web.php` - Added dismiss notification route
 - **Tables modified:** None (uses existing enrollment_submissions table)
-- **Tested:** ✅ Verified working
-- **Status:** ✅ Approved
+- **Tested:** âœ… Verified working
+- **Status:** âœ… Approved
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.8] — Simplified Enrollment Approval System (Process 1)
+## [v1.8] â€” Simplified Enrollment Approval System (Process 1)
 - **Built:** Single-action approval/rejection for entire enrollment (replaces per-document approval)
 - **Controllers:** Added `EnrollmentController::approveEnrollment()` and `EnrollmentController::rejectEnrollment()`
 - **Routes:** Added `POST /enrollment/approve/{id}` and `POST /enrollment/reject/{id}`
@@ -1322,13 +1373,13 @@
   - Notifications sent to parent via in-app notification and email
   - Document status badges now shown in card headers for visibility
 - **Tables modified:** None (uses existing enrollment_submissions and enrollment_documents tables)
-- **Tested:** ✅ Verified working
-- **Status:** ✅ Approved
+- **Tested:** âœ… Verified working
+- **Status:** âœ… Approved
 - **Date:** 2026-05-06
 
 ---
 
-## [v1.9] — Process 2 Part 2: Create Learner Account & Generate LRN (Process 2)
+## [v1.9] â€” Process 2 Part 2: Create Learner Account & Generate LRN (Process 2)
 - **Built:** Complete learner account creation workflow after enrollment approval
 - **View Updates:**
   - Added "Create Learner Account & Generate LRN" button in `review_detail.php` (shows when status = 'verified')
@@ -1372,7 +1423,7 @@
 
 ---
 
-## [v1.7] — Enrollment Document Approval Error Handling (Process 1)
+## [v1.7] â€” Enrollment Document Approval Error Handling (Process 1)
 - **Built:** Improved error handling for document approval/rejection
 - **Controllers:** Updated `EnrollmentController::approveDocument()` and `rejectDocument()` with try-catch blocks
 - **Validation:** Added checks for missing enrollment_id and empty rejection reasons
@@ -1383,7 +1434,7 @@
 
 ---
 
-## [v0.1] — Foundation Setup
+## [v0.1] â€” Foundation Setup
 - **Built:** 
   - Project structure (MVC folders)
   - Database configuration (PDO singleton)
@@ -1408,7 +1459,7 @@
 
 ---
 
-## [v0.2] — Authentication System (Security Module 1)
+## [v0.2] â€” Authentication System (Security Module 1)
 - **Built:**
   - UserModel with authentication methods (findByEmail, create, verifyPassword, logLoginAttempt)
   - AuthController with login, register, logout actions
@@ -1420,18 +1471,18 @@
   - Custom JavaScript for session timeout warning, password strength indicator
   - Layout templates (header, footer, navbar)
 - **Tables added/modified:** None (uses existing users, login_log tables)
-- **Tested:** ✓ Approved
+- **Tested:** âœ“ Approved
 - **Status:** Approved
 - **Date:** 2026-05-01
 
 ---
 
-## [v0.3] — UI Redesign + 404 Fix (Security Module 1 Enhancement)
+## [v0.3] â€” UI Redesign + 404 Fix (Security Module 1 Enhancement)
 - **Built:**
   - .htaccess for Apache URL rewriting (fixes 404 errors)
   - Dynamic base path detection in router
   - Sidebar navigation component (replaces top navbar)
-  - Sidebar gradient: crimson → navy
+  - Sidebar gradient: crimson â†’ navy
   - Split-screen auth layout for login/register (desktop-first design)
   - Normalized registration fields (first_name, middle_name, last_name, suffix, contact_number)
   - Updated all dashboard views to use sidebar
@@ -1441,13 +1492,13 @@
   - **Enhanced General Dashboard:** Welcome banner, school info, quick stats, role selection cards (Apply as Staff vs Enroll Child)
 - **Tables added/modified:** 
   - Migration v2: Added first_name, middle_name, last_name, suffix, contact_number columns to users table
-- **Tested:** ✓ Approved with dashboard enhancement
+- **Tested:** âœ“ Approved with dashboard enhancement
 - **Status:** Approved
 - **Date:** 2026-05-01
 
 ---
 
-## [v0.4] — Role Selection & Verification System (Security Module 2)
+## [v0.4] â€” Role Selection & Verification System (Security Module 2)
 - **Built:**
   - RoleRequestModel with CRUD operations for role requests
   - RoleController with role selection and staff application
@@ -1464,13 +1515,13 @@
   - Pending request detection and display
 - **Tables added/modified:** 
   - Migration v3: Added approver_role column to role_requests table
-- **Tested:** ✅ Verified working
-- **Status:** ✅ Approved
+- **Tested:** âœ… Verified working
+- **Status:** âœ… Approved
 - **Date:** 2026-05-01
 
 ---
 
-## [v0.4.1] — Bug Fixes & UX Improvements
+## [v0.4.1] â€” Bug Fixes & UX Improvements
 - **Fixed:**
   - 403 Forbidden error on dashboard after login (removed permission check from route, added manual check in controller)
   - Dashboard now accessible for all logged-in users regardless of role
@@ -1486,13 +1537,13 @@
     - Status message
   - Role selection cards hidden when application is pending
   - Success/error message display on all dashboards
-- **Tested:** ✅ Verified working
-- **Status:** ✅ Approved
+- **Tested:** âœ… Verified working
+- **Status:** âœ… Approved
 - **Date:** 2026-05-01
 
 ---
 
-## [v0.5.1] — Notification System Fixes & Topbar Integration
+## [v0.5.1] â€” Notification System Fixes & Topbar Integration
 - **Fixed:**
   - Added topbar to ALL views (admin, parent, teacher, guidance, principal, master_teacher, users, role_requests, staff_requests, role_select, services)
   - Fixed JavaScript base path detection to work with any installation path (e.g., /Signedd/public)
@@ -1500,13 +1551,13 @@
   - Added console logging to JavaScript for debugging
   - Created debug-notifications.php script for troubleshooting
   - Created NOTIFICATION-TROUBLESHOOTING.md guide
-- **Tested:** ✅ Verified working
-- **Status:** ✅ Approved
+- **Tested:** âœ… Verified working
+- **Status:** âœ… Approved
 - **Date:** 2026-05-01
 
 ---
 
-## [v0.5] — In-App Notification System (Security Module 3)
+## [v0.5] â€” In-App Notification System (Security Module 3)
 - **Built:**
   - NotificationModel with CRUD operations (create, getByUserId, getUnreadByUserId, getUnreadCount, markAsRead, markAllAsRead, delete)
   - NotificationController with AJAX endpoints (getNotifications, markAsRead, markAllAsRead, delete)
@@ -1524,13 +1575,13 @@
   - XSS protection with HTML escaping
 - **Tables added/modified:** 
   - Migration v4: Created notifications table (id, user_id, type, title, message, data, is_read, created_at)
-- **Tested:** ✅ Verified working
-- **Status:** ✅ Approved
+- **Tested:** âœ… Verified working
+- **Status:** âœ… Approved
 - **Date:** 2026-05-01
 
 ---
 
-## [v0.4.3] — Enhanced Rejection Handling (Security Module 2 - Enhancement)
+## [v0.4.3] â€” Enhanced Rejection Handling (Security Module 2 - Enhancement)
 - **Built:**
   - Rejection alert on general dashboard with reason and reapply button
   - Application history modal showing all past applications (pending, approved, rejected)
@@ -1541,13 +1592,13 @@
   - Clear pending alert when application is rejected (only shows one alert at a time)
   - Reapply functionality - users can submit new applications after rejection
 - **Tables added/modified:** None (uses existing role_requests table)
-- **Tested:** ✅ Verified working
-- **Status:** ✅ Approved
+- **Tested:** âœ… Verified working
+- **Status:** âœ… Approved
 - **Date:** 2026-05-01
 
 ---
 
-## [v0.4.2] — Services Page Placeholder
+## [v0.4.2] â€” Services Page Placeholder
 - **Built:**
   - ServicesController with index method
   - Services view with "Coming Soon" placeholder
@@ -1555,13 +1606,13 @@
   - Route added for /services
   - Sidebar navigation link now functional
 - **Tables added/modified:** None
-- **Tested:** ✅ Verified working
-- **Status:** ✅ Approved (Placeholder for future development)
+- **Tested:** âœ… Verified working
+- **Status:** âœ… Approved (Placeholder for future development)
 - **Date:** 2026-05-01
 
 ---
 
-## [v0.6] — Email Verification with OTP + Google Sign-In + Admin Logs (Security Module 4)
+## [v0.6] â€” Email Verification with OTP + Google Sign-In + Admin Logs (Security Module 4)
 - **Built:**
   - **Email Verification System:**
     - Migration v5: Added email_verified, verification_token, verification_expires, verification_attempts fields
@@ -1608,13 +1659,13 @@
   - POST /auth/resend-otp
   - GET /auth/google, GET /auth/google/callback
   - GET /admin/login-logs, GET /admin/activity-logs
-- **Tested:** ✅ Verified working
-- **Status:** ✅ Approved
+- **Tested:** âœ… Verified working
+- **Status:** âœ… Approved
 - **Date:** 2026-05-01
 
 ---
 
-## [v0.7] — Process 1 Parts A, B, C: Complete Enrollment Form System (Process 1)
+## [v0.7] â€” Process 1 Parts A, B, C: Complete Enrollment Form System (Process 1)
 - **Built:**
   - **Part A - Database & Model:**
     - Migration v6: enrollment_submissions table (76 BEEF fields), enrollment_documents table
@@ -1641,13 +1692,13 @@
     - Signature pad integration (CDN-based)
 - **Tables added/modified:** 
   - Migration v6: enrollment_submissions (76 fields), enrollment_documents
-- **Tested:** ✅ Form working, all steps functional, auto-save working, documents uploading
-- **Status:** ✅ Approved
+- **Tested:** âœ… Form working, all steps functional, auto-save working, documents uploading
+- **Status:** âœ… Approved
 - **Date:** 2026-05-01
 
 ---
 
-## [v0.8] — Process 1 Part D: SPED Teacher Review Interface (Process 1)
+## [v0.8] â€” Process 1 Part D: SPED Teacher Review Interface (Process 1)
 - **Built:**
   - **Review Interface:**
     - review_detail.php - Complete review page with all 76 BEEF fields displayed in 8 sections
@@ -1682,13 +1733,13 @@
     - Email notifications via MailHelper
     - Parent can resubmit if rejected
 - **Tables added/modified:** None (uses existing Migration v6 tables)
-- **Tested:** ✅ SPED teacher can review, approve/reject documents, notifications working, status updates correctly
-- **Status:** ✅ Approved
+- **Tested:** âœ… SPED teacher can review, approve/reject documents, notifications working, status updates correctly
+- **Status:** âœ… Approved
 - **Date:** 2026-05-01
 
 ---
 
-## [v0.9] — UI Fixes & Session Management Improvements (Security Module Enhancement)
+## [v0.9] â€” UI Fixes & Session Management Improvements (Security Module Enhancement)
 - **Built:**
   - **Email Verification UI Fix:**
     - Fixed verify_email.php messy layout
@@ -1721,8 +1772,8 @@
   - app/Middleware/SessionMiddleware.php
   - public/index.php
 - **Tables added/modified:** None
-- **Tested:** ✅ OTP UI clean, session timeout works for all roles, role updates within 10 seconds, all dashboards accessible
-- **Status:** ✅ Approved
+- **Tested:** âœ… OTP UI clean, session timeout works for all roles, role updates within 10 seconds, all dashboards accessible
+- **Status:** âœ… Approved
 - **Date:** 2026-05-01
 
 ---
@@ -1731,7 +1782,7 @@
 
 ---
 
-## [v0.21] — Process 6-7 Learner Views Completion (Process 6 & 7)
+## [v0.21] â€” Process 6-7 Learner Views Completion (Process 6 & 7)
 - **Built:**
   - **Learner View Files (5 files):**
     - `app/Views/learning/assignments.php` - Assignments list with filter tabs (All, Pending, Submitted, Graded)
@@ -1775,17 +1826,17 @@
   - Progress tracked with achievement badges and timeline
   - Interactive activities with auto-grading and confetti celebration
 - **Testing Status:**
-  - ✅ All 5 view files created
-  - ✅ JavaScript activity player created
-  - ✅ Cartoon CSS styling applied
-  - ⏳ Runtime testing pending (user cannot test due to XAMPP issues)
+  - âœ… All 5 view files created
+  - âœ… JavaScript activity player created
+  - âœ… Cartoon CSS styling applied
+  - â³ Runtime testing pending (user cannot test due to XAMPP issues)
 - **Tested:** Pending user testing (XAMPP issues on current PC)
 - **Status:** Pending Approval (awaiting user testing)
 - **Date:** 2026-05-05
 
 ---
 
-## [v0.19] — Login Logs with User Information (Security Module 4 - Enhancement)
+## [v0.19] â€” Login Logs with User Information (Security Module 4 - Enhancement)
 - **Built:**
   - **Database Schema Update:**
     - Migration v20: Added `user_id` column to `login_log` table
@@ -1812,13 +1863,13 @@
     - Better security monitoring and audit trail
 - **Tables added/modified:** 
   - Migration v20: `login_log` table (added user_id, foreign key, index)
-- **Tested:** ✅ Verified working - user_id correctly stored, JOIN query working, view displays user info
-- **Status:** ✅ Approved
+- **Tested:** âœ… Verified working - user_id correctly stored, JOIN query working, view displays user info
+- **Status:** âœ… Approved
 - **Date:** 2026-05-04
 
 ---
 
-## [v0.18] — IEP Approval Queue for Principal (Fixed)
+## [v0.18] â€” IEP Approval Queue for Principal (Fixed)
 - **Built:**
   - **IEPDocumentController Methods:**
     - `approvalQueue()` - Display queue of P3 documents pending principal approval
@@ -1845,7 +1896,7 @@
 - **Status:** Pending Approval
 - **Date:** 2026-05-04
 
-## [v0.17] — LRN Notification System + IEP P2 & P3 Form Views
+## [v0.17] â€” LRN Notification System + IEP P2 & P3 Form Views
 - **Built:**
   - **LRN Notification System (Fixed):**
     - Updated VerificationController to create in-app notifications when enrollment is verified
@@ -1908,7 +1959,7 @@
 - **Status:** Pending Approval
 - **Date:** 2026-05-04
 
-## [v0.16] — Process 4 & 5: IEP Meeting Scheduling + IEP Document Generation (P2 & P3)
+## [v0.16] â€” Process 4 & 5: IEP Meeting Scheduling + IEP Document Generation (P2 & P3)
 - **Built:**
   - **IEPMeetingModel** (app/Models/IEPMeetingModel.php)
     - `create()` - Create IEP meeting with date/time/location
@@ -1978,22 +2029,22 @@
   - Migration v18: Created iep_p3_signatures table (iep_p3_id, signer_id, signer_role, signature_data, remarks, signed_at)
   - Migration v19: Created iep_audit_log table (document_type, document_id, user_id, action, details, ip_address, created_at)
 - **Routes Added:**
-  - GET /iep/meetings/schedule — Schedule meeting form
-  - POST /iep/meetings/schedule — Create meeting
-  - POST /iep/meetings/availability — Get available slots (AJAX)
-  - GET /iep/meetings/{id} — View meeting
-  - GET /iep/p2/create/{id} — Create P2 form
-  - POST /iep/p2/submit — Save P2
-  - POST /iep/p2/upload — Upload P2 PDF
-  - POST /iep/p2/send-review — Send for review
-  - GET /iep/p2/{id}/review — Review P2
-  - POST /iep/p2/review-submit — Submit review
-  - GET /iep/p3/create/{id} — Create P3 form
-  - POST /iep/p3/submit — Save P3
-  - POST /iep/p3/upload — Upload P3 PDF
-  - POST /iep/p3/send-signature — Send for signature
-  - GET /iep/p3/{id}/sign — Sign P3
-  - POST /iep/p3/sign-submit — Submit signature
+  - GET /iep/meetings/schedule â€” Schedule meeting form
+  - POST /iep/meetings/schedule â€” Create meeting
+  - POST /iep/meetings/availability â€” Get available slots (AJAX)
+  - GET /iep/meetings/{id} â€” View meeting
+  - GET /iep/p2/create/{id} â€” Create P2 form
+  - POST /iep/p2/submit â€” Save P2
+  - POST /iep/p2/upload â€” Upload P2 PDF
+  - POST /iep/p2/send-review â€” Send for review
+  - GET /iep/p2/{id}/review â€” Review P2
+  - POST /iep/p2/review-submit â€” Submit review
+  - GET /iep/p3/create/{id} â€” Create P3 form
+  - POST /iep/p3/submit â€” Save P3
+  - POST /iep/p3/upload â€” Upload P3 PDF
+  - POST /iep/p3/send-signature â€” Send for signature
+  - GET /iep/p3/{id}/sign â€” Sign P3
+  - POST /iep/p3/sign-submit â€” Submit signature
 - **Workflow:**
   - **Process 4 - Meeting & IEP P2:**
     1. SPED teacher schedules meeting (selects date/time available for all)
@@ -2002,7 +2053,7 @@
     4. During meeting, SPED teacher fills or uploads IEP P2
     5. If Guidance/Principal absent, P2 disseminated to them
     6. They review, provide feedback, and sign
-    7. Status: Draft → Pending Review → Reviewed & Signed
+    7. Status: Draft â†’ Pending Review â†’ Reviewed & Signed
   - **Process 5 - IEP P3:**
     1. After meeting, SPED teacher creates IEP P3 document
     2. Can fill form online or upload pre-filled PDF
@@ -2025,7 +2076,7 @@
 - **Status:** Pending Approval
 - **Date:** 2026-05-04
 
-## [v0.15] — Process 3: SPED Teacher Reviewing Initial Assessment (Parent-Submitted)
+## [v0.15] â€” Process 3: SPED Teacher Reviewing Initial Assessment (Parent-Submitted)
 - **Built:**
   - **AssessmentModel** (app/Models/AssessmentModel.php)
     - `create()` - Create assessment from parent submission
@@ -2115,16 +2166,16 @@
 - **Status:** Pending Approval
 - **Date:** 2026-05-04
 
-## [v0.10] — Process 1 UI Improvements (Merged Address Steps & Expanded Locations)
+## [v0.10] â€” Process 1 UI Improvements (Merged Address Steps & Expanded Locations)
 - **Built:** 
   - Merged Step 3 (Permanent Address) into Step 2 (Current Address) with "Same as Current Address" checkbox
   - Reduced enrollment form from 8 steps to 7 steps
-  - Updated all step files with correct numbering (step4→step3, step5→step4, etc.)
+  - Updated all step files with correct numbering (step4â†’step3, step5â†’step4, etc.)
   - Added conditional notes in Previous School step based on enrollment type (optional for new students, required for transfer/returning)
   - Expanded Philippine location data in philippines.json:
     - Added 4 new provinces (Bohol, Negros Occidental, Iloilo, Pampanga, Laguna)
     - Expanded Cebu cities from 4 to 9 (added Danao, Toledo, Bogo, Carcar, Naga)
-    - Expanded Metro Manila cities from 4 to 10 (added Caloocan, Taguig, Parañaque, Las Piñas, Muntinlupa, Valenzuela)
+    - Expanded Metro Manila cities from 4 to 10 (added Caloocan, Taguig, ParaÃ±aque, Las PiÃ±as, Muntinlupa, Valenzuela)
     - Expanded Davao City barangays from 10 to 200+
     - Total: 7 provinces, 40+ cities, 1000+ barangays
   - Updated enrollment.js to handle 7 steps instead of 8
@@ -2136,7 +2187,7 @@
 
 ---
 
-## [v0.11] — Process 1 Form Field Improvements (Document Requirements & Birth Info)
+## [v0.11] â€” Process 1 Form Field Improvements (Document Requirements & Birth Info)
 - **Built:**
   - **Document Requirements Updated:**
     - Made PWD ID optional (was required)
@@ -2163,7 +2214,7 @@
 
 ---
 
-## [v0.12] — Process 1 Part E: Parent Dashboard Integration & Enrollment Tracking
+## [v0.12] â€” Process 1 Part E: Parent Dashboard Integration & Enrollment Tracking
 - **Built:**
   - **Enhanced Parent Dashboard:**
     - Statistics cards showing total, pending, approved, and rejected enrollments
@@ -2197,8 +2248,8 @@
 
 ---
 
-## [vN] — Feature Name (Process N or Security Module N)
-- **Built:** [what was created — controllers, models, views]
+## [vN] â€” Feature Name (Process N or Security Module N)
+- **Built:** [what was created â€” controllers, models, views]
 - **Tables added/modified:** [schema.sql changes, or "none"]
 - **Tested:** [what was verified and how]
 - **Status:** Approved
@@ -2208,7 +2259,7 @@
 
 ---
 
-## [v0.13] — Security Modules 3-6: Encryption, CSRF, Rate Limiting, DLP (In Progress)
+## [v0.13] â€” Security Modules 3-6: Encryption, CSRF, Rate Limiting, DLP (In Progress)
 - **Built:**
   - **EncryptionHelper** (app/Helpers/EncryptionHelper.php)
     - AES-256-CBC encryption/decryption
@@ -2255,7 +2306,7 @@
 
 
 
-## [v0.13] — Security Modules 3-6: Encryption, CSRF, Rate Limiting, DLP
+## [v0.13] â€” Security Modules 3-6: Encryption, CSRF, Rate Limiting, DLP
 - **Built:**
   - EncryptionHelper (AES-256-CBC encryption/decryption for PII)
   - CSRFHelper (CSRF token generation and validation)
@@ -2269,18 +2320,18 @@
   - Migration v9: `csrf_tokens` table
   - Migration v10: `rate_limit_log` table
   - Migration v11: `dlp_settings` table
-- **Tested:** ✅ All security modules working
+- **Tested:** âœ… All security modules working
   - CSRF tokens generated and validated
   - Rate limiting blocks after 5 failed attempts
   - Encryption/decryption working
   - DLP settings configured
   - Login and registration flows working
-- **Status:** ✅ Approved
+- **Status:** âœ… Approved
 - **Date:** 2026-05-04
 
 ---
 
-## [v0.14] — Process 2: SPED Teacher Enrollment Verification System
+## [v0.14] â€” Process 2: SPED Teacher Enrollment Verification System
 - **Built:**
   - **StudentModel** (app/Models/StudentModel.php)
     - `generateLRN()` - Generate unique 12-digit LRN (YYYYMMDDNNNN format)
@@ -2349,13 +2400,13 @@
   - `app/Views/iep/p3_sign_list.php` - P3 signature list
 - **Routes Added:**
   - GET /iep/meetings - Meetings list (SPED teacher, Guidance, Principal)
-  - GET /iep/p2/review — P2 review list (Guidance/Principal)
-  - GET /iep/p3/sign — P3 signature list (All signers)
+  - GET /iep/p2/review â€” P2 review list (Guidance/Principal)
+  - GET /iep/p3/sign â€” P3 signature list (All signers)
 
 
 ---
 
-## [v0.20] — File Encryption System (Security Module 3)
+## [v0.20] â€” File Encryption System (Security Module 3)
 - **Built:**
   - **FileEncryptionHelper** (app/Helpers/FileEncryptionHelper.php)
     - `encryptFile()` - Encrypt uploaded files using AES-256-CBC
@@ -2427,21 +2478,21 @@
   - All stored in `/uploads/encrypted/` with `.enc` extension
   - Original directories (`/uploads/enrollment/`, `/uploads/role_verification/`) now empty
 - **Testing Results:**
-  - ✅ Encryption/decryption verified working (77 bytes → 168 bytes encrypted → 77 bytes decrypted)
-  - ✅ File serving working (images display, PDFs open)
-  - ✅ Download working (files download with original names)
-  - ✅ Migration successful (6/6 files encrypted, 0 failures)
-  - ✅ Original files deleted (security confirmed)
-  - ✅ Database paths updated correctly
-  - ✅ Views updated to use encrypted URLs
-- **Tested:** ✅ Verified working - all files encrypted, serving correctly, no data loss
-- **Status:** ✅ Approved
+  - âœ… Encryption/decryption verified working (77 bytes â†’ 168 bytes encrypted â†’ 77 bytes decrypted)
+  - âœ… File serving working (images display, PDFs open)
+  - âœ… Download working (files download with original names)
+  - âœ… Migration successful (6/6 files encrypted, 0 failures)
+  - âœ… Original files deleted (security confirmed)
+  - âœ… Database paths updated correctly
+  - âœ… Views updated to use encrypted URLs
+- **Tested:** âœ… Verified working - all files encrypted, serving correctly, no data loss
+- **Status:** âœ… Approved
 - **Date:** 2026-05-04
 
 
 ---
 
-## [v1.0] — XAMPP Environment Setup (System Configuration)
+## [v1.0] â€” XAMPP Environment Setup (System Configuration)
 - **Built:** 
   - `.env` - Environment configuration with XAMPP defaults (DB, email, OAuth, security)
   - `SETUP-AND-TESTING-GUIDE.md` - Complete setup instructions with troubleshooting
@@ -2473,7 +2524,7 @@
 
 ---
 
-## [v1.1] — Registration & OTP Verification Fix
+## [v1.1] â€” Registration & OTP Verification Fix
 - **Fixed:** 
   - SessionMiddleware exempt routes updated to include `/register` and `/login`
   - Changed route matching from `strpos === 0` to `strpos !== false` for better matching
@@ -2481,9 +2532,9 @@
   - Registration now properly redirects to `/auth/verify-email`
   - OTP verification page now accessible after registration
 - **Modified Files:**
-  - `app/Middleware/SessionMiddleware.php` — Updated exempt routes and matching logic
+  - `app/Middleware/SessionMiddleware.php` â€” Updated exempt routes and matching logic
 - **Testing:**
-  - Created `test-registration-flow.php` — Verification script for registration flow
+  - Created `test-registration-flow.php` â€” Verification script for registration flow
 - **Tables added/modified:** None
 - **Tested:** Ready for user testing
 - **Status:** Fixed
@@ -2492,9 +2543,9 @@
 
 ---
 
-## [v1.2] — Secure File Access with Decryption
+## [v1.2] â€” Secure File Access with Decryption
 - **Built:**
-  - `FileController` — Central file handler with decryption and permission checks
+  - `FileController` â€” Central file handler with decryption and permission checks
   - Secure file viewing/downloading for all encrypted uploads
   - Permission-based access control for different file types
   - Audit logging for all file access
@@ -2519,13 +2570,13 @@
   - IEP documents: Parent, SPED Teacher, Guidance, Principal, Admin
 - **Modified Files:**
   - Created: `app/Controllers/FileController.php`
-  - Updated: `routes/web.php` — Added file view/download routes
-  - Updated: `app/Views/enrollment/review_detail.php` — Use new file routes
-  - Updated: `app/Views/learning/view_module.php` — Use new file routes
-  - Updated: `app/Views/learning/view_assignment.php` — Use new file routes
+  - Updated: `routes/web.php` â€” Added file view/download routes
+  - Updated: `app/Views/enrollment/review_detail.php` â€” Use new file routes
+  - Updated: `app/Views/learning/view_module.php` â€” Use new file routes
+  - Updated: `app/Views/learning/view_assignment.php` â€” Use new file routes
 - **Routes Added:**
-  - `GET /file/view/{type}/{id}` — View file inline with decryption
-  - `GET /file/download/{type}/{id}` — Download file with decryption
+  - `GET /file/view/{type}/{id}` â€” View file inline with decryption
+  - `GET /file/download/{type}/{id}` â€” Download file with decryption
 - **Tables added/modified:** None (uses existing tables)
 - **Tested:** Ready for user testing
 - **Status:** Complete
@@ -2534,12 +2585,12 @@
 
 ---
 
-## [v1.3] — File Decryption Test Tools
+## [v1.3] â€” File Decryption Test Tools
 - **Built:**
-  - `test-decrypt-files.php` — Decrypt all files from database for testing
-  - `public/test-decrypted/index.php` — Viewer for decrypted test files
-  - `public/test-decrypted/.htaccess` — Allow direct access to test files
-  - `TEST-DECRYPT-GUIDE.md` — Complete testing guide
+  - `test-decrypt-files.php` â€” Decrypt all files from database for testing
+  - `public/test-decrypted/index.php` â€” Viewer for decrypted test files
+  - `public/test-decrypted/.htaccess` â€” Allow direct access to test files
+  - `TEST-DECRYPT-GUIDE.md` â€” Complete testing guide
 - **Features:**
   - Test decryption of enrollment documents
   - Test decryption of learning materials
@@ -2570,7 +2621,7 @@
 - **Date:** 2026-05-05
 
 
-## [v1.3] — File Decryption Fix (Security Module 3)
+## [v1.3] â€” File Decryption Fix (Security Module 3)
 - **Built:** Fixed missing `$basePath` variable in `EnrollmentController::reviewDetail()` method
 - **Issue:** Views couldn't generate FileController URLs because `$basePath` wasn't passed from controller
 - **Solution:** Added `$basePath = $this->basePath;` before requiring view file
@@ -2582,7 +2633,7 @@
 - **Date:** 2026-05-05
 
 
-## [v1.4] — Removed File Encryption (Simplified Upload System)
+## [v1.4] â€” Removed File Encryption (Simplified Upload System)
 - **Built:** Simplified file upload system by removing encryption
 - **Changes:**
   - Removed FileEncryptionHelper calls from all upload methods
@@ -2604,7 +2655,7 @@
 - **Date:** 2026-05-06
 
 
-## [v1.5] — Fixed 404 Error on File Viewing (Missing View Updates)
+## [v1.5] â€” Fixed 404 Error on File Viewing (Missing View Updates)
 - **Issue:** Parent and SPED teacher couldn't view uploaded files - 404 error
 - **Root Cause:** Two views still using old FileController routes (`/file/serve/`, `/file/view/`)
 - **Fixed:**
@@ -2621,7 +2672,7 @@
 - **Date:** 2026-05-06
 
 
-## [v1.6] — BEEF Form Redesigned to Document Style (Print-Friendly)
+## [v1.6] â€” BEEF Form Redesigned to Document Style (Print-Friendly)
 - **Built:** Clean, document-style BEEF enrollment form
 - **Design Changes:**
   - Removed red colors and Bootstrap cards
@@ -2648,7 +2699,7 @@
 - **Date:** 2026-05-06
 
 
-## [v1.7] — Simplified Document Approval Logic with Better Error Handling
+## [v1.7] â€” Simplified Document Approval Logic with Better Error Handling
 - **Issue:** Approve button showing JSON parse error
 - **Root Cause:** Missing error handling and unclear logic flow
 - **Fixed:**
@@ -2661,8 +2712,8 @@
 - **Logic Flow:**
   - Parent uploads X documents (1-4)
   - SPED teacher approves each document individually
-  - When ALL uploaded documents approved → Enrollment status = "Verified" ✅
-  - If ANY document rejected → Enrollment status = "Rejected" ❌
+  - When ALL uploaded documents approved â†’ Enrollment status = "Verified" âœ…
+  - If ANY document rejected â†’ Enrollment status = "Rejected" âŒ
   - Required: PSA Birth Certificate + Filled enrollment form
 - **Messages:**
   - Single document approved: "Document approved: [type]. Waiting for other documents."
@@ -2676,7 +2727,7 @@
 
 ---
 
-## [v1.23] — Process 3 Section A Routes & Draft Saving (Process 3 - Feature)
+## [v1.23] â€” Process 3 Section A Routes & Draft Saving (Process 3 - Feature)
 - **Built:** Routes and draft saving functionality for Process 3 Section A
 - **Purpose:** Enable SPED teachers to conduct assessments with auto-fill and draft saving
 - **Features:**
@@ -2706,12 +2757,12 @@
 - **Workflow:**
   1. SPED Teacher opens `/assessment/conduct`
   2. Selects verified student from dropdown
-  3. Clicks "Load Student Data" → Auto-fills Section A
+  3. Clicks "Load Student Data" â†’ Auto-fills Section A
   4. Reviews and edits auto-filled fields
   5. Checks applicable services
-  6. Clicks "Save Draft" → Draft saved to database
+  6. Clicks "Save Draft" â†’ Draft saved to database
   7. Can return later to continue from draft
-  8. Clicks "Save & Continue to Section B" → Proceeds to MDT table (next feature)
+  8. Clicks "Save & Continue to Section B" â†’ Proceeds to MDT table (next feature)
 - **Auto-Fill Behavior:**
   - All fields from student records auto-populate
   - Green background on auto-filled fields
@@ -2727,14 +2778,14 @@
   - Modified: `assessment_records` (added 3 columns)
   - Used: `assessment_checklists` (saves checked services)
 - **Tested:** Schema migration applied, ready for feature testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-07
 
 
 
 ---
 
-## [v1.24] — Process 3 Section B - Dynamic MDT Assessment Table (Process 3 - Feature)
+## [v1.24] â€” Process 3 Section B - Dynamic MDT Assessment Table (Process 3 - Feature)
 - **Built:** Complete Section B implementation with dynamic MDT table driven by checked services
 - **Purpose:** Enable SPED teachers to record MDT details and upload supporting documents per service
 - **Features:**
@@ -2780,8 +2831,8 @@
   3. Teacher adds MDT members (name + designation) for each service
   4. Teacher selects assessment date for each service
   5. Teacher uploads supporting document for each service (optional)
-  6. Teacher clicks "Save & Continue to Section B" → Form validates
-  7. If validation passes → Assessment saved as "finalized"
+  6. Teacher clicks "Save & Continue to Section B" â†’ Form validates
+  7. If validation passes â†’ Assessment saved as "finalized"
   8. Files uploaded to server and linked to service records
 - **Security:**
   - File type validation (jpg, png, pdf only)
@@ -2800,14 +2851,14 @@
   - `assessment_documents` - Stores uploaded files
   - `assessment_records` - Updated to "finalized" status
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-07
 
 
 
 ---
 
-## [v1.25] — Process 3 Assessment History View (Process 3 - Feature)
+## [v1.25] â€” Process 3 Assessment History View (Process 3 - Feature)
 - **Built:** Complete assessment history view showing all versions for a student
 - **Purpose:** Allow staff to view complete assessment history with all versions preserved
 - **Features:**
@@ -2879,14 +2930,14 @@
   - `assessment_documents` - Uploaded files
   - `student_records` - Student information
 - **Tested:** Ready for user testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-07
 
 
 
 ---
 
-## [v1.26] — Process 4 Availability Calendar (Process 4 - Feature Part 1)
+## [v1.26] â€” Process 4 Availability Calendar (Process 4 - Feature Part 1)
 - **Built:** Complete availability calendar system for IEP meeting scheduling
 - **Purpose:** Allow staff to set their availability so system can suggest meeting dates when all participants are available
 - **Features:**
@@ -2968,14 +3019,14 @@
 - **Tables Created:**
   - `user_availability` - Stores recurring and exception availability
 - **Tested:** Schema migration applied, ready for feature testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-07
 
 
 
 ---
 
-## [v1.27] — Process 4 Meeting Scheduling (Process 4 - Feature Part 2)
+## [v1.27] â€” Process 4 Meeting Scheduling (Process 4 - Feature Part 2)
 - **Built:** Complete IEP meeting scheduling system with availability-based suggestions
 - **Purpose:** Allow SPED Teachers to schedule IEP meetings with automatic participant notifications
 - **Features:**
@@ -3066,14 +3117,14 @@
   - `iep_meetings` - Meeting records
   - `meeting_notifications` - Notification tracking
 - **Tested:** Schema migration applied, ready for feature testing
-- **Status:** ✅ Complete - Ready for Testing
+- **Status:** âœ… Complete - Ready for Testing
 - **Date:** 2026-05-07
 
 
 
 ---
 
-## [v1.28] — Process 4 Part II PDSP Form Schema (Process 4 - Feature Part 3 Schema)
+## [v1.28] â€” Process 4 Part II PDSP Form Schema (Process 4 - Feature Part 3 Schema)
 - **Built:** Database schema for Part II PDSP (Present Developmental Status Profile) form
 - **Purpose:** Support DepEd SPED Part II assessment with domain-based evaluation and signature collection
 - **Schema Changes:**
@@ -3101,12 +3152,12 @@
   - Signature methods: getSignatures(), saveSignature(), checkCompletion()
   - Auto-completion trigger when all required signatures collected
 - **Features Enabled:**
-  - ✅ Domain-based assessment storage
-  - ✅ Signature collection and tracking
-  - ✅ Auto-completion when all signatures collected
-  - ✅ Meeting status update to 'completed'
-  - ✅ Versioning support (one PDSP per meeting)
-  - ✅ Ready for AI extraction feature (schema prepared)
+  - âœ… Domain-based assessment storage
+  - âœ… Signature collection and tracking
+  - âœ… Auto-completion when all signatures collected
+  - âœ… Meeting status update to 'completed'
+  - âœ… Versioning support (one PDSP per meeting)
+  - âœ… Ready for AI extraction feature (schema prepared)
 - **Required Signatures:**
   - SPED Teacher
   - General Education Teacher
@@ -3116,8 +3167,8 @@
   - Optional: Medical/Allied professionals (3 slots)
 - **Completion Trigger:**
   - When all 5 required signatures collected
-  - PDSP status → 'complete'
-  - Meeting status → 'completed'
+  - PDSP status â†’ 'complete'
+  - Meeting status â†’ 'completed'
   - Unlocks Process 5 (IEP Generation)
 - **Files Created:**
   - `app/Models/PDSPModel.php` - Complete PDSP model with 10+ methods
@@ -3127,8 +3178,9 @@
   - `pdsp_records` - Main PDSP data
   - `pdsp_domains` - Domain assessments (6 DepEd domains)
   - `pdsp_signatures` - Signature collection (8 signatory roles)
-- **Migration:** v1.28 applied successfully ✅
-- **Status:** ✅ Schema Complete - Ready for Form Implementation
+- **Migration:** v1.28 applied successfully âœ…
+- **Status:** âœ… Schema Complete - Ready for Form Implementation
 - **Date:** 2026-05-07
 - **Note:** Form UI and AI extraction feature to be implemented in next phase
+
 

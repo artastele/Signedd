@@ -1,7 +1,9 @@
 <?php
-// DO NOT ALTER WITHOUT APPROVAL — Security Module 3
-// Last modified: 2026-05-05
+// DO NOT ALTER WITHOUT APPROVAL — Process 3 (File Serving — All Processes)
+// Last modified: 2026-05-08
 // Part of: SPED LMS — Secure File Access with Decryption
+// Changes: Added 'assessment' and 'pdsp_document' type support;
+//          smart encrypt/plain detection (isEncrypted check)
 
 require_once __DIR__ . '/../Helpers/FileEncryptionHelper.php';
 
@@ -59,21 +61,33 @@ class FileController {
         
         if (!file_exists($filePath)) {
             http_response_code(404);
-            die('File not found on server');
+            die('File not found on server. Path: ' . $fileInfo['file_path']);
         }
         
-        // Decrypt file
-        try {
-            $decryptedContent = FileEncryptionHelper::decryptFile($filePath);
-            
-            if ($decryptedContent === false) {
+        // Determine if file is encrypted (enrollment docs are encrypted,
+        // assessment/pdsp docs are stored plain)
+        $isEncrypted = FileEncryptionHelper::isEncrypted($fileInfo['file_path']);
+        
+        if ($isEncrypted) {
+            // Decrypt and serve
+            try {
+                $fileContent = FileEncryptionHelper::decryptFile($filePath);
+                if ($fileContent === false) {
+                    http_response_code(500);
+                    die('Failed to decrypt file');
+                }
+            } catch (Exception $e) {
+                error_log('File decryption error: ' . $e->getMessage());
                 http_response_code(500);
                 die('Failed to decrypt file');
             }
-        } catch (Exception $e) {
-            error_log('File decryption error: ' . $e->getMessage());
-            http_response_code(500);
-            die('Failed to decrypt file');
+        } else {
+            // Serve plain file directly
+            $fileContent = file_get_contents($filePath);
+            if ($fileContent === false) {
+                http_response_code(500);
+                die('Failed to read file');
+            }
         }
         
         // Log file access
@@ -85,13 +99,13 @@ class FileController {
         
         // Set headers
         header('Content-Type: ' . $mimeType);
-        header('Content-Length: ' . strlen($decryptedContent));
+        header('Content-Length: ' . strlen($fileContent));
         header('Content-Disposition: ' . $disposition . '; filename="' . $originalName . '"');
         header('Cache-Control: private, max-age=3600');
         header('X-Content-Type-Options: nosniff');
         
-        // Output decrypted content
-        echo $decryptedContent;
+        // Output file content
+        echo $fileContent;
         exit;
     }
     
@@ -143,6 +157,40 @@ class FileController {
                 $stmt->execute(['id' => $id]);
                 return $stmt->fetch();
                 
+            case 'assessment':
+                // Assessment service documents (uploaded during Process 3)
+                // DB stores path as 'assessments/filename.pdf' (missing uploads/ prefix)
+                // Files are plain (not encrypted) in public/uploads/assessments/
+                $stmt = $this->db->prepare("
+                    SELECT ad.id,
+                           CASE
+                               WHEN ad.file_path LIKE 'uploads/%' THEN ad.file_path
+                               ELSE CONCAT('uploads/', ad.file_path)
+                           END as file_path,
+                           ad.original_name, ad.file_type,
+                           ar.student_id, ar.assessed_by,
+                           asv.assessment_id
+                    FROM assessment_documents ad
+                    JOIN assessment_services asv ON ad.assessment_service_id = asv.id
+                    JOIN assessment_records ar ON asv.assessment_id = ar.id
+                    WHERE ad.id = :id
+                ");
+                $stmt->execute(['id' => $id]);
+                return $stmt->fetch();
+
+            case 'pdsp_document':
+                // PDSP signed document (uploaded during Process 4)
+                $stmt = $this->db->prepare("
+                    SELECT pr.id,
+                           CONCAT('uploads/', pr.signed_document_path) as file_path,
+                           pr.student_id,
+                           CONCAT('PDSP_Meeting_', pr.meeting_id, '.pdf') as original_name
+                    FROM pdsp_records pr
+                    WHERE pr.id = :id
+                ");
+                $stmt->execute(['id' => $id]);
+                return $stmt->fetch();
+
             case 'iep_document':
                 $stmt = $this->db->prepare("
                     SELECT id.*, im.student_id, id.pdf_path as file_path,
@@ -248,7 +296,15 @@ class FileController {
                     return true;
                 }
                 return false;
-                
+
+            case 'assessment':
+                // SPED Teacher, Guidance, Principal can view assessment documents
+                return in_array($userRole, ['sped_teacher', 'guidance', 'principal']);
+
+            case 'pdsp_document':
+                // SPED Teacher, Guidance, Principal, Parent (read-only view)
+                return in_array($userRole, ['sped_teacher', 'guidance', 'principal', 'parent']);
+
             case 'iep_document':
                 // Parent, SPED Teacher, Guidance, Principal, Admin
                 if (in_array($userRole, ['parent', 'sped_teacher', 'guidance', 'principal'])) {
