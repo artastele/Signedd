@@ -15,83 +15,118 @@ require_once __DIR__ . '/../layouts/header.php';
 <div class="main-content">
     <h1 class="mb-4">Parent Dashboard</h1>
 
-    <!-- LRN Notification Alert (if learner account created) -->
+    <!-- Enrollment Approved Confirmation Cards -->
     <?php
-    // Check for enrollments with learner accounts created
-    $lrnNotifications = [];
-    foreach ($enrollments as $enrollment) {
-        if ($enrollment['learner_account_created'] && !empty($enrollment['lrn'])) {
-            // Check if notification was dismissed in this session
-            $dismissKey = 'lrn_dismissed_' . $enrollment['id'];
-            if (!isset($_SESSION[$dismissKey])) {
-                $lrnNotifications[] = $enrollment;
-            }
-        }
-    }
+    $verifiedEnrollments = array_filter($enrollments, function($e) {
+        return $e['learner_account_created'] && !empty($e['lrn']);
+    });
     ?>
 
-    <?php if (!empty($lrnNotifications)): ?>
-        <?php foreach ($lrnNotifications as $lrnEnrollment): ?>
-        <div class="alert alert-success alert-dismissible alert-permanent fade show mb-4" 
-             id="lrn-alert-<?php echo $lrnEnrollment['id']; ?>"
-             style="background: linear-gradient(135deg, #3b6d11 0%, #4a8514 100%); 
-                    border: none; 
-                    border-left: 5px solid #2d5409;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <button type="button" class="btn-close btn-close-white" 
-                    onclick="dismissLrnNotification(<?php echo $lrnEnrollment['id']; ?>)"></button>
-            
-            <div class="d-flex align-items-center">
-                <div class="me-3" style="font-size: 3rem;">
-                    <i class="bi bi-check-circle-fill text-white"></i>
+    <?php if (!empty($verifiedEnrollments)): ?>
+        <?php foreach ($verifiedEnrollments as $ve): ?>
+        <div class="card mb-4 lrn-confirm-card" id="lrn-card-<?php echo $ve['id']; ?>"
+             style="border: 1px solid #e0e0e0; border-top: 3px solid #a01422; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: opacity 0.6s ease, transform 0.6s ease;">
+            <div class="card-body py-3 px-4">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+
+                    <!-- Left: Status + Name -->
+                    <div class="d-flex align-items-center gap-3">
+                        <div style="width: 42px; height: 42px; background: #f0f7eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="bi bi-patch-check-fill" style="color: #3b6d11; font-size: 1.3rem;"></i>
+                        </div>
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="badge" style="background: #3b6d11; font-size: 0.7rem;">Enrolled</span>
+                                <small class="text-muted"><?php echo htmlspecialchars($ve['grade_level_to_enroll'] ?? ''); ?></small>
+                            </div>
+                            <h6 class="mb-0 fw-bold" style="color: #1e4072;">
+                                <?php echo htmlspecialchars($ve['first_name'] . ' ' . $ve['last_name']); ?>
+                            </h6>
+                        </div>
+                    </div>
+
+                    <!-- Middle: LRN -->
+                    <div class="text-center px-4" style="border-left: 1px solid #eee; border-right: 1px solid #eee;">
+                        <small class="text-muted d-block" style="font-size: 0.72rem;">LEARNER REFERENCE NUMBER</small>
+                        <span class="fw-bold" style="color: #a01422; font-size: 1.25rem; letter-spacing: 2px;">
+                            <?php echo htmlspecialchars($ve['lrn']); ?>
+                        </span>
+                    </div>
+
+                    <!-- Right: Credentials -->
+                    <div style="font-size: 0.83rem;">
+                        <div class="mb-1">
+                            <span class="text-muted">Username:</span>
+                            <strong style="color: #1e4072;"><?php echo htmlspecialchars($ve['lrn']); ?></strong>
+                        </div>
+                        <div class="mb-1">
+                            <span class="text-muted">Password:</span>
+                            <span class="badge" style="background: #a01422; font-size: 0.72rem;">
+                                <i class="bi bi-envelope me-1"></i>Sent to your email
+                            </span>
+                        </div>
+                        <div>
+                            <span class="text-muted">Login at:</span>
+                            <a href="<?php echo BASE_PATH; ?>/login" style="color: #a01422; font-size: 0.8rem;">
+                                <?php echo getenv('APP_URL') ?: 'SPED LMS'; ?>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Close button -->
+                    <button type="button"
+                            onclick="dismissLrnCard(<?php echo $ve['id']; ?>)"
+                            style="background: none; border: none; color: #bbb; font-size: 1.1rem; cursor: pointer; padding: 0; line-height: 1; align-self: flex-start;"
+                            title="Dismiss">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+
                 </div>
-                <div class="flex-grow-1 text-white">
-                    <h4 class="alert-heading mb-2">
-                        <i class="bi bi-person-check-fill"></i> Learner Account Created!
-                    </h4>
-                    <p class="mb-2">
-                        <strong><?php echo htmlspecialchars($lrnEnrollment['first_name'] . ' ' . $lrnEnrollment['last_name']); ?></strong>'s 
-                        enrollment has been verified and learner account is ready.
-                    </p>
-                    
-                    <div class="row mt-3">
-                        <div class="col-md-6 mb-2">
-                            <div class="card bg-white text-dark">
-                                <div class="card-body py-2">
-                                    <small class="text-muted d-block">Learner Reference Number (LRN)</small>
-                                    <h3 class="mb-0" style="color: #3b6d11; font-weight: bold; letter-spacing: 2px;">
-                                        <?php echo htmlspecialchars($lrnEnrollment['lrn']); ?>
-                                    </h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6 mb-2">
-                            <div class="card bg-white text-dark">
-                                <div class="card-body py-2">
-                                    <small class="text-muted d-block">Login Credentials</small>
-                                    <p class="mb-0">
-                                        <strong>Username:</strong> <?php echo htmlspecialchars($lrnEnrollment['lrn']); ?><br>
-                                        <small class="text-muted">Password sent to your email</small>
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <hr class="bg-white my-3">
-                    
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-info-circle me-2"></i>
-                        <small>
-                            Your child can now login using their <strong>LRN as username</strong>. 
-                            The temporary password was sent to your email. Please change it after first login.
-                        </small>
-                    </div>
+
+                <!-- Footer: countdown -->
+                <div class="mt-3 pt-2 d-flex align-items-center justify-content-between"
+                     style="border-top: 1px solid #f0f0f0; font-size: 0.78rem; color: #999;">
+                    <span>
+                        <i class="bi bi-info-circle me-1"></i>
+                        Use the LRN as username. Change the temporary password after first login.
+                    </span>
+                    <span class="lrn-countdown" id="countdown-<?php echo $ve['id']; ?>" style="color: #bbb; white-space: nowrap; margin-left: 12px;">
+                        Closing in 30s
+                    </span>
                 </div>
             </div>
         </div>
         <?php endforeach; ?>
     <?php endif; ?>
+
+    <script>
+    (function() {
+        document.querySelectorAll('.lrn-confirm-card').forEach(function(card) {
+            const id = card.id.replace('lrn-card-', '');
+            const countdownEl = document.getElementById('countdown-' + id);
+            let seconds = 30;
+
+            const interval = setInterval(function() {
+                seconds--;
+                if (countdownEl) countdownEl.textContent = 'Closing in ' + seconds + 's';
+                if (seconds <= 0) {
+                    clearInterval(interval);
+                    dismissLrnCard(id);
+                }
+            }, 1000);
+        });
+    })();
+
+    function dismissLrnCard(id) {
+        const card = document.getElementById('lrn-card-' + id);
+        if (!card) return;
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(-8px)';
+        setTimeout(function() {
+            card.style.display = 'none';
+        }, 600);
+    }
+    </script>
 
     <!-- Rejected Enrollment Alert (if any) -->
     <?php
@@ -278,31 +313,5 @@ require_once __DIR__ . '/../layouts/header.php';
     </div>
 </div>
 
-<script>
-function dismissLrnNotification(enrollmentId) {
-    // Send AJAX request to dismiss notification
-    fetch('<?php echo BASE_PATH; ?>/dashboard/dismiss-lrn-notification', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ enrollment_id: enrollmentId })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Hide the alert
-            const alert = document.getElementById('lrn-alert-' + enrollmentId);
-            if (alert) {
-                alert.classList.remove('show');
-                setTimeout(() => alert.remove(), 150);
-            }
-        }
-    })
-    .catch(error => {
-        console.error('Error dismissing notification:', error);
-    });
-}
-</script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

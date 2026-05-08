@@ -202,7 +202,12 @@ route('GET', '/iep/meetings/schedule', 'IEPMeetingController', 'schedule', 'iep.
 route('POST', '/iep/meetings/schedule', 'IEPMeetingController', 'createMeeting', 'iep.meeting');
 route('POST', '/iep/meetings/availability', 'IEPMeetingController', 'getAvailability', 'iep.meeting');
 route('GET', '/iep/meetings/{id}', 'IEPMeetingController', 'show', 'iep.meeting');
+route('POST', '/iep/meetings/{id}/update', 'IEPMeetingController', 'updateMeeting', 'iep.meeting');
+route('POST', '/iep/meetings/{id}/cancel', 'IEPMeetingController', 'cancelMeeting', 'iep.meeting');
 route('POST', '/iep/meetings/upload-calendar', 'IEPMeetingController', 'uploadCalendar', 'iep.meeting');
+
+// IEP Documents — Unified dashboard (replaces p2/review, p3/sign, approval)
+route('GET', '/iep/documents', 'IEPDocumentController', 'documents', 'iep.view');
 
 // IEP P2 Documents (Process 4)
 route('GET', '/iep/p2/review', 'IEPDocumentController', 'listP2ForReview', 'iep.view');

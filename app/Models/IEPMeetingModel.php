@@ -84,7 +84,7 @@ class IEPMeetingModel {
     public function getExceptions($userId, $startDate = null, $endDate = null) {
         try {
             $sql = "
-                SELECT specific_date, is_available
+                SELECT specific_date, is_available, note
                 FROM user_availability
                 WHERE user_id = :user_id AND type = 'exception'
             ";
@@ -98,14 +98,16 @@ class IEPMeetingModel {
             }
             
             $sql .= " ORDER BY specific_date";
-            
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
             $results = $stmt->fetchAll();
             
             $exceptions = [];
             foreach ($results as $row) {
-                $exceptions[$row['specific_date']] = (bool)$row['is_available'];
+                $exceptions[$row['specific_date']] = [
+                    'is_available' => (bool)$row['is_available'],
+                    'note' => $row['note'] ?? null
+                ];
             }
             
             return $exceptions;
@@ -118,9 +120,9 @@ class IEPMeetingModel {
 
     /**
      * Toggle exception date for a user
-     * If exception exists, delete it. If not, create it with opposite of recurring availability.
+     * Accepts optional note for task annotation
      */
-    public function toggleException($userId, $date, $isAvailable) {
+    public function toggleException($userId, $date, $isAvailable, $note = null) {
         try {
             // Check if exception already exists
             $stmt = $this->db->prepare("
@@ -131,25 +133,27 @@ class IEPMeetingModel {
             $existing = $stmt->fetch();
             
             if ($existing) {
-                // Delete existing exception
+                // Update existing exception
                 $stmt = $this->db->prepare("
-                    DELETE FROM user_availability
+                    UPDATE user_availability
+                    SET is_available = :is_available, note = :note
                     WHERE id = :id
                 ");
-                $stmt->execute(['id' => $existing['id']]);
-                error_log("Deleted exception for user $userId on $date");
+                $stmt->execute(['id' => $existing['id'], 'is_available' => $isAvailable, 'note' => $note]);
+                error_log("Updated exception for user $userId on $date (available: $isAvailable, note: $note)");
             } else {
                 // Create new exception
                 $stmt = $this->db->prepare("
-                    INSERT INTO user_availability (user_id, type, specific_date, is_available)
-                    VALUES (:user_id, 'exception', :date, :is_available)
+                    INSERT INTO user_availability (user_id, type, specific_date, is_available, note)
+                    VALUES (:user_id, 'exception', :date, :is_available, :note)
                 ");
                 $stmt->execute([
                     'user_id' => $userId,
                     'date' => $date,
-                    'is_available' => $isAvailable
+                    'is_available' => $isAvailable,
+                    'note' => $note
                 ]);
-                error_log("Created exception for user $userId on $date (available: $isAvailable)");
+                error_log("Created exception for user $userId on $date (available: $isAvailable, note: $note)");
             }
             
             return true;
@@ -175,12 +179,11 @@ class IEPMeetingModel {
             $exception = $stmt->fetch();
             
             if ($exception) {
-                // Exception overrides recurring
                 return (bool)$exception['is_available'];
             }
             
             // Check recurring availability
-            $dayOfWeek = date('w', strtotime($date)); // 0=Sunday, 6=Saturday
+            $dayOfWeek = date('w', strtotime($date));
             $stmt = $this->db->prepare("
                 SELECT is_available FROM user_availability
                 WHERE user_id = :user_id AND type = 'recurring' AND day_of_week = :day_of_week
@@ -192,7 +195,6 @@ class IEPMeetingModel {
                 return (bool)$recurring['is_available'];
             }
             
-            // Default: not available
             return false;
             
         } catch (Exception $e) {
@@ -273,12 +275,23 @@ class IEPMeetingModel {
      */
     public function create($data) {
         try {
+            // Combine meeting_date and meeting_time into a single DATETIME
+            // Schema has meeting_date as DATETIME — no separate meeting_time column
+            $meetingDate = $data['meeting_date'] ?? null;
+            $meetingTime = $data['meeting_time'] ?? null;
+            if ($meetingDate && $meetingTime) {
+                // Combine date + time into DATETIME string
+                $meetingDatetime = date('Y-m-d H:i:s', strtotime($meetingDate . ' ' . $meetingTime));
+            } else {
+                $meetingDatetime = $meetingDate;
+            }
+
             $stmt = $this->db->prepare("
                 INSERT INTO iep_meetings (
-                    student_id, assessment_id, scheduled_by, meeting_date, meeting_time,
+                    student_id, assessment_id, scheduled_by, meeting_date,
                     meeting_location, agenda, status, created_at, updated_at
                 ) VALUES (
-                    :student_id, :assessment_id, :scheduled_by, :meeting_date, :meeting_time,
+                    :student_id, :assessment_id, :scheduled_by, :meeting_date,
                     :meeting_location, :agenda, 'scheduled', NOW(), NOW()
                 )
             ");
@@ -287,8 +300,7 @@ class IEPMeetingModel {
                 'student_id' => $data['student_id'],
                 'assessment_id' => $data['assessment_id'] ?? null,
                 'scheduled_by' => $data['scheduled_by'],
-                'meeting_date' => $data['meeting_date'],
-                'meeting_time' => $data['meeting_time'],
+                'meeting_date' => $meetingDatetime,
                 'meeting_location' => $data['meeting_location'] ?? $data['venue'] ?? '',
                 'agenda' => $data['agenda_notes'] ?? $data['agenda'] ?? null
             ]);
@@ -337,11 +349,25 @@ class IEPMeetingModel {
                 $params['student_id'] = $filters['student_id'];
             }
             
-            if (!empty($filters['upcoming'])) {
-                $sql .= " AND m.meeting_date >= CURDATE()";
+            // Filter by parent — only show meetings for their children
+            if (!empty($filters['parent_id'])) {
+                $sql .= " AND s.enrollment_id IN (
+                    SELECT id FROM enrollment_submissions WHERE parent_id = :parent_id
+                )";
+                $params['parent_id'] = $filters['parent_id'];
             }
             
-            $sql .= " ORDER BY m.meeting_date DESC, m.meeting_time DESC";
+            // Upcoming = scheduled or rescheduled (active meetings)
+            if (!empty($filters['upcoming'])) {
+                $sql .= " AND m.status IN ('scheduled', 'rescheduled')";
+            }
+            
+            // Past = completed or cancelled
+            if (!empty($filters['past'])) {
+                $sql .= " AND m.status IN ('completed', 'cancelled')";
+            }
+            
+            $sql .= " ORDER BY m.meeting_date DESC";
             
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
@@ -391,7 +417,7 @@ class IEPMeetingModel {
             $fields = [];
             $params = ['id' => $meetingId];
             
-            $allowedFields = ['meeting_date', 'meeting_time', 'venue', 'online_link', 'agenda_notes', 'status', 'reschedule_reason'];
+            $allowedFields = ['meeting_date', 'meeting_location', 'agenda', 'status', 'reschedule_reason', 'notes'];
             
             foreach ($data as $key => $value) {
                 if (in_array($key, $allowedFields)) {
@@ -424,9 +450,13 @@ class IEPMeetingModel {
      */
     public function reschedule($meetingId, $newDate, $newTime, $reason) {
         try {
+            // Combine date + time into single DATETIME
+            $meetingDatetime = ($newDate && $newTime)
+                ? date('Y-m-d H:i:s', strtotime($newDate . ' ' . $newTime))
+                : $newDate;
+
             return $this->update($meetingId, [
-                'meeting_date' => $newDate,
-                'meeting_time' => $newTime,
+                'meeting_date' => $meetingDatetime,
                 'status' => 'rescheduled',
                 'reschedule_reason' => $reason
             ]);

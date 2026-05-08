@@ -13,7 +13,7 @@ function isActive($path) {
 // Check if any IEP Procedure link is active
 function isIEPProcedureActive() {
     global $currentPath, $basePath;
-    $iepPaths = ['/assessment/conduct', '/iep/meetings', '/iep/p2/', '/iep/p3/'];
+    $iepPaths = ['/assessment/conduct', '/iep/meetings', '/iep/p2/', '/iep/p3/', '/iep/documents'];
     foreach ($iepPaths as $path) {
         if (strpos($currentPath, $basePath . $path) === 0) {
             return true;
@@ -65,9 +65,9 @@ function isIEPProcedureActive() {
                 <i class="bi bi-calendar-check"></i>
                 <span>IEP Meetings</span>
             </a>
-            <a href="<?php echo $basePath; ?>/iep/p3/sign" class="<?php echo isActive('/iep/p3/sign'); ?>">
-                <i class="bi bi-pen"></i>
-                <span>Sign Final IEP</span>
+            <a href="<?php echo $basePath; ?>/iep/documents" class="<?php echo isActive('/iep/documents'); ?>">
+                <i class="bi bi-file-earmark-text"></i>
+                <span>Final IEP</span>
             </a>
             <a href="<?php echo $basePath; ?>/services" class="<?php echo isActive('/services'); ?>">
                 <i class="bi bi-grid-3x3-gap"></i>
@@ -133,13 +133,9 @@ function isIEPProcedureActive() {
                 <i class="bi bi-calendar-event"></i>
                 <span>IEP Meetings</span>
             </a>
-            <a href="<?php echo $basePath; ?>/iep/p2/review" class="<?php echo isActive('/iep/p2/review'); ?>">
-                <i class="bi bi-file-earmark-text"></i>
-                <span>PDSP Forms</span>
-            </a>
-            <a href="<?php echo $basePath; ?>/iep/p3/sign" class="<?php echo isActive('/iep/p3/sign'); ?>">
-                <i class="bi bi-pen"></i>
-                <span>Sign Final IEP</span>
+            <a href="<?php echo $basePath; ?>/iep/documents" class="<?php echo isActive('/iep/documents'); ?>">
+                <i class="bi bi-file-earmark-medical"></i>
+                <span>IEP Documents</span>
             </a>
 
         <?php elseif ($role === 'principal'): ?>
@@ -147,29 +143,17 @@ function isIEPProcedureActive() {
                 <i class="bi bi-calendar3"></i>
                 <span>My Availability</span>
             </a>
-            <a href="<?php echo $basePath; ?>/iep/approval" class="<?php echo isActive('/iep/approval'); ?>">
-                <i class="fas fa-check-circle"></i>
-                <span>IEP Approval Queue</span>
-            </a>
             <a href="<?php echo $basePath; ?>/iep/meetings" class="<?php echo isActive('/iep/meetings'); ?>">
                 <i class="bi bi-calendar-event"></i>
                 <span>IEP Meetings</span>
             </a>
-            <a href="<?php echo $basePath; ?>/iep/p2/review" class="<?php echo isActive('/iep/p2/review'); ?>">
-                <i class="bi bi-file-earmark-text"></i>
-                <span>PDSP Forms</span>
-            </a>
-            <a href="<?php echo $basePath; ?>/iep/p3/sign" class="<?php echo isActive('/iep/p3/sign'); ?>">
-                <i class="bi bi-pen"></i>
-                <span>Sign Final IEP</span>
+            <a href="<?php echo $basePath; ?>/iep/documents" class="<?php echo isActive('/iep/documents'); ?>">
+                <i class="bi bi-file-earmark-medical"></i>
+                <span>IEP Documents</span>
             </a>
             <a href="<?php echo $basePath; ?>/principal/staff-requests" class="<?php echo isActive('/principal/staff-requests'); ?>">
                 <i class="bi bi-person-check"></i>
                 <span>Staff Requests</span>
-            </a>
-            <a href="<?php echo $basePath; ?>/reports" class="<?php echo isActive('/reports'); ?>">
-                <i class="bi bi-bar-chart"></i>
-                <span>Reports</span>
             </a>
 
         <?php elseif ($role === 'master_teacher'): ?>

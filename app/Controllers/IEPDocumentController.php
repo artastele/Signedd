@@ -31,6 +31,143 @@ class IEPDocumentController {
     }
 
     /**
+     * Unified IEP Documents dashboard — replaces p2/review, p3/sign, approval
+     */
+    public function documents() {
+        try {
+            $db = Database::getInstance()->getConnection();
+            $role = $this->userRole;
+
+            // Allowed roles
+            if (!in_array($role, ['sped_teacher', 'guidance', 'principal', 'parent', 'admin'])) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied';
+                header('Location: ' . BASE_PATH . '/dashboard');
+                exit;
+            }
+
+            // --- P2 Documents ---
+            // For SPED Teacher: all P2 docs they created
+            // For Guidance/Principal: P2 docs pending their review
+            if ($role === 'sped_teacher' || $role === 'admin') {
+                $stmt = $db->prepare("
+                    SELECT p2.*, sr.student_name, sr.lrn, im.meeting_date
+                    FROM iep_p2_documents p2
+                    JOIN student_records sr ON p2.student_id = sr.id
+                    JOIN iep_meetings im ON p2.meeting_id = im.id
+                    WHERE p2.created_by = :uid
+                    ORDER BY p2.created_at DESC
+                ");
+                $stmt->execute(['uid' => $this->userId]);
+            } else {
+                $stmt = $db->prepare("
+                    SELECT p2.*, sr.student_name, sr.lrn, im.meeting_date
+                    FROM iep_p2_documents p2
+                    JOIN student_records sr ON p2.student_id = sr.id
+                    JOIN iep_meetings im ON p2.meeting_id = im.id
+                    WHERE p2.status = 'pending_review'
+                    ORDER BY p2.created_at DESC
+                ");
+                $stmt->execute();
+            }
+            $p2Documents = $stmt->fetchAll();
+
+            // --- P3 Documents ---
+            // For SPED Teacher: all P3 docs they created
+            // For Parent/Guidance/Principal: P3 docs pending their signature
+            if ($role === 'sped_teacher' || $role === 'admin') {
+                $stmt = $db->prepare("
+                    SELECT p3.*, sr.student_name, sr.lrn, im.meeting_date
+                    FROM iep_p3_documents p3
+                    JOIN student_records sr ON p3.student_id = sr.id
+                    JOIN iep_meetings im ON p3.meeting_id = im.id
+                    WHERE p3.created_by = :uid
+                    ORDER BY p3.created_at DESC
+                ");
+                $stmt->execute(['uid' => $this->userId]);
+            } elseif ($role === 'parent') {
+                // Parent: only P3 docs for their children
+                $stmt = $db->prepare("
+                    SELECT p3.*, sr.student_name, sr.lrn, im.meeting_date
+                    FROM iep_p3_documents p3
+                    JOIN student_records sr ON p3.student_id = sr.id
+                    JOIN iep_meetings im ON p3.meeting_id = im.id
+                    JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                    WHERE p3.status = 'pending_signatures'
+                    AND es.parent_id = :uid
+                    AND p3.id NOT IN (
+                        SELECT iep_p3_id FROM iep_p3_signatures WHERE signer_id = :uid2
+                    )
+                    ORDER BY p3.created_at DESC
+                ");
+                $stmt->execute(['uid' => $this->userId, 'uid2' => $this->userId]);
+            } else {
+                $stmt = $db->prepare("
+                    SELECT p3.*, sr.student_name, sr.lrn, im.meeting_date
+                    FROM iep_p3_documents p3
+                    JOIN student_records sr ON p3.student_id = sr.id
+                    JOIN iep_meetings im ON p3.meeting_id = im.id
+                    WHERE p3.status = 'pending_signatures'
+                    AND p3.id NOT IN (
+                        SELECT iep_p3_id FROM iep_p3_signatures WHERE signer_id = :uid
+                    )
+                    ORDER BY p3.created_at DESC
+                ");
+                $stmt->execute(['uid' => $this->userId]);
+            }
+            $p3Documents = $stmt->fetchAll();
+
+            // --- Approval Queue (Principal only) ---
+            $approvalDocuments = [];
+            if ($role === 'principal' || $role === 'admin') {
+                $stmt = $db->prepare("
+                    SELECT p3.*, sr.student_name, sr.lrn, u.name as created_by_name
+                    FROM iep_p3_documents p3
+                    JOIN student_records sr ON p3.student_id = sr.id
+                    JOIN users u ON p3.created_by = u.id
+                    WHERE p3.status = 'pending_signatures'
+                    ORDER BY p3.created_at DESC
+                ");
+                $stmt->execute();
+                $approvalDocuments = $stmt->fetchAll();
+                foreach ($approvalDocuments as &$doc) {
+                    $sigStmt = $db->prepare("
+                        SELECT signer_role FROM iep_p3_signatures WHERE iep_p3_id = :id
+                    ");
+                    $sigStmt->execute(['id' => $doc['id']]);
+                    $doc['signatures'] = $sigStmt->fetchAll(PDO::FETCH_COLUMN);
+                }
+            }
+
+            // --- Meetings for SPED Teacher (to create P2/P3) ---
+            $meetingsForCreation = [];
+            if ($role === 'sped_teacher' || $role === 'admin') {
+                $stmt = $db->prepare("
+                    SELECT im.*, sr.student_name, sr.lrn
+                    FROM iep_meetings im
+                    JOIN student_records sr ON im.student_id = sr.id
+                    WHERE im.scheduled_by = :uid
+                    AND im.status = 'completed'
+                    ORDER BY im.meeting_date DESC
+                ");
+                $stmt->execute(['uid' => $this->userId]);
+                $meetingsForCreation = $stmt->fetchAll();
+            }
+
+            $this->logActivity('iep_documents.view', 'iep_p3_documents', null, 'Viewed unified IEP documents dashboard');
+
+            $basePath = BASE_PATH;
+            require __DIR__ . '/../Views/iep/documents.php';
+
+        } catch (Exception $e) {
+            error_log("IEPDocumentController->documents() ERROR: " . $e->getMessage());
+            $_SESSION['error'] = 'Error loading IEP documents';
+            header('Location: ' . BASE_PATH . '/dashboard');
+            exit;
+        }
+    }
+
+    /**
      * List P2 documents for review
      */
     public function listP2ForReview() {
@@ -610,26 +747,50 @@ class IEPDocumentController {
             $p3 = $this->p3Model->findById($p3Id);
             if (!$p3) {
                 http_response_code(404);
-                echo "P3 document not found";
+                echo "IEP document not found";
                 return;
             }
-            
-            // Get user role for signature
-            $userRole = $this->userRole;
-            if ($userRole === 'user') {
-                $userRole = 'parent';
+
+            // All 4 required roles can view and sign
+            $allowedRoles = ['sped_teacher', 'parent', 'guidance', 'principal', 'admin'];
+            if (!in_array($this->userRole, $allowedRoles)) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied';
+                header('Location: ' . BASE_PATH . '/iep/documents');
+                exit;
             }
-            
-            $signatureStatus = $this->p3Model->getSignatureStatus($p3Id);
-            
-            $this->logActivity('iep_p3.sign_opened', 'iep_p3_documents', $p3Id, 'Opened P3 for signature');
-            
+
+            // Parent ownership check
+            if ($this->userRole === 'parent') {
+                $db = Database::getInstance()->getConnection();
+                $stmt = $db->prepare("
+                    SELECT COUNT(*) FROM student_records sr
+                    JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                    WHERE sr.id = :student_id AND es.parent_id = :parent_id
+                ");
+                $stmt->execute(['student_id' => $p3['student_id'], 'parent_id' => $this->userId]);
+                if ($stmt->fetchColumn() == 0) {
+                    http_response_code(403);
+                    $_SESSION['error'] = 'Access denied';
+                    header('Location: ' . BASE_PATH . '/iep/documents');
+                    exit;
+                }
+            }
+
+            // Get signature status as keyed array
+            $rawStatus = $this->p3Model->getSignatureStatus($p3Id);
+            $signatureStatus = $rawStatus; // passed as-is to view (view builds sigMap)
+
+            $this->logActivity('iep_p3.sign_opened', 'iep_p3_documents', $p3Id, 'Opened IEP for signature');
+
+            $basePath = BASE_PATH;
+            $p3Data = $p3;
             require __DIR__ . '/../Views/iep/p3_sign.php';
-            
+
         } catch (Exception $e) {
             error_log("IEPDocumentController->signP3() ERROR: " . $e->getMessage());
             http_response_code(500);
-            echo "Error loading signature page";
+            echo "Error loading IEP signature page";
         }
     }
 
@@ -637,33 +798,53 @@ class IEPDocumentController {
      * Submit P3 signature
      */
     public function submitP3Signature() {
+        header('Content-Type: application/json');
         try {
-            $p3Id = $_POST['p3_id'] ?? null;
+            $p3Id         = $_POST['p3_id'] ?? null;
             $signatureData = $_POST['signature_data'] ?? null;
-            $remarks = $_POST['remarks'] ?? null;
-            
+            $remarks      = $_POST['remarks'] ?? null;
+            $signerRole   = $_POST['signer_role'] ?? $this->userRole;
+
             if (!$p3Id || !$signatureData) {
                 echo json_encode(['success' => false, 'message' => 'Missing required fields']);
-                return;
+                exit;
             }
-            
-            $userRole = $this->userRole;
-            if ($userRole === 'user') {
-                $userRole = 'parent';
+
+            // Validate signer role is one of the 4 required
+            $allowed = ['sped_teacher', 'parent', 'guidance', 'principal'];
+            if (!in_array($signerRole, $allowed)) {
+                echo json_encode(['success' => false, 'message' => 'Your role is not a required signatory for this IEP']);
+                exit;
             }
-            
-            $this->p3Model->addSignature($p3Id, $this->userId, $userRole, $signatureData, $remarks);
-            
-            $this->logActivity('iep_p3.signed', 'iep_p3_documents', $p3Id, "Signed by: $userRole");
-            
-            echo json_encode([
-                'success' => true,
-                'message' => 'Document signed successfully'
-            ]);
-            
+
+            $this->p3Model->addSignature($p3Id, $this->userId, $signerRole, $signatureData, $remarks);
+
+            // Check if now fully signed — notify SPED Teacher
+            $p3 = $this->p3Model->findById($p3Id);
+            if (($p3['status'] ?? '') === 'signed_approved') {
+                require_once __DIR__ . '/../Models/NotificationModel.php';
+                $notifModel = new NotificationModel();
+                $db = Database::getInstance()->getConnection();
+                $stmt = $db->prepare("SELECT id FROM users WHERE role = 'sped_teacher' AND status = 'active'");
+                $stmt->execute();
+                foreach ($stmt->fetchAll() as $teacher) {
+                    $notifModel->create(
+                        $teacher['id'],
+                        'iep_fully_signed',
+                        'IEP Fully Signed',
+                        "The IEP for {$p3['student_name']} has been signed by all required parties.",
+                        ['p3_id' => $p3Id]
+                    );
+                }
+            }
+
+            $this->logActivity('iep_p3.signed', 'iep_p3_documents', $p3Id, "Signed IEP as: $signerRole");
+
+            echo json_encode(['success' => true, 'message' => 'Signature submitted successfully']);
+
         } catch (Exception $e) {
             error_log("IEPDocumentController->submitP3Signature() ERROR: " . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => 'Error signing document']);
+            echo json_encode(['success' => false, 'message' => 'Error submitting signature']);
         }
     }
 

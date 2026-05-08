@@ -140,13 +140,15 @@ class StudentModel {
             $passwordHash = password_hash($tempPassword, PASSWORD_BCRYPT);
             
             // Get parent email from enrollment
+            // Support both 'enrollment_id' and 'id' keys from the enrollment record
+            $enrollmentId = $enrollmentData['enrollment_id'] ?? $enrollmentData['id'] ?? null;
             $stmt = $this->db->prepare("
                 SELECT u.id, u.email, u.first_name, u.last_name
                 FROM enrollment_submissions es
                 JOIN users u ON es.parent_id = u.id
                 WHERE es.id = :enrollment_id
             ");
-            $stmt->execute(['enrollment_id' => $enrollmentData['enrollment_id']]);
+            $stmt->execute(['enrollment_id' => $enrollmentId]);
             $parent = $stmt->fetch();
             
             if (!$parent) {
@@ -507,13 +509,7 @@ class StudentModel {
                 u.name as parent_name,
                 u.email as parent_email
             FROM student_records sr
-            LEFT JOIN enrollment_submissions es ON sr.lrn = es.lrn 
-                AND es.id = (
-                    SELECT id FROM enrollment_submissions 
-                    WHERE lrn = sr.lrn 
-                    ORDER BY created_at DESC 
-                    LIMIT 1
-                )
+            LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
             LEFT JOIN users u ON es.parent_id = u.id
             ORDER BY sr.created_at DESC
         ");
@@ -521,7 +517,7 @@ class StudentModel {
     }
 
     /**
-     * Get all enrollments for a student by LRN
+     * Get all enrollments for a student by enrollment_id (primary) or LRN (fallback)
      */
     public function getEnrollmentsByLRN($lrn) {
         $stmt = $this->db->prepare("
@@ -533,7 +529,8 @@ class StudentModel {
             FROM enrollment_submissions es
             JOIN users u ON es.parent_id = u.id
             LEFT JOIN users verifier ON es.verified_by = verifier.id
-            WHERE es.lrn = :lrn AND es.is_draft = FALSE
+            JOIN student_records sr ON sr.enrollment_id = es.id
+            WHERE sr.lrn = :lrn AND es.is_draft = FALSE
             ORDER BY es.created_at DESC
         ");
         $stmt->execute(['lrn' => $lrn]);
@@ -548,17 +545,14 @@ class StudentModel {
             SELECT 
                 sr.*,
                 es.parent_id,
+                es.grade_level_to_enroll as current_grade_level,
+                es.school_year as latest_school_year,
+                es.status as enrollment_status,
                 u.name as parent_name,
                 u.email as parent_email,
                 u.contact_number
             FROM student_records sr
-            LEFT JOIN enrollment_submissions es ON sr.lrn = es.lrn
-                AND es.id = (
-                    SELECT id FROM enrollment_submissions 
-                    WHERE lrn = sr.lrn 
-                    ORDER BY created_at DESC 
-                    LIMIT 1
-                )
+            LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
             LEFT JOIN users u ON es.parent_id = u.id
             WHERE sr.id = :id
             LIMIT 1

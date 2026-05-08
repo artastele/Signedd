@@ -1,69 +1,53 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 4
-// Last modified: 2026-05-07
+// Last modified: 2026-05-08
 // Part of: SPED LMS — Availability Calendar View
 
 $pageTitle = 'My Availability - SPED LMS';
 require_once __DIR__ . '/../layouts/header.php';
 
 $monthName = date('F', mktime(0, 0, 0, $currentMonth, 1, $currentYear));
-$prevMonth = $currentMonth - 1;
-$prevYear = $currentYear;
+$prevMonth = $currentMonth - 1; $prevYear = $currentYear;
 if ($prevMonth < 1) { $prevMonth = 12; $prevYear--; }
-
-$nextMonth = $currentMonth + 1;
-$nextYear = $currentYear;
+$nextMonth = $currentMonth + 1; $nextYear = $currentYear;
 if ($nextMonth > 12) { $nextMonth = 1; $nextYear++; }
 ?>
 
 <body data-logged-in="true">
-
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
 
 <div class="main-content">
-    <h1 class="mb-4">
-        <i class="bi bi-calendar-check text-primary"></i> 
-        My Availability Calendar
-    </h1>
+    <h1 class="mb-2"><i class="bi bi-calendar-check"></i> My Availability Calendar</h1>
+    <p class="text-muted mb-4">Set your availability and add task notes to dates.</p>
 
-    <p class="text-muted mb-4">
-        Set your availability so the system can suggest meeting dates when all participants are available.
-    </p>
-
-    <!-- Weekly Schedule Panel -->
+    <!-- Weekly Schedule -->
     <div class="card mb-4">
-        <div class="card-header" style="background-color: #1e4072; color: white;">
-            <h5 class="mb-0">
-                <i class="bi bi-calendar-week"></i> Set Weekly Schedule
-            </h5>
+        <div class="card-header" style="background:#1e4072;color:white;">
+            <h5 class="mb-0"><i class="bi bi-calendar-week me-2"></i>Set Weekly Schedule</h5>
         </div>
         <div class="card-body">
-            <p class="text-muted small mb-3">
-                Select the days of the week you are regularly available for IEP meetings.
-            </p>
-            
+            <p class="text-muted small mb-3">Select the days you are regularly available for IEP meetings.</p>
             <form id="weeklyScheduleForm">
                 <div class="row">
                     <?php
-                    $daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                    foreach ($daysOfWeek as $index => $dayName):
-                        $isChecked = isset($recurringAvailability[$index]) && $recurringAvailability[$index];
+                    $daysOfWeek = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                    foreach ($daysOfWeek as $i => $day):
+                        $checked = isset($recurringAvailability[$i]) && $recurringAvailability[$i];
                     ?>
-                        <div class="col-md-3 col-sm-6 mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" 
-                                       name="days[]" value="<?php echo $index; ?>" 
-                                       id="day<?php echo $index; ?>"
-                                       <?php echo $isChecked ? 'checked' : ''; ?>>
-                                <label class="form-check-label" for="day<?php echo $index; ?>">
-                                    <strong><?php echo $dayName; ?></strong>
-                                </label>
-                            </div>
+                    <div class="col-md-3 col-sm-6 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   name="days[]" value="<?php echo $i; ?>"
+                                   id="day<?php echo $i; ?>"
+                                   <?php echo $checked ? 'checked' : ''; ?>>
+                            <label class="form-check-label fw-bold" for="day<?php echo $i; ?>">
+                                <?php echo $day; ?>
+                            </label>
                         </div>
+                    </div>
                     <?php endforeach; ?>
                 </div>
-                
                 <button type="submit" class="btn btn-primary mt-2">
                     <i class="bi bi-save"></i> Save Weekly Schedule
                 </button>
@@ -73,83 +57,69 @@ if ($nextMonth > 12) { $nextMonth = 1; $nextYear++; }
 
     <!-- Monthly Calendar -->
     <div class="card">
-        <div class="card-header" style="background-color: #1e4072; color: white;">
+        <div class="card-header" style="background:#1e4072;color:white;">
             <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="bi bi-calendar3"></i> 
-                    <?php echo $monthName . ' ' . $currentYear; ?>
-                </h5>
-                <div>
-                    <a href="?year=<?php echo $prevYear; ?>&month=<?php echo $prevMonth; ?>" 
-                       class="btn btn-sm btn-light">
-                        <i class="bi bi-chevron-left"></i> Previous
+                <h5 class="mb-0"><i class="bi bi-calendar3 me-2"></i><?php echo $monthName . ' ' . $currentYear; ?></h5>
+                <div class="d-flex gap-1">
+                    <a href="?year=<?php echo $prevYear; ?>&month=<?php echo $prevMonth; ?>" class="btn btn-sm btn-light">
+                        <i class="bi bi-chevron-left"></i>
                     </a>
-                    <a href="?year=<?php echo date('Y'); ?>&month=<?php echo date('m'); ?>" 
-                       class="btn btn-sm btn-light">
-                        Today
-                    </a>
-                    <a href="?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>" 
-                       class="btn btn-sm btn-light">
-                        Next <i class="bi bi-chevron-right"></i>
+                    <a href="?year=<?php echo date('Y'); ?>&month=<?php echo date('m'); ?>" class="btn btn-sm btn-light">Today</a>
+                    <a href="?year=<?php echo $nextYear; ?>&month=<?php echo $nextMonth; ?>" class="btn btn-sm btn-light">
+                        <i class="bi bi-chevron-right"></i>
                     </a>
                 </div>
             </div>
         </div>
         <div class="card-body p-0">
             <!-- Legend -->
-            <div class="p-3 border-bottom">
-                <div class="row text-center small">
-                    <div class="col">
-                        <span class="badge" style="background-color: #1e4072;">Available</span>
-                    </div>
-                    <div class="col">
-                        <span class="badge bg-secondary">Unavailable</span>
-                    </div>
-                    <div class="col">
-                        <span class="badge" style="background-color: #a01422;">
-                            <i class="bi bi-circle-fill" style="font-size: 8px;"></i> Exception
-                        </span>
-                    </div>
-                    <div class="col">
-                        <span class="badge" style="background-color: #ffc107; color: #000;">Today</span>
-                    </div>
-                </div>
+            <div class="p-3 border-bottom d-flex gap-3 flex-wrap small">
+                <span><span class="badge" style="background:#1e4072;">■</span> Available</span>
+                <span><span class="badge bg-secondary">■</span> Unavailable</span>
+                <span><span style="color:#a01422;">●</span> Exception override</span>
+                <span><span style="color:#3b6d11;">📅</span> IEP Meeting scheduled</span>
+                <span><span style="color:#ffc107;">■</span> Today</span>
             </div>
 
-            <!-- Calendar Grid -->
-            <table class="table table-bordered mb-0 calendar-table">
+            <table class="table table-bordered mb-0" style="table-layout:fixed;">
                 <thead>
                     <tr>
-                        <th class="text-center">Sun</th>
-                        <th class="text-center">Mon</th>
-                        <th class="text-center">Tue</th>
-                        <th class="text-center">Wed</th>
-                        <th class="text-center">Thu</th>
-                        <th class="text-center">Fri</th>
-                        <th class="text-center">Sat</th>
+                        <?php foreach (['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] as $d): ?>
+                        <th class="text-center py-2" style="background:#f5f5f5;"><?php echo $d; ?></th>
+                        <?php endforeach; ?>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($calendarData as $week): ?>
-                        <tr>
-                            <?php foreach ($week as $dayData): ?>
-                                <?php if ($dayData === null): ?>
-                                    <td class="calendar-day empty"></td>
-                                <?php else: ?>
-                                    <td class="calendar-day <?php echo $dayData['is_available'] ? 'available' : 'unavailable'; ?> 
-                                               <?php echo $dayData['is_today'] ? 'today' : ''; ?>"
-                                        data-date="<?php echo $dayData['date']; ?>"
-                                        onclick="toggleDate('<?php echo $dayData['date']; ?>', <?php echo $dayData['is_available'] ? 'false' : 'true'; ?>)">
-                                        <div class="day-number"><?php echo $dayData['day']; ?></div>
-                                        <?php if ($dayData['is_exception']): ?>
-                                            <div class="exception-indicator">
-                                                <i class="bi bi-circle-fill"></i>
-                                            </div>
-                                        <?php endif; ?>
-                                    </td>
+                    <tr>
+                        <?php foreach ($week as $day): ?>
+                        <?php if ($day === null): ?>
+                            <td style="background:#fafafa;height:90px;"></td>
+                        <?php else: ?>
+                            <td class="calendar-day p-1"
+                                style="height:90px;vertical-align:top;cursor:pointer;position:relative;
+                                       background:<?php echo $day['is_available'] ? '#e7f1ff' : '#f8f9fa'; ?>;
+                                       border-left:3px solid <?php echo $day['is_available'] ? '#1e4072' : '#dee2e6'; ?>;
+                                       <?php echo $day['is_today'] ? 'outline:2px solid #ffc107;' : ''; ?>"
+                                onclick="openDayModal('<?php echo $day['date']; ?>', <?php echo $day['is_available'] ? 'true' : 'false'; ?>, '<?php echo htmlspecialchars(addslashes($day['note'] ?? ''), ENT_QUOTES); ?>')">
+                                <div class="fw-bold" style="font-size:15px;"><?php echo $day['day']; ?></div>
+                                <?php if ($day['is_exception']): ?>
+                                    <div style="position:absolute;top:4px;right:4px;color:#a01422;font-size:10px;">●</div>
                                 <?php endif; ?>
-                            <?php endforeach; ?>
-                        </tr>
+                                <?php if (!empty($day['iep_meeting'])): ?>
+                                    <div class="mt-1 p-1 rounded small" style="background:#e8f5e9;color:#3b6d11;font-size:0.7rem;line-height:1.2;">
+                                        <i class="bi bi-calendar-event"></i>
+                                        <?php echo htmlspecialchars($day['iep_meeting']); ?>
+                                    </div>
+                                <?php elseif (!empty($day['note'])): ?>
+                                    <div class="mt-1 p-1 rounded small" style="background:#fff3cd;color:#856404;font-size:0.7rem;line-height:1.2;">
+                                        <?php echo htmlspecialchars($day['note']); ?>
+                                    </div>
+                                <?php endif; ?>
+                            </td>
+                        <?php endif; ?>
+                        <?php endforeach; ?>
+                    </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
@@ -157,121 +127,121 @@ if ($nextMonth > 12) { $nextMonth = 1; $nextYear++; }
     </div>
 
     <div class="alert alert-info mt-4">
-        <i class="bi bi-info-circle"></i> 
-        <strong>How it works:</strong>
-        <ul class="mb-0 mt-2">
-            <li>Set your regular weekly schedule above (e.g., available every Monday, Wednesday, Friday)</li>
-            <li>Click any date in the calendar to create an exception (override your regular schedule for that specific date)</li>
-            <li>Exception dates are marked with a crimson dot</li>
-            <li>The system will suggest meeting dates when SPED Teacher, Guidance, and Principal are all available</li>
-        </ul>
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>Tip:</strong> Click any date to toggle availability or add a task note.
+        IEP meeting dates are automatically marked in green.
     </div>
 </div>
 
-<style>
-.calendar-table {
-    table-layout: fixed;
-}
-.calendar-table th {
-    background-color: #f8f9fa;
-    font-weight: 600;
-    padding: 12px;
-}
-.calendar-day {
-    height: 80px;
-    vertical-align: top;
-    padding: 8px;
-    cursor: pointer;
-    position: relative;
-    transition: all 0.2s;
-}
-.calendar-day.empty {
-    background-color: #f8f9fa;
-    cursor: default;
-}
-.calendar-day.available {
-    background-color: #e7f1ff;
-    border-left: 3px solid #1e4072;
-}
-.calendar-day.unavailable {
-    background-color: #f8f9fa;
-}
-.calendar-day.today {
-    border: 2px solid #ffc107;
-}
-.calendar-day:not(.empty):hover {
-    background-color: #d4e9ff;
-    transform: scale(1.02);
-}
-.day-number {
-    font-weight: 600;
-    font-size: 16px;
-}
-.exception-indicator {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    color: #a01422;
-    font-size: 10px;
-}
-.form-check-input:checked {
-    background-color: #1e4072;
-    border-color: #1e4072;
-}
-</style>
+<!-- Day Modal -->
+<div class="modal fade" id="dayModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#1e4072;color:white;">
+                <h6 class="modal-title mb-0" id="dayModalTitle">Date</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="modalDate">
+                <input type="hidden" id="modalCurrentAvail">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold small">Availability</label>
+                    <div class="d-flex gap-2">
+                        <button type="button" id="btnAvail"
+                                class="btn btn-sm flex-fill"
+                                style="background:#1e4072;color:white;"
+                                onclick="setAvail(true)">
+                            <i class="bi bi-check-circle"></i> Available
+                        </button>
+                        <button type="button" id="btnUnavail"
+                                class="btn btn-sm flex-fill btn-outline-secondary"
+                                onclick="setAvail(false)">
+                            <i class="bi bi-x-circle"></i> Unavailable
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold small">Task / Note <span class="text-muted fw-normal">(optional)</span></label>
+                    <input type="text" class="form-control form-control-sm" id="modalNote"
+                           placeholder="e.g. Faculty meeting, Holiday...">
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm text-white" style="background:#a01422;" onclick="saveDay()">
+                    <i class="bi bi-save"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
 // Save weekly schedule
 document.getElementById('weeklyScheduleForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    
-    const formData = new FormData(this);
-    
     fetch('<?php echo $basePath; ?>/iep/availability/save-recurring', {
-        method: 'POST',
-        body: formData
+        method: 'POST', body: new FormData(this)
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Weekly schedule saved successfully! Refreshing calendar...');
-            window.location.reload();
-        } else {
-            alert('Error: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error saving weekly schedule');
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) { location.reload(); }
+        else { alert('Error: ' + d.message); }
     });
 });
 
-// Toggle exception date
-function toggleDate(date, makeAvailable) {
-    if (!confirm('Toggle availability for ' + date + '?')) {
-        return;
+let pendingAvail = null;
+
+function openDayModal(date, isAvailable, note) {
+    pendingAvail = isAvailable;
+    document.getElementById('modalDate').value = date;
+    document.getElementById('modalCurrentAvail').value = isAvailable ? '1' : '0';
+    document.getElementById('modalNote').value = note || '';
+    document.getElementById('dayModalTitle').textContent = formatDate(date);
+    updateAvailButtons(isAvailable);
+    new bootstrap.Modal(document.getElementById('dayModal')).show();
+}
+
+function setAvail(val) {
+    pendingAvail = val;
+    updateAvailButtons(val);
+}
+
+function updateAvailButtons(isAvail) {
+    const btnA = document.getElementById('btnAvail');
+    const btnU = document.getElementById('btnUnavail');
+    if (isAvail) {
+        btnA.style.background = '#1e4072'; btnA.style.color = 'white'; btnA.className = 'btn btn-sm flex-fill';
+        btnU.style.background = ''; btnU.style.color = ''; btnU.className = 'btn btn-sm flex-fill btn-outline-secondary';
+    } else {
+        btnU.style.background = '#a01422'; btnU.style.color = 'white'; btnU.className = 'btn btn-sm flex-fill';
+        btnA.style.background = ''; btnA.style.color = ''; btnA.className = 'btn btn-sm flex-fill btn-outline-secondary';
     }
-    
-    const formData = new FormData();
-    formData.append('date', date);
-    formData.append('is_available', makeAvailable ? '1' : '0');
-    
+}
+
+function saveDay() {
+    const date = document.getElementById('modalDate').value;
+    const note = document.getElementById('modalNote').value;
+    const fd = new FormData();
+    fd.append('date', date);
+    fd.append('is_available', pendingAvail ? '1' : '0');
+    fd.append('note', note);
+
     fetch('<?php echo $basePath; ?>/iep/availability/toggle-exception', {
-        method: 'POST',
-        body: formData
+        method: 'POST', body: fd
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            window.location.reload();
-        } else {
-            alert('Error: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error toggling date');
+    .then(r => r.json())
+    .then(d => {
+        if (d.success) { location.reload(); }
+        else { alert('Error: ' + d.message); }
     });
+}
+
+function formatDate(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 }
 </script>
 

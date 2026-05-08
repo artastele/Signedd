@@ -146,8 +146,21 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">School Year <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control auto-fill-field" name="school_year" id="school_year" 
-                               value="<?php echo htmlspecialchars($studentData['school_year'] ?? ''); ?>" required>
+                        <?php
+                        $currentYear = (int)date('Y');
+                        $syOptions = [];
+                        for ($y = $currentYear - 2; $y <= $currentYear + 1; $y++) {
+                            $syOptions[] = $y . '-' . ($y + 1);
+                        }
+                        $selectedSY = $studentData['school_year'] ?? ($currentYear . '-' . ($currentYear + 1));
+                        ?>
+                        <select class="form-select auto-fill-field" name="school_year" id="school_year" required>
+                            <?php foreach ($syOptions as $sy): ?>
+                                <option value="<?php echo $sy; ?>" <?php echo $selectedSY === $sy ? 'selected' : ''; ?>>
+                                    <?php echo $sy; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                 </div>
 
@@ -221,8 +234,20 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label">Grade Level</label>
-                        <input type="text" class="form-control auto-fill-field" name="previous_grade_level" id="previous_grade_level" 
-                               value="<?php echo htmlspecialchars($studentData['previous_grade_level'] ?? ''); ?>">
+                        <?php
+                        $gradeLevels = ['Kinder', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+                                        'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12',
+                                        'SPED Program'];
+                        $selectedGL = $studentData['previous_grade_level'] ?? '';
+                        ?>
+                        <select class="form-select auto-fill-field" name="previous_grade_level" id="previous_grade_level">
+                            <option value="">-- Select --</option>
+                            <?php foreach ($gradeLevels as $gl): ?>
+                                <option value="<?php echo $gl; ?>" <?php echo $selectedGL === $gl ? 'selected' : ''; ?>>
+                                    <?php echo $gl; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label">School Year</label>
@@ -813,6 +838,23 @@ document.getElementById('assessmentForm').addEventListener('submit', function(e)
         alert('Please select a student first');
         return false;
     }
+    
+    // Re-attach files from uploadedFiles JS array back into the file inputs
+    // (they were cleared from inputs after selection to allow re-selection)
+    Object.keys(uploadedFiles).forEach(serviceName => {
+        const files = uploadedFiles[serviceName];
+        if (!files || files.length === 0) return;
+        const serviceId = sanitizeId(serviceName);
+        const input = document.getElementById(`file-${serviceId}`);
+        if (!input) return;
+        try {
+            const dt = new DataTransfer();
+            files.forEach(file => dt.items.add(file));
+            input.files = dt.files;
+        } catch (err) {
+            console.warn('DataTransfer not supported, files may not upload:', err);
+        }
+    });
     
     // Check if "With Support Services?" is "Yes"
     const withServices = document.getElementById('with_support_services').value;

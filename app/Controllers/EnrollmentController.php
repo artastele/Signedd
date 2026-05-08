@@ -767,9 +767,9 @@ class EnrollmentController {
             
             // Learner Information
             'lrn' => $post['lrn'] ?? null,
-            'last_name' => $post['last_name'] ?? '',
-            'first_name' => $post['first_name'] ?? '',
-            'middle_name' => $post['middle_name'] ?? null,
+            'last_name' => strtoupper(trim($post['last_name'] ?? '')),
+            'first_name' => strtoupper(trim($post['first_name'] ?? '')),
+            'middle_name' => $post['middle_name'] ? strtoupper(trim($post['middle_name'])) : null,
             'extension_name' => $post['extension_name'] ?? null,
             'birth_date' => $post['birth_date'] ?? null,
             'sex' => $post['sex'] ?? '',
@@ -809,17 +809,17 @@ class EnrollmentController {
             'permanent_zip_code' => $post['permanent_zip_code'] ?? null,
             
             // Parent/Guardian Info
-            'father_last_name' => $post['father_last_name'] ?? null,
-            'father_first_name' => $post['father_first_name'] ?? null,
-            'father_middle_name' => $post['father_middle_name'] ?? null,
+            'father_last_name' => $post['father_last_name'] ? strtoupper(trim($post['father_last_name'])) : null,
+            'father_first_name' => $post['father_first_name'] ? strtoupper(trim($post['father_first_name'])) : null,
+            'father_middle_name' => $post['father_middle_name'] ? strtoupper(trim($post['father_middle_name'])) : null,
             'father_contact_number' => $post['father_contact_number'] ?? null,
-            'mother_maiden_last_name' => $post['mother_maiden_last_name'] ?? null,
-            'mother_first_name' => $post['mother_first_name'] ?? null,
-            'mother_middle_name' => $post['mother_middle_name'] ?? null,
+            'mother_maiden_last_name' => $post['mother_maiden_last_name'] ? strtoupper(trim($post['mother_maiden_last_name'])) : null,
+            'mother_first_name' => $post['mother_first_name'] ? strtoupper(trim($post['mother_first_name'])) : null,
+            'mother_middle_name' => $post['mother_middle_name'] ? strtoupper(trim($post['mother_middle_name'])) : null,
             'mother_contact_number' => $post['mother_contact_number'] ?? null,
-            'guardian_last_name' => $post['guardian_last_name'] ?? null,
-            'guardian_first_name' => $post['guardian_first_name'] ?? null,
-            'guardian_middle_name' => $post['guardian_middle_name'] ?? null,
+            'guardian_last_name' => $post['guardian_last_name'] ? strtoupper(trim($post['guardian_last_name'])) : null,
+            'guardian_first_name' => $post['guardian_first_name'] ? strtoupper(trim($post['guardian_first_name'])) : null,
+            'guardian_middle_name' => $post['guardian_middle_name'] ? strtoupper(trim($post['guardian_middle_name'])) : null,
             'guardian_contact_number' => $post['guardian_contact_number'] ?? null,
             
             // Previous School

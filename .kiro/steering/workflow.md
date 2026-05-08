@@ -7,6 +7,39 @@ inclusion: always
 ## Core rule: one feature at a time
 This applies to BOTH DFD processes AND security modules. No exceptions. Never bundle features.
 
+## ⛔ LOCKED — Processes 1, 2, 3 & 4 (100% Complete — Do Not Touch)
+The following files are LOCKED and must NOT be modified without explicit user approval:
+
+**Process 1 — Enrollment Submission (Parent)**
+- `app/Controllers/EnrollmentController.php`
+- `app/Models/EnrollmentModel.php`
+- `app/Views/enrollment/` (all files)
+- `app/Views/dashboard/parent.php`
+
+**Process 2 — Enrollment Verification (SPED Teacher)**
+- `app/Controllers/VerificationController.php`
+- `app/Models/StudentModel.php`
+- `app/Views/verification/` (all files)
+- `app/Views/students/` (all files)
+
+**Process 3 — Initial Assessment (SPED Teacher)**
+- `app/Controllers/AssessmentController.php`
+- `app/Models/AssessmentModel.php`
+- `app/Models/AssessmentServiceModel.php`
+- `app/Views/assessment/` (all files)
+
+**Process 4 — IEP Meeting (SPED Teacher, Guidance, Principal)**
+- `app/Controllers/IEPMeetingController.php`
+- `app/Models/IEPMeetingModel.php`
+- `app/Models/PDSPModel.php`
+- `app/Views/iep_meeting/` (all files)
+
+**Rules:**
+- If a bug is found in Processes 1, 2, 3, or 4: **describe it to the user first, wait for explicit approval, then fix.**
+- Never silently edit these files as part of another feature's work.
+- Never touch these files during Process 5, 6, or 7 work.
+- Schema changes that affect these processes must also be approved first.
+
 ## Documentation rule: minimize MD files
 - **DO NOT** create temporary/redundant MD files (e.g., PART-A-SUMMARY.md, FIX-SUMMARY.md, etc.)
 - **DO NOT** create test PHP files unless explicitly requested by user

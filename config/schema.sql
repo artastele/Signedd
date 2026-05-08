@@ -311,12 +311,12 @@ CREATE TABLE IF NOT EXISTS iep_meetings (
     agenda TEXT,
     guidance_id INT,
     principal_id INT,
-    status ENUM('scheduled', 'completed', 'cancelled') DEFAULT 'scheduled',
+    status ENUM('scheduled', 'rescheduled', 'completed', 'cancelled') DEFAULT 'scheduled',
     notes TEXT,
+    cancellation_reason TEXT,
     scheduled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMP NULL,
     cancelled_at TIMESTAMP NULL,
-    cancellation_reason TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
@@ -755,9 +755,27 @@ PREPARE alterIfNotExists FROM @preparedStatement;
 EXECUTE alterIfNotExists;
 DEALLOCATE PREPARE alterIfNotExists;
 
--- Add indexes
-CREATE INDEX IF NOT EXISTS idx_deleted_at ON users(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_locked_until ON users(locked_until);
+-- Add indexes (using INFORMATION_SCHEMA check for MariaDB compatibility)
+SET @dbname = DATABASE();
+SET @preparedStatement = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'users' AND INDEX_NAME = 'idx_deleted_at') > 0,
+    'SELECT 1',
+    'CREATE INDEX idx_deleted_at ON users(deleted_at)'
+));
+PREPARE createIndexIfNotExists FROM @preparedStatement;
+EXECUTE createIndexIfNotExists;
+DEALLOCATE PREPARE createIndexIfNotExists;
+
+SET @preparedStatement = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'users' AND INDEX_NAME = 'idx_locked_until') > 0,
+    'SELECT 1',
+    'CREATE INDEX idx_locked_until ON users(locked_until)'
+));
+PREPARE createIndexIfNotExists FROM @preparedStatement;
+EXECUTE createIndexIfNotExists;
+DEALLOCATE PREPARE createIndexIfNotExists;
 
 -- Mark migration as applied
 INSERT IGNORE INTO db_version (version) VALUES (22);
@@ -912,11 +930,21 @@ INSERT IGNORE INTO db_version (version) VALUES (23);
 -- MIGRATION: v1.23 - Process 3 Section A Data Columns
 -- ============================================
 
--- Add columns for Process 3 Section A data storage
-ALTER TABLE assessment_records 
-ADD COLUMN IF NOT EXISTS section_a_data JSON AFTER assessment_info,
-ADD COLUMN IF NOT EXISTS services_checked JSON AFTER section_a_data,
-ADD COLUMN IF NOT EXISTS screening_types JSON AFTER services_checked;
+-- Add columns for Process 3 Section A data storage (MariaDB-compatible)
+SET @dbname = DATABASE();
+SET @tbl = 'assessment_records';
+
+SET @col = 'section_a_data';
+SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME=@tbl AND COLUMN_NAME=@col)>0,'SELECT 1',CONCAT('ALTER TABLE ',@tbl,' ADD COLUMN ',@col,' JSON AFTER assessment_info')));
+PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
+
+SET @col = 'services_checked';
+SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME=@tbl AND COLUMN_NAME=@col)>0,'SELECT 1',CONCAT('ALTER TABLE ',@tbl,' ADD COLUMN ',@col,' JSON AFTER section_a_data')));
+PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
+
+SET @col = 'screening_types';
+SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME=@tbl AND COLUMN_NAME=@col)>0,'SELECT 1',CONCAT('ALTER TABLE ',@tbl,' ADD COLUMN ',@col,' JSON AFTER services_checked')));
+PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
 
 -- Mark migration as applied
 INSERT IGNORE INTO db_version (version) VALUES (24);
@@ -1051,9 +1079,16 @@ INSERT IGNORE INTO db_version (version) VALUES (27);
 -- MIGRATION: v1.29 - Add conducted_by column to assessment_records
 -- ============================================
 
-ALTER TABLE assessment_records 
-ADD COLUMN IF NOT EXISTS conducted_by INT AFTER assessed_by,
-ADD FOREIGN KEY IF NOT EXISTS (conducted_by) REFERENCES users(id) ON DELETE SET NULL;
+-- Add conducted_by column (MariaDB-compatible)
+SET @dbname = DATABASE();
+SET @col = 'conducted_by';
+SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='assessment_records' AND COLUMN_NAME=@col)>0,'SELECT 1','ALTER TABLE assessment_records ADD COLUMN conducted_by INT AFTER assessed_by'));
+PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
+
+-- Add FK for conducted_by only if column was just created and FK doesn't exist
+SET @fkExists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='assessment_records' AND COLUMN_NAME='conducted_by' AND REFERENCED_TABLE_NAME='users');
+SET @preparedStatement = (SELECT IF(@fkExists>0,'SELECT 1','ALTER TABLE assessment_records ADD FOREIGN KEY (conducted_by) REFERENCES users(id) ON DELETE SET NULL'));
+PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
 
 -- Mark migration as applied
 INSERT IGNORE INTO db_version (version) VALUES (28);
@@ -1065,8 +1100,11 @@ INSERT IGNORE INTO db_version (version) VALUES (28);
 -- MIGRATION: v1.30 - Add updated_at column to assessment_records
 -- ============================================
 
-ALTER TABLE assessment_records 
-ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at;
+-- Add updated_at to assessment_records (MariaDB-compatible)
+SET @dbname = DATABASE();
+SET @col = 'updated_at';
+SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='assessment_records' AND COLUMN_NAME=@col)>0,'SELECT 1','ALTER TABLE assessment_records ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at'));
+PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
 
 -- Mark migration as applied
 INSERT IGNORE INTO db_version (version) VALUES (29);
@@ -1094,18 +1132,26 @@ INSERT IGNORE INTO db_version (version) VALUES (30);
 -- Drop pdsp_signatures table (no longer needed - using handwritten document upload instead)
 DROP TABLE IF EXISTS pdsp_signatures;
 
--- Add signed_document_path and signatories columns to pdsp_records
-ALTER TABLE pdsp_records 
-ADD COLUMN IF NOT EXISTS signed_document_path VARCHAR(255) AFTER status,
-ADD COLUMN IF NOT EXISTS signatories TEXT AFTER signed_document_path;
+-- Add signed_document_path and signatories columns to pdsp_records (MariaDB-compatible)
+SET @dbname = DATABASE();
+
+SET @col = 'signed_document_path';
+SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='pdsp_records' AND COLUMN_NAME=@col)>0,'SELECT 1','ALTER TABLE pdsp_records ADD COLUMN signed_document_path VARCHAR(255) AFTER status'));
+PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
+
+SET @col = 'signatories';
+SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='pdsp_records' AND COLUMN_NAME=@col)>0,'SELECT 1','ALTER TABLE pdsp_records ADD COLUMN signatories TEXT AFTER signed_document_path'));
+PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
 
 -- Update status enum to use 'signed' instead of 'complete'
 ALTER TABLE pdsp_records 
 MODIFY COLUMN status ENUM('draft', 'signed') DEFAULT 'draft';
 
--- Remove ai_extracted column (not needed for this flow)
-ALTER TABLE pdsp_records 
-DROP COLUMN IF EXISTS ai_extracted;
+-- Remove ai_extracted column if it exists (MariaDB-compatible)
+SET @dbname = DATABASE();
+SET @col = 'ai_extracted';
+SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='pdsp_records' AND COLUMN_NAME=@col)>0,'ALTER TABLE pdsp_records DROP COLUMN ai_extracted','SELECT 1'));
+PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
 
 -- Mark migration as applied
 INSERT IGNORE INTO db_version (version) VALUES (31);
@@ -1121,9 +1167,11 @@ INSERT IGNORE INTO db_version (version) VALUES (31);
 -- Note: Current table uses meeting_location, not venue
 -- No changes needed - online_link doesn't exist in current schema
 
--- Add completed_at to pdsp_records
-ALTER TABLE pdsp_records 
-ADD COLUMN IF NOT EXISTS completed_at DATETIME NULL AFTER updated_at;
+-- Add completed_at to pdsp_records (MariaDB-compatible)
+SET @dbname = DATABASE();
+SET @col = 'completed_at';
+SET @preparedStatement = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@dbname AND TABLE_NAME='pdsp_records' AND COLUMN_NAME=@col)>0,'SELECT 1','ALTER TABLE pdsp_records ADD COLUMN completed_at DATETIME NULL AFTER updated_at'));
+PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
 
 -- Create pdsp_signatories table (normalized storage)
 CREATE TABLE IF NOT EXISTS pdsp_signatories (
@@ -1146,9 +1194,18 @@ INSERT IGNORE INTO db_version (version) VALUES (32);
 -- MIGRATION: v1.34 - Add review_note column to assessment_records
 -- ============================================
 
--- Add review_note column if it doesn't exist
-ALTER TABLE assessment_records 
-ADD COLUMN IF NOT EXISTS review_note TEXT AFTER reviewed_by;
+SET @dbname = DATABASE();
+SET @tablename = 'assessment_records';
+SET @columnname = 'review_note';
+SET @preparedStatement = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
+    'SELECT 1',
+    CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' TEXT AFTER reviewed_by')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
 
 -- Mark migration as applied
 INSERT IGNORE INTO db_version (version) VALUES (34);
@@ -1159,9 +1216,18 @@ INSERT IGNORE INTO db_version (version) VALUES (34);
 -- MIGRATION: v1.35 - Add review_note column to enrollment_documents
 -- ============================================
 
--- Add review_note column if it doesn't exist
-ALTER TABLE enrollment_documents 
-ADD COLUMN IF NOT EXISTS review_note TEXT AFTER reviewed_by;
+SET @dbname = DATABASE();
+SET @tablename = 'enrollment_documents';
+SET @columnname = 'review_note';
+SET @preparedStatement = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
+    'SELECT 1',
+    CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' TEXT AFTER reviewed_by')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
 
 -- Mark migration as applied
 INSERT IGNORE INTO db_version (version) VALUES (35);
@@ -1172,11 +1238,49 @@ INSERT IGNORE INTO db_version (version) VALUES (35);
 -- MIGRATION: v1.36 - Add review_note column to enrollment_submissions
 -- ============================================
 
--- Add review_note column if it doesn't exist
-ALTER TABLE enrollment_submissions 
-ADD COLUMN IF NOT EXISTS review_note TEXT AFTER verified_by;
+SET @dbname = DATABASE();
+SET @tablename = 'enrollment_submissions';
+SET @columnname = 'review_note';
+SET @preparedStatement = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = @tablename AND COLUMN_NAME = @columnname) > 0,
+    'SELECT 1',
+    CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' TEXT AFTER verified_by')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
 
 -- Mark migration as applied
 INSERT IGNORE INTO db_version (version) VALUES (36);
 
 -- END MIGRATION: v1.36
+
+-- ============================================
+-- MIGRATION: v1.37 - Add note column to user_availability
+-- ============================================
+
+SET @dbname = DATABASE();
+SET @col = 'note';
+SET @preparedStatement = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'user_availability' AND COLUMN_NAME = @col) > 0,
+    'SELECT 1',
+    'ALTER TABLE user_availability ADD COLUMN note VARCHAR(255) NULL AFTER is_available'
+));
+PREPARE s FROM @preparedStatement; EXECUTE s; DEALLOCATE PREPARE s;
+
+INSERT IGNORE INTO db_version (version) VALUES (37);
+
+-- END MIGRATION: v1.37
+
+-- ============================================
+-- MIGRATION: v1.38 - Add rescheduled to iep_meetings status enum
+-- ============================================
+
+ALTER TABLE iep_meetings
+MODIFY COLUMN status ENUM('scheduled', 'rescheduled', 'completed', 'cancelled') DEFAULT 'scheduled';
+
+INSERT IGNORE INTO db_version (version) VALUES (38);
+
+-- END MIGRATION: v1.38

@@ -386,7 +386,8 @@ class AssessmentController {
             }
             
             // Create upload directory if not exists
-            $uploadDir = __DIR__ . '/../../uploads/assessments/';
+            // Files must be inside public/uploads/ to be web-accessible
+            $uploadDir = __DIR__ . '/../../public/uploads/assessments/';
             if (!is_dir($uploadDir)) {
                 mkdir($uploadDir, 0755, true);
             }

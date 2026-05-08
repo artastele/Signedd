@@ -32,6 +32,5 @@ Options -Indexes
 
 # Protect sensitive files
 <FilesMatch "\.(env|log|sql|md)$">
-    Order allow,deny
-    Deny from all
+    Require all denied
 </FilesMatch>

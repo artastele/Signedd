@@ -118,27 +118,49 @@ class AssessmentModel {
 
     /**
      * Save assessment services (Section B - MDT data)
+     * Uses INSERT ... ON DUPLICATE KEY UPDATE to preserve existing service IDs
+     * so that already-uploaded documents remain linked
      */
     private function saveAssessmentServices($assessmentId, $sectionBData) {
         try {
-            // Delete existing services for this assessment
-            $stmt = $this->db->prepare("
-                DELETE FROM assessment_services WHERE assessment_id = :assessment_id
+            if (empty($sectionBData)) {
+                return;
+            }
+
+            // Get existing service names for this assessment
+            $existingStmt = $this->db->prepare("
+                SELECT id, service_name FROM assessment_services WHERE assessment_id = :assessment_id
             ");
-            $stmt->execute(['assessment_id' => $assessmentId]);
-            
-            // Insert new services
-            if (!empty($sectionBData)) {
-                $stmt = $this->db->prepare("
-                    INSERT INTO assessment_services (
-                        assessment_id, service_name, mdt_members, date_of_assessment, created_at
-                    ) VALUES (
-                        :assessment_id, :service_name, :mdt_members, :date_of_assessment, NOW()
-                    )
-                ");
-                
-                foreach ($sectionBData as $serviceName => $data) {
-                    $stmt->execute([
+            $existingStmt->execute(['assessment_id' => $assessmentId]);
+            $existing = [];
+            foreach ($existingStmt->fetchAll() as $row) {
+                $existing[$row['service_name']] = $row['id'];
+            }
+
+            $updateStmt = $this->db->prepare("
+                UPDATE assessment_services
+                SET mdt_members = :mdt_members, date_of_assessment = :date_of_assessment
+                WHERE id = :id
+            ");
+            $insertStmt = $this->db->prepare("
+                INSERT INTO assessment_services (
+                    assessment_id, service_name, mdt_members, date_of_assessment, created_at
+                ) VALUES (
+                    :assessment_id, :service_name, :mdt_members, :date_of_assessment, NOW()
+                )
+            ");
+
+            foreach ($sectionBData as $serviceName => $data) {
+                if (isset($existing[$serviceName])) {
+                    // Update existing row — preserves the ID so documents stay linked
+                    $updateStmt->execute([
+                        'id' => $existing[$serviceName],
+                        'mdt_members' => json_encode($data['members']),
+                        'date_of_assessment' => $data['date']
+                    ]);
+                } else {
+                    // Insert new row
+                    $insertStmt->execute([
                         'assessment_id' => $assessmentId,
                         'service_name' => $serviceName,
                         'mdt_members' => json_encode($data['members']),
@@ -385,6 +407,8 @@ class AssessmentModel {
 
     /**
      * Save service checklist to assessment_checklists table
+     * Also ensures assessment_services rows exist for any checked services
+     * so that file uploads during draft save can be linked correctly
      */
     private function saveServiceChecklist($assessmentId, $services) {
         try {
@@ -406,6 +430,24 @@ class AssessmentModel {
                         'assessment_id' => $assessmentId,
                         'service_type' => $service
                     ]);
+                }
+
+                // Ensure assessment_services rows exist for each checked service
+                // so file uploads during draft save can be linked
+                $checkStmt = $this->db->prepare("
+                    SELECT id FROM assessment_services
+                    WHERE assessment_id = :assessment_id AND service_name = :service_name
+                    LIMIT 1
+                ");
+                $insertStmt = $this->db->prepare("
+                    INSERT INTO assessment_services (assessment_id, service_name, mdt_members, date_of_assessment, created_at)
+                    VALUES (:assessment_id, :service_name, '[]', NULL, NOW())
+                ");
+                foreach ($services as $service) {
+                    $checkStmt->execute(['assessment_id' => $assessmentId, 'service_name' => $service]);
+                    if (!$checkStmt->fetch()) {
+                        $insertStmt->execute(['assessment_id' => $assessmentId, 'service_name' => $service]);
+                    }
                 }
             }
             

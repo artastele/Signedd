@@ -45,12 +45,6 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/print.css" media="print
                 <button type="button" class="btn btn-outline-secondary me-2" onclick="window.print()">
                     <i class="bi bi-printer"></i> Print
                 </button>
-                <?php if ($pdsp['status'] === 'draft' && !empty($pdsp['signed_document_path'])): ?>
-                <!-- Optional OCR Auto-Fill Button (Secondary Navy Style) -->
-                <button type="button" class="btn btn-secondary" style="background-color: #1e4072; border-color: #1e4072;" onclick="triggerOCRExtraction()">
-                    <i class="bi bi-magic"></i> OCR Auto-Fill
-                </button>
-                <?php endif; ?>
             </div>
         </div>
 

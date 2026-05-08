@@ -64,36 +64,54 @@ require __DIR__ . '/../layouts/topbar.php';
                 </h5>
             </div>
             <div class="card-body">
+                <?php
+                // Data is stored in section_a_data for SPED teacher assessments
+                // education_history is the legacy key for old parent-submitted assessments
+                $sectionA = $assessment['section_a_data'] ?? $assessment['education_history'] ?? [];
+                ?>
                 <div class="row">
                     <div class="col-md-6">
                         <p><strong>Previous School:</strong></p>
-                        <p class="text-muted"><?php echo htmlspecialchars($assessment['education_history']['previous_school'] ?? 'N/A'); ?></p>
+                        <p class="text-muted"><?php echo htmlspecialchars($sectionA['previous_school'] ?? 'N/A'); ?></p>
                     </div>
                     <div class="col-md-6">
                         <p><strong>Grade Level:</strong></p>
-                        <p class="text-muted"><?php echo htmlspecialchars($assessment['education_history']['grade_level'] ?? 'N/A'); ?></p>
+                        <p class="text-muted"><?php echo htmlspecialchars($sectionA['previous_grade_level'] ?? $sectionA['grade_level'] ?? 'N/A'); ?></p>
                     </div>
                 </div>
 
                 <div class="row">
                     <div class="col-md-6">
                         <p><strong>With IEP:</strong></p>
-                        <p class="text-muted"><?php echo ucfirst($assessment['education_history']['with_iep'] ?? 'No'); ?></p>
+                        <p class="text-muted"><?php echo ucfirst($sectionA['with_iep'] ?? 'No'); ?></p>
                     </div>
                     <div class="col-md-6">
                         <p><strong>With Support Services:</strong></p>
-                        <p class="text-muted"><?php echo ucfirst($assessment['education_history']['with_support_services'] ?? 'No'); ?></p>
+                        <p class="text-muted"><?php echo ucfirst($sectionA['with_support_services'] ?? 'No'); ?></p>
                     </div>
                 </div>
 
-                <?php if (!empty($assessment['education_history']['support_services'])): ?>
+                <?php if (!empty($sectionA['support_services_detail'])): ?>
                     <div class="row">
                         <div class="col-12">
-                            <p><strong>Support Services Availed:</strong></p>
-                            <div class="text-muted">
-                                <?php foreach ($assessment['education_history']['support_services'] as $service): ?>
-                                    <span class="badge" style="background-color: #1e4072; margin-right: 5px; margin-bottom: 5px;">
-                                        <?php echo htmlspecialchars(str_replace('_', ' ', ucfirst($service))); ?>
+                            <p><strong>Support Services Detail:</strong></p>
+                            <p class="text-muted"><?php echo htmlspecialchars($sectionA['support_services_detail']); ?></p>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <?php
+                // Show services_checked if available (SPED teacher flow)
+                $servicesChecked = $assessment['services_checked'] ?? [];
+                if (!empty($servicesChecked)):
+                ?>
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            <p><strong>Services Checked:</strong></p>
+                            <div>
+                                <?php foreach ($servicesChecked as $service): ?>
+                                    <span class="badge me-1 mb-1" style="background: #1e4072;">
+                                        <?php echo htmlspecialchars($service); ?>
                                     </span>
                                 <?php endforeach; ?>
                             </div>

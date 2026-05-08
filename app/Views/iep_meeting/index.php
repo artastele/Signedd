@@ -59,15 +59,11 @@ require_once __DIR__ . '/../layouts/header.php';
                                     </td>
                                     <td>
                                         <?php echo date('F d, Y', strtotime($meeting['meeting_date'])); ?><br>
-                                        <small><?php echo date('g:i A', strtotime($meeting['meeting_time'])); ?></small>
+                                        <small><?php echo date('g:i A', strtotime($meeting['meeting_date'])); ?></small>
                                     </td>
                                     <td>
-                                        <?php if ($meeting['venue']): ?>
-                                            <i class="bi bi-geo-alt"></i> <?php echo htmlspecialchars($meeting['venue']); ?>
-                                        <?php else: ?>
-                                            <i class="bi bi-camera-video"></i> 
-                                            <a href="<?php echo htmlspecialchars($meeting['online_link']); ?>" target="_blank">Online</a>
-                                        <?php endif; ?>
+                                        <i class="bi bi-geo-alt"></i> 
+                                        <?php echo htmlspecialchars($meeting['meeting_location'] ?? 'TBA'); ?>
                                     </td>
                                     <td>
                                         <?php
@@ -89,7 +85,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                            class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-eye"></i> View
                                         </a>
-                                        <?php if (in_array($_SESSION['role'], ['sped_teacher', 'guidance', 'principal', 'admin'])): ?>
+                                        <?php if (in_array($_SESSION['role'], ['sped_teacher', 'admin'])): ?>
                                             <a href="<?php echo $basePath; ?>/iep/meetings/<?php echo $meeting['id']; ?>/pdsp" 
                                                class="btn btn-sm btn-outline-success">
                                                 <i class="bi bi-clipboard-data"></i> PDSP
@@ -113,12 +109,7 @@ require_once __DIR__ . '/../layouts/header.php';
             </h5>
         </div>
         <div class="card-body">
-            <?php 
-            $pastOnly = array_filter($pastMeetings, function($m) {
-                return strtotime($m['meeting_date']) < strtotime('today');
-            });
-            ?>
-            <?php if (empty($pastOnly)): ?>
+            <?php if (empty($pastMeetings)): ?>
                 <div class="alert alert-info">
                     <i class="bi bi-info-circle"></i> No past meetings found.
                 </div>
@@ -134,7 +125,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($pastOnly as $meeting): ?>
+                            <?php foreach ($pastMeetings as $meeting): ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($meeting['student_name']); ?></td>
                                     <td><?php echo date('M d, Y', strtotime($meeting['meeting_date'])); ?></td>

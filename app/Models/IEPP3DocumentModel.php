@@ -158,6 +158,29 @@ class IEPP3DocumentModel {
     }
 
     /**
+     * Send IEP to all required signatories at once
+     * Sets status to pending_signatures and returns list of users to notify
+     */
+    public function sendToAllSignatories($documentId) {
+        try {
+            // Mark document as pending signatures
+            $stmt = $this->db->prepare("
+                UPDATE iep_p3_documents SET status = 'pending_signatures', updated_at = NOW()
+                WHERE id = :id
+            ");
+            $stmt->execute(['id' => $documentId]);
+
+            $this->logAudit($documentId, $_SESSION['user_id'] ?? null, 'sent_to_all_signatories', 'IEP sent to all signatories');
+            error_log("IEP P3 document ID: $documentId sent to all signatories");
+
+            return true;
+        } catch (Exception $e) {
+            error_log("IEPP3DocumentModel->sendToAllSignatories() FAILED: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
      * Add signature
      */
     public function addSignature($documentId, $signerId, $signerRole, $signatureData, $remarks = null) {
@@ -216,10 +239,10 @@ class IEPP3DocumentModel {
 
     /**
      * Check if all signatures complete
+     * Required signers: sped_teacher, parent, guidance, principal
      */
     private function checkAllSignaturesComplete($documentId) {
-        // Required signers: parent, guidance, sped_teacher, principal
-        $requiredRoles = ['parent', 'guidance', 'sped_teacher', 'principal'];
+        $requiredRoles = ['sped_teacher', 'parent', 'guidance', 'principal'];
         
         $stmt = $this->db->prepare("
             SELECT DISTINCT signer_role FROM iep_p3_signatures
@@ -228,14 +251,12 @@ class IEPP3DocumentModel {
         $stmt->execute(['doc_id' => $documentId]);
         $signedRoles = array_map(fn($row) => $row['signer_role'], $stmt->fetchAll());
         
-        // Check if all required roles have signed
         if (count(array_intersect($requiredRoles, $signedRoles)) === count($requiredRoles)) {
             $stmt = $this->db->prepare("
-                UPDATE iep_p3_documents
-                SET status = 'signed_approved'
-                WHERE id = :id
+                UPDATE iep_p3_documents SET status = 'signed_approved' WHERE id = :id
             ");
             $stmt->execute(['id' => $documentId]);
+            error_log("IEP P3 document ID: $documentId — all signatures complete, status set to signed_approved");
         }
     }
 

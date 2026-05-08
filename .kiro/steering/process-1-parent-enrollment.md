@@ -2,7 +2,32 @@
 inclusion: manual
 ---
 
-# Process 1 — Parent Complying Enrollment Requirements
+# Processes 1, 2 & 3 — LOCKED (100% Complete)
+
+> ⛔ DO NOT ALTER — Processes 1, 2 & 3 are marked 100% COMPLETE and APPROVED.
+> These files must NOT be modified under any circumstance without explicit user approval.
+
+## Process 1 — Enrollment Submission (Parent)
+- `app/Controllers/EnrollmentController.php`
+- `app/Models/EnrollmentModel.php`
+- `app/Views/enrollment/` (all files)
+- `app/Views/dashboard/parent.php`
+
+## Process 2 — Enrollment Verification (SPED Teacher)
+- `app/Controllers/VerificationController.php`
+- `app/Models/StudentModel.php`
+- `app/Views/verification/` (all files)
+- `app/Views/students/` (all files)
+
+## Process 3 — Initial Assessment (SPED Teacher)
+- `app/Controllers/AssessmentController.php`
+- `app/Models/AssessmentModel.php`
+- `app/Models/AssessmentServiceModel.php`
+- `app/Views/assessment/` (all files)
+
+## Rule
+Any bug found in Processes 1, 2, or 3 must be **described to the user first and approved before any code is touched.**
+Never modify these files as a side effect of working on Process 4, 5, 6, or 7.
 
 ## Overview
 Process 1 is the entry point for the SPED LMS. Parents submit enrollment documents and learner information through a multi-step form. This process captures all required documents (PSA, PWD ID/Medical Record, BEEF) and stores the submission for verification by SPED Teachers in Process 2.

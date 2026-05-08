@@ -88,10 +88,10 @@ require __DIR__ . '/../layouts/topbar.php';
             </div>
         </div>
 
-        <!-- Assessments Table -->
+        <!-- Assessments Table — Grouped by Student -->
         <div class="card">
             <div class="card-header" style="background-color: #1e4072; color: white;">
-                <h5 class="mb-0"><i class="fas fa-list"></i> All Assessments</h5>
+                <h5 class="mb-0"><i class="fas fa-list"></i> Assessments by Student</h5>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover mb-0" id="assessmentsTable">
@@ -99,17 +99,16 @@ require __DIR__ . '/../layouts/topbar.php';
                         <tr>
                             <th>Student Name</th>
                             <th>LRN</th>
-                            <th>Version</th>
-                            <th>Status</th>
-                            <th>Conducted By</th>
-                            <th>Date</th>
+                            <th>Versions</th>
+                            <th>Latest Status</th>
+                            <th>Last Updated</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($allAssessments)): ?>
                             <tr>
-                                <td colspan="7" class="text-center py-4 text-muted">
+                                <td colspan="6" class="text-center py-4 text-muted">
                                     <i class="fas fa-inbox fa-3x mb-3"></i>
                                     <p>No assessments found</p>
                                     <a href="<?php echo BASE_PATH; ?>/assessment/conduct" class="btn btn-primary" style="background-color: #a01422; border-color: #a01422;">
@@ -118,69 +117,70 @@ require __DIR__ . '/../layouts/topbar.php';
                                 </td>
                             </tr>
                         <?php else: ?>
-                            <?php foreach ($allAssessments as $assessment): ?>
-                                <tr class="assessment-row" 
-                                    data-status="<?php echo htmlspecialchars($assessment['status']); ?>"
-                                    data-search="<?php echo strtolower($assessment['student_name'] . ' ' . $assessment['lrn']); ?>">
-                                    <td>
-                                        <strong><?php echo htmlspecialchars($assessment['student_name']); ?></strong>
-                                        <?php if (!empty($assessment['services'])): ?>
-                                            <br>
-                                            <small class="text-muted">
-                                                <i class="bi bi-folder"></i> <?php echo count($assessment['services']); ?> service(s)
-                                                <?php 
-                                                $totalDocs = array_sum(array_column($assessment['services'], 'document_count'));
-                                                if ($totalDocs > 0): 
-                                                ?>
-                                                | <i class="bi bi-file-earmark"></i> <?php echo $totalDocs; ?> document(s)
-                                                <?php endif; ?>
-                                            </small>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <code><?php echo htmlspecialchars($assessment['lrn']); ?></code>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-secondary">v<?php echo $assessment['version']; ?></span>
-                                    </td>
-                                    <td>
-                                        <?php 
-                                        $statusColor = match($assessment['status']) {
-                                            'finalized' => '#3b6d11',
-                                            'draft' => '#ffc107',
-                                            'pending' => '#17a2b8',
-                                            'approved' => '#28a745',
-                                            'rejected' => '#dc3545',
-                                            default => '#6c757d'
-                                        };
-                                        $statusText = ucfirst($assessment['status']);
-                                        ?>
-                                        <span class="badge" style="background-color: <?php echo $statusColor; ?>;">
-                                            <?php echo $statusText; ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <small><?php echo htmlspecialchars($assessment['conducted_by_name'] ?? 'N/A'); ?></small>
-                                    </td>
-                                    <td>
-                                        <small class="text-muted">
-                                            <?php echo date('M d, Y', strtotime($assessment['created_at'])); ?>
-                                        </small>
-                                    </td>
-                                    <td>
-                                        <?php if ($assessment['status'] === 'draft'): ?>
-                                            <a href="<?php echo BASE_PATH; ?>/assessment/conduct/<?php echo $assessment['student_id']; ?>" 
-                                               class="btn btn-sm btn-warning">
-                                                <i class="fas fa-edit"></i> Continue
-                                            </a>
-                                        <?php else: ?>
-                                            <a href="<?php echo BASE_PATH; ?>/assessment/view/<?php echo $assessment['id']; ?>" 
-                                               class="btn btn-sm" style="background-color: #1e4072; color: white;">
-                                                <i class="fas fa-eye"></i> View
-                                            </a>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
+                            <?php
+                            // Group assessments by student
+                            $byStudent = [];
+                            foreach ($allAssessments as $a) {
+                                $sid = $a['student_id'];
+                                if (!isset($byStudent[$sid])) {
+                                    $byStudent[$sid] = [
+                                        'student_name' => $a['student_name'],
+                                        'lrn'          => $a['lrn'],
+                                        'student_id'   => $sid,
+                                        'versions'     => []
+                                    ];
+                                }
+                                $byStudent[$sid]['versions'][] = $a;
+                            }
+                            foreach ($byStudent as $sid => $student):
+                                $latest = $student['versions'][0]; // already ordered DESC
+                                $vCount = count($student['versions']);
+                                $hasDraft = !empty(array_filter($student['versions'], fn($v) => $v['status'] === 'draft'));
+                            ?>
+                            <tr class="assessment-row"
+                                data-status="<?php echo htmlspecialchars($latest['status']); ?>"
+                                data-search="<?php echo strtolower($student['student_name'] . ' ' . $student['lrn']); ?>">
+                                <td>
+                                    <strong><?php echo htmlspecialchars($student['student_name']); ?></strong>
+                                </td>
+                                <td><code><?php echo htmlspecialchars($student['lrn']); ?></code></td>
+                                <td>
+                                    <span class="badge" style="background:#1e4072;"><?php echo $vCount; ?> version<?php echo $vCount > 1 ? 's' : ''; ?></span>
+                                </td>
+                                <td>
+                                    <?php
+                                    $statusColor = match($latest['status']) {
+                                        'finalized' => '#3b6d11',
+                                        'draft'     => '#ffc107',
+                                        'approved'  => '#28a745',
+                                        'rejected'  => '#dc3545',
+                                        default     => '#6c757d'
+                                    };
+                                    ?>
+                                    <span class="badge" style="background-color:<?php echo $statusColor; ?>;">
+                                        <?php echo ucfirst($latest['status']); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <small class="text-muted"><?php echo date('M d, Y', strtotime($latest['created_at'])); ?></small>
+                                </td>
+                                <td class="d-flex gap-1 flex-wrap">
+                                    <?php if ($hasDraft): ?>
+                                        <a href="<?php echo BASE_PATH; ?>/assessment/conduct/<?php echo $sid; ?>"
+                                           class="btn btn-sm btn-warning">
+                                            <i class="fas fa-edit"></i> Continue Draft
+                                        </a>
+                                    <?php endif; ?>
+                                    <a href="<?php echo BASE_PATH; ?>/assessment/history/<?php echo $sid; ?>"
+                                       class="btn btn-sm" style="background:#1e4072;color:white;">
+                                        <i class="bi bi-clock-history"></i> History (<?php echo $vCount; ?>)
+                                    </a>
+                                    <a href="<?php echo BASE_PATH; ?>/assessment/view/<?php echo $latest['id']; ?>"
+                                       class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-eye"></i> Latest
+                                    </a>
+                                </td>
+                            </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </tbody>

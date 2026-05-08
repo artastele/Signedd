@@ -255,10 +255,51 @@ function renderNotifications(notifications) {
     let html = '';
     notifications.forEach(notification => {
         const data = notification.data ? JSON.parse(notification.data) : {};
-        const iconClass = notification.type === 'role_approved' ? 'success' : 
-                         notification.type === 'role_rejected' ? 'danger' : 'info';
-        const icon = notification.type === 'role_approved' ? 'check-circle-fill' : 
-                    notification.type === 'role_rejected' ? 'x-circle-fill' : 'info-circle-fill';
+
+        // Determine icon and color by notification type
+        let iconClass, icon;
+        switch (notification.type) {
+            case 'role_approved':
+            case 'enrollment_approved':
+            case 'email_verified':
+                iconClass = 'success'; icon = 'check-circle-fill'; break;
+            case 'role_rejected':
+            case 'enrollment_rejected':
+            case 'document_rejected':
+                iconClass = 'danger'; icon = 'x-circle-fill'; break;
+            case 'enrollment_submitted':
+            case 'new_enrollment':
+                iconClass = 'primary'; icon = 'file-earmark-text-fill'; break;
+            default:
+                iconClass = 'info'; icon = 'info-circle-fill';
+        }
+
+        // Build action buttons based on type
+        let actionHtml = '';
+        if (notification.type === 'role_rejected') {
+            actionHtml = `
+                <a href="${getBasePath()}/role/select" class="btn btn-sm btn-primary">
+                    <i class="bi bi-arrow-repeat"></i> Reapply
+                </a>
+                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
+            `;
+        } else if (notification.type === 'enrollment_approved') {
+            actionHtml = `
+                <a href="${getBasePath()}/enrollment/status" class="btn btn-sm btn-success">
+                    <i class="bi bi-eye"></i> View Status
+                </a>
+                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
+            `;
+        } else if (notification.type === 'enrollment_rejected') {
+            actionHtml = `
+                <a href="${getBasePath()}/enrollment/status" class="btn btn-sm btn-danger">
+                    <i class="bi bi-eye"></i> View Reason
+                </a>
+                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
+            `;
+        } else {
+            actionHtml = `<button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>`;
+        }
         
         html += `
             <div class="notification-item ${notification.is_read ? '' : 'unread'}" data-id="${notification.id}">
@@ -271,22 +312,7 @@ function renderNotifications(notifications) {
                         <div class="notification-message">${escapeHtml(notification.message)}</div>
                         ${data.reason ? `<div class="alert alert-light mb-2 p-2" style="font-size: 0.85rem;"><strong>Reason:</strong> ${escapeHtml(data.reason)}</div>` : ''}
                         <div class="notification-time">${formatNotificationTime(notification.created_at)}</div>
-                        ${notification.type === 'role_rejected' ? `
-                            <div class="notification-actions">
-                                <a href="${getBasePath()}/role/select" class="btn btn-sm btn-primary">
-                                    <i class="bi bi-arrow-repeat"></i> Reapply
-                                </a>
-                                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">
-                                    Mark as Read
-                                </button>
-                            </div>
-                        ` : `
-                            <div class="notification-actions">
-                                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">
-                                    Mark as Read
-                                </button>
-                            </div>
-                        `}
+                        <div class="notification-actions">${actionHtml}</div>
                     </div>
                 </div>
             </div>

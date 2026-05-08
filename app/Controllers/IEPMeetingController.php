@@ -29,7 +29,7 @@ class IEPMeetingController {
     public function show($meetingId) {
         try {
             // Check permission
-            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'parent', 'admin'])) {
+            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'parent', 'master_teacher', 'admin'])) {
                 http_response_code(403);
                 $_SESSION['error'] = 'Access denied';
                 header('Location: ' . BASE_PATH . '/dashboard');
@@ -44,8 +44,26 @@ class IEPMeetingController {
                 exit;
             }
             
-            // Determine if user has read-only access
-            $isReadOnly = in_array($this->userRole, ['guidance', 'principal', 'parent']);
+            // Parent ownership check — parent can only view meetings for their own children
+            if ($this->userRole === 'parent') {
+                $db = Database::getInstance()->getConnection();
+                $stmt = $db->prepare("
+                    SELECT COUNT(*) FROM student_records sr
+                    JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                    WHERE sr.id = :student_id AND es.parent_id = :parent_id
+                ");
+                $stmt->execute(['student_id' => $meeting['student_id'], 'parent_id' => $this->userId]);
+                if ($stmt->fetchColumn() == 0) {
+                    http_response_code(403);
+                    $_SESSION['error'] = 'Access denied';
+                    header('Location: ' . BASE_PATH . '/iep/meetings');
+                    exit;
+                }
+            }
+            
+            // Only SPED Teacher can access PDSP — all others are read-only viewers
+            $canAccessPDSP = in_array($this->userRole, ['sped_teacher', 'admin']);
+            $isReadOnly = !$canAccessPDSP;
             
             // Get PDSP status if exists
             require_once __DIR__ . '/../Models/PDSPModel.php';
@@ -72,11 +90,11 @@ class IEPMeetingController {
      */
     public function pdspForm($meetingId) {
         try {
-            // Check permission
-            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'parent', 'admin'])) {
+            // Only SPED Teacher can access PDSP form
+            if (!in_array($this->userRole, ['sped_teacher', 'admin'])) {
                 http_response_code(403);
-                $_SESSION['error'] = 'Access denied';
-                header('Location: ' . BASE_PATH . '/iep/meetings');
+                $_SESSION['error'] = 'Access denied. Only SPED Teachers can manage PDSP forms.';
+                header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
                 exit;
             }
             
@@ -735,21 +753,179 @@ class IEPMeetingController {
     }
 
     /**
+     * Update meeting details (SPED Teacher only)
+     */
+    public function updateMeeting($meetingId) {
+        try {
+            if (!in_array($this->userRole, ['sped_teacher', 'admin'])) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied';
+                header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+                exit;
+            }
+
+            $meeting = $this->meetingModel->findById($meetingId);
+            if (!$meeting) {
+                $_SESSION['error'] = 'Meeting not found';
+                header('Location: ' . BASE_PATH . '/iep/meetings');
+                exit;
+            }
+
+            if (!in_array($meeting['status'], ['scheduled', 'rescheduled'])) {
+                $_SESSION['error'] = 'Only scheduled meetings can be edited';
+                header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+                exit;
+            }
+
+            $meetingDate = $_POST['meeting_date'] ?? null;
+            $meetingTime = $_POST['meeting_time'] ?? null;
+            $location    = trim($_POST['meeting_location'] ?? '');
+            $agenda      = trim($_POST['agenda'] ?? '');
+
+            if (!$meetingDate || !$meetingTime || !$location) {
+                $_SESSION['error'] = 'Date, time, and venue are required';
+                header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+                exit;
+            }
+
+            $meetingDatetime = date('Y-m-d H:i:s', strtotime($meetingDate . ' ' . $meetingTime));
+
+            $this->meetingModel->update($meetingId, [
+                'meeting_date'     => $meetingDatetime,
+                'meeting_location' => $location,
+                'agenda'           => $agenda,
+                'status'           => 'rescheduled',
+            ]);
+
+            // Re-notify participants
+            $this->sendMeetingNotifications($meetingId);
+
+            $this->logActivity('meeting.update', 'iep_meetings', $meetingId,
+                "Updated meeting details: date=$meetingDatetime, venue=$location");
+
+            $_SESSION['success'] = 'Meeting updated successfully. Participants have been notified.';
+            header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+            exit;
+
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->updateMeeting() ERROR: " . $e->getMessage());
+            $_SESSION['error'] = 'Error updating meeting: ' . $e->getMessage();
+            header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+            exit;
+        }
+    }
+
+    /**
+     * Cancel meeting — SPED Teacher, Guidance, or Principal
+     * Parent is obliged to attend — cannot cancel
+     */
+    public function cancelMeeting($meetingId) {
+        try {
+            $allowedRoles = ['sped_teacher', 'guidance', 'principal', 'admin'];
+            if (!in_array($this->userRole, $allowedRoles)) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Only SPED Teacher, Guidance, or Principal can cancel a meeting.';
+                header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+                exit;
+            }
+
+            $meeting = $this->meetingModel->findById($meetingId);
+            if (!$meeting) {
+                $_SESSION['error'] = 'Meeting not found';
+                header('Location: ' . BASE_PATH . '/iep/meetings');
+                exit;
+            }
+
+            if (!in_array($meeting['status'], ['scheduled', 'rescheduled'])) {
+                $_SESSION['error'] = 'Only scheduled meetings can be cancelled';
+                header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+                exit;
+            }
+
+            $reason = trim($_POST['cancellation_reason'] ?? '');
+            if (empty($reason)) {
+                $_SESSION['error'] = 'Please provide a reason for cancellation';
+                header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+                exit;
+            }
+
+            $this->meetingModel->update($meetingId, [
+                'status'              => 'cancelled',
+                'cancellation_reason' => $reason,
+            ]);
+
+            // Notify all participants
+            require_once __DIR__ . '/../Models/NotificationModel.php';
+            $notifModel = new NotificationModel();
+            $db = Database::getInstance()->getConnection();
+
+            // Get parent of the student
+            $stmt = $db->prepare("
+                SELECT u.id, u.name FROM users u
+                JOIN enrollment_submissions es ON u.id = es.parent_id
+                JOIN student_records sr ON es.id = sr.enrollment_id
+                WHERE sr.id = :student_id LIMIT 1
+            ");
+            $stmt->execute(['student_id' => $meeting['student_id']]);
+            $parent = $stmt->fetch();
+
+            // Get guidance and principal
+            $stmt = $db->prepare("SELECT id, name FROM users WHERE role IN ('guidance','principal') AND status='active'");
+            $stmt->execute();
+            $staff = $stmt->fetchAll();
+
+            $recipients = $staff;
+            if ($parent) $recipients[] = $parent;
+
+            $cancellerName = $_SESSION['user_name'] ?? 'Staff';
+            foreach ($recipients as $r) {
+                $notifModel->create(
+                    $r['id'],
+                    'meeting_cancelled',
+                    'IEP Meeting Cancelled',
+                    "The IEP meeting for {$meeting['student_name']} scheduled on " .
+                    date('M d, Y g:i A', strtotime($meeting['meeting_date'])) .
+                    " has been cancelled by {$cancellerName}. Reason: {$reason}",
+                    ['meeting_id' => $meetingId]
+                );
+            }
+
+            $this->logActivity('meeting.cancel', 'iep_meetings', $meetingId,
+                "Cancelled by {$this->userRole}: $reason");
+
+            $_SESSION['success'] = 'Meeting cancelled. All participants have been notified.';
+            header('Location: ' . BASE_PATH . '/iep/meetings');
+            exit;
+
+        } catch (Exception $e) {
+            error_log("IEPMeetingController->cancelMeeting() ERROR: " . $e->getMessage());
+            $_SESSION['error'] = 'Error cancelling meeting: ' . $e->getMessage();
+            header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+            exit;
+        }
+    }
+
+    /**
      * List all IEP meetings
      */
     public function index() {
         try {
-            // Check permission
-            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'admin'])) {
+            // Check permission — parent can view their child's meetings (read-only)
+            if (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'parent', 'master_teacher', 'admin'])) {
                 http_response_code(403);
                 $_SESSION['error'] = 'Access denied';
                 header('Location: ' . BASE_PATH . '/dashboard');
                 exit;
             }
             
-            // Get meetings
-            $upcomingMeetings = $this->meetingModel->getAll(['upcoming' => true]);
-            $pastMeetings = $this->meetingModel->getAll();
+            // For parent: only show meetings for their children
+            if ($this->userRole === 'parent') {
+                $upcomingMeetings = $this->meetingModel->getAll(['upcoming' => true,  'parent_id' => $this->userId]);
+                $pastMeetings     = $this->meetingModel->getAll(['past' => true, 'parent_id' => $this->userId]);
+            } else {
+                $upcomingMeetings = $this->meetingModel->getAll(['upcoming' => true]);
+                $pastMeetings     = $this->meetingModel->getAll(['past' => true]);
+            }
             
             // Pass data to view
             $basePath = BASE_PATH;
@@ -939,8 +1115,7 @@ class IEPMeetingController {
             
             // Prepare email content
             $subject = "IEP Meeting Scheduled - {$meeting['student_name']}";
-            $meetingDateTime = date('F d, Y', strtotime($meeting['meeting_date'])) . ' at ' . 
-                              date('g:i A', strtotime($meeting['meeting_time']));
+            $meetingDateTime = date('F d, Y g:i A', strtotime($meeting['meeting_date']));
             $location = $meeting['meeting_location'] ?? 'TBA';
             
             foreach ($participants as $participant) {
@@ -1117,6 +1292,8 @@ class IEPMeetingController {
             // Get date and availability from POST
             $date = $_POST['date'] ?? null;
             $isAvailable = isset($_POST['is_available']) ? (bool)$_POST['is_available'] : true;
+            $note = isset($_POST['note']) ? trim($_POST['note']) : null;
+            if ($note === '') $note = null;
             
             if (!$date) {
                 http_response_code(400);
@@ -1124,15 +1301,13 @@ class IEPMeetingController {
                 exit;
             }
             
-            // Validate date format
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'message' => 'Invalid date format']);
                 exit;
             }
             
-            // Toggle exception
-            $result = $this->meetingModel->toggleException($this->userId, $date, $isAvailable);
+            $result = $this->meetingModel->toggleException($this->userId, $date, $isAvailable, $note);
             
             if ($result) {
                 // Log activity
@@ -1162,59 +1337,81 @@ class IEPMeetingController {
      * Generate calendar data for a month
      */
     private function generateCalendarData($year, $month, $recurringAvailability, $exceptions) {
-        $firstDay = mktime(0, 0, 0, $month, 1, $year);
+        $firstDay    = mktime(0, 0, 0, $month, 1, $year);
         $daysInMonth = date('t', $firstDay);
-        $dayOfWeek = date('w', $firstDay); // 0=Sunday
-        
+        $dayOfWeek   = date('w', $firstDay);
+
+        // Fetch IEP meetings for this month for the current user
+        $startDate = sprintf('%04d-%02d-01', $year, $month);
+        $endDate   = date('Y-m-t', strtotime($startDate));
+        $iepMeetings = [];
+        try {
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("
+                SELECT DATE(meeting_date) as mdate, sr.student_name
+                FROM iep_meetings im
+                JOIN student_records sr ON im.student_id = sr.id
+                WHERE (im.scheduled_by = :uid OR im.guidance_id = :uid2 OR im.principal_id = :uid3)
+                  AND DATE(meeting_date) BETWEEN :start AND :end
+                  AND im.status IN ('scheduled','rescheduled')
+            ");
+            $stmt->execute([
+                'uid' => $this->userId, 'uid2' => $this->userId, 'uid3' => $this->userId,
+                'start' => $startDate, 'end' => $endDate
+            ]);
+            foreach ($stmt->fetchAll() as $row) {
+                $iepMeetings[$row['mdate']] = $row['student_name'];
+            }
+        } catch (Exception $e) {
+            error_log("generateCalendarData IEP meetings fetch failed: " . $e->getMessage());
+        }
+
         $calendar = [];
         $week = [];
-        
-        // Fill empty days before month starts
+
         for ($i = 0; $i < $dayOfWeek; $i++) {
             $week[] = null;
         }
-        
-        // Fill days of month
+
         for ($day = 1; $day <= $daysInMonth; $day++) {
             $date = sprintf('%04d-%02d-%02d', $year, $month, $day);
-            $currentDayOfWeek = date('w', strtotime($date));
-            
-            // Check if available
+            $dow  = date('w', strtotime($date));
+
             $isAvailable = false;
             $isException = false;
-            
+            $note        = null;
+
             if (isset($exceptions[$date])) {
-                // Exception overrides recurring
-                $isAvailable = $exceptions[$date];
+                $isAvailable = $exceptions[$date]['is_available'];
+                $note        = $exceptions[$date]['note'] ?? null;
                 $isException = true;
-            } elseif (isset($recurringAvailability[$currentDayOfWeek])) {
-                // Use recurring availability
-                $isAvailable = $recurringAvailability[$currentDayOfWeek];
+            } elseif (isset($recurringAvailability[$dow])) {
+                $isAvailable = $recurringAvailability[$dow];
             }
-            
+
             $week[] = [
-                'day' => $day,
-                'date' => $date,
-                'is_available' => $isAvailable,
-                'is_exception' => $isException,
-                'is_today' => $date === date('Y-m-d')
+                'day'         => $day,
+                'date'        => $date,
+                'is_available'=> $isAvailable,
+                'is_exception'=> $isException,
+                'is_today'    => $date === date('Y-m-d'),
+                'note'        => $note,
+                'iep_meeting' => $iepMeetings[$date] ?? null,
             ];
-            
-            // Start new week on Sunday
+
             if (count($week) === 7) {
                 $calendar[] = $week;
                 $week = [];
             }
         }
-        
-        // Fill remaining days
+
         while (count($week) < 7 && count($week) > 0) {
             $week[] = null;
         }
         if (!empty($week)) {
             $calendar[] = $week;
         }
-        
+
         return $calendar;
     }
 
