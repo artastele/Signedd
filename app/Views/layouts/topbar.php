@@ -8,7 +8,10 @@ $role = $_SESSION['role'] ?? 'user';
 <!-- Top Navigation Bar -->
 <div class="topbar">
     <div class="topbar-left">
-        <!-- Page title or breadcrumb can go here -->
+        <!-- Hamburger — visible on mobile only -->
+        <button class="sidebar-hamburger" id="sidebarHamburger" type="button" aria-label="Toggle sidebar">
+            <i class="bi bi-list"></i>
+        </button>
     </div>
     
     <div class="topbar-right">

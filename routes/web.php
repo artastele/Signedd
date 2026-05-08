@@ -206,6 +206,37 @@ route('POST', '/iep/meetings/{id}/update', 'IEPMeetingController', 'updateMeetin
 route('POST', '/iep/meetings/{id}/cancel', 'IEPMeetingController', 'cancelMeeting', 'iep.meeting');
 route('POST', '/iep/meetings/upload-calendar', 'IEPMeetingController', 'uploadCalendar', 'iep.meeting');
 
+// ============================================
+// PROCESS 5 — IEP Generation
+// ============================================
+
+// IEP Repository
+route('GET',  '/iep',                          'IEPController', 'index',                'iep.view');
+// Create new IEP draft
+route('GET',  '/iep/create',                   'IEPController', 'create',               'iep.create');
+// IEP Form (view/edit)
+route('GET',  '/iep/form/{id}',                'IEPController', 'form',                 'iep.view');
+// Save draft (AJAX)
+route('POST', '/iep/save-draft',               'IEPController', 'saveDraft',            'iep.create');
+// Upload signed document (AJAX)
+route('POST', '/iep/upload-signed-doc',        'IEPController', 'uploadSignedDoc',      'iep.create');
+// Save digital signature (AJAX)
+route('POST', '/iep/save-signature',           'IEPController', 'saveSignature',        'iep.sign');
+// Send IEP draft to parent/guidance/principal (AJAX)
+route('POST', '/iep/send-draft',               'IEPController', 'sendDraft',            'iep.create');
+// Mark F2F signed (print_upload flow)
+route('POST', '/iep/mark-f2f-signed',          'IEPController', 'markF2FSigned',        'iep.create');
+// Send signature request (AJAX)
+route('POST', '/iep/send-signature-request',   'IEPController', 'sendSignatureRequest', 'iep.create');
+// Search users by role (AJAX — for signatory send)
+route('GET',  '/iep/search-users',             'IEPController', 'searchUsers',          'iep.create');
+// Mark as signed
+route('POST', '/iep/mark-signed',              'IEPController', 'markSigned',           'iep.create');
+// New cycle
+route('POST', '/iep/new-cycle',                'IEPController', 'newCycle',             'iep.create');
+// Digital sign page (signatory opens link)
+route('GET',  '/iep/sign/{id}/{signatoryId}',  'IEPController', 'signPage',             'iep.sign');
+
 // IEP Documents — Unified dashboard (replaces p2/review, p3/sign, approval)
 route('GET', '/iep/documents', 'IEPDocumentController', 'documents', 'iep.view');
 

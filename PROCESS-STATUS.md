@@ -23,6 +23,8 @@
 - File upload per service (stored in public/uploads/assessments/)
 - Assessment versioning — grouped by student in index view
 - Assessment history per student
+- **Bug fixed:** File path now saved as `uploads/assessments/` (was `assessments/`)
+- **Bug fixed:** `FileController` now serves assessment files (plain, not encrypted)
 
 ### Process 4 — IEP Meeting ✅
 - Availability calendar (recurring + exceptions + task notes)
@@ -41,18 +43,21 @@
 ## ⚠️ IN PROGRESS — Process 5 (IEP Generation)
 
 ### What's built:
-- Unified IEP Documents dashboard (`/iep/documents`) per role
-- IEP document creation (P3 form — basic fields)
-- Signature page with separate pad per role (sped_teacher, parent, guidance, principal)
-- Auto-marks `signed_approved` when all 4 sign
-- Principal approval queue
-- Sidebar consolidated
+- `IEPModel.php` — full model: iep_records, iep_domains, iep_core, iep_steps, iep_signatories, iep_copies
+- `IEPController.php` — index, create, form, saveDraft, uploadSignedDoc, saveSignature, markSigned, newCycle, sendSignatureRequest, signPage
+- `app/Views/iep/form.php` — full IEP form with all 9 sections
+- `app/Views/iep/index.php` — IEP repository with filters
+- `app/Views/iep/sign.php` — digital signature page
+- `public/css/print.css` — DepEd Part III print layout
+- Schema migration v39 — 6 new tables: iep_records, iep_domains, iep_core, iep_steps, iep_signatories, iep_copies
+- Routes: /iep, /iep/create, /iep/form/{id}, /iep/save-draft, /iep/mark-signed, /iep/new-cycle, /iep/sign/{id}/{sigId}
+- Sidebar updated for SPED Teacher (Part 3: Generate IEP), Guidance, Principal
 
-### ⏳ PENDING — waiting for IEP form design from user:
-- **Actual IEP form fields/layout** — user will provide the DepEd IEP form design
-- **Auto-fill from Process 3 & 4** — pull assessment data + PDSP recommendations into IEP
-- **Document locking** after all 4 signatures (schema supports, logic not wired)
-- **Rename all "P3" labels** → "Individualized Education Plan" throughout
+### ⏳ PENDING — waiting for user testing:
+- Test full flow: create → fill → sign → lock → new cycle
+- Verify auto-fill from student_records
+- Verify domain pre-population from signed PDSP
+- Verify print layout
 
 ---
 
@@ -108,19 +113,34 @@
 
 ## 🗄️ Schema Import Notes (for PC transfer)
 
-The `config/schema.sql` file is self-contained. To import on a new machine:
+The `config/schema.sql` file is self-contained and clean (692 lines, no redundancy).
 
+**To import on a new machine:**
 ```bash
+# 1. Create the database first
+mysql -u root -p -e "CREATE DATABASE sped_lms CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 2. Import schema
 mysql -u root -p sped_lms < config/schema.sql
 ```
 
-**Known compatibility issues fixed:**
-- All `ADD COLUMN IF NOT EXISTS` replaced with INFORMATION_SCHEMA prepared statements (MariaDB < 10.3 compatible)
-- All `CREATE INDEX IF NOT EXISTS` replaced with INFORMATION_SCHEMA checks
-- `SET FOREIGN_KEY_CHECKS = 0` at top prevents FK order issues
-- All tables use `CREATE TABLE IF NOT EXISTS`
+**What was cleaned (2026-05-08):**
+- Removed duplicate `iep_meetings` table definition (migration v1.27 block was dead code)
+- Removed orphaned `iep_meeting_calendars` table (replaced by `user_availability`)
+- Removed orphaned `iep_p2_documents` + `iep_p2_reviews` (replaced by `pdsp_records`)
+- Removed old `iep_documents` + `iep_signatures` (replaced by `iep_p3_documents`)
+- Removed all ALTER TABLE migration blocks — all columns now in base definitions
+- `learner_iep.iep_p3_id` FK now correctly points to `iep_p3_documents`
+- All db_version entries 20–38 inserted in single block at end
+- Schema reduced from 1287 lines → 692 lines
 
-**If you get errors on import:**
-1. Make sure the database exists first: `CREATE DATABASE sped_lms CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
-2. Run with `--force` flag to skip individual statement errors: `mysql -u root -p --force sped_lms < config/schema.sql`
-3. The SchemaManager will apply any remaining migrations on first app boot
+**36 tables defined (no duplicates):**
+db_version, users, role_requests, role_documents, enrollment_submissions,
+enrollment_documents, student_records, education_history, assessment_records,
+assessment_services, assessment_documents, assessment_checklists, iep_meetings,
+meeting_notifications, user_availability, pdsp_records, pdsp_domains,
+pdsp_signatories, iep_p3_documents, iep_p3_signatures, iep_audit_log,
+learner_iep, learning_materials, activity_templates, activity_attempts,
+assignment_submissions, learner_progress, activity_records, module_access_logs,
+login_log, activity_log, notifications, encryption_audit, csrf_tokens,
+rate_limit_log, dlp_settings, system_settings

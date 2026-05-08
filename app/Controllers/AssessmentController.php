@@ -1,7 +1,8 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 3
-// Last modified: 2026-05-04
+// Last modified: 2026-05-08
 // Part of: SPED LMS — Assessment Controller
+// Changes: Fixed file_path saved as 'uploads/assessments/' (was 'assessments/')
 
 require_once __DIR__ . '/../Models/AssessmentModel.php';
 require_once __DIR__ . '/../Models/StudentModel.php';
@@ -409,7 +410,7 @@ class AssessmentController {
             $this->assessmentModel->saveServiceDocument(
                 $assessmentId,
                 $serviceName,
-                'assessments/' . $filename,
+                'uploads/assessments/' . $filename,
                 $fileType,
                 $file['name']
             );

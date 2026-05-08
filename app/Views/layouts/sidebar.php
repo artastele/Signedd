@@ -24,10 +24,8 @@ function isIEPProcedureActive() {
 ?>
 
 <div class="sidebar" id="sidebar">
-    <!-- Toggle Button (Mobile) -->
-    <button class="sidebar-toggle" id="sidebarToggle">
-        <i class="bi bi-list"></i>
-    </button>
+    <!-- Overlay (mobile only) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- Logo -->
     <div class="sidebar-logo">
@@ -65,9 +63,9 @@ function isIEPProcedureActive() {
                 <i class="bi bi-calendar-check"></i>
                 <span>IEP Meetings</span>
             </a>
-            <a href="<?php echo $basePath; ?>/iep/documents" class="<?php echo isActive('/iep/documents'); ?>">
+            <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/meetings') ? 'active' : ''; ?>">
                 <i class="bi bi-file-earmark-text"></i>
-                <span>Final IEP</span>
+                <span>My Child's IEP</span>
             </a>
             <a href="<?php echo $basePath; ?>/services" class="<?php echo isActive('/services'); ?>">
                 <i class="bi bi-grid-3x3-gap"></i>
@@ -104,9 +102,9 @@ function isIEPProcedureActive() {
                         <i class="bi bi-2-circle"></i>
                         <span>Part 2: Meeting & PDSP</span>
                     </a>
-                    <a href="<?php echo $basePath; ?>/iep/p3/sign" class="sidebar-submenu-item <?php echo isActive('/iep/p3/sign'); ?>">
+                    <a href="<?php echo $basePath; ?>/iep" class="sidebar-submenu-item <?php echo isActive('/iep') && !isActive('/iep/meetings') && !isActive('/iep/availability') ? 'active' : ''; ?>">
                         <i class="bi bi-3-circle"></i>
-                        <span>Part 3: Final IEP</span>
+                        <span>Part 3: Generate IEP</span>
                     </a>
                 </div>
             </div>
@@ -133,7 +131,7 @@ function isIEPProcedureActive() {
                 <i class="bi bi-calendar-event"></i>
                 <span>IEP Meetings</span>
             </a>
-            <a href="<?php echo $basePath; ?>/iep/documents" class="<?php echo isActive('/iep/documents'); ?>">
+            <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/meetings') && !isActive('/iep/availability') ? 'active' : ''; ?>">
                 <i class="bi bi-file-earmark-medical"></i>
                 <span>IEP Documents</span>
             </a>
@@ -147,7 +145,7 @@ function isIEPProcedureActive() {
                 <i class="bi bi-calendar-event"></i>
                 <span>IEP Meetings</span>
             </a>
-            <a href="<?php echo $basePath; ?>/iep/documents" class="<?php echo isActive('/iep/documents'); ?>">
+            <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/meetings') && !isActive('/iep/availability') ? 'active' : ''; ?>">
                 <i class="bi bi-file-earmark-medical"></i>
                 <span>IEP Documents</span>
             </a>
@@ -220,192 +218,150 @@ function isIEPProcedureActive() {
     </div>
 </div>
 
-<!-- Sidebar Toggle Script -->
+<!-- Sidebar Script -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const sidebar = document.getElementById('sidebar');
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    
-    if (sidebarToggle) {
-        sidebarToggle.addEventListener('click', function() {
-            sidebar.classList.toggle('collapsed');
+document.addEventListener('DOMContentLoaded', function () {
+    const sidebar    = document.getElementById('sidebar');
+    const hamburger  = document.getElementById('sidebarHamburger');
+    const overlay    = document.getElementById('sidebarOverlay');
+
+    function openSidebar() {
+        sidebar.classList.add('open');
+        if (overlay) overlay.classList.add('active');
+        document.body.classList.add('sidebar-open');
+    }
+
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        if (overlay) overlay.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
+    }
+
+    // Hamburger button (in topbar)
+    if (hamburger) {
+        hamburger.addEventListener('click', function (e) {
+            e.stopPropagation();
+            sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
         });
     }
-    
-    // Close sidebar on mobile when clicking outside
-    document.addEventListener('click', function(event) {
-        if (window.innerWidth <= 768) {
-            if (!sidebar.contains(event.target) && !sidebarToggle.contains(event.target)) {
-                sidebar.classList.add('collapsed');
-            }
+
+    // Overlay click closes sidebar
+    if (overlay) {
+        overlay.addEventListener('click', closeSidebar);
+    }
+
+    // Close on resize to desktop
+    window.addEventListener('resize', function () {
+        if (window.innerWidth > 768) {
+            closeSidebar();
         }
     });
 });
 </script>
 
 <style>
-/* Sidebar Scrollable */
-.sidebar {
+/* ============================================
+   SIDEBAR — Responsive overrides
+   (base styles live in custom.css)
+   ============================================ */
+
+/* Overlay behind sidebar on mobile */
+.sidebar-overlay {
+    display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    height: 100vh;
-    width: 260px;
-    background: linear-gradient(180deg, #a01422 0%, #1e4072 100%);
-    color: white;
-    display: flex;
-    flex-direction: column;
-    transition: all 0.3s ease;
-    z-index: 1000;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 999;
+}
+.sidebar-overlay.active {
+    display: block;
 }
 
+/* Collapsible section toggle */
+.sidebar-section { margin: 5px 0; }
+
+.sidebar-section-toggle {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    color: rgba(255,255,255,0.9);
+    text-decoration: none;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+.sidebar-section-toggle:hover {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    padding-left: 25px;
+}
+.sidebar-section-toggle.active {
+    background: rgba(160,20,34,0.3);
+    border-left: 4px solid #a01422;
+    color: #fff;
+}
+.sidebar-section-toggle i:first-child { margin-right: 12px; font-size: 1.1rem; }
+.sidebar-section-toggle .toggle-icon { margin-left: auto; transition: transform 0.3s; font-size: 0.9rem; }
+.sidebar-section-toggle[aria-expanded="true"] .toggle-icon { transform: rotate(180deg); }
+
+/* Submenu items */
+.sidebar-submenu-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px 10px 45px;
+    color: rgba(255,255,255,0.8);
+    text-decoration: none;
+    transition: all 0.3s;
+    font-size: 0.9rem;
+    border-left: 3px solid transparent;
+}
+.sidebar-submenu-item:hover {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    padding-left: 50px;
+    border-left-color: rgba(255,255,255,0.3);
+}
+.sidebar-submenu-item.active {
+    background: rgba(160,20,34,0.4);
+    border-left-color: #a01422;
+    color: #fff;
+}
+.sidebar-submenu-item i { margin-right: 10px; font-size: 1rem; }
+
+/* Scrollable menu */
 .sidebar-menu {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
     padding-bottom: 20px;
 }
+.sidebar-menu::-webkit-scrollbar { width: 6px; }
+.sidebar-menu::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); }
+.sidebar-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
+.sidebar-menu::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
 
-/* Custom Scrollbar */
-.sidebar-menu::-webkit-scrollbar {
-    width: 6px;
-}
-
-.sidebar-menu::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.sidebar-menu::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 3px;
-}
-
-.sidebar-menu::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.5);
-}
-
-/* Sidebar Toggle Button */
-.sidebar-toggle {
-    display: none;
-    position: absolute;
-    top: 15px;
-    right: -40px;
-    background: #1e4072;
-    color: white;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 0 5px 5px 0;
-    cursor: pointer;
-    z-index: 1001;
-}
-
-.sidebar-toggle:hover {
-    background: #a01422;
-}
-
-/* Collapsible Section */
-.sidebar-section {
-    margin: 5px 0;
-}
-
-.sidebar-section-toggle {
-    display: flex;
-    align-items: center;
-    padding: 12px 20px;
-    color: rgba(255, 255, 255, 0.9);
-    text-decoration: none;
-    transition: all 0.3s;
-    cursor: pointer;
-    position: relative;
-}
-
-.sidebar-section-toggle:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    padding-left: 25px;
-}
-
-.sidebar-section-toggle.active {
-    background: rgba(160, 20, 34, 0.3);
-    border-left: 4px solid #a01422;
-    color: white;
-}
-
-.sidebar-section-toggle i:first-child {
-    margin-right: 12px;
-    font-size: 1.1rem;
-}
-
-.sidebar-section-toggle .toggle-icon {
-    margin-left: auto;
-    transition: transform 0.3s;
-    font-size: 0.9rem;
-}
-
-.sidebar-section-toggle[aria-expanded="true"] .toggle-icon {
-    transform: rotate(180deg);
-}
-
-/* Submenu Items */
-.sidebar-submenu-item {
-    display: flex;
-    align-items: center;
-    padding: 10px 20px 10px 45px;
-    color: rgba(255, 255, 255, 0.8);
-    text-decoration: none;
-    transition: all 0.3s;
-    font-size: 0.9rem;
-    border-left: 3px solid transparent;
-}
-
-.sidebar-submenu-item:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    padding-left: 50px;
-    border-left-color: rgba(255, 255, 255, 0.3);
-}
-
-.sidebar-submenu-item.active {
-    background: rgba(160, 20, 34, 0.4);
-    border-left-color: #a01422;
-    color: white;
-}
-
-.sidebar-submenu-item i {
-    margin-right: 10px;
-    font-size: 1rem;
-}
-
-/* Collapsed State (Mobile) */
-.sidebar.collapsed {
-    left: -260px;
-}
-
-/* Mobile Responsive */
+/* ---- MOBILE ---- */
 @media (max-width: 768px) {
+    /* Sidebar hidden off-screen by default */
     .sidebar {
         left: -260px;
+        transition: left 0.3s ease;
+        z-index: 1000;
     }
-    
-    .sidebar-toggle {
-        display: block;
-    }
-    
-    .sidebar:not(.collapsed) {
+    /* Slide in when open */
+    .sidebar.open {
         left: 0;
     }
-}
-
-/* Adjust main content for sidebar */
-.main-content {
-    margin-left: 260px;
-    transition: margin-left 0.3s ease;
-}
-
-@media (max-width: 768px) {
+    /* Main content full-width on mobile */
     .main-content {
-        margin-left: 0;
+        margin-left: 0 !important;
+    }
+    /* Topbar full-width on mobile */
+    .topbar {
+        left: 0 !important;
+    }
+    /* Prevent body scroll when sidebar open */
+    body.sidebar-open {
+        overflow: hidden;
     }
 }
 </style>

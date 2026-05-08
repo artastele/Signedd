@@ -34,11 +34,20 @@ The following files are LOCKED and must NOT be modified without explicit user ap
 - `app/Models/PDSPModel.php`
 - `app/Views/iep_meeting/` (all files)
 
+**Shared Infrastructure (serves all processes — treat as locked)**
+- `app/Controllers/FileController.php` — secure file serving for all processes
+- `config/schema.sql` — single source of truth for all DB schema
+- `config/permissions.php` — RBAC permission map
+- `config/db.php` — database connection
+- `app/Middleware/RoleMiddleware.php` — RBAC enforcement
+- `app/Middleware/SessionMiddleware.php` — session security
+
 **Rules:**
 - If a bug is found in Processes 1, 2, 3, or 4: **describe it to the user first, wait for explicit approval, then fix.**
 - Never silently edit these files as part of another feature's work.
 - Never touch these files during Process 5, 6, or 7 work.
 - Schema changes that affect these processes must also be approved first.
+- `FileController.php` changes require explicit approval — it serves files for ALL processes.
 
 ## Documentation rule: minimize MD files
 - **DO NOT** create temporary/redundant MD files (e.g., PART-A-SUMMARY.md, FIX-SUMMARY.md, etc.)

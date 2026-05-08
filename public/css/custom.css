@@ -252,7 +252,6 @@
         margin-left: 0;
     }
 }
-
 /* ============================================
    BUTTONS
    ============================================ */
@@ -407,6 +406,31 @@
 /* ============================================
    NOTIFICATION BELL
    ============================================ */
+
+/* Hamburger button — shown only on mobile */
+.sidebar-hamburger {
+    display: none;
+    background: transparent;
+    border: none;
+    color: #1e4072;
+    font-size: 1.6rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    line-height: 1;
+    transition: background 0.2s;
+}
+.sidebar-hamburger:hover {
+    background: #f0f0f0;
+    color: #a01422;
+}
+@media (max-width: 768px) {
+    .sidebar-hamburger {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
 
 .topbar {
     position: fixed;
@@ -837,4 +861,44 @@
     color: rgba(59, 109, 17, 0.1);
     pointer-events: none;
     white-space: nowrap;
+}
+
+/* ============================================
+   RESPONSIVE — Mobile layout fixes
+   ============================================ */
+
+@media (max-width: 768px) {
+    /* Topbar spans full width on mobile (no sidebar offset) */
+    .topbar {
+        left: 0 !important;
+        padding: 0 1rem;
+    }
+
+    /* Main content no sidebar offset, reduce padding */
+    .main-content {
+        margin-left: 0 !important;
+        padding: 1rem;
+    }
+
+    /* Notification panel narrower on small screens */
+    .notification-panel {
+        width: calc(100vw - 2rem);
+        right: -1rem;
+    }
+
+    /* User info text hidden on very small screens */
+    .user-info {
+        display: none;
+    }
+
+    /* Tables scroll horizontally */
+    .table-responsive-stack {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Cards full width */
+    .card {
+        margin-bottom: 1rem;
+    }
 }

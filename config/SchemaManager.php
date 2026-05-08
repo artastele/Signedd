@@ -14,6 +14,12 @@ class SchemaManager {
 
     public function applyMigrations() {
         try {
+            // Check current version first — skip if already at latest (v39)
+            $currentVersion = $this->getCurrentVersion();
+            if ($currentVersion >= 39) {
+                return true; // Already up to date, skip re-running schema
+            }
+
             // Read schema.sql
             $schemaPath = __DIR__ . '/schema.sql';
             if (!file_exists($schemaPath)) {
@@ -21,6 +27,11 @@ class SchemaManager {
             }
 
             $sql = file_get_contents($schemaPath);
+
+            // Strip UTF-8 BOM if present (prevents MySQL syntax error)
+            if (substr($sql, 0, 3) === "\xEF\xBB\xBF") {
+                $sql = substr($sql, 3);
+            }
 
             // Execute the entire schema (idempotent with IF NOT EXISTS)
             $this->db->exec($sql);

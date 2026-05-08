@@ -13,6 +13,9 @@
     
     <!-- Custom CSS -->
     <link href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/css/custom.css" rel="stylesheet">
+
+    <!-- Print CSS (Process 5 — IEP print layout) -->
+    <link href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/css/print.css" rel="stylesheet" media="print">
     
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
