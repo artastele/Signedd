@@ -11,6 +11,7 @@ return [
     ],
 
     'parent' => [
+        'parent.dashboard',
         'dashboard.parent',
         'enrollment.submit',
         'enrollment.view',

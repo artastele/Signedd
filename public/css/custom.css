@@ -16,6 +16,20 @@
 }
 
 /* ============================================
+   MOBILE RESPONSIVE DEFAULTS
+   ============================================ */
+
+/* Camera button hidden by default (shown on mobile via media query) */
+.btn-upload-camera {
+    display: none;
+}
+
+/* Hamburger button hidden by default (shown on mobile via media query) */
+.hamburger-btn {
+    display: none;
+}
+
+/* ============================================
    SIDEBAR NAVIGATION
    ============================================ */
 
@@ -28,8 +42,10 @@
     background: linear-gradient(180deg, #a01422 0%, #1e4072 100%);
     padding: 0;
     z-index: 1000;
-    overflow-y: auto;
+    overflow: hidden; /* Prevent scrolling on the main sidebar */
     box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
 }
 
 .sidebar-logo {
@@ -51,7 +67,28 @@
 }
 
 .sidebar-menu {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 1rem 0;
+    padding-bottom: 160px; /* Increased padding to ensure complete clearance */
+}
+
+.sidebar-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-menu::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-menu::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+}
+
+.sidebar-menu::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
 }
 
 .sidebar-menu a {
@@ -97,6 +134,8 @@
     padding: 1rem 1.5rem;
     background: rgba(0, 0, 0, 0.2);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
+    min-height: 120px; /* Ensure consistent height */
+    z-index: 10; /* Ensure it stays on top */
 }
 
 .sidebar-user-info {
@@ -126,6 +165,15 @@
 
 .sidebar-user .btn-logout:hover {
     background-color: #a01422;
+}
+
+/* Ensure proper spacing for last menu items */
+.sidebar-menu a:last-child {
+    margin-bottom: 2rem; /* Extra margin for the last menu item */
+}
+
+.sidebar-divider:last-of-type {
+    margin-bottom: 2rem; /* Extra margin for the last divider */
 }
 
 /* Main content with sidebar */
@@ -501,7 +549,7 @@
 .notification-panel {
     position: absolute;
     top: 55px;
-    right: 0;
+    right: -20px; /* Better alignment with the bell icon */
     background: white;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -509,6 +557,19 @@
     max-height: 500px;
     overflow: hidden;
     z-index: 1001;
+}
+
+/* Add arrow pointer to notification panel */
+.notification-panel::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    right: 70px; /* Position arrow above the bell icon */
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 8px solid #1e4072; /* Match header gradient start color */
 }
 
 .notification-header {
@@ -867,6 +928,384 @@
    RESPONSIVE — Mobile layout fixes
    ============================================ */
 
+/* ============================================
+   MOBILE RESPONSIVE SYSTEM
+   ============================================ */
+
+/* Hamburger Menu Toggle */
+.hamburger-btn {
+    display: none;
+    background: transparent;
+    border: none;
+    color: #1e4072;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.hamburger-btn:hover {
+    background: #f0f0f0;
+    color: #a01422;
+}
+
+/* Sidebar Overlay for Mobile */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 999;
+}
+
+/* Mobile Sidebar Behavior */
+@media (max-width: 1024px) {
+    .hamburger-btn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        z-index: 1000;
+        width: 260px;
+    }
+    
+    body.sidebar-open .sidebar {
+        transform: translateX(0);
+    }
+    
+    body.sidebar-open .sidebar-overlay {
+        display: block !important;
+    }
+    
+    .main-content {
+        margin-left: 0 !important;
+        width: 100%;
+    }
+    
+    .topbar {
+        left: 0 !important;
+    }
+    
+    /* Camera upload button visible on mobile */
+    .btn-upload-camera {
+        display: inline-flex !important;
+    }
+    
+    /* Upload buttons layout on mobile */
+    .upload-buttons {
+        display: flex !important;
+        gap: 0.5rem;
+        justify-content: center;
+    }
+    
+    .upload-buttons .btn {
+        flex: 1;
+    }
+}
+
+/* Desktop: Hide mobile elements */
+@media (min-width: 1025px) {
+    .hamburger-btn {
+        display: none !important;
+    }
+    
+    .sidebar-overlay {
+        display: none !important;
+    }
+    
+    .btn-upload-camera {
+        display: none !important;
+    }
+}
+
+/* Mobile Layout Adjustments */
+@media (max-width: 768px) {
+    /* Stack grids and rows */
+    .row, .grid-cols-2, .grid-cols-3 {
+        flex-direction: column !important;
+        grid-template-columns: 1fr !important;
+    }
+    
+    .col, [class*="col-"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-bottom: 1rem;
+    }
+    
+    /* Tables scroll horizontally */
+    .table-responsive, table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Full width buttons */
+    .btn {
+        width: 100%;
+        justify-content: center;
+        margin-bottom: 0.5rem;
+    }
+    
+    .btn-group .btn {
+        width: auto;
+    }
+    
+    /* Cards spacing */
+    .card {
+        margin-bottom: 1rem;
+    }
+    
+    /* Upload buttons side by side */
+    .upload-buttons {
+        display: flex;
+        flex-direction: row;
+        gap: 0.5rem;
+    }
+    
+    .upload-buttons button {
+        flex: 1;
+    }
+    
+    /* Typography adjustments */
+    h1 {
+        font-size: 1.5rem;
+    }
+    
+    h2 {
+        font-size: 1.25rem;
+    }
+    
+    /* Page header stacking */
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    
+    .page-header .badge-group {
+        flex-wrap: wrap;
+    }
+    
+    /* Notification panel full width on mobile */
+    .notification-panel {
+        width: calc(100vw - 2rem);
+        right: -1rem;
+    }
+    
+    /* Hide arrow on mobile */
+    .notification-panel::before {
+        display: none;
+    }
+    
+    /* User info hidden on small screens */
+    .topbar-user .user-info {
+        display: none;
+    }
+    
+    /* Reduce padding */
+    .main-content {
+        padding: 1rem;
+    }
+    
+    .topbar {
+        padding: 0 1rem;
+    }
+}
+
+/* ============================================
+   UPLOAD ZONE MOBILE ENHANCEMENTS
+   ============================================ */
+
+.upload-zone {
+    border: 2px dashed #a01422;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    background: #fafafa;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.upload-zone:hover {
+    border-color: #8a1220;
+    background: #f5f5f5;
+}
+
+.upload-zone.dragover {
+    border-color: #a01422;
+    background: #fff5f5;
+}
+
+.upload-buttons {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+/* Mobile upload zone adjustments */
+@media (max-width: 768px) {
+    .upload-zone {
+        padding: 1.5rem 1rem;
+    }
+    
+    .upload-buttons {
+        flex-direction: row;
+        gap: 0.5rem;
+    }
+    
+    .upload-buttons button {
+        flex: 1;
+        font-size: 0.9rem;
+    }
+}
+
+/* ============================================
+   FORM MOBILE RESPONSIVENESS
+   ============================================ */
+
+/* Process-specific mobile layouts */
+
+/* Process 1 — Enrollment Form */
+@media (max-width: 768px) {
+    .enrollment-form .form-group {
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    .enrollment-form .row {
+        flex-direction: column;
+    }
+    
+    .enrollment-form .form-row-2col {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+}
+
+/* Process 2 — Verification */
+@media (max-width: 768px) {
+    .student-list-table {
+        display: block;
+        overflow-x: auto;
+    }
+    
+    .verification-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .verification-actions .btn {
+        width: 100%;
+    }
+}
+
+/* Process 3 — Assessment */
+@media (max-width: 768px) {
+    .services-checklist {
+        grid-template-columns: 1fr;
+    }
+    
+    .mdt-table-container {
+        overflow-x: auto;
+    }
+    
+    .assessment-section {
+        margin-bottom: 2rem;
+    }
+}
+
+/* Process 4 — IEP Meeting */
+@media (max-width: 768px) {
+    .availability-calendar .calendar-grid {
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+    }
+    
+    .calendar-day {
+        min-height: 32px;
+        font-size: 0.8rem;
+    }
+    
+    .meeting-form .form-group {
+        margin-bottom: 1rem;
+    }
+    
+    .pdsp-domains .domain-card {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Process 5 — IEP Upload */
+@media (max-width: 768px) {
+    .signatory-item {
+        margin-bottom: 1rem;
+    }
+    
+    .signatory-name {
+        margin-top: 0.5rem;
+    }
+    
+    .iep-history-card {
+        margin-bottom: 1rem;
+    }
+    
+    .iep-form-sections {
+        padding: 1rem;
+    }
+}
+
+/* Process 6 — IEP Implementation */
+@media (max-width: 768px) {
+    .materials-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .material-card {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Process 7 — Learning Activities */
+@media (max-width: 768px) {
+    .activity-modules {
+        grid-template-columns: 1fr;
+    }
+    
+    .module-card {
+        margin-bottom: 1rem;
+    }
+    
+    .progress-bar-container {
+        margin: 1rem 0;
+    }
+}
+
+/* RBAC Mobile Layout */
+@media (max-width: 768px) {
+    .role-selection-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .role-card {
+        margin-bottom: 1rem;
+    }
+    
+    .role-verification-form .form-group {
+        margin-bottom: 1rem;
+    }
+}
+
 @media (max-width: 768px) {
     /* Topbar spans full width on mobile (no sidebar offset) */
     .topbar {
@@ -885,6 +1324,11 @@
         width: calc(100vw - 2rem);
         right: -1rem;
     }
+    
+    /* Hide arrow on small screens */
+    .notification-panel::before {
+        display: none;
+    }
 
     /* User info text hidden on very small screens */
     .user-info {
@@ -900,5 +1344,12 @@
     /* Cards full width */
     .card {
         margin-bottom: 1rem;
+    }
+
+    /* Fix for password toggle button overlapping text on mobile */
+    .form-floating input[type="password"],
+    .form-floating input[id="password"],
+    .form-floating input[id="confirm_password"] {
+        padding-right: 45px !important;
     }
 }

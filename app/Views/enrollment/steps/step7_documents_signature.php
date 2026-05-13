@@ -28,12 +28,17 @@
                 <div class="col-md-6 mb-3">
                     <div class="card border-danger">
                         <div class="card-body">
-                            <label for="psa_birth_cert" class="form-label">
+                            <label class="form-label">
                                 <i class="bi bi-file-earmark-text text-danger"></i> 
                                 <strong>PSA Birth Certificate *</strong>
                             </label>
-                            <input type="file" class="form-control" id="psa_birth_cert" name="psa_birth_cert" 
-                                   accept=".pdf,.jpg,.jpeg,.png" required>
+                            <?php 
+                            $fieldName = 'psa_birth_cert';
+                            $acceptedTypes = '.pdf,.jpg,.jpeg,.png';
+                            $maxSize = 10;
+                            $showCamera = true;
+                            include __DIR__ . '/../../components/upload-zone.php';
+                            ?>
                             <div class="form-text">Philippine Statistics Authority certified birth certificate (Required)</div>
                         </div>
                     </div>
@@ -43,12 +48,17 @@
                 <div class="col-md-6 mb-3">
                     <div class="card border-secondary">
                         <div class="card-body">
-                            <label for="pwd_id" class="form-label">
+                            <label class="form-label">
                                 <i class="bi bi-card-heading text-secondary"></i> 
                                 <strong>PWD ID</strong> <small class="text-muted">(Optional)</small>
                             </label>
-                            <input type="file" class="form-control" id="pwd_id" name="pwd_id" 
-                                   accept=".pdf,.jpg,.jpeg,.png">
+                            <?php 
+                            $fieldName = 'pwd_id';
+                            $acceptedTypes = '.pdf,.jpg,.jpeg,.png';
+                            $maxSize = 10;
+                            $showCamera = true;
+                            include __DIR__ . '/../../components/upload-zone.php';
+                            ?>
                             <div class="form-text">Person with Disability Identification Card (if available)</div>
                         </div>
                     </div>
@@ -58,12 +68,17 @@
                 <div class="col-md-6 mb-3">
                     <div class="card border-secondary">
                         <div class="card-body">
-                            <label for="medical_record" class="form-label">
+                            <label class="form-label">
                                 <i class="bi bi-hospital text-secondary"></i> 
                                 <strong>Medical Record</strong> <small class="text-muted">(Optional)</small>
                             </label>
-                            <input type="file" class="form-control" id="medical_record" name="medical_record" 
-                                   accept=".pdf,.jpg,.jpeg,.png">
+                            <?php 
+                            $fieldName = 'medical_record';
+                            $acceptedTypes = '.pdf,.jpg,.jpeg,.png';
+                            $maxSize = 10;
+                            $showCamera = true;
+                            include __DIR__ . '/../../components/upload-zone.php';
+                            ?>
                             <div class="form-text">Medical certificate or assessment showing disability (if available)</div>
                         </div>
                     </div>
@@ -113,10 +128,10 @@
 // Make PSA Birth Certificate optional for returning students
 document.addEventListener('DOMContentLoaded', function() {
     const enrollmentType = '<?php echo $enrollmentType; ?>';
-    const psaField = document.getElementById('psa_birth_cert');
     
-    if (enrollmentType === 'returning' && psaField) {
-        psaField.required = false;
+    if (enrollmentType === 'returning') {
+        // For returning students, no file uploads are required
+        console.log('Returning student - file uploads not required');
     }
 });
 </script>

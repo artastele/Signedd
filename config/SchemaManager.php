@@ -14,12 +14,6 @@ class SchemaManager {
 
     public function applyMigrations() {
         try {
-            // Check current version first — skip if already at latest (v39)
-            $currentVersion = $this->getCurrentVersion();
-            if ($currentVersion >= 39) {
-                return true; // Already up to date, skip re-running schema
-            }
-
             // Read schema.sql
             $schemaPath = __DIR__ . '/schema.sql';
             if (!file_exists($schemaPath)) {
@@ -33,8 +27,30 @@ class SchemaManager {
                 $sql = substr($sql, 3);
             }
 
-            // Execute the entire schema (idempotent with IF NOT EXISTS)
-            $this->db->exec($sql);
+            // Extract and apply only migrations newer than current version
+            $currentVersion = $this->getCurrentVersion();
+
+            // Find all migration blocks: -- MIGRATION: vN ... -- END MIGRATION: vN
+            preg_match_all(
+                '/--\s*MIGRATION:\s*v(\d+).*?--\s*END MIGRATION:\s*v\1/s',
+                $sql,
+                $matches,
+                PREG_SET_ORDER
+            );
+
+            if (empty($matches)) {
+                // Fallback: run entire schema (idempotent with IF NOT EXISTS)
+                $this->db->exec($sql);
+                return true;
+            }
+
+            foreach ($matches as $match) {
+                $version = (int)$match[1];
+                if ($version > $currentVersion) {
+                    $this->db->exec($match[0]);
+                    error_log("SchemaManager: applied migration v{$version}");
+                }
+            }
 
             return true;
         } catch (PDOException $e) {

@@ -139,39 +139,43 @@ route('POST', '/assessment/{id}/approve', 'AssessmentController', 'approve', 'as
 route('POST', '/assessment/{id}/reject', 'AssessmentController', 'reject', 'assessment.manage');
 
 // IEP Implementation (Process 6 - Teacher Side)
-route('GET', '/iep/implementation', 'IEPImplementationController', 'index', 'iep.implement');
-route('GET', '/iep/implementation/assign', 'IEPImplementationController', 'showAssign', 'iep.implement');
-route('POST', '/iep/implementation/assign', 'IEPImplementationController', 'assign', 'iep.implement');
-route('GET', '/iep/implementation/materials/{id}', 'IEPImplementationController', 'materials', 'iep.implement');
-route('GET', '/iep/implementation/create-activity', 'IEPImplementationController', 'showCreateActivity', 'iep.implement');
-route('GET', '/iep/implementation/create-activity/{id}', 'IEPImplementationController', 'showCreateActivity', 'iep.implement');
-route('POST', '/iep/implementation/upload-file', 'IEPImplementationController', 'uploadFile', 'iep.implement');
-route('POST', '/iep/implementation/save-activity', 'IEPImplementationController', 'saveActivity', 'iep.implement');
-route('POST', '/iep/implementation/delete-material/{id}', 'IEPImplementationController', 'deleteMaterial', 'iep.implement');
-route('GET', '/iep/implementation/progress/{id}', 'IEPImplementationController', 'progress', 'iep.implement');
+route('GET',  '/iep/implementation',                                'IEPImplementationController', 'index',             'iep.implement');
+route('GET',  '/iep/implementation/assign',                         'IEPImplementationController', 'showAssign',        'iep.implement');
+route('POST', '/iep/implementation/assign',                         'IEPImplementationController', 'assign',            'iep.implement');
+route('GET',  '/iep/implementation/materials/{id}',                 'IEPImplementationController', 'materials',         'iep.implement');
+route('GET',  '/iep/implementation/create-activity',                'IEPImplementationController', 'showCreateActivity','iep.implement');
+route('GET',  '/iep/implementation/create-activity/{id}',           'IEPImplementationController', 'showCreateActivity','iep.implement');
+route('POST', '/iep/implementation/upload-file',                    'IEPImplementationController', 'uploadFile',        'iep.implement');
+route('POST', '/iep/implementation/save-activity',                  'IEPImplementationController', 'saveActivity',      'iep.implement');
+route('POST', '/iep/implementation/delete-material/{id}',           'IEPImplementationController', 'deleteMaterial',    'iep.implement');
+route('GET',  '/iep/implementation/progress/{id}',                  'IEPImplementationController', 'progress',          'iep.implement');
+// Process 6 — new workspace routes
+route('GET',  '/iep/implementation/workspace/{id}',                 'IEPImplementationController', 'workspace',         'iep.implement');
+route('POST', '/iep/implementation/lesson-plan/create',             'IEPImplementationController', 'createLessonPlan',  'iep.implement');
+route('POST', '/iep/implementation/lesson-plan/upload-doc',         'IEPImplementationController', 'uploadLessonDoc',   'iep.implement');
+route('POST', '/iep/implementation/lesson-plan/{id}/publish',       'IEPImplementationController', 'publishLessonPlan', 'iep.implement');
+route('POST', '/iep/implementation/lesson-plan/{id}/delete',        'IEPImplementationController', 'deleteLessonPlan',  'iep.implement');
+route('POST', '/iep/implementation/material/add',                   'IEPImplementationController', 'addMaterial',       'iep.implement');
+route('POST', '/iep/implementation/activity/create',                'IEPImplementationController', 'addActivity',       'iep.implement');
+route('POST', '/iep/implementation/activity/{id}/delete',           'IEPImplementationController', 'deleteActivity',    'iep.implement');
+route('POST', '/iep/implementation/material/{id}/delete',           'IEPImplementationController', 'deleteMaterialNew', 'iep.implement');
+// Template downloads
+route('GET',  '/iep/implementation/template/{type}',                'IEPImplementationController', 'downloadTemplate',  'iep.implement');
+route('POST', '/iep/implementation/activity/import',                'IEPImplementationController', 'importActivitiesCSV','iep.implement');
+route('GET',  '/iep/implementation/progress-tracker',               'IEPImplementationController', 'progressTracker',   'iep.implement');
 
 // ============================================
 // LEARNER ROUTES (Process 7)
 // ============================================
+route('GET',  '/learning/dashboard',              'LearningController', 'dashboard',       'learning.access');
+route('GET',  '/learning/lesson/{id}',            'LearningController', 'lessonView',      'learning.access');
+route('GET',  '/learning/activity/{id}',          'LearningController', 'activityPlay',    'learning.access');
+route('POST', '/learning/activity/{id}/submit',   'LearningController', 'submitActivity',  'learning.access');
+route('GET',  '/learning/progress',               'LearningController', 'progress',        'learning.access');
 
-// Learning Dashboard & Modules
-route('GET', '/learning/dashboard', 'LearningController', 'dashboard', 'learning.access');
-route('GET', '/learning/modules', 'LearningController', 'modules', 'learning.access');
-route('GET', '/learning/module/{id}', 'LearningController', 'viewModule', 'learning.access');
-route('POST', '/learning/module/complete', 'LearningController', 'completeModule', 'learning.access');
-
-// Learning Activities
-route('GET', '/learning/activity/{id}', 'LearningController', 'playActivity', 'learning.access');
-route('POST', '/learning/activity/submit', 'LearningController', 'submitActivity', 'learning.access');
-
-// Assignments
-route('GET', '/learning/assignments', 'LearningController', 'assignments', 'learning.access');
-route('GET', '/learning/assignment/{id}', 'LearningController', 'viewAssignment', 'learning.access');
-route('POST', '/learning/assignment/submit', 'LearningController', 'submitAssignment', 'learning.access');
-
-// Progress & Activity Logging
-route('GET', '/learning/progress', 'LearningController', 'progress', 'learning.access');
-route('POST', '/learning/log-activity', 'LearningController', 'logActivity', 'learning.access');
+// Steps 16 & 17 — Parent child progress (Process 7)
+route('GET',  '/parent/child-progress',           'LearningController', 'parentChildProgress', 'parent.dashboard');
+route('GET',  '/parent/child-progress/{id}',      'LearningController', 'parentStudentProgress', 'parent.dashboard');
 
 // ============================================
 // GUIDANCE ROUTES
@@ -211,31 +215,19 @@ route('POST', '/iep/meetings/upload-calendar', 'IEPMeetingController', 'uploadCa
 // ============================================
 
 // IEP Repository
-route('GET',  '/iep',                          'IEPController', 'index',                'iep.view');
+route('GET',  '/iep',                          'IEPController', 'index',          'iep.view');
 // Create new IEP draft
-route('GET',  '/iep/create',                   'IEPController', 'create',               'iep.create');
+route('GET',  '/iep/create',                   'IEPController', 'create',         'iep.create');
 // IEP Form (view/edit)
-route('GET',  '/iep/form/{id}',                'IEPController', 'form',                 'iep.view');
-// Save draft (AJAX)
-route('POST', '/iep/save-draft',               'IEPController', 'saveDraft',            'iep.create');
-// Upload signed document (AJAX)
-route('POST', '/iep/upload-signed-doc',        'IEPController', 'uploadSignedDoc',      'iep.create');
-// Save digital signature (AJAX)
-route('POST', '/iep/save-signature',           'IEPController', 'saveSignature',        'iep.sign');
-// Send IEP draft to parent/guidance/principal (AJAX)
-route('POST', '/iep/send-draft',               'IEPController', 'sendDraft',            'iep.create');
-// Mark F2F signed (print_upload flow)
-route('POST', '/iep/mark-f2f-signed',          'IEPController', 'markF2FSigned',        'iep.create');
-// Send signature request (AJAX)
-route('POST', '/iep/send-signature-request',   'IEPController', 'sendSignatureRequest', 'iep.create');
-// Search users by role (AJAX — for signatory send)
-route('GET',  '/iep/search-users',             'IEPController', 'searchUsers',          'iep.create');
-// Mark as signed
-route('POST', '/iep/mark-signed',              'IEPController', 'markSigned',           'iep.create');
+route('GET',  '/iep/form/{id}',                'IEPController', 'form',           'iep.view');
+// Submit IEP (form POST — upload + signatories + re-eval date)
+route('POST', '/iep/submitIEP',                'IEPController', 'submitIEP',      'iep.create');
+// Upload IEP document (AJAX)
+route('POST', '/iep/upload-signed-doc',        'IEPController', 'upload',         'iep.create');
+// Download IEP document
+route('GET',  '/iep/download/{id}',            'IEPController', 'downloadDocument', 'iep.view');
 // New cycle
-route('POST', '/iep/new-cycle',                'IEPController', 'newCycle',             'iep.create');
-// Digital sign page (signatory opens link)
-route('GET',  '/iep/sign/{id}/{signatoryId}',  'IEPController', 'signPage',             'iep.sign');
+route('POST', '/iep/new-cycle',                'IEPController', 'newCycle',       'iep.create');
 
 // IEP Documents — Unified dashboard (replaces p2/review, p3/sign, approval)
 route('GET', '/iep/documents', 'IEPDocumentController', 'documents', 'iep.view');

@@ -299,8 +299,11 @@ document.getElementById('enrollmentForm').addEventListener('submit', function(e)
     
     // Step 7: Documents (only for new/transfer students)
     if (enrollmentType !== 'returning') {
-        const psaFile = document.getElementById('psa_birth_cert');
-        if (psaFile && psaFile.files.length === 0) {
+        // Check if PSA birth certificate is uploaded using the new upload component
+        const psaPreview = document.querySelector('input[name="psa_birth_cert"]');
+        const psaUploaded = psaPreview && psaPreview.files && psaPreview.files.length > 0;
+        
+        if (!psaUploaded) {
             errors.push('❌ Step 7: PSA Birth Certificate is required');
         }
     }

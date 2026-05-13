@@ -132,11 +132,16 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
 
                     <!-- Government ID Upload -->
                     <div class="mb-4">
-                        <label for="government_id" class="form-label">
+                        <label class="form-label">
                             <i class="bi bi-card-image"></i> Government-Issued ID *
                         </label>
-                        <input type="file" class="form-control" id="government_id" name="government_id" 
-                               accept=".jpg,.jpeg,.png,.pdf" required>
+                        <?php 
+                        $fieldName = 'government_id';
+                        $acceptedTypes = '.jpg,.jpeg,.png,.pdf';
+                        $maxSize = 5;
+                        $showCamera = true;
+                        include __DIR__ . '/../components/upload-zone.php';
+                        ?>
                         <div class="form-text">
                             Upload a clear photo or scan of your government ID (e.g., Driver's License, Passport, National ID).
                             <br><strong>Accepted formats:</strong> JPG, PNG, PDF | <strong>Max size:</strong> 5MB
@@ -145,11 +150,16 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
 
                     <!-- Proof of Designation Upload -->
                     <div class="mb-4">
-                        <label for="proof_designation" class="form-label">
+                        <label class="form-label">
                             <i class="bi bi-file-earmark-text"></i> Proof of Designation *
                         </label>
-                        <input type="file" class="form-control" id="proof_designation" name="proof_designation" 
-                               accept=".jpg,.jpeg,.png,.pdf" required>
+                        <?php 
+                        $fieldName = 'proof_designation';
+                        $acceptedTypes = '.jpg,.jpeg,.png,.pdf';
+                        $maxSize = 5;
+                        $showCamera = true;
+                        include __DIR__ . '/../components/upload-zone.php';
+                        ?>
                         <div class="form-text">
                             Upload proof of your position (e.g., Appointment Letter, DepEd Order, School ID, Certificate of Employment).
                             <br><strong>Accepted formats:</strong> JPG, PNG, PDF | <strong>Max size:</strong> 5MB

@@ -1,7 +1,7 @@
 <?php
-// DO NOT ALTER WITHOUT APPROVAL — Process 5
-// Last modified: 2026-05-08
-// Part of: SPED LMS — IEP Model (Individualized Education Plan)
+// DO NOT ALTER WITHOUT APPROVAL — Process 5 (SIMPLIFIED)
+// Last modified: 2026-05-12
+// Part of: SPED LMS — IEP Model (Individualized Education Plan) - Upload Only System
 
 require_once __DIR__ . '/../../config/db.php';
 
@@ -123,7 +123,7 @@ class IEPModel {
                 FROM iep_records ir
                 JOIN student_records sr ON ir.student_id = sr.id
                 JOIN users u ON ir.drafted_by = u.id
-                WHERE ir.status IN ('signed','locked','signing')
+                WHERE ir.status IN ('signed','locked')
                 ORDER BY ir.created_at DESC
             ");
             $stmt->execute();
@@ -135,8 +135,7 @@ class IEPModel {
      * Update IEP header fields + core data
      */
     public function update($iepId, $data) {
-        $allowed = ['school_year','status','signing_method','signed_document_path',
-                    're_evaluation_date','locked_at'];
+        $allowed = ['school_year','status','signed_document_path','re_evaluation_date','locked_at'];
         $sets = [];
         $params = ['id' => $iepId];
         foreach ($allowed as $col) {
@@ -164,22 +163,6 @@ class IEPModel {
     }
 
     /**
-     * Check if student has a signed PDSP (Process 5 trigger)
-     */
-    public function studentHasSignedPDSP($studentId) {
-        $stmt = $this->db->prepare("
-            SELECT pr.id
-            FROM pdsp_records pr
-            JOIN iep_meetings im ON pr.meeting_id = im.id
-            WHERE im.student_id = :student_id
-            AND pr.status = 'signed'
-            LIMIT 1
-        ");
-        $stmt->execute(['student_id' => $studentId]);
-        return $stmt->fetch();
-    }
-
-    /**
      * Get signed PDSP for a student (to link when creating IEP)
      */
     public function getSignedPDSP($studentId) {
@@ -197,154 +180,30 @@ class IEPModel {
     }
 
     // ============================================================
-    // IEP DOMAINS
+    // SIGNATORIES (SIMPLIFIED)
     // ============================================================
 
     /**
-     * Save domains (replaces existing)
-     */
-    public function saveDomains($iepId, array $domains) {
-        // Delete existing
-        $stmt = $this->db->prepare("DELETE FROM iep_domains WHERE iep_id = :iep_id");
-        $stmt->execute(['iep_id' => $iepId]);
-        // Insert new
-        $stmt = $this->db->prepare("
-            INSERT INTO iep_domains (iep_id, domain_name, display_order)
-            VALUES (:iep_id, :domain_name, :display_order)
-        ");
-        foreach ($domains as $order => $name) {
-            $stmt->execute([
-                'iep_id'        => $iepId,
-                'domain_name'   => trim($name),
-                'display_order' => $order,
-            ]);
-        }
-    }
-
-    /**
-     * Get domains for an IEP
-     */
-    public function getDomains($iepId) {
-        $stmt = $this->db->prepare("
-            SELECT * FROM iep_domains WHERE iep_id = :iep_id ORDER BY display_order ASC
-        ");
-        $stmt->execute(['iep_id' => $iepId]);
-        return $stmt->fetchAll();
-    }
-
-    /**
-     * Get PDSP domains for pre-population (from signed PDSP)
-     */
-    public function getPDSPDomains($pdspId) {
-        $stmt = $this->db->prepare("
-            SELECT * FROM pdsp_domains WHERE pdsp_id = :pdsp_id ORDER BY id ASC
-        ");
-        $stmt->execute(['pdsp_id' => $pdspId]);
-        return $stmt->fetchAll();
-    }
-
-    // ============================================================
-    // IEP CORE
-    // ============================================================
-
-    /**
-     * Save core fields (upsert)
-     */
-    public function saveCore($iepId, $devDomain, $priorityNeeds, $terminalObjectives) {
-        // Use INSERT ... ON DUPLICATE KEY UPDATE with VALUES() to avoid duplicate named param error
-        $stmt = $this->db->prepare("
-            INSERT INTO iep_core (iep_id, developmental_domain, priority_needs, terminal_objectives)
-            VALUES (:iep_id, :dev, :needs, :objectives)
-            ON DUPLICATE KEY UPDATE
-                developmental_domain = VALUES(developmental_domain),
-                priority_needs       = VALUES(priority_needs),
-                terminal_objectives  = VALUES(terminal_objectives)
-        ");
-        return $stmt->execute([
-            'iep_id'     => $iepId,
-            'dev'        => $devDomain,
-            'needs'      => $priorityNeeds,
-            'objectives' => $terminalObjectives,
-        ]);
-    }
-
-    /**
-     * Get core fields for an IEP
-     */
-    public function getCore($iepId) {
-        $stmt = $this->db->prepare("SELECT * FROM iep_core WHERE iep_id = :iep_id LIMIT 1");
-        $stmt->execute(['iep_id' => $iepId]);
-        return $stmt->fetch();
-    }
-
-    // ============================================================
-    // IEP STEPS
-    // ============================================================
-
-    /**
-     * Save steps (replaces existing)
-     */
-    public function saveSteps($iepId, array $steps) {
-        $stmt = $this->db->prepare("DELETE FROM iep_steps WHERE iep_id = :iep_id");
-        $stmt->execute(['iep_id' => $iepId]);
-
-        $stmt = $this->db->prepare("
-            INSERT INTO iep_steps
-                (iep_id, step_number, objectives, observation, activities, materials, evaluation, duration_lp)
-            VALUES
-                (:iep_id, :step_number, :objectives, :observation, :activities, :materials, :evaluation, :duration_lp)
-        ");
-        foreach ($steps as $i => $step) {
-            $stmt->execute([
-                'iep_id'      => $iepId,
-                'step_number' => $i + 1,
-                'objectives'  => $step['objectives']  ?? null,
-                'observation' => $step['observation'] ?? null,
-                'activities'  => $step['activities']  ?? null,
-                'materials'   => $step['materials']   ?? null,
-                'evaluation'  => $step['evaluation']  ?? null,
-                'duration_lp' => $step['duration_lp'] ?? null,
-            ]);
-        }
-    }
-
-    /**
-     * Get steps for an IEP
-     */
-    public function getSteps($iepId) {
-        $stmt = $this->db->prepare("
-            SELECT * FROM iep_steps WHERE iep_id = :iep_id ORDER BY step_number ASC
-        ");
-        $stmt->execute(['iep_id' => $iepId]);
-        return $stmt->fetchAll();
-    }
-
-    // ============================================================
-    // IEP SIGNATORIES
-    // ============================================================
-
-    /**
-     * Save signatories (replaces existing — only if IEP not yet signed)
+     * Save signatories (replaces existing)
      */
     public function saveSignatories($iepId, array $signatories) {
-        // Only allow if status is draft or signing
-        $iep = $this->findById($iepId);
-        if (!$iep || in_array($iep['status'], ['signed','locked'])) return false;
-
+        // Delete existing
         $stmt = $this->db->prepare("DELETE FROM iep_signatories WHERE iep_id = :iep_id");
         $stmt->execute(['iep_id' => $iepId]);
 
-        $stmt = $this->db->prepare("
-            INSERT INTO iep_signatories (iep_id, signatory_role, signatory_name)
-            VALUES (:iep_id, :role, :name)
-        ");
-        foreach ($signatories as $sig) {
-            if (empty(trim($sig['name'] ?? ''))) continue;
-            $stmt->execute([
-                'iep_id' => $iepId,
-                'role'   => $sig['role'],
-                'name'   => trim($sig['name']),
-            ]);
+        // Insert new ones
+        if (!empty($signatories)) {
+            $stmt = $this->db->prepare("
+                INSERT INTO iep_signatories (iep_id, signatory_role, signatory_name, signed_at)
+                VALUES (:iep_id, :role, :name, NOW())
+            ");
+            foreach ($signatories as $sig) {
+                $stmt->execute([
+                    'iep_id' => $iepId,
+                    'role'   => $sig['role'],
+                    'name'   => $sig['name']
+                ]);
+            }
         }
         return true;
     }
@@ -360,88 +219,39 @@ class IEPModel {
         return $stmt->fetchAll();
     }
 
-    /**
-     * Save digital signature image for a signatory slot
-     */
-    public function saveSignatureImage($signatoryId, $imagePath) {
-        $stmt = $this->db->prepare("
-            UPDATE iep_signatories
-            SET signature_image_path = :path, signed_at = NOW()
-            WHERE id = :id
-        ");
-        return $stmt->execute(['path' => $imagePath, 'id' => $signatoryId]);
-    }
-
-    /**
-     * Get signatory by ID
-     */
-    public function getSignatoryById($signatoryId) {
-        $stmt = $this->db->prepare("SELECT * FROM iep_signatories WHERE id = :id LIMIT 1");
-        $stmt->execute(['id' => $signatoryId]);
-        return $stmt->fetch();
-    }
-
-    /**
-     * Check if all sent signatories have signed (digital flow)
-     */
-    public function allDigitalSignatoriesSigned($iepId) {
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) as total,
-                   SUM(CASE WHEN signature_image_path IS NOT NULL THEN 1 ELSE 0 END) as signed
-            FROM iep_signatories
-            WHERE iep_id = :iep_id
-        ");
-        $stmt->execute(['iep_id' => $iepId]);
-        $row = $stmt->fetch();
-        return $row['total'] > 0 && $row['total'] == $row['signed'];
-    }
-
     // ============================================================
-    // IEP COPIES
+    // STUDENT DATA & ELIGIBILITY
     // ============================================================
 
     /**
-     * Record that a copy was sent to a user
+     * Get students eligible for new IEP (have signed PDSP, no active IEP draft)
      */
-    public function recordCopy($iepId, $sentTo) {
+    public function getEligibleStudents($teacherId) {
         $stmt = $this->db->prepare("
-            INSERT INTO iep_copies (iep_id, sent_to, sent_at)
-            VALUES (:iep_id, :sent_to, NOW())
+            SELECT DISTINCT sr.id, sr.student_name, sr.lrn,
+                   pr.created_at as pdsp_signed_at
+            FROM student_records sr
+            JOIN iep_meetings im ON sr.id = im.student_id
+            JOIN pdsp_records pr ON im.id = pr.meeting_id
+            WHERE pr.status = 'signed'
+            AND sr.id NOT IN (
+                SELECT student_id FROM iep_records 
+                WHERE status IN ('draft') 
+                AND YEAR(created_at) = YEAR(NOW())
+            )
+            ORDER BY pr.created_at DESC
         ");
-        return $stmt->execute(['iep_id' => $iepId, 'sent_to' => $sentTo]);
+        $stmt->execute();
+        return $stmt->fetchAll();
     }
 
     /**
-     * Mark copy as viewed
-     */
-    public function markCopyViewed($iepId, $userId) {
-        $stmt = $this->db->prepare("
-            UPDATE iep_copies SET viewed_at = NOW()
-            WHERE iep_id = :iep_id AND sent_to = :user_id AND viewed_at IS NULL
-        ");
-        return $stmt->execute(['iep_id' => $iepId, 'user_id' => $userId]);
-    }
-
-    // ============================================================
-    // STUDENT AUTO-FILL DATA
-    // ============================================================
-
-    /**
-     * Get full student data for IEP header auto-fill
-     * Maps to: Name, Age, LRN, Section, Teacher, School, School Year, Grade Level
+     * Get student auto-fill data for IEP header
      */
     public function getStudentAutoFill($studentId) {
         $stmt = $this->db->prepare("
-            SELECT
-                sr.student_name,
-                sr.lrn,
-                es.grade_level_to_enroll   AS grade_level,
-                es.school_year,
-                es.first_name,
-                es.last_name,
-                es.middle_name,
-                es.birth_date,
-                TIMESTAMPDIFF(YEAR, es.birth_date, CURDATE()) AS age
+            SELECT sr.*, es.first_name, es.middle_name, es.last_name, es.birth_date,
+                   es.current_house_no, es.current_barangay, es.current_city, es.current_province
             FROM student_records sr
             JOIN enrollment_submissions es ON sr.enrollment_id = es.id
             WHERE sr.id = :student_id
@@ -452,117 +262,46 @@ class IEPModel {
     }
 
     /**
-     * Get assessment documents for a student (for PDSP reference panel)
-     */
-    public function getAssessmentDocuments($studentId) {
-        $stmt = $this->db->prepare("
-            SELECT ad.id, ad.file_path, ad.original_name, ad.file_type,
-                   asv.service_name, ar.version, ar.created_at AS assessed_at
-            FROM assessment_documents ad
-            JOIN assessment_services asv ON ad.assessment_service_id = asv.id
-            JOIN assessment_records ar   ON asv.assessment_id = ar.id
-            WHERE ar.student_id = :student_id
-            AND ar.status = 'finalized'
-            ORDER BY ar.version DESC, asv.service_name ASC
-        ");
-        $stmt->execute(['student_id' => $studentId]);
-        return $stmt->fetchAll();
-    }
-
-    /**
-     * Get the parent user linked to a student
+     * Get linked parent for a student
      */
     public function getLinkedParent($studentId) {
         $stmt = $this->db->prepare("
-            SELECT u.id, u.name, u.email
+            SELECT u.id, u.name, u.email, u.role
             FROM users u
-            JOIN enrollment_submissions es ON es.parent_id = u.id
-            JOIN student_records sr ON sr.enrollment_id = es.id
+            JOIN enrollment_submissions es ON u.id = es.parent_id
+            JOIN student_records sr ON es.id = sr.enrollment_id
             WHERE sr.id = :student_id
+            AND u.role = 'parent'
             LIMIT 1
         ");
         $stmt->execute(['student_id' => $studentId]);
         return $stmt->fetch();
     }
 
-    /**
-     * Search users by role (for signatory send feature)
-     */
-    public function searchUsersByRole($role, $search = '') {
-        $roleMap = [
-            'guidance_counselor' => 'guidance',
-            'school_head'        => 'principal',
-            'sned_teacher'       => 'sped_teacher',
-            'teacher'            => 'sped_teacher',
-            'parent_guardian'    => 'parent',
-            'ilrc_supervisor'    => 'guidance',
-        ];
-        $dbRole = $roleMap[$role] ?? $role;
-        if ($search) {
-            $stmt = $this->db->prepare("
-                SELECT id, name, email FROM users
-                WHERE role = :role AND status = 'active'
-                AND (name LIKE :search OR email LIKE :search)
-                ORDER BY name ASC LIMIT 10
-            ");
-            $stmt->execute(['role' => $dbRole, 'search' => '%' . $search . '%']);
-        } else {
-            $stmt = $this->db->prepare("
-                SELECT id, name, email FROM users
-                WHERE role = :role AND status = 'active'
-                ORDER BY name ASC LIMIT 20
-            ");
-            $stmt->execute(['role' => $dbRole]);
-        }
-        return $stmt->fetchAll();
-    }
+    // ============================================================
+    // DOCUMENT COPIES & NOTIFICATIONS
+    // ============================================================
 
     /**
-     * Get PDSP record with signed document path (for PDSP reference panel)
+     * Record that a copy was sent to a user
      */
-    public function getPDSPRecord($pdspId) {
+    public function recordCopy($iepId, $userId) {
         $stmt = $this->db->prepare("
-            SELECT pr.*, im.meeting_date, im.meeting_location
-            FROM pdsp_records pr
-            JOIN iep_meetings im ON pr.meeting_id = im.id
-            WHERE pr.id = :id LIMIT 1
+            INSERT IGNORE INTO iep_copies (iep_id, sent_to, sent_at)
+            VALUES (:iep_id, :user_id, NOW())
         ");
-        $stmt->execute(['id' => $pdspId]);
-        return $stmt->fetch();
+        return $stmt->execute(['iep_id' => $iepId, 'user_id' => $userId]);
     }
 
     /**
-     * Get list of students with signed PDSP (eligible for Process 5)
+     * Mark copy as viewed by user
      */
-    public function getEligibleStudents($teacherId = null) {
-        if ($teacherId) {
-            $stmt = $this->db->prepare("
-                SELECT DISTINCT sr.id, sr.student_name, sr.lrn,
-                       es.grade_level_to_enroll, es.school_year,
-                       pr.id AS pdsp_id, pr.status AS pdsp_status
-                FROM student_records sr
-                JOIN enrollment_submissions es ON sr.enrollment_id = es.id
-                JOIN iep_meetings im ON im.student_id = sr.id
-                JOIN pdsp_records pr ON pr.meeting_id = im.id
-                WHERE pr.status = 'signed'
-                AND im.scheduled_by = :teacher_id
-                ORDER BY sr.student_name ASC
-            ");
-            $stmt->execute(['teacher_id' => $teacherId]);
-        } else {
-            $stmt = $this->db->prepare("
-                SELECT DISTINCT sr.id, sr.student_name, sr.lrn,
-                       es.grade_level_to_enroll, es.school_year,
-                       pr.id AS pdsp_id, pr.status AS pdsp_status
-                FROM student_records sr
-                JOIN enrollment_submissions es ON sr.enrollment_id = es.id
-                JOIN iep_meetings im ON im.student_id = sr.id
-                JOIN pdsp_records pr ON pr.meeting_id = im.id
-                WHERE pr.status = 'signed'
-                ORDER BY sr.student_name ASC
-            ");
-            $stmt->execute();
-        }
-        return $stmt->fetchAll();
+    public function markCopyViewed($iepId, $userId) {
+        $stmt = $this->db->prepare("
+            UPDATE iep_copies 
+            SET viewed_at = NOW() 
+            WHERE iep_id = :iep_id AND sent_to = :user_id AND viewed_at IS NULL
+        ");
+        return $stmt->execute(['iep_id' => $iepId, 'user_id' => $userId]);
     }
 }

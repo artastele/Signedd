@@ -38,15 +38,23 @@ class DashboardController {
                 require_once __DIR__ . '/../Views/dashboard/parent.php';
                 break;
             case 'learner':
-                // Learner dashboard with learning modules and activities
-                require_once __DIR__ . '/../Views/dashboard/learner.php';
-                break;
+                // Redirect to the LMS learner dashboard (Process 7)
+                header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/learning/dashboard');
+                exit;
             case 'sped_teacher':
                 // Fetch pending enrollments for SPED teacher
                 require_once __DIR__ . '/../Models/EnrollmentModel.php';
                 $enrollmentModel = new EnrollmentModel();
                 $pendingEnrollments = $enrollmentModel->getPending();
                 $pendingCount = count($pendingEnrollments);
+                
+                // Fetch learners for progress tracker widget
+                require_once __DIR__ . '/../Models/LessonPlanModel.php';
+                $lpModel = new LessonPlanModel();
+                $learners = $lpModel->getLearnersForTeacher($userId);
+                
+                // Also fetch draft counts (Process 6 requirement)
+                $draftsCount = $lpModel->countDraftForTeacher($userId);
                 
                 require_once __DIR__ . '/../Views/dashboard/teacher.php';
                 break;
