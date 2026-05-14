@@ -25,7 +25,7 @@ $uniqueId = uniqid('upload_');
     <!-- Upload Zone (shown when no file uploaded) -->
     <div class="upload-zone" id="<?= $uniqueId ?>_zone" style="<?= isset($existingFile) ? 'display: none;' : '' ?>">
         <div class="upload-zone-content">
-            <i class="ti ti-upload fs-1 text-muted mb-2"></i>
+            <i class="bi bi-upload fs-1 text-muted mb-2"></i>
             <p class="upload-hint mb-2">Drag and drop or choose a file</p>
             <p class="upload-formats text-muted small">
                 Accepted: <?= str_replace(['.', ','], ['', ', '], $acceptedTypes) ?> • Max <?= $maxSize ?>MB
@@ -33,11 +33,11 @@ $uniqueId = uniqid('upload_');
             
             <div class="upload-buttons mt-3">
                 <button type="button" class="btn btn-outline-primary" id="<?= $uniqueId ?>_file_btn">
-                    <i class="ti ti-upload"></i> Choose File
+                    <i class="bi bi-upload"></i> Choose File
                 </button>
                 <?php if ($showCamera): ?>
                     <button type="button" class="btn btn-outline-primary btn-upload-camera" id="<?= $uniqueId ?>_camera_btn">
-                        <i class="ti ti-camera"></i> Take Photo
+                        <i class="bi bi-camera"></i> Take Photo
                     </button>
                 <?php endif; ?>
             </div>
@@ -63,7 +63,7 @@ $uniqueId = uniqid('upload_');
     <div id="<?= $uniqueId ?>_preview" class="upload-preview" style="<?= isset($existingFile) ? '' : 'display: none;' ?>">
         <div class="d-flex align-items-center justify-content-between p-3 border rounded">
             <div class="d-flex align-items-center">
-                <i class="ti ti-file-text fs-4 text-success me-2" id="<?= $uniqueId ?>_icon"></i>
+                <i class="bi bi-file-earmark-text fs-4 text-success me-2" id="<?= $uniqueId ?>_icon"></i>
                 <div>
                     <div class="fw-medium" id="<?= $uniqueId ?>_filename">
                         <?= isset($existingFile) ? htmlspecialchars(basename($existingFile)) : '' ?>
@@ -79,16 +79,16 @@ $uniqueId = uniqid('upload_');
                 <?php if (isset($existingFile) && isset($viewUrl)): ?>
                     <button type="button" class="btn btn-sm btn-outline-secondary me-2" 
                             onclick="viewDocument('<?= $viewUrl ?>', '<?= pathinfo($existingFile, PATHINFO_EXTENSION) ?>')">
-                        <i class="ti ti-eye"></i> View
+                        <i class="bi bi-eye"></i> View
                     </button>
                 <?php endif; ?>
                 <?php if (isset($existingFile) && isset($downloadUrl)): ?>
                     <a href="<?= $downloadUrl ?>" class="btn btn-sm btn-outline-primary me-2">
-                        <i class="ti ti-download"></i> Download
+                        <i class="bi bi-download"></i> Download
                     </a>
                 <?php endif; ?>
                 <button type="button" class="btn btn-sm btn-outline-danger" id="<?= $uniqueId ?>_remove_btn">
-                    <i class="ti ti-x"></i>
+                    <i class="bi bi-x"></i>
                 </button>
             </div>
         </div>
@@ -119,11 +119,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // File upload handlers
     if (fileBtnElement) {
-        fileBtnElement.addEventListener('click', () => fileInput.click());
+        fileBtnElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
     }
     
     if (cameraBtnElement) {
-        cameraBtnElement.addEventListener('click', () => cameraInput.click());
+        cameraBtnElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+            cameraInput.click();
+        });
     }
 
     // Handle file selection (both file picker and camera)
@@ -246,11 +252,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (iconElement) {
                 iconElement.className = 'fs-4 me-2 ';
                 if (['pdf'].includes(fileType.toLowerCase())) {
-                    iconElement.className += 'ti ti-file-type-pdf text-danger';
+                    iconElement.className += 'bi bi-file-earmark-pdf text-danger';
                 } else if (['jpg', 'jpeg', 'png', 'gif'].includes(fileType.toLowerCase())) {
-                    iconElement.className += 'ti ti-photo text-primary';
+                    iconElement.className += 'bi bi-image text-primary';
                 } else {
-                    iconElement.className += 'ti ti-file-text text-success';
+                    iconElement.className += 'bi bi-file-earmark-text text-success';
                 }
             }
             

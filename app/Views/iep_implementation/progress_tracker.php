@@ -5,8 +5,8 @@ require_once __DIR__ . '/../layouts/sidebar.php';
 ?>
 
 <div class="main-content">
-    <div class="container-fluid pt-4 px-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="container-fluid pt-3 px-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
                 <h4 class="mb-1" style="color: #1e4072; font-weight: 700;">
                     <i class="ti ti-bar-chart me-2"></i>Learner Progress Tracker
@@ -29,7 +29,7 @@ require_once __DIR__ . '/../layouts/sidebar.php';
                 </div>
             </div>
         <?php else: ?>
-            <div class="row g-4">
+            <div class="row g-2">
                 <?php foreach ($learners as $learner): ?>
                     <?php 
                         $totalXp = (int)($learner['total_xp'] ?? 0);
@@ -44,9 +44,9 @@ require_once __DIR__ . '/../layouts/sidebar.php';
                             $progressPct = min(100, round(($completedActivities / $totalActivities) * 100));
                         }
                     ?>
-                    <div class="col-md-6 col-lg-4">
+                    <div class="col-sm-6 col-lg-4 col-xl-3">
                         <div class="card border-0 shadow-sm h-100 learner-progress-card">
-                            <div class="card-body">
+                            <div class="card-body py-2">
                                 <div class="d-flex align-items-center mb-3">
                                     <div class="avatar-circle me-3" style="background:#1e4072;color:#fff;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:bold;">
                                         <?php echo strtoupper(substr($learner['student_name'], 0, 1)); ?>

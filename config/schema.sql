@@ -1,8 +1,13 @@
 -- SPED LMS  Database Schema (Clean Version)
 -- DO NOT ALTER WITHOUT APPROVAL
--- Last modified: 2026-05-08
+-- Last modified: 2026-05-13
 -- All tables use CREATE TABLE IF NOT EXISTS (idempotent, safe to re-run)
 -- All ALTER TABLE use INFORMATION_SCHEMA checks (MariaDB compatible)
+--
+-- Migration blocks: v39 .. v46 (see db_version). Latest: v46 (iep_steps.step_domain).
+-- New machine: ensure app boots once (public/index.php runs SchemaManager) OR import this file;
+-- MySQL < 8.0.12 / MariaDB without ADD COLUMN IF NOT EXISTS: use IEPModel::ensurePartOneSaveSchema at runtime
+-- plus config/manual_migration_v41_v43.sql for gaps as needed.
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -957,12 +962,12 @@ CREATE TABLE IF NOT EXISTS lesson_plans (
     created_by INT NOT NULL,
     title VARCHAR(255) NOT NULL,
     pdsp_domain ENUM(
-        'Perceptuo-Cognitive',
-        'Psychosocial',
-        'Socio-Emotional',
-        'Psychomotor',
-        'Daily Living Skills',
-        'Communication and Language'
+        'perceptuo_cognitive',
+        'psychosocial',
+        'socio_emotional',
+        'psychomotor',
+        'daily_living_skills',
+        'communication_language'
     ) NOT NULL,
     assignment_type ENUM('individual','shared') DEFAULT 'individual',
     document_path VARCHAR(500) NULL,              -- uploaded lesson plan file
@@ -1235,3 +1240,134 @@ CREATE TABLE IF NOT EXISTS activity_stars (
 INSERT IGNORE INTO db_version (version) VALUES (43);
 
 -- END MIGRATION: v43
+
+-- ============================================
+-- MIGRATION: v44 — Process 5 IEP (living document) + P5–P6–P7 links
+-- Restores iep_domains / iep_core / iep_steps (dropped in v40),
+-- removes locked state, restores signing_method, junction + edit log tables.
+-- ============================================
+
+UPDATE iep_records SET status = 'signed' WHERE status = 'locked';
+
+ALTER TABLE iep_records DROP COLUMN IF EXISTS locked_at;
+
+ALTER TABLE iep_records
+    MODIFY COLUMN status ENUM('draft','signing','signed') NOT NULL DEFAULT 'draft';
+
+ALTER TABLE iep_records
+    ADD COLUMN IF NOT EXISTS signing_method ENUM('print_upload','digital') NULL AFTER status;
+
+CREATE TABLE IF NOT EXISTS iep_domains (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    domain_name VARCHAR(200) NOT NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    INDEX idx_iep_id (iep_id),
+    INDEX idx_display_order (iep_id, display_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_core (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    developmental_domain TEXT NULL,
+    priority_needs TEXT NULL,
+    terminal_objectives TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_iep_core (iep_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_steps (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    step_number INT NOT NULL,
+    step_objective TEXT NULL,
+    duration_lp VARCHAR(255) NULL,
+    instructional_evaluation TEXT NULL,
+    observation TEXT NULL,
+    observation_unlocked TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    INDEX idx_iep_id (iep_id),
+    INDEX idx_step_number (iep_id, step_number)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_step_lesson_plans (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_step_id INT NOT NULL,
+    lesson_plan_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_step_id) REFERENCES iep_steps(id) ON DELETE CASCADE,
+    FOREIGN KEY (lesson_plan_id) REFERENCES lesson_plans(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_step_lesson (iep_step_id, lesson_plan_id),
+    INDEX idx_lesson_plan_id (lesson_plan_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_step_materials (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_step_id INT NOT NULL,
+    material_id INT NOT NULL,
+    linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_step_id) REFERENCES iep_steps(id) ON DELETE CASCADE,
+    FOREIGN KEY (material_id) REFERENCES lesson_materials(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_step_material (iep_step_id, material_id),
+    INDEX idx_material_id (material_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_edit_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    edited_by INT NOT NULL,
+    field_name VARCHAR(191) NOT NULL,
+    old_value TEXT NULL,
+    new_value TEXT NULL,
+    edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (edited_by) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_iep_edited (iep_id, edited_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE iep_signatories
+    ADD COLUMN IF NOT EXISTS send_status ENUM('not_sent','pending','signed') NOT NULL DEFAULT 'not_sent' AFTER signatory_name;
+
+ALTER TABLE iep_signatories
+    ADD COLUMN IF NOT EXISTS signature_request_sent_at TIMESTAMP NULL AFTER send_status;
+
+UPDATE iep_signatories SET send_status = 'signed' WHERE signed_at IS NOT NULL;
+
+INSERT IGNORE INTO db_version (version) VALUES (44);
+
+-- END MIGRATION: v44
+
+-- ============================================
+-- MIGRATION: v45 — Process 5 IEP header overrides (Section 2 editable snapshot)
+-- ============================================
+
+ALTER TABLE iep_records
+    ADD COLUMN IF NOT EXISTS header_learner_name VARCHAR(255) NULL AFTER re_evaluation_date,
+    ADD COLUMN IF NOT EXISTS header_learner_age VARCHAR(50) NULL AFTER header_learner_name,
+    ADD COLUMN IF NOT EXISTS header_lrn VARCHAR(32) NULL AFTER header_learner_age,
+    ADD COLUMN IF NOT EXISTS header_section VARCHAR(120) NULL AFTER header_lrn,
+    ADD COLUMN IF NOT EXISTS header_teacher_name VARCHAR(255) NULL AFTER header_section,
+    ADD COLUMN IF NOT EXISTS header_school_name VARCHAR(255) NULL AFTER header_teacher_name,
+    ADD COLUMN IF NOT EXISTS header_grade_level VARCHAR(100) NULL AFTER header_school_name;
+
+INSERT IGNORE INTO db_version (version) VALUES (45);
+
+-- END MIGRATION: v45
+
+-- ============================================
+-- MIGRATION: v46 — IEP step domain label (Section 5)
+-- ============================================
+
+ALTER TABLE iep_steps
+    ADD COLUMN IF NOT EXISTS step_domain VARCHAR(191) NULL AFTER step_number;
+
+INSERT IGNORE INTO db_version (version) VALUES (46);
+
+-- END MIGRATION: v46
+-- (End of versioned migrations in this file — keep db_version in sync when adding v47+.)

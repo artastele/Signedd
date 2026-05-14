@@ -47,7 +47,17 @@ class SchemaManager {
             foreach ($matches as $match) {
                 $version = (int)$match[1];
                 if ($version > $currentVersion) {
-                    $this->db->exec($match[0]);
+                    $statements = array_filter(array_map('trim', explode(';', $match[0])));
+                    foreach ($statements as $stmt_sql) {
+                        if (!empty($stmt_sql) && !preg_match('/^\s*--/', $stmt_sql)) {
+                            try {
+                                $this->db->exec($stmt_sql);
+                            } catch (PDOException $e) {
+                                error_log("Migration v{$version} statement warning: " . $e->getMessage());
+                            }
+                        }
+                    }
+                    $this->markVersionApplied($version);
                     error_log("SchemaManager: applied migration v{$version}");
                 }
             }

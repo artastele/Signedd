@@ -21,6 +21,16 @@ function isIEPProcedureActive() {
     }
     return false;
 }
+
+function isEnrollmentAvailabilityMenuActive() {
+    global $currentPath, $basePath;
+    foreach (['/verification', '/enrollment/review', '/iep/availability'] as $p) {
+        if (strpos($currentPath, $basePath . $p) === 0) {
+            return true;
+        }
+    }
+    return false;
+}
 ?>
 
 <div class="sidebar" id="sidebar">
@@ -86,14 +96,27 @@ function isIEPProcedureActive() {
             </a>
 
         <?php elseif ($role === 'sped_teacher'): ?>
-            <a href="<?php echo $basePath; ?>/verification" class="<?php echo isActive('/verification'); ?>">
-                <i class="bi bi-clipboard-check"></i>
-                <span>Verify Enrollments</span>
-            </a>
-            <a href="<?php echo $basePath; ?>/enrollment/review" class="<?php echo isActive('/enrollment/review'); ?>">
-                <i class="bi bi-clipboard-check"></i>
-                <span>Review Enrollments</span>
-            </a>
+            <div class="sidebar-section">
+                <a href="#" class="sidebar-section-toggle <?php echo isEnrollmentAvailabilityMenuActive() ? 'active' : ''; ?>" data-bs-toggle="collapse" data-bs-target="#enrollmentAvailabilityMenu" aria-expanded="<?php echo isEnrollmentAvailabilityMenuActive() ? 'true' : 'false'; ?>">
+                    <i class="bi bi-people"></i>
+                    <span>Enrollments &amp; availability</span>
+                    <i class="bi bi-chevron-down toggle-icon"></i>
+                </a>
+                <div class="collapse <?php echo isEnrollmentAvailabilityMenuActive() ? 'show' : ''; ?>" id="enrollmentAvailabilityMenu">
+                    <a href="<?php echo $basePath; ?>/verification" class="sidebar-submenu-item <?php echo isActive('/verification'); ?>">
+                        <i class="bi bi-clipboard-check"></i>
+                        <span>Verify Enrollments</span>
+                    </a>
+                    <a href="<?php echo $basePath; ?>/enrollment/review" class="sidebar-submenu-item <?php echo isActive('/enrollment/review'); ?>">
+                        <i class="bi bi-clipboard-data"></i>
+                        <span>Review Enrollments</span>
+                    </a>
+                    <a href="<?php echo $basePath; ?>/iep/availability" class="sidebar-submenu-item <?php echo isActive('/iep/availability'); ?>">
+                        <i class="bi bi-calendar3"></i>
+                        <span>My Availability</span>
+                    </a>
+                </div>
+            </div>
 
             <!-- IEP Procedure (Collapsible) -->
             <div class="sidebar-section">
@@ -122,13 +145,9 @@ function isIEPProcedureActive() {
                 </div>
             </div>
 
-            <a href="<?php echo $basePath; ?>/iep/availability" class="<?php echo isActive('/iep/availability'); ?>">
-                <i class="bi bi-calendar3"></i>
-                <span>My Availability</span>
-            </a>
             <a href="<?php echo $basePath; ?>/iep/implementation" class="<?php echo isActive('/iep/implementation'); ?>">
                 <i class="bi bi-book"></i>
-                <span>Implement IEP</span>
+                <span>IEP Workspace</span>
             </a>
             <a href="<?php echo $basePath; ?>/iep/implementation/progress-tracker" class="<?php echo isActive('/iep/implementation/progress-tracker'); ?>">
                 <i class="bi bi-bar-chart-line"></i>

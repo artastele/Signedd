@@ -136,6 +136,23 @@ class FileController {
                 $stmt->execute(['id' => $id]);
                 return $stmt->fetch();
                 
+            case 'lesson_material':
+                // New Process 6/7 lesson materials (lesson_materials table)
+                $stmt = $this->db->prepare("
+                    SELECT lm.id,
+                           lm.file_path,
+                           SUBSTRING_INDEX(lm.file_path, '/', -1) AS original_name,
+                           lm.lesson_plan_id,
+                           lp.created_by AS teacher_id,
+                           lp.student_id
+                    FROM lesson_materials lm
+                    JOIN lesson_plans lp ON lm.lesson_plan_id = lp.id
+                    WHERE lm.id = :id
+                      AND lm.material_type = 'file'
+                ");
+                $stmt->execute(['id' => $id]);
+                return $stmt->fetch();
+
             case 'learning_material':
                 $stmt = $this->db->prepare("
                     SELECT lm.*, li.teacher_id, lm.file_path, lm.material_name as original_name
@@ -179,10 +196,15 @@ class FileController {
                 return $stmt->fetch();
 
             case 'pdsp_document':
-                // PDSP signed document (uploaded during Process 4)
+                // PDSP signed document (uploaded during Process 4).
+                // Paths in DB may already start with "uploads/"; avoid "uploads/uploads/".
                 $stmt = $this->db->prepare("
                     SELECT pr.id,
-                           CONCAT('uploads/', pr.signed_document_path) as file_path,
+                           CASE
+                               WHEN pr.signed_document_path IS NULL OR pr.signed_document_path = '' THEN ''
+                               WHEN pr.signed_document_path LIKE 'uploads/%' THEN pr.signed_document_path
+                               ELSE CONCAT('uploads/', pr.signed_document_path)
+                           END AS file_path,
                            pr.student_id,
                            CONCAT('PDSP_Meeting_', pr.meeting_id, '.pdf') as original_name
                     FROM pdsp_records pr
@@ -252,6 +274,37 @@ class FileController {
                 }
                 return false;
                 
+            case 'lesson_material':
+                // Teacher who created the lesson plan, assigned learner, parent of learner, admin
+                if ($userRole === 'sped_teacher' && $fileInfo['teacher_id'] == $userId) {
+                    return true;
+                }
+                if (in_array($userRole, ['learner', 'parent'])) {
+                    // Verify the student is assigned to this lesson plan
+                    $stmt = $this->db->prepare("
+                        SELECT la.id
+                        FROM lesson_assignments la
+                        JOIN student_records sr ON la.student_id = sr.id
+                        JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                        WHERE la.lesson_plan_id = :lp_id
+                          AND (
+                              es.parent_id = :user_id
+                              OR EXISTS (
+                                  SELECT 1 FROM users u
+                                  WHERE u.id = :user_id2
+                                    AND u.email = CONCAT('learner_', sr.lrn, '@spedlms.local')
+                              )
+                          )
+                    ");
+                    $stmt->execute([
+                        'lp_id'    => $fileInfo['lesson_plan_id'],
+                        'user_id'  => $userId,
+                        'user_id2' => $userId,
+                    ]);
+                    return $stmt->fetch() !== false;
+                }
+                return false;
+
             case 'learning_material':
                 // Teacher (uploader), Assigned learner, Admin
                 if ($userRole === 'sped_teacher' && $fileInfo['teacher_id'] == $userId) {

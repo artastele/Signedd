@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // DO NOT ALTER WITHOUT APPROVAL -- Process 5
 // Last modified: 2026-05-08
 // Part of: SPED LMS -- IEP Repository (list all IEPs)
@@ -21,22 +21,12 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
             </h1>
             <p class="text-muted mb-0">Individualized Education Plans</p>
         </div>
-        <?php if (in_array($role, ['sped_teacher','admin']) && !empty($eligibleStudents)): ?>
-        <div class="dropdown">
-            <button class="btn dropdown-toggle" style="background:#a01422;color:white;"
-                    data-bs-toggle="dropdown">
+        <?php if (in_array($role, ['sped_teacher','admin'])): ?>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn" style="background:#a01422;color:white;" data-bs-toggle="modal" data-bs-target="#newIepStudentModal">
                 <i class="bi bi-plus-lg me-1"></i>New IEP
             </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow">
-                <?php foreach ($eligibleStudents as $s): ?>
-                <li>
-                    <a class="dropdown-item" href="<?php echo $basePath; ?>/iep/create?student_id=<?php echo $s['id']; ?>">
-                        <strong><?php echo htmlspecialchars($s['student_name']); ?></strong>
-                        <small class="text-muted d-block">LRN: <?php echo htmlspecialchars($s['lrn']); ?></small>
-                    </a>
-                </li>
-                <?php endforeach; ?>
-            </ul>
+            <a class="btn btn-outline-secondary" href="<?php echo $basePath; ?>/students"><i class="bi bi-people me-1"></i>Students</a>
         </div>
         <?php endif; ?>
     </div>
@@ -140,18 +130,15 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                                    class="btn btn-sm" style="background:#1e4072;color:white;">
                                     <i class="bi bi-eye me-1"></i>View
                                 </a>
-                                <?php if (in_array($iep['status'],['signed','locked']) && $role !== 'parent'): ?>
-                                <a href="<?php echo $basePath; ?>/iep/form/<?php echo $iep['id']; ?>"
-                                   class="btn btn-sm btn-outline-secondary" onclick="window.print()">
-                                    <i class="bi bi-download me-1"></i>Print
+                                <a href="<?php echo $basePath; ?>/iep/print/<?php echo $iep['id']; ?>"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-printer me-1"></i>Print
                                 </a>
-                                <?php endif; ?>
-                                <?php if (in_array($iep['status'],['signed','locked']) && in_array($role,['sped_teacher','admin'])): ?>
-                                <form method="POST" action="<?php echo $basePath; ?>/iep/new-cycle" class="d-inline"
-                                      onsubmit="return confirm('Start a new IEP cycle? The current IEP will be preserved.')">
-                                    <input type="hidden" name="iep_id" value="<?php echo $iep['id']; ?>">
+                                <?php if ($iep['status'] === 'draft' && in_array($role, ['sped_teacher','admin'])): ?>
+                                <form method="POST" action="<?php echo $basePath; ?>/iep/draft/<?php echo (int)$iep['id']; ?>/delete" class="d-inline"
+                                      onsubmit="return confirm('Delete this draft permanently? This cannot be undone.');">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">
-                                        <i class="bi bi-arrow-repeat me-1"></i>New Cycle
+                                        <i class="bi bi-trash me-1"></i>Delete draft
                                     </button>
                                 </form>
                                 <?php endif; ?>
@@ -166,5 +153,57 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
         </div>
     </div>
 </div>
+
+<?php if (in_array($role, ['sped_teacher','admin'])): ?>
+<div class="modal fade" id="newIepStudentModal" tabindex="-1" aria-labelledby="newIepStudentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#1e4072;color:#fff;">
+                <h5 class="modal-title" id="newIepStudentModalLabel">Choose a student</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">Students need a signed PDSP (Process 4). No duplicate draft for the same learner this year.</p>
+                <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="newIepEligibleReload">Reload list</button>
+                <div id="newIepEligibleList" class="list-group">
+                    <?php foreach ($eligibleStudents ?? [] as $s): ?>
+                    <a class="list-group-item list-group-item-action" href="<?php echo $basePath; ?>/iep/create?student_id=<?php echo (int)$s['id']; ?>">
+                        <strong><?php echo htmlspecialchars($s['student_name']); ?></strong>
+                        <span class="text-muted small d-block">LRN <?php echo htmlspecialchars($s['lrn']); ?></span>
+                    </a>
+                    <?php endforeach; ?>
+                </div>
+                <p class="small text-muted mt-3 mb-0" id="newIepEligibleEmpty" style="<?php echo !empty($eligibleStudents) ? 'display:none;' : ''; ?>">No eligible students right now. Complete PDSP signing or open the full <a href="<?php echo $basePath; ?>/students">students list</a>.</p>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    var basePath = <?php echo json_encode($basePath); ?>;
+    var listEl = document.getElementById('newIepEligibleList');
+    var emptyEl = document.getElementById('newIepEligibleEmpty');
+    var btn = document.getElementById('newIepEligibleReload');
+    if (!listEl || !btn) return;
+    function renderList(students) {
+        listEl.innerHTML = '';
+        (students || []).forEach(function (s) {
+            var a = document.createElement('a');
+            a.className = 'list-group-item list-group-item-action';
+            a.href = basePath + '/iep/create?student_id=' + encodeURIComponent(s.id);
+            a.innerHTML = '<strong>' + (s.student_name || '') + '</strong><span class="text-muted small d-block">LRN ' + (s.lrn || '') + '</span>';
+            listEl.appendChild(a);
+        });
+        if (emptyEl) emptyEl.style.display = (students && students.length) ? 'none' : 'block';
+    }
+    btn.addEventListener('click', function () {
+        fetch(basePath + '/iep/ajax/eligible-students', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (j.success) renderList(j.students || []); })
+            .catch(function () {});
+    });
+})();
+</script>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

@@ -48,13 +48,19 @@ class DashboardController {
                 $pendingEnrollments = $enrollmentModel->getPending();
                 $pendingCount = count($pendingEnrollments);
                 
-                // Fetch learners for progress tracker widget
-                require_once __DIR__ . '/../Models/LessonPlanModel.php';
-                $lpModel = new LessonPlanModel();
-                $learners = $lpModel->getLearnersForTeacher($userId);
-                
-                // Also fetch draft counts (Process 6 requirement)
-                $draftsCount = $lpModel->countDraftForTeacher($userId);
+                // Fetch learners for progress tracker widget (Process 6/7 tables may not exist yet)
+                $learners = [];
+                $draftsCount = 0;
+                try {
+                    require_once __DIR__ . '/../Models/LessonPlanModel.php';
+                    $lpModel = new LessonPlanModel();
+                    $learners = $lpModel->getLearnersForTeacher($userId);
+                    $draftsCount = $lpModel->countDraftForTeacher($userId);
+                } catch (PDOException $e) {
+                    error_log('DashboardController: LessonPlanModel tables not ready — ' . $e->getMessage());
+                } catch (Exception $e) {
+                    error_log('DashboardController: LessonPlanModel error — ' . $e->getMessage());
+                }
                 
                 require_once __DIR__ . '/../Views/dashboard/teacher.php';
                 break;

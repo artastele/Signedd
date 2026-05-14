@@ -25,13 +25,7 @@ require_once __DIR__ . '/../layouts/header.php';
     <i class="bi bi-exclamation-triangle-fill me-2"></i>
     Re-evaluation date has passed (<?php echo date('M d, Y', strtotime($iep['re_evaluation_date'])); ?>).
     <?php if (!$readOnly): ?>
-    <form method="POST" action="<?php echo $basePath; ?>/iep/new-cycle" class="d-inline ms-3">
-        <input type="hidden" name="iep_id" value="<?php echo $iep['id']; ?>">
-        <button type="submit" class="btn btn-sm btn-light" style="color:#a01422;font-weight:700;"
-                onclick="return confirm('Start a new IEP cycle? The current IEP will be preserved.')">
-            Start New IEP Cycle
-        </button>
-    </form>
+    <span class="ms-3 small">Update this IEP from <strong>View</strong> on the repository — the IEP stays on file as a living document.</span>
     <?php endif; ?>
 </div>
 <?php endif; ?>

@@ -163,6 +163,10 @@ route('POST', '/iep/implementation/material/{id}/delete',           'IEPImplemen
 route('GET',  '/iep/implementation/template/{type}',                'IEPImplementationController', 'downloadTemplate',  'iep.implement');
 route('POST', '/iep/implementation/activity/import',                'IEPImplementationController', 'importActivitiesCSV','iep.implement');
 route('GET',  '/iep/implementation/progress-tracker',               'IEPImplementationController', 'progressTracker',   'iep.implement');
+route('POST', '/iep/implementation/material/{id}/edit',             'IEPImplementationController', 'editMaterial',      'iep.implement');
+route('POST', '/iep/implementation/activity/{id}/edit',             'IEPImplementationController', 'editActivity',      'iep.implement');
+route('GET',  '/iep/implementation/submission/{id}',                'IEPImplementationController', 'viewSubmission',    'iep.implement');
+route('POST', '/iep/implementation/submission/{id}/confirm-grade', 'IEPImplementationController', 'confirmSubmissionGrade', 'iep.implement');
 
 // ============================================
 // LEARNER ROUTES (Process 7)
@@ -220,14 +224,28 @@ route('GET',  '/iep',                          'IEPController', 'index',        
 route('GET',  '/iep/create',                   'IEPController', 'create',         'iep.create');
 // IEP Form (view/edit)
 route('GET',  '/iep/form/{id}',                'IEPController', 'form',           'iep.view');
+// Save IEP Sections 1–4 (header, domains, core, re-eval date)
+route('POST', '/iep/save-part1',               'IEPController', 'savePartOne',    'iep.create');
+route('POST', '/iep/save-steps',               'IEPController', 'saveSteps',      'iep.create');
+route('POST', '/iep/ajax/lesson-plan-for-step', 'IEPController', 'createLessonPlanForStep', 'iep.create');
+route('GET',  '/iep/ajax/lesson-plans-for-step', 'IEPController', 'lessonPlansForIepStepJson', 'iep.create');
+route('POST', '/iep/ajax/link-lesson-plan-to-step', 'IEPController', 'linkExistingLessonPlanToStep', 'iep.create');
+route('POST', '/iep/ajax/unlink-lesson-plan',   'IEPController', 'unlinkLessonPlanFromStep', 'iep.create');
+route('GET',  '/iep/ajax/step-progress/{id}',   'IEPController', 'stepProgress',   'iep.view');
 // Submit IEP (form POST — upload + signatories + re-eval date)
 route('POST', '/iep/submitIEP',                'IEPController', 'submitIEP',      'iep.create');
+route('POST', '/iep/finalize-digital',         'IEPController', 'finalizeDigitalIep', 'iep.create');
+route('POST', '/iep/draft/{id}/delete',        'IEPController', 'deleteDraft',    'iep.create');
+route('GET',  '/iep/print/{id}',               'IEPController', 'printForm',      'iep.view');
+route('GET',  '/iep/ajax/eligible-students',   'IEPController', 'eligibleStudentsJson', 'iep.create');
+route('POST', '/iep/ajax/lesson-plan-upload',  'IEPController', 'uploadLessonPlanDocForIep', 'iep.create');
+route('GET',  '/iep/sign/{id}/{sid}',          'IEPController', 'signPage',       'iep.sign');
+route('POST', '/iep/save-signature',          'IEPController', 'saveSignature',  'iep.sign');
 // Upload IEP document (AJAX)
 route('POST', '/iep/upload-signed-doc',        'IEPController', 'upload',         'iep.create');
 // Download IEP document
 route('GET',  '/iep/download/{id}',            'IEPController', 'downloadDocument', 'iep.view');
 // New cycle
-route('POST', '/iep/new-cycle',                'IEPController', 'newCycle',       'iep.create');
 
 // IEP Documents — Unified dashboard (replaces p2/review, p3/sign, approval)
 route('GET', '/iep/documents', 'IEPDocumentController', 'documents', 'iep.view');

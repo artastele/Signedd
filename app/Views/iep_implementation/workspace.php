@@ -13,15 +13,27 @@ require_once __DIR__ . '/../layouts/header.php';
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
 
 <div class="main-content">
-<div class="container-fluid py-4">
+<div class="container-fluid py-3">
+
+    <?php
+    $iepLinkedLessonPlanIds = $iepLinkedLessonPlanIds ?? [];
+    $iepId = (int) ($iep['id'] ?? 0);
+    $navActive = 'workspace';
+    $showWorkspaceLink = true;
+    require __DIR__ . '/../iep/partials/iep_p5_p6_nav_bar.php';
+    ?>
 
     <!-- ============================================================
          PAGE HEADER
          ============================================================ -->
-    <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
         <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation"
            class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;flex-shrink:0;">
             <i class="ti ti-arrow-left me-1"></i>Back
+        </a>
+        <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/progress-tracker"
+           class="btn btn-sm btn-outline-secondary flex-shrink-0">
+            <i class="ti ti-bar-chart-line me-1"></i>Progress tracker
         </a>
         <div class="flex-grow-1 min-width-0">
             <h4 class="mb-0 fw-bold" style="color:#1e4072;">
@@ -38,66 +50,18 @@ require_once __DIR__ . '/../layouts/header.php';
          SECTION 1 — LESSON PLANS
          ==================================================== -->
     <div class="card mb-4" id="sectionLessonPlans">
-        <div class="card-header d-flex justify-content-between align-items-center"
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
              style="background:#1e4072;color:#fff;border-radius:6px 6px 0 0;">
             <span class="fw-semibold">
                 <i class="ti ti-book me-2"></i>Lesson Plans
             </span>
-            <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;"
-                    data-bs-toggle="modal" data-bs-target="#createLessonPlanModal">
-                <i class="ti ti-plus me-1"></i>Add Lesson Plan
-            </button>
         </div>
         <div class="card-body p-3">
 
             <?php if (empty($lessonPlans)): ?>
-                <!-- Empty state — two option cards -->
-                <div class="row g-3 mb-2">
-                    <div class="col-md-6">
-                        <div class="card h-100" style="border:2px solid #dee2e6;border-radius:10px;">
-                            <div class="card-body p-4">
-                                <div class="mb-3" style="font-size:2.2rem;">📄</div>
-                                <h6 class="fw-bold mb-1" style="color:#1e4072;">Start from Template</h6>
-                                <p class="text-muted small mb-3">
-                                    Download a DLL or DLP template, fill it out, then upload it here.
-                                </p>
-                                <div class="d-flex flex-wrap gap-2 mb-3">
-                                    <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/template/dll"
-                                       class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;">
-                                        <i class="ti ti-download me-1"></i>Download DLL
-                                    </a>
-                                    <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/template/dlp"
-                                       class="btn btn-sm" style="background:#6c757d;color:#fff;border:none;">
-                                        <i class="ti ti-download me-1"></i>Download DLP
-                                    </a>
-                                </div>
-                                <button class="btn btn-sm w-100"
-                                        style="background:#a01422;color:#fff;border:none;"
-                                        data-bs-toggle="modal" data-bs-target="#createLessonPlanModal"
-                                        onclick="preselectOption('template')">
-                                    <i class="ti ti-upload me-1"></i>Upload completed plan
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card h-100" style="border:2px solid #dee2e6;border-radius:10px;">
-                            <div class="card-body p-4">
-                                <div class="mb-3" style="font-size:2.2rem;">📤</div>
-                                <h6 class="fw-bold mb-1" style="color:#1e4072;">Upload Existing Plan</h6>
-                                <p class="text-muted small mb-3">
-                                    Already have a lesson plan ready? Upload it directly.
-                                </p>
-                                <button class="btn btn-sm w-100"
-                                        style="background:#a01422;color:#fff;border:none;"
-                                        data-bs-toggle="modal" data-bs-target="#createLessonPlanModal"
-                                        onclick="preselectOption('upload')">
-                                    <i class="ti ti-upload me-1"></i>Upload Now
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <p class="text-muted small mb-0">
+                    No lesson plans yet. Add them from the <a href="<?php echo htmlspecialchars($basePath); ?>/iep/form/<?php echo (int)$iepId; ?>">IEP form</a> (IEP steps) or publish plans you create elsewhere for this learner.
+                </p>
             <?php else: ?>
                 <!-- Lesson plan cards -->
                 <div class="row g-3" id="lessonPlansList">
@@ -126,21 +90,27 @@ require_once __DIR__ . '/../layouts/header.php';
                     foreach ($activities as $a) {
                         if ((int)$a['lesson_plan_id'] === $lpId) $lpActivityCount++;
                     }
+                    $iepLpLocked = !empty($iepLinkedLessonPlanIds) && in_array($lpId, $iepLinkedLessonPlanIds, true);
                     ?>
-                    <div class="col-lg-6" id="lpCard_<?php echo $lpId; ?>">
-                        <div class="card h-100" style="border-left:4px solid <?php echo $lpStatus === 'published' ? '#3b6d11' : '#6c757d'; ?>;">
+                    <div class="col-lg-6" id="lp-<?php echo $lpId; ?>">
+                        <div class="card h-100" style="border-left:4px solid <?php echo $lpStatus === 'published' ? '#3b6d11' : '#5a6670'; ?>;">
                             <div class="card-body pb-2">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <h6 class="fw-bold mb-0" style="color:#1e4072;font-size:0.95rem;">
+                                <div class="d-flex justify-content-between align-items-start gap-2 mb-2 flex-wrap">
+                                    <h6 class="fw-bold mb-0 flex-grow-1" style="color:#1e4072;font-size:0.95rem;">
                                         <?php echo htmlspecialchars($lp['title']); ?>
                                     </h6>
-                                    <?php if ($lpStatus === 'published'): ?>
-                                        <span class="badge" style="background:#3b6d11;font-size:0.7rem;">
-                                            <i class="ti ti-circle-check me-1"></i>Published
-                                        </span>
-                                    <?php else: ?>
-                                        <span class="badge bg-secondary" style="font-size:0.7rem;">Draft</span>
-                                    <?php endif; ?>
+                                    <div class="d-flex flex-wrap gap-1 align-items-center justify-content-end">
+                                        <?php if ($iepLpLocked): ?>
+                                            <span class="badge" style="background:#1e4072;color:#fff;font-size:0.65rem;">From IEP</span>
+                                        <?php endif; ?>
+                                        <?php if ($lpStatus === 'published'): ?>
+                                            <span class="badge" style="background:#3b6d11;font-size:0.7rem;">
+                                                <i class="ti ti-circle-check me-1"></i>Published
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge" style="background:#5a6670;color:#fff;font-size:0.7rem;">Draft</span>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
 
                                 <div class="d-flex flex-wrap gap-1 mb-2">
@@ -160,6 +130,11 @@ require_once __DIR__ . '/../layouts/header.php';
                                 </div>
 
                                 <div class="d-flex flex-wrap gap-1">
+                                    <?php if ($iepLpLocked): ?>
+                                        <p class="small text-muted w-100 mb-1" style="border-left:3px solid #1e4072;padding-left:8px;">
+                                            Linked from the IEP step table. Deleting removes the plan here; unlink on the IEP form if the step should stay without this plan.
+                                        </p>
+                                    <?php endif; ?>
                                     <?php if (!$lpDoc): ?>
                                         <button class="btn btn-sm"
                                                 style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;"
@@ -245,7 +220,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <th>Title</th>
                                 <th>Type</th>
                                 <th>Lesson Plan</th>
-                                <th style="width:60px;"></th>
+                                <th style="min-width:200px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="materialsTableBody">
@@ -257,7 +232,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             ?>
                             <tr id="matRow_<?php echo (int)$mat['id']; ?>">
                                 <td class="text-center"><?php echo $matIcon; ?></td>
-                                <td><?php echo htmlspecialchars($mat['title']); ?></td>
+                                <td class="fw-semibold"><?php echo htmlspecialchars($mat['title']); ?></td>
                                 <td>
                                     <span class="badge" style="background:<?php echo $matBg; ?>;font-size:0.7rem;">
                                         <?php echo ucfirst(htmlspecialchars($matType)); ?>
@@ -265,11 +240,20 @@ require_once __DIR__ . '/../layouts/header.php';
                                 </td>
                                 <td class="text-muted"><?php echo htmlspecialchars($mat['lesson_plan_title'] ?? '—'); ?></td>
                                 <td>
-                                    <button class="btn btn-sm"
-                                            style="background:#a01422;color:#fff;border:none;font-size:0.75rem;"
-                                            onclick="confirmDeleteMaterial(<?php echo (int)$mat['id']; ?>, '<?php echo htmlspecialchars(addslashes($mat['title'])); ?>')">
-                                        <i class="ti ti-trash me-1"></i>Delete
-                                    </button>
+                                    <div class="d-flex gap-1 flex-wrap">
+                                        <button class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;"
+                                                onclick="viewMaterial(<?php echo htmlspecialchars(json_encode($mat), ENT_QUOTES); ?>)">
+                                            <i class="ti ti-eye me-1"></i>View
+                                        </button>
+                                        <button class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;font-size:0.75rem;"
+                                                onclick="openEditMaterial(<?php echo htmlspecialchars(json_encode($mat), ENT_QUOTES); ?>)">
+                                            <i class="ti ti-pencil me-1"></i>Edit
+                                        </button>
+                                        <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem;"
+                                                onclick="confirmDeleteMaterial(<?php echo (int)$mat['id']; ?>, '<?php echo htmlspecialchars(addslashes($mat['title'])); ?>')">
+                                            <i class="ti ti-trash me-1"></i>Delete
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -407,7 +391,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <th>Lesson Plan</th>
                                 <th>Due Date</th>
                                 <th>Max Score</th>
-                                <th style="width:60px;"></th>
+                                <th style="min-width:200px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="activitiesTableBody">
@@ -438,11 +422,20 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <td class="text-muted"><?php echo $act['due_date'] ? htmlspecialchars($act['due_date']) : '—'; ?></td>
                                 <td><?php echo (int)($act['max_score'] ?? 0); ?></td>
                                 <td>
-                                    <button class="btn btn-sm"
-                                            style="background:#a01422;color:#fff;border:none;font-size:0.75rem;"
-                                            onclick="confirmDeleteActivity(<?php echo (int)$act['id']; ?>, '<?php echo htmlspecialchars(addslashes($act['title'])); ?>')">
-                                        <i class="ti ti-trash me-1"></i>Delete
-                                    </button>
+                                    <div class="d-flex gap-1 flex-wrap">
+                                        <button class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;"
+                                                onclick="viewActivity(<?php echo htmlspecialchars(json_encode($act), ENT_QUOTES); ?>)">
+                                            <i class="ti ti-eye me-1"></i>View
+                                        </button>
+                                        <button class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;font-size:0.75rem;"
+                                                onclick="openEditActivity(<?php echo htmlspecialchars(json_encode($act), ENT_QUOTES); ?>)">
+                                            <i class="ti ti-pencil me-1"></i>Edit
+                                        </button>
+                                        <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem;"
+                                                onclick="confirmDeleteActivity(<?php echo (int)$act['id']; ?>, '<?php echo htmlspecialchars(addslashes($act['title'])); ?>')">
+                                            <i class="ti ti-trash me-1"></i>Delete
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -512,14 +505,20 @@ require_once __DIR__ . '/../layouts/header.php';
                                         <td><?php echo htmlspecialchars($sub['activity_title']); ?></td>
                                         <td><?php echo date('M d, Y h:i A', strtotime($sub['submitted_at'])); ?></td>
                                         <td>
-                                            <?php if ($sub['graded_score'] !== null): ?>
-                                                <span class="badge bg-success"><?php echo $sub['graded_score']; ?> / <?php echo $sub['activity_max_score']; ?></span>
+                                            <?php
+                                            $dm = (int)($sub['display_max_score'] ?? $sub['activity_max_score'] ?? 0);
+                                            $gmx = (int)($sub['graded_max_score'] ?? 0);
+                                            ?>
+                                            <?php if ($sub['graded_score'] !== null && $sub['graded_score'] !== ''): ?>
+                                                <span class="badge bg-success"><?php echo (int)$sub['graded_score']; ?> / <?php echo $gmx > 0 ? $gmx : $dm; ?></span>
+                                            <?php elseif ($sub['auto_score'] !== null && $sub['auto_score'] !== ''): ?>
+                                                <span class="badge" style="background:#1e4072;"><?php echo (int)$sub['auto_score']; ?> / <?php echo $dm > 0 ? $dm : (int)($sub['activity_max_score'] ?? 0); ?> <span class="opacity-75">(auto)</span></span>
                                             <?php else: ?>
-                                                <span class="badge bg-warning text-dark">Pending</span>
+                                                <span class="badge bg-secondary">— / <?php echo $dm > 0 ? $dm : (int)($sub['activity_max_score'] ?? 0); ?></span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/learning/activity/<?php echo $sub['activity_id']; ?>?student_id=<?php echo $sub['student_id']; ?>" target="_blank" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;">
+                                            <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/iep/implementation/submission/<?php echo $sub['activity_id']; ?>?student_id=<?php echo $sub['student_id']; ?>" target="_blank" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;">
                                                 <i class="ti ti-eye"></i> View
                                             </a>
                                         </td>
@@ -537,138 +536,7 @@ require_once __DIR__ . '/../layouts/header.php';
 </div><!-- /container-fluid -->
 </div><!-- /main-content -->
 
-
-<!-- ================================================================
-     MODAL: Create Lesson Plan
-     ================================================================ -->
-<div class="modal fade" id="createLessonPlanModal" tabindex="-1" aria-labelledby="createLPModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header" style="background:#1e4072;color:#fff;">
-                <h5 class="modal-title" id="createLPModalLabel">
-                    <i class="ti ti-book-plus me-2"></i>Add Lesson Plan
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row g-3">
-                    <!-- Field 1: Title -->
-                    <div class="col-12">
-                        <label class="form-label fw-semibold small">Title <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="lpTitle"
-                               placeholder="e.g. Week 1 — Communication Skills" required>
-                    </div>
-
-                    <!-- Field 2: PDSP Domain -->
-                    <div class="col-12">
-                        <label class="form-label fw-semibold small">PDSP Domain <span class="text-danger">*</span></label>
-                        <select class="form-select" id="lpPdspDomain" required>
-                            <option value="">— Select domain —</option>
-                            <option value="perceptuo_cognitive">Perceptuo-Cognitive</option>
-                            <option value="psychosocial">Psychosocial</option>
-                            <option value="socio_emotional">Socio-Emotional</option>
-                            <option value="psychomotor">Psychomotor</option>
-                            <option value="daily_living_skills">Daily Living Skills</option>
-                            <option value="communication_language">Communication and Language</option>
-                        </select>
-                    </div>
-
-                    <!-- Field 3: Plan option radios -->
-                    <div class="col-12">
-                        <label class="form-label fw-semibold small">How would you like to proceed?</label>
-                        <div class="row g-2 mt-1">
-                            <div class="col-md-6">
-                                <label class="lp-option-card d-block p-3 border rounded cursor-pointer"
-                                       id="lpOptionTemplateCard"
-                                       style="cursor:pointer;border-color:#dee2e6 !important;transition:border-color 0.2s;">
-                                    <div class="d-flex align-items-start gap-2">
-                                        <input class="form-check-input mt-1 flex-shrink-0" type="radio"
-                                               name="lpPlanOption" id="lpOptionTemplate" value="template"
-                                               onchange="onLpOptionChange()" checked>
-                                        <div>
-                                            <div class="fw-semibold small" style="color:#1e4072;">
-                                                📄 Use a template
-                                            </div>
-                                            <div class="text-muted" style="font-size:0.78rem;">
-                                                I'll download and fill it out
-                                            </div>
-                                        </div>
-                                    </div>
-                                </label>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="lp-option-card d-block p-3 border rounded cursor-pointer"
-                                       id="lpOptionUploadCard"
-                                       style="cursor:pointer;border-color:#dee2e6 !important;transition:border-color 0.2s;">
-                                    <div class="d-flex align-items-start gap-2">
-                                        <input class="form-check-input mt-1 flex-shrink-0" type="radio"
-                                               name="lpPlanOption" id="lpOptionUpload" value="upload"
-                                               onchange="onLpOptionChange()">
-                                        <div>
-                                            <div class="fw-semibold small" style="color:#1e4072;">
-                                                📤 Upload directly
-                                            </div>
-                                            <div class="text-muted" style="font-size:0.78rem;">
-                                                I already have my lesson plan ready
-                                            </div>
-                                        </div>
-                                    </div>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Template downloads (shown when "template" selected) -->
-                    <div class="col-12" id="lpTemplateDownloads">
-                        <div class="p-3 rounded" style="background:#f0f4fa;border:1px solid #d0daea;">
-                            <div class="small fw-semibold mb-2" style="color:#1e4072;">
-                                <i class="ti ti-download me-1"></i>Download a template to fill out:
-                            </div>
-                            <div class="d-flex flex-wrap gap-2 mb-3">
-                                <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/template/dll"
-                                   class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;">
-                                    <i class="ti ti-download me-1"></i>Download DLL Template
-                                </a>
-                                <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/template/dlp"
-                                   class="btn btn-sm" style="background:#6c757d;color:#fff;border:none;">
-                                    <i class="ti ti-download me-1"></i>Download DLP Template
-                                </a>
-                            </div>
-                            <div class="small text-muted mb-2">
-                                Once filled out, upload your completed plan below (optional — you can upload later):
-                            </div>
-                            <?php
-                            $fieldName     = 'lesson_doc';
-                            $acceptedTypes = '.jpg,.jpeg,.png,.pdf';
-                            $maxSize       = 10;
-                            $showCamera    = true;
-                            require_once __DIR__ . '/../components/upload-zone.php';
-                            ?>
-                        </div>
-                    </div>
-
-                    <!-- Direct upload zone (shown when "upload" selected) -->
-                    <div class="col-12" id="lpDirectUpload" style="display:none;">
-                        <?php
-                        $fieldName     = 'lesson_doc_direct';
-                        $acceptedTypes = '.jpg,.jpeg,.png,.pdf';
-                        $maxSize       = 10;
-                        $showCamera    = true;
-                        require_once __DIR__ . '/../components/upload-zone.php';
-                        ?>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn" style="background:#a01422;color:#fff;border:none;"
-                        onclick="submitCreateLessonPlan()">
-                    <i class="ti ti-device-floppy me-1"></i>Save Lesson Plan
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+<?php require __DIR__ . '/../iep/partials/iep_pdsp_reference_drawer.php'; ?>
 
 
 <!-- ================================================================
@@ -691,7 +559,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 $acceptedTypes = '.jpg,.jpeg,.png,.pdf';
                 $maxSize       = 10;
                 $showCamera    = true;
-                require_once __DIR__ . '/../components/upload-zone.php';
+                require __DIR__ . '/../components/upload-zone.php';
                 ?>
             </div>
             <div class="modal-footer">
@@ -891,6 +759,347 @@ require_once __DIR__ . '/../layouts/header.php';
 </div>
 
 
+
+<!-- ================================================================
+     MODAL: View Material
+     ================================================================ -->
+<div class="modal fade" id="viewMaterialModal" tabindex="-1" aria-labelledby="viewMaterialModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#1e4072;color:#fff;">
+                <h5 class="modal-title" id="viewMaterialModalLabel"><i class="ti ti-eye me-2"></i><span id="vMatTitle">Material</span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="viewMaterialBody">
+                <!-- populated by JS -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================================================================
+     MODAL: Edit Material
+     ================================================================ -->
+<div class="modal fade" id="editMaterialModal" tabindex="-1" aria-labelledby="editMaterialModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#3b6d11;color:#fff;">
+                <h5 class="modal-title" id="editMaterialModalLabel"><i class="ti ti-pencil me-2"></i>Edit Material</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editMatId">
+                <input type="hidden" id="editMatType">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Title <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="editMatTitle" required>
+                </div>
+                <!-- URL field: shown for link/embed -->
+                <div class="mb-3" id="editMatUrlWrap" style="display:none;">
+                    <label class="form-label fw-semibold small">URL</label>
+                    <input type="url" class="form-control" id="editMatUrl" placeholder="https://...">
+                </div>
+                <!-- File replacement: shown for file type -->
+                <div class="mb-3" id="editMatFileWrap" style="display:none;">
+                    <label class="form-label fw-semibold small">Replace File <span class="text-muted">(optional)</span></label>
+                    <input type="file" class="form-control" id="editMatFile" accept=".jpg,.jpeg,.png,.pdf,.mp4">
+                    <div class="form-text">Leave blank to keep existing file. Max 10MB (50MB for MP4).</div>
+                </div>
+                <div id="editMatError" class="alert alert-danger" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn" style="background:#3b6d11;color:#fff;border:none;" onclick="submitEditMaterial()">
+                    <i class="ti ti-device-floppy me-1"></i>Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================================================================
+     MODAL: View Activity
+     ================================================================ -->
+<div class="modal fade" id="viewActivityModal" tabindex="-1" aria-labelledby="viewActivityModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#1e4072;color:#fff;">
+                <h5 class="modal-title" id="viewActivityModalLabel"><i class="ti ti-eye me-2"></i><span id="vActTitle">Activity</span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="viewActivityBody">
+                <!-- populated by JS -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================================================================
+     MODAL: Edit Activity
+     ================================================================ -->
+<div class="modal fade" id="editActivityModal" tabindex="-1" aria-labelledby="editActivityModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#3b6d11;color:#fff;">
+                <h5 class="modal-title" id="editActivityModalLabel"><i class="ti ti-pencil me-2"></i>Edit Activity</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editActId">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Title <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="editActTitle" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Instructions</label>
+                    <textarea class="form-control" id="editActInstructions" rows="3" placeholder="Instructions for the learner..."></textarea>
+                </div>
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold small">Max Score</label>
+                        <input type="number" class="form-control" id="editActMaxScore" min="0">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold small">Due Date <span class="text-muted">(optional)</span></label>
+                        <input type="date" class="form-control" id="editActDueDate">
+                    </div>
+                </div>
+                <div id="editActError" class="alert alert-danger mt-3" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn" style="background:#3b6d11;color:#fff;border:none;" onclick="submitEditActivity()">
+                    <i class="ti ti-device-floppy me-1"></i>Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ================================================================
+// VIEW / EDIT MATERIALS
+// ================================================================
+// NOTE: BASE is declared in the main JS block below — used here directly
+
+function viewMaterial(mat) {
+    document.getElementById('vMatTitle').textContent = mat.title;
+    const body = document.getElementById('viewMaterialBody');
+
+    if (mat.material_type === 'file' && mat.file_path) {
+        const url = BASE + '/' + mat.file_path;
+        const ext = mat.file_path.split('.').pop().toLowerCase();
+        if (['jpg','jpeg','png','gif'].includes(ext)) {
+            body.innerHTML = `<img src="${url}" class="img-fluid rounded" alt="${mat.title}">`;
+        } else if (ext === 'pdf') {
+            body.innerHTML = `<iframe src="${url}" style="width:100%;height:500px;border:none;"></iframe>
+                <div class="text-center mt-2"><a href="${url}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="ti ti-external-link me-1"></i>Open in new tab</a></div>`;
+        } else if (ext === 'mp4') {
+            body.innerHTML = `<video controls class="w-100 rounded"><source src="${url}" type="video/mp4">Your browser does not support video.</video>`;
+        } else {
+            body.innerHTML = `<div class="text-center py-4"><i class="ti ti-file" style="font-size:3rem;color:#6c757d;"></i><p class="mt-2">Preview not available. <a href="${url}" target="_blank">Download file</a></p></div>`;
+        }
+    } else if (mat.material_type === 'link' && mat.external_url) {
+        body.innerHTML = `<div class="text-center py-4">
+            <i class="ti ti-external-link" style="font-size:3rem;color:#1e4072;"></i>
+            <p class="mt-2 mb-3">External link: <strong>${mat.external_url}</strong></p>
+            <a href="${mat.external_url}" target="_blank" rel="noopener" class="btn" style="background:#1e4072;color:#fff;border:none;">
+                <i class="ti ti-external-link me-1"></i>Open Link
+            </a></div>`;
+    } else if (mat.material_type === 'embed' && mat.external_url) {
+        let embedUrl = mat.external_url;
+        const ytMatch = embedUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+        if (ytMatch) embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
+        const gdMatch = embedUrl.match(/\/d\/([^/]+)/);
+        if (gdMatch && embedUrl.includes('drive.google.com')) embedUrl = `https://drive.google.com/file/d/${gdMatch[1]}/preview`;
+        body.innerHTML = `<div class="ratio ratio-16x9"><iframe src="${embedUrl}" allowfullscreen frameborder="0"></iframe></div>`;
+    } else {
+        body.innerHTML = '<p class="text-muted text-center py-3">No preview available for this material.</p>';
+    }
+
+    new bootstrap.Modal(document.getElementById('viewMaterialModal')).show();
+}
+
+function openEditMaterial(mat) {
+    document.getElementById('editMatId').value   = mat.id;
+    document.getElementById('editMatType').value  = mat.material_type;
+    document.getElementById('editMatTitle').value = mat.title;
+    document.getElementById('editMatError').style.display = 'none';
+    document.getElementById('editMatFile').value  = '';
+
+    const urlWrap  = document.getElementById('editMatUrlWrap');
+    const fileWrap = document.getElementById('editMatFileWrap');
+    if (mat.material_type === 'file') {
+        urlWrap.style.display  = 'none';
+        fileWrap.style.display = 'block';
+    } else {
+        urlWrap.style.display  = 'block';
+        fileWrap.style.display = 'none';
+        document.getElementById('editMatUrl').value = mat.external_url || '';
+    }
+    new bootstrap.Modal(document.getElementById('editMaterialModal')).show();
+}
+
+function submitEditMaterial() {
+    const id    = document.getElementById('editMatId').value;
+    const type  = document.getElementById('editMatType').value;
+    const title = document.getElementById('editMatTitle').value.trim();
+    const errEl = document.getElementById('editMatError');
+    errEl.style.display = 'none';
+    if (!title) { errEl.textContent = 'Title is required.'; errEl.style.display = 'block'; return; }
+
+    const fileInput = document.getElementById('editMatFile');
+    const hasFile   = fileInput.files && fileInput.files.length > 0;
+
+    if (type === 'file' || hasFile) {
+        const fd = new FormData();
+        fd.append('title', title);
+        if (hasFile) fd.append('file', fileInput.files[0]);
+        fetch(`${BASE}/iep/implementation/material/${id}/edit`, { method: 'POST', body: fd })
+            .then(r => r.json()).then(handleEditMaterialResponse).catch(handleEditError);
+    } else {
+        const url = document.getElementById('editMatUrl').value.trim();
+        fetch(`${BASE}/iep/implementation/material/${id}/edit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, external_url: url })
+        }).then(r => r.json()).then(handleEditMaterialResponse).catch(handleEditError);
+    }
+}
+
+function handleEditMaterialResponse(data) {
+    if (!data.success) {
+        const errEl = document.getElementById('editMatError');
+        errEl.textContent = data.message || 'Save failed.';
+        errEl.style.display = 'block';
+        return;
+    }
+    bootstrap.Modal.getInstance(document.getElementById('editMaterialModal')).hide();
+    const mat = data.material;
+    const row = document.getElementById('matRow_' + mat.id);
+    if (row) row.querySelectorAll('td')[1].textContent = mat.title;
+}
+
+function handleEditError(err) { alert('Network error: ' + err.message); }
+
+// ================================================================
+// VIEW / EDIT ACTIVITIES
+// ================================================================
+const actTypeLabels = {
+    multiple_choice: 'Multiple Choice', true_false: 'True / False',
+    fill_in_blanks: 'Fill in the Blanks', matching: 'Matching',
+    drag_drop_sort: 'Drag & Drop Sort', image_label: 'Image Label',
+    flashcards: 'Flashcards', sequencing: 'Sequencing'
+};
+
+function viewActivity(act) {
+    document.getElementById('vActTitle').textContent = act.title;
+    const body = document.getElementById('viewActivityBody');
+    let data = act.activity_data;
+    if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e) { data = {}; } }
+
+    let html = `
+        <div class="mb-3 d-flex flex-wrap gap-2">
+            <span class="badge" style="background:#1e4072;">${actTypeLabels[act.activity_type] || act.activity_type}</span>
+            ${act.max_score ? `<span class="badge bg-secondary">Max Score: ${act.max_score}</span>` : ''}
+            ${act.due_date  ? `<span class="badge bg-warning text-dark">Due: ${act.due_date}</span>` : ''}
+        </div>
+        ${act.instructions ? `<div class="alert alert-light small mb-3"><strong>Instructions:</strong> ${act.instructions}</div>` : ''}
+        <hr>
+        <h6 class="fw-semibold mb-3" style="color:#1e4072;">Activity Content</h6>`;
+
+    switch (act.activity_type) {
+        case 'multiple_choice':
+            (data.questions || []).forEach((q, qi) => {
+                html += `<div class="mb-3"><strong>Q${qi+1}:</strong> ${q.text}<ul class="mt-1">`;
+                (q.options || []).forEach(o => {
+                    html += `<li style="color:${o.is_correct ? '#3b6d11' : 'inherit'}">${o.is_correct ? '✓ ' : ''}${o.text}</li>`;
+                });
+                html += '</ul></div>';
+            });
+            break;
+        case 'true_false':
+            html += `<p><strong>Statement:</strong> ${data.statement || ''}</p>`;
+            html += `<p><strong>Answer:</strong> <span class="badge bg-success">${(data.correct_answer || '').toUpperCase()}</span></p>`;
+            break;
+        case 'fill_in_blanks':
+            (data.sentences || []).forEach((s, i) => {
+                html += `<div class="mb-2"><strong>${i+1}.</strong> ${s.text} <span class="badge bg-success ms-1">${(s.answers || []).join(' / ')}</span></div>`;
+            });
+            break;
+        case 'matching':
+            html += '<table class="table table-sm table-bordered"><thead><tr><th>Left</th><th>Right</th></tr></thead><tbody>';
+            (data.pairs || []).forEach(p => { html += `<tr><td>${p.left}</td><td>${p.right}</td></tr>`; });
+            html += '</tbody></table>';
+            break;
+        case 'drag_drop_sort': case 'sequencing':
+            (data.items || []).forEach((item, i) => { html += `<div class="mb-1"><span class="badge bg-secondary me-2">${i+1}</span>${item}</div>`; });
+            break;
+        case 'flashcards':
+            (data.cards || []).forEach(c => {
+                html += `<div class="mb-2 p-2 border rounded"><strong>Front:</strong> ${c.front} &nbsp;→&nbsp; <strong>Back:</strong> ${c.back}</div>`;
+            });
+            break;
+        case 'image_label':
+            if (data.image_path) html += `<img src="${BASE}/${data.image_path}" class="img-fluid rounded mb-2" alt="activity image">`;
+            (data.labels || []).forEach(l => { html += `<div class="small text-muted">Label at (${l.x},${l.y}): <strong>${l.answer}</strong></div>`; });
+            break;
+        default:
+            html += `<pre class="bg-light p-2 rounded small">${JSON.stringify(data, null, 2)}</pre>`;
+    }
+
+    body.innerHTML = html;
+    new bootstrap.Modal(document.getElementById('viewActivityModal')).show();
+}
+
+function openEditActivity(act) {
+    document.getElementById('editActId').value           = act.id;
+    document.getElementById('editActTitle').value        = act.title;
+    document.getElementById('editActInstructions').value = act.instructions || '';
+    document.getElementById('editActMaxScore').value     = act.max_score || 0;
+    document.getElementById('editActDueDate').value      = act.due_date ? act.due_date.substring(0,10) : '';
+    document.getElementById('editActError').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('editActivityModal')).show();
+}
+
+function submitEditActivity() {
+    const id           = document.getElementById('editActId').value;
+    const title        = document.getElementById('editActTitle').value.trim();
+    const instructions = document.getElementById('editActInstructions').value.trim();
+    const maxScore     = parseInt(document.getElementById('editActMaxScore').value) || 0;
+    const dueDate      = document.getElementById('editActDueDate').value || null;
+    const errEl        = document.getElementById('editActError');
+    errEl.style.display = 'none';
+    if (!title) { errEl.textContent = 'Title is required.'; errEl.style.display = 'block'; return; }
+
+    fetch(`${BASE}/iep/implementation/activity/${id}/edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, instructions, max_score: maxScore, due_date: dueDate })
+    })
+    .then(r => r.json())
+    .then(resp => {
+        if (!resp.success) { errEl.textContent = resp.message || 'Save failed.'; errEl.style.display = 'block'; return; }
+        bootstrap.Modal.getInstance(document.getElementById('editActivityModal')).hide();
+        const act = resp.activity;
+        const row = document.getElementById('actRow_' + act.id);
+        if (row) {
+            const tds = row.querySelectorAll('td');
+            tds[0].textContent = act.title;
+            tds[3].textContent = act.due_date || '—';
+            tds[4].textContent = act.max_score || 0;
+        }
+    })
+    .catch(err => { errEl.textContent = 'Network error: ' + err.message; errEl.style.display = 'block'; });
+}
+</script>
+
 <!-- ================================================================
      STYLES
      ================================================================ -->
@@ -1054,127 +1263,6 @@ async function postForm(url, formData) {
 }
 
 /* ----------------------------------------------------------------
-   Lesson Plan — option card toggle (template vs upload)
-   ---------------------------------------------------------------- */
-function onLpOptionChange() {
-    const selected = document.querySelector('input[name="lpPlanOption"]:checked')?.value;
-    const templateSection = document.getElementById('lpTemplateDownloads');
-    const uploadSection   = document.getElementById('lpDirectUpload');
-    const templateCard    = document.getElementById('lpOptionTemplateCard');
-    const uploadCard      = document.getElementById('lpOptionUploadCard');
-
-    if (selected === 'template') {
-        if (templateSection) templateSection.style.display = '';
-        if (uploadSection)   uploadSection.style.display   = 'none';
-        if (templateCard)    templateCard.classList.add('selected-option');
-        if (uploadCard)      uploadCard.classList.remove('selected-option');
-    } else {
-        if (templateSection) templateSection.style.display = 'none';
-        if (uploadSection)   uploadSection.style.display   = '';
-        if (templateCard)    templateCard.classList.remove('selected-option');
-        if (uploadCard)      uploadCard.classList.add('selected-option');
-    }
-}
-
-/* Pre-select an option when opening modal from empty-state cards */
-function preselectOption(option) {
-    const radio = document.getElementById(option === 'upload' ? 'lpOptionUpload' : 'lpOptionTemplate');
-    if (radio) {
-        radio.checked = true;
-        onLpOptionChange();
-    }
-}
-
-/* Init option state on page load */
-document.addEventListener('DOMContentLoaded', function () {
-    onLpOptionChange();
-
-    // Highlight selected option card on radio click
-    document.querySelectorAll('input[name="lpPlanOption"]').forEach(function (radio) {
-        radio.addEventListener('change', onLpOptionChange);
-    });
-});
-
-/* ----------------------------------------------------------------
-   Lesson Plan — Create
-   ---------------------------------------------------------------- */
-async function submitCreateLessonPlan() {
-    const title      = document.getElementById('lpTitle').value.trim();
-    const pdspDomain = document.getElementById('lpPdspDomain').value;
-    const option     = document.querySelector('input[name="lpPlanOption"]:checked')?.value || 'template';
-
-    // Determine which file input to use based on selected option
-    let fileInput = null;
-    if (option === 'template') {
-        const modal = document.getElementById('createLessonPlanModal');
-        fileInput = modal.querySelector('#lpTemplateDownloads input[type="file"]');
-    } else {
-        const modal = document.getElementById('createLessonPlanModal');
-        fileInput = modal.querySelector('#lpDirectUpload input[type="file"]');
-    }
-    const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
-
-    if (!title) {
-        Swal.fire({ icon: 'warning', title: 'Title required', text: 'Please enter a lesson plan title.', confirmButtonColor: '#a01422' });
-        return;
-    }
-    if (!pdspDomain) {
-        Swal.fire({ icon: 'warning', title: 'Domain required', text: 'Please select a PDSP domain.', confirmButtonColor: '#a01422' });
-        return;
-    }
-
-    showLoading('Saving lesson plan…');
-
-    try {
-        // Step 1: create the lesson plan record
-        const createData = await postJSON(BASE + '/iep/implementation/lesson-plan/create', {
-            title,
-            pdsp_domain: pdspDomain,
-            assignment_type: 'individual',
-            student_id: <?php echo (int)$iep['student_id']; ?>,
-            iep_id: IEP_ID,
-        });
-
-        if (!createData.success) {
-            Swal.fire({ icon: 'error', title: 'Error', text: createData.message || 'Failed to create lesson plan.', confirmButtonColor: '#a01422' });
-            return;
-        }
-
-        const lpId = createData.lesson_plan_id;
-
-        // Step 2: if file selected, upload it
-        if (hasFile) {
-            const fd = new FormData();
-            fd.append('document', fileInput.files[0]);
-            fd.append('lesson_plan_id', lpId);
-            fd.append('iep_id', IEP_ID);
-            const uploadData = await postForm(BASE + '/iep/implementation/lesson-plan/upload-doc', fd);
-            if (!uploadData.success) {
-                // Plan was created but upload failed — warn but continue
-                Swal.close();
-                bootstrap.Modal.getInstance(document.getElementById('createLessonPlanModal'))?.hide();
-                showToast('warning', 'Lesson plan saved, but document upload failed. You can upload it later.');
-                setTimeout(() => location.reload(), 1200);
-                return;
-            }
-        }
-
-        Swal.close();
-        bootstrap.Modal.getInstance(document.getElementById('createLessonPlanModal'))?.hide();
-
-        if (option === 'template' && !hasFile) {
-            showToast('success', 'Lesson plan created! Upload your document when ready.');
-        } else {
-            showToast('success', 'Lesson plan saved!');
-        }
-        setTimeout(() => location.reload(), 800);
-
-    } catch (e) {
-        Swal.fire({ icon: 'error', title: 'Network error', text: e.message, confirmButtonColor: '#a01422' });
-    }
-}
-
-/* ----------------------------------------------------------------
    Lesson Plan — Upload Document (from card button)
    ---------------------------------------------------------------- */
 function openUploadDocModal(lpId, lpTitle) {
@@ -1234,7 +1322,7 @@ function confirmPublish(lpId, lpTitle) {
             const data = await postJSON(BASE + '/iep/implementation/lesson-plan/' + lpId + '/publish', { lesson_plan_id: lpId });
             Swal.close();
             if (data.success) {
-                const card = document.getElementById('lpCard_' + lpId);
+                const card = document.getElementById('lp-' + lpId);
                 if (card) {
                     const badge = card.querySelector('.badge.bg-secondary');
                     if (badge) {
@@ -1276,7 +1364,7 @@ function confirmDeleteLessonPlan(lpId, lpTitle) {
             const data = await postJSON(BASE + '/iep/implementation/lesson-plan/' + lpId + '/delete', { lesson_plan_id: lpId });
             Swal.close();
             if (data.success) {
-                const card = document.getElementById('lpCard_' + lpId);
+                const card = document.getElementById('lp-' + lpId);
                 if (card) card.remove();
                 showToast('success', 'Deleted', lpTitle + ' was removed.');
             } else {

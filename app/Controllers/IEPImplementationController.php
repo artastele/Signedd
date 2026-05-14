@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../Models/LessonPlanModel.php';
 require_once __DIR__ . '/../Models/NotificationModel.php';
+require_once __DIR__ . '/../Models/IEPModel.php';
 
 class IEPImplementationController {
 
@@ -67,6 +68,14 @@ class IEPImplementationController {
         $submissionsByLp = [];
         foreach ($lessonPlans as $lp) {
             $submissionsByLp[$lp['id']] = $this->model->getSubmissionsForLessonPlan($lp['id']);
+        }
+
+        $iepModel       = new IEPModel();
+        $pdspDomainRows = $iepModel->getPdspDomainRows((int) ($iep['pdsp_id'] ?? 0));
+        $iepLinkedLessonPlanIds = $iepModel->getLessonPlanIdsLinkedToIep($iepId);
+        $iepFull = $iepModel->findById($iepId);
+        if ($iepFull) {
+            $iep['pdsp_signed_document_path'] = $iepFull['pdsp_signed_document_path'] ?? null;
         }
 
         $basePath    = $this->basePath;
@@ -529,10 +538,13 @@ class IEPImplementationController {
             exit;
         }
 
+        $downloadName = $type === 'dll' ? 'DepEd_DLL_Template.docx' : 'DepEd_DLP_Template.docx';
+
         header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Disposition: attachment; filename="' . $downloadName . '"; filename*=UTF-8\'\'' . rawurlencode($downloadName));
         header('Content-Length: ' . filesize($filepath));
-        header('Cache-Control: no-cache');
+        header('Cache-Control: private, max-age=0, must-revalidate');
+        header('X-Content-Type-Options: nosniff');
         readfile($filepath);
         exit;
     }
@@ -855,5 +867,296 @@ class IEPImplementationController {
         $learners = $this->model->getLearnersForTeacher($this->userId);
 
         require_once __DIR__ . '/../Views/iep_implementation/progress_tracker.php';
+    }
+
+    // ============================================================
+    // EDIT MATERIAL (POST AJAX)
+    // ============================================================
+
+    public function editMaterial($materialId) {
+        header('Content-Type: application/json');
+        try {
+            $materialId = (int) $materialId;
+            if (!$materialId) {
+                echo json_encode(['success' => false, 'message' => 'Invalid material ID.']);
+                exit;
+            }
+
+            $material = $this->model->getMaterialById($materialId);
+            if (!$material) {
+                echo json_encode(['success' => false, 'message' => 'Material not found.']);
+                exit;
+            }
+
+            $isMultipart = !empty($_FILES);
+            $body        = $isMultipart ? $_POST : (json_decode(file_get_contents('php://input'), true) ?? []);
+
+            $title       = trim($body['title'] ?? '');
+            if (!$title) {
+                echo json_encode(['success' => false, 'message' => 'Title is required.']);
+                exit;
+            }
+
+            $updateData = ['title' => $title];
+
+            // Handle URL update (for link / embed materials)
+            if (!empty($body['external_url'])) {
+                $updateData['external_url'] = trim($body['external_url']);
+            }
+
+            // Handle file replacement
+            if ($isMultipart && isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
+                $file    = $_FILES['file'];
+                $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                $allowed = ['jpg', 'jpeg', 'png', 'pdf', 'mp4'];
+                $maxSize = in_array($ext, ['mp4']) ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+
+                if (!in_array($ext, $allowed)) {
+                    echo json_encode(['success' => false, 'message' => 'Allowed: JPG, PNG, PDF, MP4.']);
+                    exit;
+                }
+                if ($file['size'] > $maxSize) {
+                    echo json_encode(['success' => false, 'message' => 'File too large.']);
+                    exit;
+                }
+
+                $lpId      = (int) $material['lesson_plan_id'];
+                $uploadDir = __DIR__ . '/../../public/uploads/materials/' . $lpId . '/';
+                if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+
+                $fileName = 'mat_' . time() . '_' . uniqid() . '.' . $ext;
+                if (!move_uploaded_file($file['tmp_name'], $uploadDir . $fileName)) {
+                    echo json_encode(['success' => false, 'message' => 'Failed to save file.']);
+                    exit;
+                }
+
+                // Delete old file
+                if (!empty($material['file_path'])) {
+                    $old = __DIR__ . '/../../public/' . $material['file_path'];
+                    if (file_exists($old)) @unlink($old);
+                }
+
+                $updateData['file_path'] = 'uploads/materials/' . $lpId . '/' . $fileName;
+            }
+
+            $this->model->updateMaterial($materialId, $updateData);
+            $updated = $this->model->getMaterialById($materialId);
+            echo json_encode(['success' => true, 'material' => $updated]);
+        } catch (Throwable $e) {
+            error_log('editMaterial error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    // ============================================================
+    // EDIT ACTIVITY (POST AJAX JSON)
+    // ============================================================
+
+    public function editActivity($activityId) {
+        header('Content-Type: application/json');
+        try {
+            $activityId = (int) $activityId;
+            if (!$activityId) {
+                echo json_encode(['success' => false, 'message' => 'Invalid activity ID.']);
+                exit;
+            }
+
+            $activity = $this->model->getActivityById($activityId);
+            if (!$activity) {
+                echo json_encode(['success' => false, 'message' => 'Activity not found.']);
+                exit;
+            }
+
+            $body  = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $title = trim($body['title'] ?? '');
+            if (!$title) {
+                echo json_encode(['success' => false, 'message' => 'Title is required.']);
+                exit;
+            }
+
+            $updateData = [
+                'title'        => $title,
+                'instructions' => trim($body['instructions'] ?? ''),
+                'max_score'    => isset($body['max_score']) ? (int) $body['max_score'] : (int) $activity['max_score'],
+                'due_date'     => !empty($body['due_date']) ? $body['due_date'] : null,
+            ];
+
+            $this->model->updateActivity($activityId, $updateData);
+            $updated = $this->model->getActivityById($activityId);
+            echo json_encode(['success' => true, 'activity' => $updated]);
+        } catch (Throwable $e) {
+            error_log('editActivity error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    // ============================================================
+    // VIEW SUBMISSION — teacher read-only review of a learner's
+    // submitted activity (GET /iep/implementation/submission/{id})
+    // ============================================================
+
+    public function viewSubmission($activityId) {
+        $activityId = (int) $activityId;
+        $studentId  = isset($_GET['student_id']) ? (int) $_GET['student_id'] : 0;
+        $basePath   = $this->basePath;
+
+        if (!$activityId || !$studentId) {
+            $_SESSION['error'] = 'Invalid activity or student.';
+            header('Location: ' . $this->basePath . '/iep/implementation');
+            exit;
+        }
+
+        $db = Database::getInstance()->getConnection();
+
+        // Load activity (with lesson plan + IEP for navigation / grading)
+        $stmt = $db->prepare("
+            SELECT a.*, lp.iep_id, lp.created_by AS lp_created_by
+            FROM lms_activities a
+            JOIN lesson_plans lp ON a.lesson_plan_id = lp.id
+            WHERE a.id = :id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $activityId]);
+        $activity = $stmt->fetch();
+
+        if (!$activity) {
+            $_SESSION['error'] = 'Activity not found.';
+            header('Location: ' . $this->basePath . '/iep/implementation');
+            exit;
+        }
+
+        $activity['activity_data'] = json_decode($activity['activity_data'] ?? '{}', true) ?? [];
+
+        $iepIdForAct = (int) ($activity['iep_id'] ?? 0);
+        $stmtIep = $db->prepare('SELECT drafted_by FROM iep_records WHERE id = :id LIMIT 1');
+        $stmtIep->execute(['id' => $iepIdForAct]);
+        $iepRow = $stmtIep->fetch();
+        $canGrade = in_array($this->userRole, ['sped_teacher', 'admin'], true)
+            && $iepRow
+            && ((int) $iepRow['drafted_by'] === (int) $this->userId || $this->userRole === 'admin');
+
+        require_once __DIR__ . '/../Models/LessonPlanModel.php';
+        $displayMaxScore = LessonPlanModel::displayMaxScoreForActivity($activity);
+
+        // Load student info
+        $stmt = $db->prepare("SELECT id, student_name, lrn FROM student_records WHERE id = :id LIMIT 1");
+        $stmt->execute(['id' => $studentId]);
+        $student = $stmt->fetch();
+
+        if (!$student) {
+            $_SESSION['error'] = 'Student not found.';
+            header('Location: ' . $this->basePath . '/iep/implementation');
+            exit;
+        }
+
+        // Load submission + grade
+        $stmt = $db->prepare("
+            SELECT sub.*, g.score, g.max_score AS grade_max_score, g.is_complete, g.remarks
+            FROM lms_submissions sub
+            LEFT JOIN lms_grades g ON g.submission_id = sub.id
+            WHERE sub.activity_id = :activity_id AND sub.student_id = :student_id
+            LIMIT 1
+        ");
+        $stmt->execute(['activity_id' => $activityId, 'student_id' => $studentId]);
+        $submission = $stmt->fetch();
+
+        $basePath = $this->basePath;
+        $iep_id   = $iepIdForAct;
+        $student_id = $studentId;
+
+        require_once __DIR__ . '/../Views/iep_implementation/submission_review.php';
+    }
+
+    /**
+     * Confirm auto-score (or posted score) as official grade — POST.
+     */
+    public function confirmSubmissionGrade($activityId) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . $this->basePath . '/iep/implementation');
+            exit;
+        }
+        $activityId = (int) $activityId;
+        $studentId  = (int) ($_POST['student_id'] ?? 0);
+        if (!$activityId || !$studentId) {
+            $_SESSION['error'] = 'Invalid request.';
+            header('Location: ' . $this->basePath . '/iep/implementation');
+            exit;
+        }
+
+        $db = Database::getInstance()->getConnection();
+
+        $stmt = $db->prepare("
+            SELECT a.*, lp.iep_id, lp.created_by AS lp_created_by
+            FROM lms_activities a
+            JOIN lesson_plans lp ON a.lesson_plan_id = lp.id
+            WHERE a.id = :id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $activityId]);
+        $activity = $stmt->fetch();
+        if (!$activity) {
+            $_SESSION['error'] = 'Activity not found.';
+            header('Location: ' . $this->basePath . '/iep/implementation');
+            exit;
+        }
+
+        $iepId = (int) ($activity['iep_id'] ?? 0);
+        $stmtIep = $db->prepare('SELECT drafted_by FROM iep_records WHERE id = :id LIMIT 1');
+        $stmtIep->execute(['id' => $iepId]);
+        $iepRow = $stmtIep->fetch();
+        if (!$iepRow
+            || !in_array($this->userRole, ['sped_teacher', 'admin'], true)
+            || ((int) $iepRow['drafted_by'] !== (int) $this->userId && $this->userRole !== 'admin')) {
+            $_SESSION['error'] = 'Access denied.';
+            header('Location: ' . $this->basePath . '/iep/implementation');
+            exit;
+        }
+
+        require_once __DIR__ . '/../Models/LessonPlanModel.php';
+        $activity['activity_data'] = json_decode($activity['activity_data'] ?? '{}', true) ?? [];
+        $maxScore = LessonPlanModel::displayMaxScoreForActivity($activity);
+
+        $stmt = $db->prepare('SELECT id, auto_score FROM lms_submissions WHERE activity_id = :a AND student_id = :s LIMIT 1');
+        $stmt->execute(['a' => $activityId, 's' => $studentId]);
+        $sub = $stmt->fetch();
+        if (!$sub) {
+            $_SESSION['error'] = 'No submission found.';
+            header('Location: ' . $this->basePath . '/iep/implementation/submission/' . $activityId . '?student_id=' . $studentId);
+            exit;
+        }
+
+        $posted = isset($_POST['score']) ? (int) $_POST['score'] : null;
+        $score  = $posted !== null ? $posted : (int) ($sub['auto_score'] ?? 0);
+        if ($maxScore > 0 && $score > $maxScore) {
+            $score = $maxScore;
+        }
+        if ($score < 0) {
+            $score = 0;
+        }
+
+        $ins = $db->prepare("
+            INSERT INTO lms_grades (submission_id, graded_by, score, max_score, is_complete, remarks)
+            VALUES (:sid, :uid, :sc, :mx, 1, :rm)
+            ON DUPLICATE KEY UPDATE
+                score = VALUES(score),
+                max_score = VALUES(max_score),
+                is_complete = 1,
+                graded_by = VALUES(graded_by),
+                remarks = VALUES(remarks),
+                graded_at = CURRENT_TIMESTAMP
+        ");
+        $ins->execute([
+            'sid' => (int) $sub['id'],
+            'uid' => (int) $this->userId,
+            'sc'  => $score,
+            'mx'  => $maxScore > 0 ? $maxScore : (int) ($activity['max_score'] ?? 0),
+            'rm'  => trim((string) ($_POST['remarks'] ?? '')) ?: null,
+        ]);
+
+        $_SESSION['success'] = 'Grade confirmed.';
+        header('Location: ' . $this->basePath . '/iep/implementation/submission/' . $activityId . '?student_id=' . $studentId);
+        exit;
     }
 }

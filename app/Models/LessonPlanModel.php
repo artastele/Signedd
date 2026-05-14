@@ -287,6 +287,26 @@ class LessonPlanModel {
     }
 
     /**
+     * Update an existing material (title + optional URL / file_path)
+     */
+    public function updateMaterial($id, $data) {
+        $allowed = ['title', 'external_url', 'file_path', 'embed_type'];
+        $sets    = [];
+        $params  = ['id' => $id];
+        foreach ($allowed as $col) {
+            if (array_key_exists($col, $data)) {
+                $sets[]      = "$col = :$col";
+                $params[$col] = $data[$col];
+            }
+        }
+        if (empty($sets)) return false;
+        $stmt = $this->db->prepare(
+            "UPDATE lesson_materials SET " . implode(', ', $sets) . " WHERE id = :id"
+        );
+        return $stmt->execute($params);
+    }
+
+    /**
      * Count materials for a lesson plan (for display_order)
      */
     public function countMaterials($lessonPlanId) {
@@ -367,6 +387,27 @@ class LessonPlanModel {
         $stmt = $this->db->prepare("SELECT * FROM lms_activities WHERE id = :id LIMIT 1");
         $stmt->execute(['id' => $id]);
         return $stmt->fetch();
+    }
+
+    /**
+     * Update basic fields on an existing activity
+     * (title, instructions, due_date, max_score — not activity_data)
+     */
+    public function updateActivity($id, $data) {
+        $allowed = ['title', 'instructions', 'due_date', 'max_score'];
+        $sets    = [];
+        $params  = ['id' => $id];
+        foreach ($allowed as $col) {
+            if (array_key_exists($col, $data)) {
+                $sets[]      = "$col = :$col";
+                $params[$col] = $data[$col];
+            }
+        }
+        if (empty($sets)) return false;
+        $stmt = $this->db->prepare(
+            "UPDATE lms_activities SET " . implode(', ', $sets) . " WHERE id = :id"
+        );
+        return $stmt->execute($params);
     }
 
     public function deleteLessonPlan($id) {
@@ -466,12 +507,59 @@ class LessonPlanModel {
     }
 
     /**
+     * Prefer item-count from activity JSON so displayed max matches number of questions/blanks, etc.
+     *
+     * @param array<string,mixed> $activityRow activity_type, max_score, activity_data (string or array)
+     */
+    public static function displayMaxScoreForActivity(array $activityRow): int {
+        $dbMax = (int) ($activityRow['max_score'] ?? $activityRow['activity_max_score'] ?? 0);
+        $type  = (string) ($activityRow['activity_type'] ?? '');
+        $raw   = $activityRow['activity_data'] ?? null;
+        $data  = [];
+        if (is_array($raw)) {
+            $data = $raw;
+        } elseif (is_string($raw) && $raw !== '') {
+            $data = json_decode($raw, true) ?: [];
+        }
+        $n = 0;
+        switch ($type) {
+            case 'multiple_choice':
+                $n = count($data['questions'] ?? []);
+                break;
+            case 'fill_in_blanks':
+                $n = count($data['sentences'] ?? []);
+                break;
+            case 'matching':
+                $n = count($data['pairs'] ?? []);
+                break;
+            case 'true_false':
+                $n = 1;
+                break;
+            case 'image_label':
+                $n = count($data['labels'] ?? []);
+                break;
+            case 'drag_drop_sort':
+            case 'sequencing':
+                $items = $data['items'] ?? $data['steps'] ?? [];
+                $n = count($items);
+                break;
+            default:
+                $n = 0;
+        }
+        if ($n > 0) {
+            return $n;
+        }
+        return $dbMax > 0 ? $dbMax : 0;
+    }
+
+    /**
      * Get all submissions for all activities in a lesson plan
      */
     public function getSubmissionsForLessonPlan($lessonPlanId) {
         $stmt = $this->db->prepare("
             SELECT sub.*, 
                    act.title AS activity_title, act.activity_type, act.max_score AS activity_max_score,
+                   act.activity_data,
                    sr.student_name,
                    g.score AS graded_score, g.max_score AS graded_max_score, g.is_complete, g.remarks
             FROM lms_submissions sub
@@ -482,7 +570,16 @@ class LessonPlanModel {
             ORDER BY sub.submitted_at DESC
         ");
         $stmt->execute(['lp_id' => $lessonPlanId]);
-        return $stmt->fetchAll();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as &$r) {
+            $r['display_max_score'] = self::displayMaxScoreForActivity([
+                'activity_type' => $r['activity_type'] ?? '',
+                'max_score'     => $r['activity_max_score'] ?? 0,
+                'activity_data' => $r['activity_data'] ?? null,
+            ]);
+        }
+        unset($r);
+        return $rows;
     }
 
     /**
