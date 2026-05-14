@@ -2,6 +2,24 @@
 
 A comprehensive Learning Management System for managing student enrollment, IEP (Individualized Education Plan) creation, implementation, and learning activity tracking. Built for Philippine SPED schools following DepEd standards.
 
+## SignED
+## Overview
+- **SignED is an inclusive digital learning platform designed to enhance the quality of education for pupils with hearing impairments by providing Filipino Sign Language (FSL)-integrated materials, interactive video lessons, and specialized teacher training resources. The system addresses key accessibility gaps by delivering engaging, curriculum-aligned content that supports diverse learning needs while empowering teachers with tools and competencies for inclusive instruction. Through its integrated approach, SignED fosters a more accessible and effective learning environment that promotes academic growth and skill development among learners. Aligned with Sustainable Development Goal 4: Quality Education, the platform contributes to equitable access to quality education by reducing barriers, supporting inclusive practices, and ensuring that no learner is left behind.**
+
+## Problem Statement
+- **Limited inclusion of learners with special educational needs (SENs) in distance learning programs during the implementation of inclusive education policies.**
+- **Insufficient implementation of inclusive content policies for hearing-impaired students in the Department of Education (DepEd).**
+- **Limited integration of Filipino Sign Language (FSL) in teacher education programs nationwide.**
+
+## Objectives
+- **Increased inclusion of learners with special educational needs in distance learning programs to at least 85% participation.**
+- **Improved implementation of inclusive content policies for hearing-impaired students to at least 80% compliance across DepEd schools.**
+- **Increased integration of Filipino Sign Language (FSL) in teacher education programs nationwide to at least 75% program adoption.**
+
+## Target Users / Personas
+- **SPED Teachers**
+- **Hearing-Impaired Learners**
+
 ## Features
 
 - **Process 1:** Parent Enrollment Submission
