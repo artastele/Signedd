@@ -493,6 +493,17 @@ class IEPImplementationController {
                 exit;
             }
 
+            // Check if associated IEP is signed and finalized
+            $iepId = $lp['iep_id'];
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("SELECT status FROM iep_records WHERE id = :iep_id LIMIT 1");
+            $stmt->execute(['iep_id' => $iepId]);
+            $iep = $stmt->fetch();
+            if (!$iep || !in_array($iep['status'], ['signed', 'finalized'])) {
+                echo json_encode(['success' => false, 'message' => 'Cannot publish lesson plan: Associated IEP must be signed and finalized first.']);
+                exit;
+            }
+
             $this->model->publish($lessonPlanId);
 
             // Send in-system notifications to assigned learners/parents
