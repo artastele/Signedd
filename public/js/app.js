@@ -290,6 +290,27 @@ function renderNotifications(notifications) {
                 </a>
                 <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
             `;
+        } else if (notification.type === 'iep_signature_request' && data.iep_id && data.signatory_id) {
+            actionHtml = `
+                <a href="${getBasePath()}/iep/sign/${data.iep_id}/${data.signatory_id}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-pen"></i> Open sign page
+                </a>
+                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
+            `;
+        } else if (notification.type === 'iep_signed' && data.iep_id) {
+            actionHtml = `
+                <a href="${getBasePath()}/iep/form/${data.iep_id}" class="btn btn-sm btn-success">
+                    <i class="bi bi-eye"></i> View IEP
+                </a>
+                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
+            `;
+        } else if (notification.type === 'process6_unlocked' && data.iep_id) {
+            actionHtml = `
+                <a href="${getBasePath()}/iep/implementation/workspace/${data.iep_id}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-journal-text"></i> IEP Workspace
+                </a>
+                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
+            `;
         } else if (notification.type === 'enrollment_rejected') {
             actionHtml = `
                 <a href="${getBasePath()}/enrollment/status" class="btn btn-sm btn-danger">

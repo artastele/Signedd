@@ -9,7 +9,7 @@ $role = $_SESSION['role'] ?? 'user';
 <div class="topbar">
     <div class="topbar-left">
         <!-- Hamburger — visible on mobile only -->
-        <button class="sidebar-hamburger" id="sidebarHamburger" type="button" aria-label="Toggle sidebar">
+        <button class="hamburger-btn" id="sidebarHamburger" type="button" aria-label="Toggle sidebar">
             <i class="bi bi-list"></i>
         </button>
     </div>

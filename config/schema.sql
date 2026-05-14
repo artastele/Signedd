@@ -1,8 +1,13 @@
 -- SPED LMS  Database Schema (Clean Version)
 -- DO NOT ALTER WITHOUT APPROVAL
--- Last modified: 2026-05-08
+-- Last modified: 2026-05-13
 -- All tables use CREATE TABLE IF NOT EXISTS (idempotent, safe to re-run)
 -- All ALTER TABLE use INFORMATION_SCHEMA checks (MariaDB compatible)
+--
+-- Migration blocks: v39 .. v46 (see db_version). Latest: v46 (iep_steps.step_domain).
+-- New machine: ensure app boots once (public/index.php runs SchemaManager) OR import this file;
+-- MySQL < 8.0.12 / MariaDB without ADD COLUMN IF NOT EXISTS: use IEPModel::ensurePartOneSaveSchema at runtime
+-- plus config/manual_migration_v41_v43.sql for gaps as needed.
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -884,3 +889,485 @@ CREATE TABLE IF NOT EXISTS iep_copies (
 INSERT IGNORE INTO db_version (version) VALUES (39);
 
 -- END MIGRATION: v39
+
+-- ============================================
+-- MIGRATION: v40 - Simplify Process 5 IEP Generation
+-- Remove complex digital form, keep simple upload system
+-- ============================================
+
+-- Drop tables no longer needed
+DROP TABLE IF EXISTS iep_domains;
+DROP TABLE IF EXISTS iep_core; 
+DROP TABLE IF EXISTS iep_steps;
+
+-- Remove signing_method column from iep_records
+ALTER TABLE iep_records DROP COLUMN IF EXISTS signing_method;
+
+-- Ensure required columns exist (some may already exist)
+ALTER TABLE iep_records 
+ADD COLUMN IF NOT EXISTS signed_document_path VARCHAR(500) NULL AFTER status,
+ADD COLUMN IF NOT EXISTS re_evaluation_date DATE NULL AFTER signed_document_path,
+ADD COLUMN IF NOT EXISTS locked_at TIMESTAMP NULL AFTER re_evaluation_date;
+
+-- Update iep_signatories enum to match your 6 roles
+ALTER TABLE iep_signatories 
+MODIFY COLUMN signatory_role ENUM('parent_guardian', 'guidance_counselor', 'teacher', 'sned_teacher', 'school_head', 'ilrc_supervisor') NOT NULL;
+
+INSERT IGNORE INTO db_version (version) VALUES (40);
+
+-- END MIGRATION: v40
+
+-- ============================================
+-- MIGRATION: v41 - Student Documents Centralized Storage
+-- Mobile responsive preparation - centralized document tracking
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS student_documents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    process_name VARCHAR(50) NOT NULL,
+    document_type VARCHAR(100) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_type VARCHAR(20) NOT NULL,
+    file_size INT NOT NULL,
+    uploaded_by INT NOT NULL,
+    uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_hidden BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_student_process (student_id, process_name),
+    INDEX idx_document_type (document_type),
+    INDEX idx_uploaded_at (uploaded_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (41);
+
+-- END MIGRATION: v41
+
+-- ============================================
+-- MIGRATION: v42 - Process 6 & 7 LMS Tables
+-- Lesson plans, materials, 8-type activities,
+-- submissions, grading, learner access
+-- ============================================
+
+-- --------------------------------------------
+-- Lesson Plans
+-- Linked to iep_records (signed IEP from P5)
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS lesson_plans (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    student_id INT NULL,                          -- NULL when assignment_type = 'shared'
+    created_by INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    pdsp_domain ENUM(
+        'perceptuo_cognitive',
+        'psychosocial',
+        'socio_emotional',
+        'psychomotor',
+        'daily_living_skills',
+        'communication_language'
+    ) NOT NULL,
+    assignment_type ENUM('individual','shared') DEFAULT 'individual',
+    document_path VARCHAR(500) NULL,              -- uploaded lesson plan file
+    status ENUM('draft','published') DEFAULT 'draft',
+    published_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_iep_id (iep_id),
+    INDEX idx_created_by (created_by),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------
+-- Lesson Assignments
+-- Maps lesson plans to individual learners
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS lesson_assignments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    lesson_plan_id INT NOT NULL,
+    student_id INT NOT NULL,
+    assigned_by INT NOT NULL,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (lesson_plan_id) REFERENCES lesson_plans(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_assignment (lesson_plan_id, student_id),
+    INDEX idx_lesson_plan_id (lesson_plan_id),
+    INDEX idx_student_id (student_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------
+-- Lesson Materials
+-- 3 types: file upload, external link, embed
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS lesson_materials (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    lesson_plan_id INT NOT NULL,
+    material_type ENUM('file','link','embed') NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NULL,                  -- for type = 'file'
+    external_url VARCHAR(1000) NULL,              -- for type = 'link' or 'embed'
+    embed_type ENUM('youtube','gdrive','other') NULL, -- for type = 'embed'
+    display_order INT DEFAULT 0,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (lesson_plan_id) REFERENCES lesson_plans(id) ON DELETE CASCADE,
+    INDEX idx_lesson_plan_id (lesson_plan_id),
+    INDEX idx_display_order (display_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------
+-- LMS Activities
+-- 8 types — all content stored in activity_data JSON
+--
+-- activity_type values and their activity_data shape:
+--
+-- multiple_choice:
+--   { "options": [{"text":"...", "is_correct": true/false}], "points": N }
+--
+-- true_false:
+--   { "correct_answer": "true"|"false", "points": N }
+--
+-- fill_in_blanks:
+--   { "sentences": [{"text":"The ___ is red","answers":["apple"]}], "points": N }
+--
+-- matching:
+--   { "pairs": [{"left":"...","right":"..."}], "points": N }
+--
+-- drag_drop_sort:
+--   { "items": ["step1","step2","step3"], "correct_order": [0,1,2], "points": N }
+--
+-- image_label:
+--   { "image_path":"...", "labels":[{"x":10,"y":20,"answer":"..."}], "points": N }
+--
+-- flashcards:
+--   { "cards": [{"front":"...","back":"..."}] }
+--   (no scoring — view only)
+--
+-- sequencing:
+--   { "items": ["event1","event2","event3"], "correct_order": [2,0,1], "points": N }
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS lms_activities (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    lesson_plan_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    instructions TEXT NULL,
+    activity_type ENUM(
+        'multiple_choice',
+        'true_false',
+        'fill_in_blanks',
+        'matching',
+        'drag_drop_sort',
+        'image_label',
+        'flashcards',
+        'sequencing'
+    ) NOT NULL,
+    activity_data JSON NOT NULL,                  -- type-specific content (see above)
+    max_score INT NULL,                           -- NULL for flashcards
+    due_date DATETIME NULL,
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (lesson_plan_id) REFERENCES lesson_plans(id) ON DELETE CASCADE,
+    INDEX idx_lesson_plan_id (lesson_plan_id),
+    INDEX idx_activity_type (activity_type),
+    INDEX idx_display_order (display_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------
+-- Activity Submissions
+-- Learner answers stored per activity
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS lms_submissions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    activity_id INT NOT NULL,
+    student_id INT NOT NULL,
+    submitted_by INT NOT NULL,                    -- user_id (learner or parent)
+    file_path VARCHAR(500) NULL,                  -- for file_submission type (future)
+    answers JSON NULL,                            -- learner answers for scored types
+    auto_score INT NULL,                          -- computed on submit for auto-scored types
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (activity_id) REFERENCES lms_activities(id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_submission (activity_id, student_id), -- one submission per learner per activity
+    INDEX idx_activity_id (activity_id),
+    INDEX idx_student_id (student_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------
+-- Activity Grades
+-- Teacher manual score override + remarks
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS lms_grades (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    submission_id INT NOT NULL,
+    graded_by INT NOT NULL,
+    score INT NULL,
+    max_score INT NULL,
+    is_complete TINYINT(1) DEFAULT 0,
+    remarks TEXT NULL,
+    graded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (submission_id) REFERENCES lms_submissions(id) ON DELETE CASCADE,
+    FOREIGN KEY (graded_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_grade (submission_id),
+    INDEX idx_graded_at (graded_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------
+-- LMS Activity Logs
+-- Tracks opened / submitted / graded events
+-- Separate from system activity_log
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS lms_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    activity_id INT NULL,
+    material_id INT NULL,
+    action ENUM('opened','submitted','graded') NOT NULL,
+    performed_by INT NOT NULL,
+    performed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (performed_by) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_student_id (student_id),
+    INDEX idx_action (action),
+    INDEX idx_performed_at (performed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------
+-- Learner Access Mode
+-- direct = learner has own login
+-- parent_managed = parent completes on behalf
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS learner_access (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    access_mode ENUM('direct','parent_managed') DEFAULT 'parent_managed',
+    assigned_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_student_access (student_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (42);
+
+-- END MIGRATION: v42
+
+-- ============================================
+-- MIGRATION: v43 — Process 7 Gamification Tables
+-- learner_points, learner_badges, activity_stars
+-- No changes to any existing Process 1–6 tables.
+-- ============================================
+
+-- --------------------------------------------
+-- Learner Points
+-- XP ledger — one row per earning event.
+-- source_type maps to XP rules in process-7.md:
+--   view         → +5 XP (first open of view-only activity)
+--   submission   → +10 XP (file submission sent)
+--   quiz         → score% × max_score XP
+--   lesson_bonus → +20 XP (lesson plan fully completed)
+--   badge_bonus  → +15 XP (badge earned)
+-- source_id is nullable: activity id, lesson id,
+-- or badge row id depending on source_type.
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS learner_points (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    student_id  INT NOT NULL,
+    points      INT NOT NULL DEFAULT 0,
+    reason      VARCHAR(255) NOT NULL,
+    source_type ENUM('view','submission','quiz','lesson_bonus','badge_bonus') NOT NULL,
+    source_id   INT NULL,
+    earned_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    INDEX idx_student_id  (student_id),
+    INDEX idx_source_type (source_type),
+    INDEX idx_earned_at   (earned_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------
+-- Learner Badges
+-- One row per badge earned per learner.
+-- badge_key ENUM matches the fixed set defined
+-- in process-7.md — teacher cannot create custom badges.
+-- UNIQUE KEY prevents duplicate badge awards.
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS learner_badges (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    badge_key  ENUM(
+        'first_activity',
+        'lesson_complete',
+        'perfect_score',
+        'five_in_a_row',
+        'all_done',
+        'star_collector'
+    ) NOT NULL,
+    earned_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_student_badge (student_id, badge_key),
+    INDEX idx_student_id (student_id),
+    INDEX idx_badge_key  (badge_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------
+-- Activity Stars
+-- Auto-calculated when teacher grades a submission.
+-- Star rule (from process-7.md):
+--   90–100% → 3 stars
+--   70–89%  → 2 stars
+--   <70%    → 1 star
+--   View-only activities: no stars row created.
+-- submission_id → lms_submissions (P7 graded activities only).
+-- UNIQUE KEY: one star record per submission.
+-- --------------------------------------------
+CREATE TABLE IF NOT EXISTS activity_stars (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    submission_id INT NOT NULL,
+    student_id    INT NOT NULL,
+    stars         TINYINT NOT NULL,
+    calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (submission_id) REFERENCES lms_submissions(id)  ON DELETE CASCADE,
+    FOREIGN KEY (student_id)   REFERENCES student_records(id)   ON DELETE CASCADE,
+    UNIQUE KEY unique_submission_stars (submission_id),
+    INDEX idx_student_id (student_id),
+    CONSTRAINT chk_stars CHECK (stars IN (1, 2, 3))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (43);
+
+-- END MIGRATION: v43
+
+-- ============================================
+-- MIGRATION: v44 — Process 5 IEP (living document) + P5–P6–P7 links
+-- Restores iep_domains / iep_core / iep_steps (dropped in v40),
+-- removes locked state, restores signing_method, junction + edit log tables.
+-- ============================================
+
+UPDATE iep_records SET status = 'signed' WHERE status = 'locked';
+
+ALTER TABLE iep_records DROP COLUMN IF EXISTS locked_at;
+
+ALTER TABLE iep_records
+    MODIFY COLUMN status ENUM('draft','signing','signed') NOT NULL DEFAULT 'draft';
+
+ALTER TABLE iep_records
+    ADD COLUMN IF NOT EXISTS signing_method ENUM('print_upload','digital') NULL AFTER status;
+
+CREATE TABLE IF NOT EXISTS iep_domains (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    domain_name VARCHAR(200) NOT NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    INDEX idx_iep_id (iep_id),
+    INDEX idx_display_order (iep_id, display_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_core (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    developmental_domain TEXT NULL,
+    priority_needs TEXT NULL,
+    terminal_objectives TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_iep_core (iep_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_steps (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    step_number INT NOT NULL,
+    step_objective TEXT NULL,
+    duration_lp VARCHAR(255) NULL,
+    instructional_evaluation TEXT NULL,
+    observation TEXT NULL,
+    observation_unlocked TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    INDEX idx_iep_id (iep_id),
+    INDEX idx_step_number (iep_id, step_number)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_step_lesson_plans (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_step_id INT NOT NULL,
+    lesson_plan_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_step_id) REFERENCES iep_steps(id) ON DELETE CASCADE,
+    FOREIGN KEY (lesson_plan_id) REFERENCES lesson_plans(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_step_lesson (iep_step_id, lesson_plan_id),
+    INDEX idx_lesson_plan_id (lesson_plan_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_step_materials (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_step_id INT NOT NULL,
+    material_id INT NOT NULL,
+    linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_step_id) REFERENCES iep_steps(id) ON DELETE CASCADE,
+    FOREIGN KEY (material_id) REFERENCES lesson_materials(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_step_material (iep_step_id, material_id),
+    INDEX idx_material_id (material_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS iep_edit_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    iep_id INT NOT NULL,
+    edited_by INT NOT NULL,
+    field_name VARCHAR(191) NOT NULL,
+    old_value TEXT NULL,
+    new_value TEXT NULL,
+    edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (edited_by) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_iep_edited (iep_id, edited_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE iep_signatories
+    ADD COLUMN IF NOT EXISTS send_status ENUM('not_sent','pending','signed') NOT NULL DEFAULT 'not_sent' AFTER signatory_name;
+
+ALTER TABLE iep_signatories
+    ADD COLUMN IF NOT EXISTS signature_request_sent_at TIMESTAMP NULL AFTER send_status;
+
+UPDATE iep_signatories SET send_status = 'signed' WHERE signed_at IS NOT NULL;
+
+INSERT IGNORE INTO db_version (version) VALUES (44);
+
+-- END MIGRATION: v44
+
+-- ============================================
+-- MIGRATION: v45 — Process 5 IEP header overrides (Section 2 editable snapshot)
+-- ============================================
+
+ALTER TABLE iep_records
+    ADD COLUMN IF NOT EXISTS header_learner_name VARCHAR(255) NULL AFTER re_evaluation_date,
+    ADD COLUMN IF NOT EXISTS header_learner_age VARCHAR(50) NULL AFTER header_learner_name,
+    ADD COLUMN IF NOT EXISTS header_lrn VARCHAR(32) NULL AFTER header_learner_age,
+    ADD COLUMN IF NOT EXISTS header_section VARCHAR(120) NULL AFTER header_lrn,
+    ADD COLUMN IF NOT EXISTS header_teacher_name VARCHAR(255) NULL AFTER header_section,
+    ADD COLUMN IF NOT EXISTS header_school_name VARCHAR(255) NULL AFTER header_teacher_name,
+    ADD COLUMN IF NOT EXISTS header_grade_level VARCHAR(100) NULL AFTER header_school_name;
+
+INSERT IGNORE INTO db_version (version) VALUES (45);
+
+-- END MIGRATION: v45
+
+-- ============================================
+-- MIGRATION: v46 — IEP step domain label (Section 5)
+-- ============================================
+
+ALTER TABLE iep_steps
+    ADD COLUMN IF NOT EXISTS step_domain VARCHAR(191) NULL AFTER step_number;
+
+INSERT IGNORE INTO db_version (version) VALUES (46);
+
+-- END MIGRATION: v46
+-- (End of versioned migrations in this file — keep db_version in sync when adding v47+.)

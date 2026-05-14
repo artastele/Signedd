@@ -145,12 +145,13 @@ $formType = $_GET['type'] ?? 'fill'; // 'fill' or 'upload'
                     <div class="card-body">
                         <div class="mb-4">
                             <label class="form-label">Select PDF File</label>
-                            <div class="input-group">
-                                <input type="file" class="form-control" name="pdf_file" id="pdfFile" accept=".pdf" required>
-                                <span class="input-group-text">
-                                    <i class="fas fa-file-pdf" style="color: #dc3545;"></i>
-                                </span>
-                            </div>
+                            <?php 
+                            $fieldName = 'pdf_file';
+                            $acceptedTypes = '.pdf';
+                            $maxSize = 10;
+                            $showCamera = true;
+                            include __DIR__ . '/../components/upload-zone.php';
+                            ?>
                             <small class="text-muted">Maximum file size: 10MB. PDF format only.</small>
                         </div>
 

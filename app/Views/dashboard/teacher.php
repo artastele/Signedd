@@ -149,6 +149,82 @@ require_once __DIR__ . '/../layouts/header.php';
     </div>
     <?php endif; ?>
 
+    <!-- Learner Progress Tracker Widget -->
+    <?php if (isset($learners) && !empty($learners)): ?>
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-header text-white d-flex justify-content-between align-items-center" style="background:#1e4072;">
+            <h5 class="mb-0">
+                <i class="bi bi-bar-chart-line"></i> Learner Progress Overview
+            </h5>
+            <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/iep/implementation/progress-tracker" class="btn btn-sm btn-light text-primary">
+                View Detailed Tracker
+            </a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Learner</th>
+                            <th>Completion</th>
+                            <th>Activities</th>
+                            <th>XP / Stars</th>
+                            <th>Workspace</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        // Show only top 5 learners for the widget
+                        $displayLearners = array_slice($learners, 0, 5);
+                        foreach ($displayLearners as $learner): 
+                            $totalXp = (int)($learner['total_xp'] ?? 0);
+                            $totalStars = (int)($learner['total_stars'] ?? 0);
+                            $completedActivities = (int)($learner['completed_activities'] ?? 0);
+                            $totalActivities = (int)($learner['total_activities'] ?? 0);
+                            $progressPct = 0;
+                            if ($totalActivities > 0) {
+                                $progressPct = min(100, round(($completedActivities / $totalActivities) * 100));
+                            }
+                        ?>
+                        <tr>
+                            <td>
+                                <strong><?php echo htmlspecialchars($learner['student_name']); ?></strong><br>
+                                <small class="text-muted">LRN: <?php echo htmlspecialchars($learner['lrn']); ?></small>
+                            </td>
+                            <td style="width: 25%;">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <small><?php echo $progressPct; ?>%</small>
+                                </div>
+                                <div class="progress" style="height: 6px;">
+                                    <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo $progressPct; ?>%;"></div>
+                                </div>
+                            </td>
+                            <td><?php echo $completedActivities; ?> / <?php echo $totalActivities; ?></td>
+                            <td>
+                                <span class="badge bg-primary"><i class="bi bi-bolt"></i> <?php echo $totalXp; ?></span>
+                                <span class="badge bg-warning text-dark"><i class="bi bi-star-fill"></i> <?php echo $totalStars; ?></span>
+                            </td>
+                            <td>
+                                <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/iep/implementation/workspace/<?php echo $learner['iep_id']; ?>" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-folder2-open"></i> Open
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php if (count($learners) > 5): ?>
+            <div class="text-center p-3 border-top">
+                <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/iep/implementation/progress-tracker" class="text-decoration-none">
+                    View all <?php echo count($learners); ?> learners
+                </a>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Quick Actions -->
     <h5 class="mb-3">Quick Actions</h5>
     <div class="row">

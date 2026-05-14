@@ -167,7 +167,13 @@ require_once __DIR__ . '/../layouts/header.php';
 
                     <div class="mb-3">
                         <label class="form-label">File *</label>
-                        <input type="file" name="file" class="form-control" required>
+                        <?php 
+                        $fieldName = 'file';
+                        $acceptedTypes = '.pdf,.docx,.mp4,.mp3,.jpg,.jpeg,.png';
+                        $maxSize = 50;
+                        $showCamera = true;
+                        include __DIR__ . '/../components/upload-zone.php';
+                        ?>
                         <small class="text-muted">Max 50MB. Supported: PDF, DOCX, MP4, MP3, JPG, PNG</small>
                     </div>
 

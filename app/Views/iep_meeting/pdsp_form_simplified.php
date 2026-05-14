@@ -123,13 +123,15 @@ require_once __DIR__ . '/../layouts/header.php';
                     </button>
                 </div>
                 <?php else: ?>
-                <div id="uploadZone" class="text-center p-5" style="border: 3px dashed #a01422; border-radius: 10px; background-color: #f9f9f9; cursor: pointer;">
-                    <i class="bi bi-cloud-upload" style="font-size: 4rem; color: #a01422;"></i>
-                    <h5 class="mt-3">Drag and drop your PDSP document here</h5>
-                    <p class="text-muted">or click to browse</p>
-                    <p class="small text-muted">Accepts: JPG, PNG, PDF (Max 10MB)</p>
-                    <input type="file" id="signedDocInput" accept=".jpg,.jpeg,.png,.pdf" style="display: none;">
-                </div>
+                <?php 
+                $fieldName = 'signed_document';
+                $acceptedTypes = '.jpg,.jpeg,.png,.pdf';
+                $maxSize = 10;
+                $showCamera = true;
+                $uploadUrl = $basePath . '/iep/meetings/pdsp/upload-signed-document';
+                $additionalData = ['pdsp_id' => $pdsp['id']];
+                include __DIR__ . '/../components/upload-zone.php';
+                ?>
                 
                 <div id="uploadProgress" class="mt-3" style="display: none;">
                     <div class="text-center">
@@ -215,39 +217,6 @@ const pdspStatus = '<?php echo $pdsp['status']; ?>';
 
 document.addEventListener('DOMContentLoaded', function() {
     if (pdspStatus === 'draft') {
-        // Upload functionality
-        const uploadZone = document.getElementById('uploadZone');
-        const signedDocInput = document.getElementById('signedDocInput');
-        const uploadProgress = document.getElementById('uploadProgress');
-        
-        if (uploadZone) {
-            uploadZone.addEventListener('click', () => signedDocInput.click());
-            
-            uploadZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                uploadZone.style.borderColor = '#3b6d11';
-            });
-            
-            uploadZone.addEventListener('dragleave', () => {
-                uploadZone.style.borderColor = '#a01422';
-            });
-            
-            uploadZone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                uploadZone.style.borderColor = '#a01422';
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    handleDocumentUpload(files[0]);
-                }
-            });
-            
-            signedDocInput.addEventListener('change', (e) => {
-                if (e.target.files.length > 0) {
-                    handleDocumentUpload(e.target.files[0]);
-                }
-            });
-        }
-        
         // Signatory checkbox toggle
         document.querySelectorAll('.signatory-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', function() {
@@ -265,99 +234,84 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function handleDocumentUpload(file) {
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-    if (!allowedTypes.includes(file.type)) {
+function submitPDSP() {
+    // Check if document is uploaded - either via file input or already exists
+    const fileInput = document.querySelector('input[name="signed_document"]');
+    const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+    const hasExistingDoc = <?php echo !empty($pdsp['signed_document_path']) ? 'true' : 'false'; ?>;
+    
+    if (!hasFile && !hasExistingDoc) {
         Swal.fire({
-            icon: 'error',
-            title: 'Invalid File Type',
-            text: 'Only JPG, PNG, and PDF files are accepted.',
+            icon: 'warning',
+            title: 'Document Required',
+            text: 'Please upload the PDSP document first.',
             confirmButtonColor: '#a01422'
         });
         return;
     }
     
-    // Validate file size (10MB)
-    if (file.size > 10 * 1024 * 1024) {
+    // If there's a new file to upload, upload it first
+    if (hasFile && !hasExistingDoc) {
+        // Upload the file first via AJAX
+        const formData = new FormData();
+        formData.append('signed_document', fileInput.files[0]);
+        formData.append('pdsp_id', pdspId);
+        
         Swal.fire({
-            icon: 'error',
-            title: 'File Too Large',
-            text: 'Maximum file size is 10MB.',
-            confirmButtonColor: '#a01422'
+            title: 'Uploading document...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
         });
-        return;
-    }
-    
-    const uploadProgress = document.getElementById('uploadProgress');
-    const uploadZone = document.getElementById('uploadZone');
-    
-    uploadProgress.style.display = 'block';
-    uploadZone.style.display = 'none';
-    
-    // Create FormData
-    const formData = new FormData();
-    formData.append('signed_document', file);
-    formData.append('pdsp_id', pdspId);
-    
-    // Send to server
-    fetch(basePath + '/iep/meetings/pdsp/upload-signed-document', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
+        
+        fetch(basePath + '/iep/meetings/pdsp/upload-signed-document', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Document uploaded successfully, now proceed with submission
+                proceedWithSubmission();
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Upload Failed',
+                    text: data.message || 'Failed to upload document',
+                    confirmButtonColor: '#a01422'
+                });
+            }
+        })
+        .catch(error => {
             Swal.fire({
-                icon: 'success',
-                title: 'Document Uploaded!',
-                text: data.message,
-                confirmButtonColor: '#3b6d11'
-            }).then(() => {
-                location.reload();
+                icon: 'error',
+                title: 'Upload Failed',
+                text: 'Error uploading document: ' + error.message,
+                confirmButtonColor: '#a01422'
             });
-        } else {
-            throw new Error(data.message || 'Upload failed');
-        }
-    })
-    .catch(error => {
-        Swal.fire({
-            icon: 'error',
-            title: 'Upload Failed',
-            text: error.message,
-            confirmButtonColor: '#a01422'
         });
-        uploadProgress.style.display = 'none';
-        uploadZone.style.display = 'block';
-    });
+    } else {
+        // Document already exists, proceed directly
+        proceedWithSubmission();
+    }
 }
 
-function submitPDSP() {
-    // Validate: document must be uploaded
-    <?php if (empty($pdsp['signed_document_path'])): ?>
-    Swal.fire({
-        icon: 'warning',
-        title: 'Document Required',
-        text: 'Please upload the PDSP document first.',
-        confirmButtonColor: '#a01422'
-    });
-    return;
-    <?php endif; ?>
+function proceedWithSubmission() {
     
-    // Collect signatories
-    const signatories = [];
-    document.querySelectorAll('.signatory-checkbox:checked').forEach(checkbox => {
+    // Check signatories
+    const checkedSignatories = document.querySelectorAll('.signatory-checkbox:checked');
+    let validSignatories = 0;
+    
+    checkedSignatories.forEach(checkbox => {
         const role = checkbox.value;
         const nameInput = document.querySelector(`.signatory-name[data-role="${role}"]`);
-        const name = nameInput.value.trim();
-        
-        if (name) {
-            signatories.push({ role, name });
+        if (nameInput && nameInput.value.trim()) {
+            validSignatories++;
         }
     });
     
-    // Validate: at least one signatory
-    if (signatories.length === 0) {
+    if (validSignatories === 0) {
         Swal.fire({
             icon: 'warning',
             title: 'Signatories Required',
@@ -367,10 +321,10 @@ function submitPDSP() {
         return;
     }
     
-    // Confirm submission
+    // Show confirmation
     Swal.fire({
-        title: 'Submit PDSP?',
-        html: `This will mark the PDSP as completed and change the meeting status to "Completed".<br><br><strong>Signatories:</strong> ${signatories.length}`,
+        title: 'Submit PDSP & Complete Meeting?',
+        text: 'This will finalize the PDSP document and complete the IEP meeting.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#a01422',
@@ -379,6 +333,19 @@ function submitPDSP() {
         cancelButtonText: 'Cancel'
     }).then((result) => {
         if (result.isConfirmed) {
+            // Collect signatories data
+            const signatories = [];
+            checkedSignatories.forEach(checkbox => {
+                const role = checkbox.value;
+                const nameInput = document.querySelector(`.signatory-name[data-role="${role}"]`);
+                if (nameInput && nameInput.value.trim()) {
+                    signatories.push({
+                        role: role,
+                        name: nameInput.value.trim()
+                    });
+                }
+            });
+            
             // Show loading
             Swal.fire({
                 title: 'Submitting...',
@@ -388,7 +355,7 @@ function submitPDSP() {
                 }
             });
             
-            // Send to server
+            // Submit via AJAX
             fetch(basePath + '/iep/meetings/pdsp/submit', {
                 method: 'POST',
                 headers: {
@@ -439,6 +406,7 @@ function deleteDocument() {
         cancelButtonText: 'Cancel'
     }).then((result) => {
         if (result.isConfirmed) {
+            // Reload page to reset the form
             location.reload();
         }
     });

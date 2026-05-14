@@ -21,12 +21,19 @@ function isIEPProcedureActive() {
     }
     return false;
 }
+
+function isEnrollmentAvailabilityMenuActive() {
+    global $currentPath, $basePath;
+    foreach (['/verification', '/enrollment/review', '/iep/availability'] as $p) {
+        if (strpos($currentPath, $basePath . $p) === 0) {
+            return true;
+        }
+    }
+    return false;
+}
 ?>
 
 <div class="sidebar" id="sidebar">
-    <!-- Overlay (mobile only) -->
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
     <!-- Logo -->
     <div class="sidebar-logo">
         <?php if (file_exists(__DIR__ . '/../../../public/images/logo.png')): ?>
@@ -50,6 +57,17 @@ function isIEPProcedureActive() {
                 <span>Services</span>
             </a>
 
+        <?php elseif ($role === 'learner'): ?>
+            <!-- Process 7 — Learner nav links -->
+            <a href="<?php echo $basePath; ?>/learning/dashboard" class="<?php echo isActive('/learning/dashboard'); ?>">
+                <i class="bi bi-book-open"></i>
+                <span>My Lessons</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/learning/progress" class="<?php echo isActive('/learning/progress'); ?>">
+                <i class="bi bi-bar-chart-line"></i>
+                <span>My Progress</span>
+            </a>
+
         <?php elseif ($role === 'parent'): ?>
             <a href="<?php echo $basePath; ?>/enrollment/status" class="<?php echo isActive('/enrollment/status'); ?>">
                 <i class="bi bi-list-check"></i>
@@ -58,6 +76,11 @@ function isIEPProcedureActive() {
             <a href="<?php echo $basePath; ?>/enrollment" class="<?php echo isActive('/enrollment'); ?>">
                 <i class="bi bi-plus-circle"></i>
                 <span>Enroll Child</span>
+            </a>
+            <!-- Step 16 — Child LMS Progress -->
+            <a href="<?php echo $basePath; ?>/parent/child-progress" class="<?php echo isActive('/parent/child-progress'); ?>">
+                <i class="bi bi-bar-chart-line"></i>
+                <span>My Child's Progress</span>
             </a>
             <a href="<?php echo $basePath; ?>/iep/meetings" class="<?php echo isActive('/iep/meetings'); ?>">
                 <i class="bi bi-calendar-check"></i>
@@ -73,14 +96,27 @@ function isIEPProcedureActive() {
             </a>
 
         <?php elseif ($role === 'sped_teacher'): ?>
-            <a href="<?php echo $basePath; ?>/verification" class="<?php echo isActive('/verification'); ?>">
-                <i class="bi bi-clipboard-check"></i>
-                <span>Verify Enrollments</span>
-            </a>
-            <a href="<?php echo $basePath; ?>/enrollment/review" class="<?php echo isActive('/enrollment/review'); ?>">
-                <i class="bi bi-clipboard-check"></i>
-                <span>Review Enrollments</span>
-            </a>
+            <div class="sidebar-section">
+                <a href="#" class="sidebar-section-toggle <?php echo isEnrollmentAvailabilityMenuActive() ? 'active' : ''; ?>" data-bs-toggle="collapse" data-bs-target="#enrollmentAvailabilityMenu" aria-expanded="<?php echo isEnrollmentAvailabilityMenuActive() ? 'true' : 'false'; ?>">
+                    <i class="bi bi-people"></i>
+                    <span>Enrollments &amp; availability</span>
+                    <i class="bi bi-chevron-down toggle-icon"></i>
+                </a>
+                <div class="collapse <?php echo isEnrollmentAvailabilityMenuActive() ? 'show' : ''; ?>" id="enrollmentAvailabilityMenu">
+                    <a href="<?php echo $basePath; ?>/verification" class="sidebar-submenu-item <?php echo isActive('/verification'); ?>">
+                        <i class="bi bi-clipboard-check"></i>
+                        <span>Verify Enrollments</span>
+                    </a>
+                    <a href="<?php echo $basePath; ?>/enrollment/review" class="sidebar-submenu-item <?php echo isActive('/enrollment/review'); ?>">
+                        <i class="bi bi-clipboard-data"></i>
+                        <span>Review Enrollments</span>
+                    </a>
+                    <a href="<?php echo $basePath; ?>/iep/availability" class="sidebar-submenu-item <?php echo isActive('/iep/availability'); ?>">
+                        <i class="bi bi-calendar3"></i>
+                        <span>My Availability</span>
+                    </a>
+                </div>
+            </div>
 
             <!-- IEP Procedure (Collapsible) -->
             <div class="sidebar-section">
@@ -109,13 +145,13 @@ function isIEPProcedureActive() {
                 </div>
             </div>
 
-            <a href="<?php echo $basePath; ?>/iep/availability" class="<?php echo isActive('/iep/availability'); ?>">
-                <i class="bi bi-calendar3"></i>
-                <span>My Availability</span>
-            </a>
             <a href="<?php echo $basePath; ?>/iep/implementation" class="<?php echo isActive('/iep/implementation'); ?>">
                 <i class="bi bi-book"></i>
-                <span>Implement IEP</span>
+                <span>IEP Workspace</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/iep/implementation/progress-tracker" class="<?php echo isActive('/iep/implementation/progress-tracker'); ?>">
+                <i class="bi bi-bar-chart-line"></i>
+                <span>Progress Tracker</span>
             </a>
             <a href="<?php echo $basePath; ?>/activities" class="<?php echo isActive('/activities'); ?>">
                 <i class="bi bi-activity"></i>
@@ -187,7 +223,7 @@ function isIEPProcedureActive() {
             </a>
         <?php endif; ?>
 
-        <?php if ($role !== 'parent' && $role !== 'user'): ?>
+        <?php if ($role !== 'parent' && $role !== 'user' && $role !== 'learner'): ?>
             <!-- Student Records - Available for all staff roles -->
             <div class="sidebar-divider"></div>
             <a href="<?php echo $basePath; ?>/students" class="<?php echo isActive('/students'); ?>">
@@ -218,64 +254,11 @@ function isIEPProcedureActive() {
     </div>
 </div>
 
-<!-- Sidebar Script -->
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const sidebar    = document.getElementById('sidebar');
-    const hamburger  = document.getElementById('sidebarHamburger');
-    const overlay    = document.getElementById('sidebarOverlay');
-
-    function openSidebar() {
-        sidebar.classList.add('open');
-        if (overlay) overlay.classList.add('active');
-        document.body.classList.add('sidebar-open');
-    }
-
-    function closeSidebar() {
-        sidebar.classList.remove('open');
-        if (overlay) overlay.classList.remove('active');
-        document.body.classList.remove('sidebar-open');
-    }
-
-    // Hamburger button (in topbar)
-    if (hamburger) {
-        hamburger.addEventListener('click', function (e) {
-            e.stopPropagation();
-            sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
-        });
-    }
-
-    // Overlay click closes sidebar
-    if (overlay) {
-        overlay.addEventListener('click', closeSidebar);
-    }
-
-    // Close on resize to desktop
-    window.addEventListener('resize', function () {
-        if (window.innerWidth > 768) {
-            closeSidebar();
-        }
-    });
-});
-</script>
-
 <style>
 /* ============================================
    SIDEBAR — Responsive overrides
    (base styles live in custom.css)
    ============================================ */
-
-/* Overlay behind sidebar on mobile */
-.sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    z-index: 999;
-}
-.sidebar-overlay.active {
-    display: block;
-}
 
 /* Collapsible section toggle */
 .sidebar-section { margin: 5px 0; }
@@ -338,30 +321,4 @@ document.addEventListener('DOMContentLoaded', function () {
 .sidebar-menu::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); }
 .sidebar-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
 .sidebar-menu::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
-
-/* ---- MOBILE ---- */
-@media (max-width: 768px) {
-    /* Sidebar hidden off-screen by default */
-    .sidebar {
-        left: -260px;
-        transition: left 0.3s ease;
-        z-index: 1000;
-    }
-    /* Slide in when open */
-    .sidebar.open {
-        left: 0;
-    }
-    /* Main content full-width on mobile */
-    .main-content {
-        margin-left: 0 !important;
-    }
-    /* Topbar full-width on mobile */
-    .topbar {
-        left: 0 !important;
-    }
-    /* Prevent body scroll when sidebar open */
-    body.sidebar-open {
-        overflow: hidden;
-    }
-}
 </style>

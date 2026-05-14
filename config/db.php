@@ -1,17 +1,20 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Security Module 1
-// Last modified: 2026-05-03
+// Last modified: 2026-05-12
 // Part of: SPED LMS — Database Connection (FORCED COMMIT MODE)
+
+// Load environment variables
+require_once __DIR__ . '/env.php';
 
 class Database {
     private static $instance = null;
     private $connection;
 
     private function __construct() {
-        $host = getenv('DB_HOST') ?: 'localhost';
-        $dbname = getenv('DB_NAME') ?: 'sped_lms';
-        $username = getenv('DB_USER') ?: 'root';
-        $password = getenv('DB_PASS') ?: '';
+        $host = env('DB_HOST', 'localhost');
+        $dbname = env('DB_NAME', 'sped_lms');
+        $username = env('DB_USER', 'root');
+        $password = env('DB_PASS', '');
         $charset = 'utf8mb4';
 
         $dsn = "mysql:host=$host;dbname=$dbname;charset=$charset";

@@ -53,5 +53,8 @@
     
     <!-- Custom JS -->
     <script src="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/js/app.js"></script>
+    
+    <!-- Sidebar Mobile Navigation -->
+    <script src="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/js/sidebar.js"></script>
 </body>
 </html>

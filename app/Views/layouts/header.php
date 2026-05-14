@@ -19,5 +19,11 @@
     
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <!-- Tabler Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-icons.min.css">
 </head>
 <body class="bg-light-surface">
+
+<!-- Sidebar Overlay (Mobile) -->
+<div class="sidebar-overlay"></div>

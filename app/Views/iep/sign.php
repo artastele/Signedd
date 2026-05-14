@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // DO NOT ALTER WITHOUT APPROVAL -- Process 5
 // Last modified: 2026-05-08
 // Part of: SPED LMS -- IEP Digital Signature Page
@@ -134,7 +134,7 @@ function submitSig() {
         .then(data => {
             if (data.success) {
                 alert('Signature saved successfully!');
-                location.href = BASE + '/dashboard';
+                location.href = BASE + '/iep/form/' + <?php echo (int) $iep['id']; ?>;
             } else {
                 alert(data.message || 'Failed to save signature');
             }
