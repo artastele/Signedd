@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 1
 // Last modified: 2026-05-06
-// Part of: SPED LMS — Returning Student Lookup
+// Part of: SignED — Returning Student Lookup
 
-$pageTitle = 'Find Returning Student - SPED LMS';
+$pageTitle = 'Find Returning Student - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

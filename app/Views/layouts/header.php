@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $pageTitle ?? 'SPED LMS'; ?></title>
+    <title><?php echo $pageTitle ?? 'SignED'; ?></title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/images/favicon.ico">

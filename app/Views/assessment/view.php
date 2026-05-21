@@ -1,7 +1,7 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 3
 // Last modified: 2026-05-04
-// Part of: SPED LMS — Assessment Review (SPED Teacher)
+// Part of: SignED — Assessment Review (SPED Teacher)
 
 require __DIR__ . '/../layouts/header.php';
 require __DIR__ . '/../layouts/sidebar.php';

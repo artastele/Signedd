@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Dashboard - SPED LMS';
+$pageTitle = 'Dashboard - SignED';
 $basePath = defined('BASE_PATH') ? BASE_PATH : '';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
@@ -94,13 +94,13 @@ require_once __DIR__ . '/../layouts/header.php';
         <div class="card-body p-4">
             <div class="row align-items-center">
                 <div class="col-md-8">
-                    <h1 class="mb-2">Welcome to SPED LMS, <?php echo htmlspecialchars($userName); ?>!</h1>
+                    <h1 class="mb-2">Welcome to SignED, <?php echo htmlspecialchars($userName); ?>!</h1>
                     <p class="mb-0 lead">Special Education Learning Management System</p>
                     <p class="mb-0">Empowering educators, supporting learners, building futures.</p>
                 </div>
                 <div class="col-md-4 text-center">
                     <?php if (file_exists(__DIR__ . '/../../../public/images/logo-large.png')): ?>
-                        <img src="<?php echo $basePath; ?>/images/logo-large.png" alt="SPED LMS Logo" style="max-width: 120px; filter: brightness(0) invert(1);">
+                        <img src="<?php echo $basePath; ?>/images/logo-large.png" alt="SignED Logo" style="max-width: 120px; filter: brightness(0) invert(1);">
                     <?php else: ?>
                         <i class="bi bi-mortarboard-fill" style="font-size: 5rem;"></i>
                     <?php endif; ?>

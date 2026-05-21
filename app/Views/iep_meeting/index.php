@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 4
 // Last modified: 2026-05-07
-// Part of: SPED LMS — IEP Meeting List
+// Part of: SignED — IEP Meeting List
 
-$pageTitle = 'IEP Meetings - SPED LMS';
+$pageTitle = 'IEP Meetings - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 5
 // Last modified: 2026-05-08
-// Part of: SPED LMS — IEP Documents Unified Dashboard
+// Part of: SignED — IEP Documents Unified Dashboard
 
-$pageTitle = 'IEP Documents - SPED LMS';
+$pageTitle = 'IEP Documents - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 <body data-logged-in="true">

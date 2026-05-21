@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL -- Process 5
 // Last modified: 2026-05-08
-// Part of: SPED LMS -- IEP Digital Signature Page
+// Part of: SignED -- IEP Digital Signature Page
 
-$pageTitle = 'Sign IEP - SPED LMS';
+$pageTitle = 'Sign IEP - SignED';
 $basePath  = BASE_PATH;
 require_once __DIR__ . '/../layouts/header.php';
 ?>

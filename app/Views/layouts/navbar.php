@@ -1,7 +1,7 @@
 <nav class="navbar navbar-expand-lg navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand fw-bold" href="/dashboard">
-            <i class="bi bi-mortarboard-fill"></i> SPED LMS
+            <i class="bi bi-mortarboard-fill"></i> SignED
         </a>
         
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -22,7 +22,6 @@
                         <span class="badge bg-secondary ms-1"><?php echo ucwords(str_replace('_', ' ', $_SESSION['role'])); ?></span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="/account/settings"><i class="bi bi-gear"></i> Settings</a></li>
                         <?php if ($_SESSION['role'] === 'user'): ?>
                             <li><a class="dropdown-item" href="/role/select"><i class="bi bi-person-badge"></i> Select Role</a></li>
                         <?php endif; ?>

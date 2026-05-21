@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL -- Process 5
 // Last modified: 2026-05-08
-// Part of: SPED LMS -- IEP Form (Individualized Education Plan)
+// Part of: SignED -- IEP Form (Individualized Education Plan)
 
-$pageTitle = 'IEP Form - SPED LMS';
+$pageTitle = 'IEP Form - SignED';
 $statusLabels = ['draft'=>'Draft','signing'=>'Signing','signed'=>'Signed','locked'=>'Locked'];
 $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','locked'=>'#a01422'];
 $currentStatus = $iep['status'] ?? 'draft';

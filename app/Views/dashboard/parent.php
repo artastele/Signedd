@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 1 Part E
 // Last modified: 2026-05-02
-// Part of: SPED LMS — Parent Dashboard with Enrollment Tracking
+// Part of: SignED — Parent Dashboard with Enrollment Tracking
 
-$pageTitle = 'Parent Dashboard - SPED LMS';
+$pageTitle = 'Parent Dashboard - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -68,7 +68,7 @@ require_once __DIR__ . '/../layouts/header.php';
                         <div>
                             <span class="text-muted">Login at:</span>
                             <a href="<?php echo BASE_PATH; ?>/login" style="color: #a01422; font-size: 0.8rem;">
-                                <?php echo getenv('APP_URL') ?: 'SPED LMS'; ?>
+                                <?php echo getenv('APP_URL') ?: 'SignED'; ?>
                             </a>
                         </div>
                     </div>

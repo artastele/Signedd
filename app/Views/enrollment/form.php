@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 1
 // Last modified: 2026-05-02
-// Part of: SPED LMS — Enrollment Form (7 Steps)
+// Part of: SignED — Enrollment Form (7 Steps)
 
-$pageTitle = 'Enrollment Form - SPED LMS';
+$pageTitle = 'Enrollment Form - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 
 // Prepare data for form (draft, previous enrollment, or empty)

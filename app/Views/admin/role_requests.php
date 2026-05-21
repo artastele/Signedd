@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Role Requests - Admin - SPED LMS';
+$pageTitle = 'Role Requests - Admin - SignED';
 $basePath = defined('BASE_PATH') ? BASE_PATH : '';
 require_once __DIR__ . '/../layouts/header.php';
 ?>

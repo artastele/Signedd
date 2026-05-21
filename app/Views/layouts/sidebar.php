@@ -37,11 +37,11 @@ function isEnrollmentAvailabilityMenuActive() {
     <!-- Logo -->
     <div class="sidebar-logo">
         <?php if (file_exists(__DIR__ . '/../../../public/images/logo.png')): ?>
-            <img src="<?php echo $basePath; ?>/images/logo.png" alt="SPED LMS Logo">
+            <img src="<?php echo $basePath; ?>/images/logo.png" alt="SignED Logo">
         <?php else: ?>
             <i class="bi bi-mortarboard-fill" style="font-size: 3rem; color: #ffffff;"></i>
         <?php endif; ?>
-        <h4>SPED LMS</h4>
+        <h4>SignED</h4>
     </div>
 
     <!-- Navigation Menu (Scrollable) -->
@@ -153,10 +153,6 @@ function isEnrollmentAvailabilityMenuActive() {
                 <i class="bi bi-bar-chart-line"></i>
                 <span>Progress Tracker</span>
             </a>
-            <a href="<?php echo $basePath; ?>/activities" class="<?php echo isActive('/activities'); ?>">
-                <i class="bi bi-activity"></i>
-                <span>Activity Logs</span>
-            </a>
 
         <?php elseif ($role === 'guidance'): ?>
             <a href="<?php echo $basePath; ?>/iep/availability" class="<?php echo isActive('/iep/availability'); ?>">
@@ -191,14 +187,6 @@ function isEnrollmentAvailabilityMenuActive() {
             </a>
 
         <?php elseif ($role === 'master_teacher'): ?>
-            <a href="<?php echo $basePath; ?>/observation" class="<?php echo isActive('/observation'); ?>">
-                <i class="bi bi-eye"></i>
-                <span>Class Observation</span>
-            </a>
-            <a href="<?php echo $basePath; ?>/cot" class="<?php echo isActive('/cot'); ?>">
-                <i class="bi bi-clipboard-check"></i>
-                <span>COT Results</span>
-            </a>
 
         <?php elseif ($role === 'admin'): ?>
             <a href="<?php echo $basePath; ?>/admin/manage-users" class="<?php echo isActive('/admin/manage-users'); ?>">
@@ -234,10 +222,6 @@ function isEnrollmentAvailabilityMenuActive() {
 
         <div class="sidebar-divider"></div>
 
-        <a href="<?php echo $basePath; ?>/account/settings">
-            <i class="bi bi-gear"></i>
-            <span>Account Settings</span>
-        </a>
     </div>
 
     <!-- User Info & Logout -->

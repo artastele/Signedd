@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 3
 // Last modified: 2026-05-07
-// Part of: SPED LMS — Assessment History View
+// Part of: SignED — Assessment History View
 
-$pageTitle = 'Assessment History - SPED LMS';
+$pageTitle = 'Assessment History - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 4
 // Last modified: 2026-05-08
-// Part of: SPED LMS — Availability Calendar View
+// Part of: SignED — Availability Calendar View
 
-$pageTitle = 'My Availability - SPED LMS';
+$pageTitle = 'My Availability - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 
 $monthName = date('F', mktime(0, 0, 0, $currentMonth, 1, $currentYear));

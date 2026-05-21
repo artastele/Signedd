@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 3
 // Last modified: 2026-05-06
-// Part of: SPED LMS — Assessment Form (Part I - Section A)
+// Part of: SignED — Assessment Form (Part I - Section A)
 
-$pageTitle = 'Conduct Assessment - SPED LMS';
+$pageTitle = 'Conduct Assessment - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

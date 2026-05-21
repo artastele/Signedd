@@ -1,10 +1,10 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 2
 // Last modified: 2026-05-04
-// Part of: SPED LMS — Enrollment Detail View
+// Part of: SignED — Enrollment Detail View
 
 $basePath = isset($basePath) ? $basePath : '/';
-$pageTitle = 'Enrollment Detail - SPED LMS';
+$pageTitle = 'Enrollment Detail - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

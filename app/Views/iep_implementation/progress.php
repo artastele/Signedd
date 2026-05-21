@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 6
 // Last modified: 2026-05-05
-// Part of: SPED LMS — Student Progress Tracking
+// Part of: SignED — Student Progress Tracking
 
-$pageTitle = 'Student Progress - SPED LMS';
+$pageTitle = 'Student Progress - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

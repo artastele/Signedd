@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 1
 // Last modified: 2026-05-01
-// Part of: SPED LMS — Enrollment Type Selection
+// Part of: SignED — Enrollment Type Selection
 
-$pageTitle = 'Enroll Your Child - SPED LMS';
+$pageTitle = 'Enroll Your Child - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

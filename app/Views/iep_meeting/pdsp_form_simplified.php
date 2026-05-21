@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 4 Part II (Simplified)
 // Last modified: 2026-05-07
-// Part of: SPED LMS — PDSP Form (Upload Only)
+// Part of: SignED — PDSP Form (Upload Only)
 
-$pageTitle = 'PDSP Form (Part II) - SPED LMS';
+$pageTitle = 'PDSP Form (Part II) - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

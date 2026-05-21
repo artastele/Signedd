@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Select Role - SPED LMS';
+$pageTitle = 'Select Role - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 
 $type = $_GET['type'] ?? null;

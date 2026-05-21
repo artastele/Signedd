@@ -140,7 +140,7 @@ foreach ($signatories ?? [] as $sig) {
     </div>
 
     <p style="margin-top:8mm;font-size:9pt;color:#444;">
-        Generated from SPED LMS. Status: <?= htmlspecialchars((string) ($iep['status'] ?? '')) ?>
+        Generated from SignED. Status: <?= htmlspecialchars((string) ($iep['status'] ?? '')) ?>
         <?php if (!empty($iep['signed_at'])): ?> · Signed <?= htmlspecialchars(date('Y-m-d', strtotime((string) $iep['signed_at']))) ?><?php endif; ?>
     </p>
 

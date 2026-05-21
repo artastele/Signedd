@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 6
 // Last modified: 2026-05-13
-// Part of: SPED LMS — IEP Implementation Workspace
+// Part of: SignED — IEP Implementation Workspace
 
-$pageTitle = 'IEP Workspace — ' . htmlspecialchars($iep['student_name'] ?? 'Student') . ' — SPED LMS';
+$pageTitle = 'IEP Workspace — ' . htmlspecialchars($iep['student_name'] ?? 'Student') . ' — SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

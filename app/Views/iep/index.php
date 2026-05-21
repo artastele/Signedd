@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL -- Process 5
 // Last modified: 2026-05-08
-// Part of: SPED LMS -- IEP Repository (list all IEPs)
+// Part of: SignED -- IEP Repository (list all IEPs)
 
-$pageTitle = 'IEP Repository - SPED LMS';
+$pageTitle = 'IEP Repository - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 $role     = $_SESSION['role'];
 $basePath = BASE_PATH;

@@ -1,7 +1,7 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 5 (SIMPLIFIED)
 // Last modified: 2026-05-13
-// Part of: SPED LMS — IEP Form (Upload Only System)
+// Part of: SignED — IEP Form (Upload Only System)
 
 $pageTitle = 'IEP — Individualized Education Plan';
 require_once __DIR__ . '/../layouts/header.php';

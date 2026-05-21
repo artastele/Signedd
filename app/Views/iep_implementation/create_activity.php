@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 6
 // Last modified: 2026-05-05
-// Part of: SPED LMS — Activity Builder
+// Part of: SignED — Activity Builder
 
-$pageTitle = 'Create Activity - SPED LMS';
+$pageTitle = 'Create Activity - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

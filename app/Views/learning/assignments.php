@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 7
 // Last modified: 2026-05-05
-// Part of: SPED LMS — Assignments List
+// Part of: SignED — Assignments List
 
-$pageTitle = 'My Assignments - SPED LMS';
+$pageTitle = 'My Assignments - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

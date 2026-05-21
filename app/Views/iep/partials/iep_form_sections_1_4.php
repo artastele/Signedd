@@ -1,7 +1,7 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 5
 // Last modified: 2026-05-14
-// Part of: SPED LMS — IEP form Sections 1–4 (header, domains, core, PDSP reference)
+// Part of: SignED — IEP form Sections 1–4 (header, domains, core, PDSP reference)
 
 $fullNameDefault = trim($studentData['student_name'] ?? '');
 if ($fullNameDefault === '' && !empty($studentData)) {

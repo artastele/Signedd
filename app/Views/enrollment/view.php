@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 1
 // Last modified: 2026-05-01
-// Part of: SPED LMS — View Enrollment Details (Parent/Teacher)
+// Part of: SignED — View Enrollment Details (Parent/Teacher)
 
-$pageTitle = 'View Enrollment - SPED LMS';
+$pageTitle = 'View Enrollment - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 
 // Document type labels

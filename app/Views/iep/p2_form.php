@@ -1,7 +1,7 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 4
 // Last modified: 2026-05-04
-// Part of: SPED LMS — IEP P2 Form (Developmental Domains Assessment)
+// Part of: SignED — IEP P2 Form (Developmental Domains Assessment)
 
 require __DIR__ . '/../layouts/header.php';
 require __DIR__ . '/../layouts/sidebar.php';

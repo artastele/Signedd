@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 6
 // Last modified: 2026-06-01
-// Part of: SPED LMS — IEP Implementation Index
+// Part of: SignED — IEP Implementation Index
 
-$pageTitle = 'IEP Implementation - SPED LMS';
+$pageTitle = 'IEP Implementation - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

@@ -59,7 +59,6 @@ $role = $_SESSION['role'] ?? 'user';
                 </li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item" href="<?php echo $basePath; ?>/dashboard"><i class="bi bi-house-door"></i> Dashboard</a></li>
-                <li><a class="dropdown-item" href="<?php echo $basePath; ?>/account/settings"><i class="bi bi-gear"></i> Account Settings</a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item text-danger" href="<?php echo $basePath; ?>/logout"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
             </ul>

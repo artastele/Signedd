@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 6
 // Last modified: 2026-05-13
-// Part of: SPED LMS — Teacher Submission Review (Read-Only)
+// Part of: SignED — Teacher Submission Review (Read-Only)
 
-$pageTitle = 'Submission Review — ' . htmlspecialchars($activity['title'] ?? '') . ' — SPED LMS';
+$pageTitle = 'Submission Review — ' . htmlspecialchars($activity['title'] ?? '') . ' — SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 <body data-logged-in="true">

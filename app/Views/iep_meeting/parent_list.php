@@ -1,7 +1,7 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 4
 // Last modified: 2026-05-04
-// Part of: SPED LMS — IEP Meetings List (Parent View)
+// Part of: SignED — IEP Meetings List (Parent View)
 
 require __DIR__ . '/../layouts/header.php';
 require __DIR__ . '/../layouts/sidebar.php';

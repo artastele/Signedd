@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'SPED Teacher Dashboard - SPED LMS';
+$pageTitle = 'SPED Teacher Dashboard - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -49,7 +49,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <div class="card border-success">
                 <div class="card-body text-center">
                     <i class="bi bi-check-circle text-success" style="font-size: 2.5rem;"></i>
-                    <h3 class="mt-2 mb-0">-</h3>
+                    <h3 class="mt-2 mb-0"><?php echo (int)($verifiedStudentsCount ?? 0); ?></h3>
                     <small class="text-muted">Verified Students</small>
                 </div>
             </div>
@@ -58,7 +58,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <div class="card border-info">
                 <div class="card-body text-center">
                     <i class="bi bi-clipboard-data text-info" style="font-size: 2.5rem;"></i>
-                    <h3 class="mt-2 mb-0">-</h3>
+                    <h3 class="mt-2 mb-0"><?php echo (int)($assessmentsDoneCount ?? 0); ?></h3>
                     <small class="text-muted">Assessments Done</small>
                 </div>
             </div>
@@ -67,7 +67,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <div class="card border-primary">
                 <div class="card-body text-center">
                     <i class="bi bi-book text-primary" style="font-size: 2.5rem;"></i>
-                    <h3 class="mt-2 mb-0">-</h3>
+                    <h3 class="mt-2 mb-0"><?php echo (int)($activeIepsCount ?? 0); ?></h3>
                     <small class="text-muted">Active IEPs</small>
                 </div>
             </div>

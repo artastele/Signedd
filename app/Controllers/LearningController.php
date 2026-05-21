@@ -443,6 +443,7 @@ class LearningController {
         $avgScore        = 0;
         $domainProgress  = [];
         $recentGrades    = [];
+        $recentSubmissions = [];
 
         if ($studentId) {
             $overall         = $this->model->getStudentOverallProgress($studentId);
@@ -451,6 +452,7 @@ class LearningController {
             $avgScore        = $overall['avg_score'] ?? 0;
             $domainProgress  = $this->model->getProgressByDomain($studentId);
             $recentGrades    = $this->getRecentGrades($studentId);
+            $recentSubmissions = $this->getRecentSubmissions($studentId);
         }
 
         require __DIR__ . '/../Views/learning/progress.php';
@@ -478,6 +480,35 @@ class LearningController {
             return $stmt->fetchAll(\PDO::FETCH_ASSOC);
         } catch (\Throwable $e) {
             error_log('LearningController::getRecentGrades() error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    private function getRecentSubmissions(int $studentId): array {
+        try {
+            $db   = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("
+                SELECT
+                    lp.title  AS lesson_plan_title,
+                    act.title AS activity_title,
+                    act.max_score AS activity_max_score,
+                    sub.auto_score,
+                    sub.submitted_at,
+                    g.score,
+                    g.max_score AS grade_max_score,
+                    g.graded_at
+                FROM lms_submissions sub
+                JOIN lms_activities act ON sub.activity_id = act.id
+                JOIN lesson_plans lp    ON act.lesson_plan_id = lp.id
+                LEFT JOIN lms_grades g  ON g.submission_id = sub.id
+                WHERE sub.student_id = :student_id
+                ORDER BY sub.submitted_at DESC
+                LIMIT 10
+            ");
+            $stmt->execute(['student_id' => $studentId]);
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            error_log('LearningController::getRecentSubmissions() error: ' . $e->getMessage());
             return [];
         }
     }

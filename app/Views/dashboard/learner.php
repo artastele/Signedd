@@ -1,14 +1,32 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 7
 // Last modified: 2026-05-13
-// Part of: SPED LMS — Learner Dashboard (matching reference design)
+// Part of: SignED — Learner Dashboard (matching reference design)
 
-$pageTitle = 'My Learning — SPED LMS';
+$pageTitle = 'My Learning — SignED';
 require_once __DIR__ . '/../layouts/header.php';
+echo '<link rel="stylesheet" href="' . (defined('BASE_PATH') ? BASE_PATH : '') . '/css/learner.css">';
 
 $basePath   = defined('BASE_PATH') ? BASE_PATH : '';
 $firstName  = explode(' ', trim($studentName ?? 'Learner'))[0];
 $pct        = ($overallTotal > 0) ? round(($overallComplete / $overallTotal) * 100) : 0;
+$missionTotal = 0;
+$missionDone = 0;
+$nextLesson = null;
+foreach (($lessonPlans ?? []) as $lpForQuest) {
+    $activityTotal = (int)($lpForQuest['activity_count'] ?? 0);
+    $activityDone = (int)($lpForQuest['completed_count'] ?? 0);
+    $missionTotal += $activityTotal;
+    $missionDone += $activityDone;
+    if ($nextLesson === null && ($activityTotal === 0 || $activityDone < $activityTotal)) {
+        $nextLesson = $lpForQuest;
+    }
+}
+if ($nextLesson === null && !empty($lessonPlans)) {
+    $nextLesson = $lessonPlans[0];
+}
+$missionRemaining = max(0, $missionTotal - $missionDone);
+$latestScoreLabel = isset($avgScore) && (float)$avgScore > 0 ? round((float)$avgScore, 1) . '%' : 'No score yet';
 
 if ($pct === 0)     $progressMsg = "Keep going! You're doing great! 🎉";
 elseif ($pct < 50)  $progressMsg = "You are doing great! Keep going! 💪";
@@ -28,7 +46,7 @@ $dashOff = round($circ * (1 - $pct / 100), 2);
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
 
-<div class="main-content">
+<div class="main-content learner-quest-page">
 
 <style>
 /* ── Learner-specific additions — Process 7 ── */
@@ -128,6 +146,20 @@ $dashOff = round($circ * (1 - $pct / 100), 2);
   </div>
 </div>
 
+<?php if (!empty($nextLesson)): ?>
+<section class="quest-continue" aria-labelledby="continueQuestTitle">
+  <div>
+    <span class="quest-eyebrow">Continue Learning</span>
+    <h2 id="continueQuestTitle"><?php echo htmlspecialchars($nextLesson['title'] ?? 'Next mission'); ?></h2>
+    <p><?php echo $missionRemaining > 0 ? $missionRemaining . ' activity mission' . ($missionRemaining === 1 ? '' : 's') . ' left in your quest.' : 'Review your completed lesson and keep your skills sharp.'; ?></p>
+  </div>
+  <a href="<?php echo $basePath; ?>/learning/lesson/<?php echo (int)$nextLesson['id']; ?>" class="quest-primary-btn">
+    <i class="bi bi-play-circle-fill"></i>
+    <?php echo $pct > 0 ? 'Continue Mission' : 'Start Mission'; ?>
+  </a>
+</section>
+<?php endif; ?>
+
 <!-- Progress ring card -->
 <div class="lrn-ring-card">
   <h3>📊 My Progress</h3>
@@ -146,17 +178,17 @@ $dashOff = round($circ * (1 - $pct / 100), 2);
   <div class="lrn-stat lrn-stat--mod">
     <span class="lrn-stat__ico">📚</span>
     <div class="lrn-stat__num"><?php echo count($lessonPlans ?? []); ?></div>
-    <div class="lrn-stat__lbl">Modules</div>
+    <div class="lrn-stat__lbl">Lesson Quests</div>
   </div>
   <div class="lrn-stat lrn-stat--done">
     <span class="lrn-stat__ico">✅</span>
     <div class="lrn-stat__num"><?php echo (int)$overallComplete; ?></div>
-    <div class="lrn-stat__lbl">Completed</div>
+    <div class="lrn-stat__lbl">Missions Done</div>
   </div>
   <div class="lrn-stat lrn-stat--star">
     <span class="lrn-stat__ico">⭐</span>
-    <div class="lrn-stat__num"><?php echo number_format($totalStars ?? 0); ?></div>
-    <div class="lrn-stat__lbl">Stars Earned</div>
+    <div class="lrn-stat__num" style="font-size:1.55rem;"><?php echo htmlspecialchars($latestScoreLabel); ?></div>
+    <div class="lrn-stat__lbl">Latest Power</div>
   </div>
 </div>
 
@@ -175,7 +207,7 @@ $dashOff = round($circ * (1 - $pct / 100), 2);
     <p style="font-size:1rem;">Your teacher hasn't published any lessons yet.<br>Check back soon!</p>
   </div>
 <?php else: ?>
-<div class="lrn-grid">
+<div class="lrn-grid quest-grid">
 <?php foreach ($lessonPlans as $lp):
   $at=(int)($lp['activity_count']??0); $ad=(int)($lp['completed_count']??0);
   $lp_pct=($at>0)?round(($ad/$at)*100):0;
@@ -183,9 +215,13 @@ $dashOff = round($circ * (1 - $pct / 100), 2);
   elseif($ad>0)       {$cm='prog';$sm='prog';$si='bi-clock-fill';      $st='In progress';$bm='cont';$bt='Continue';}
   else                {$cm='';   $sm='none';$si='bi-circle';           $st='Not started';$bm='start';$bt='Start';}
 ?>
-<div class="lrn-lcard<?php echo $cm?' lrn-lcard--'.$cm:''; ?>">
+<div class="lrn-lcard quest-mission-card<?php echo $cm?' lrn-lcard--'.$cm:''; ?>">
   <span class="lrn-domain"><?php echo htmlspecialchars($lp['pdsp_domain']); ?></span>
   <div class="lrn-ltitle"><?php echo htmlspecialchars($lp['title']); ?></div>
+  <div class="quest-mission-meta">
+    <span><i class="bi bi-controller"></i> <?php echo $at; ?> challenge<?php echo $at === 1 ? '' : 's'; ?></span>
+    <span><i class="bi bi-flag"></i> <?php echo $lp_pct; ?>%</span>
+  </div>
   <div class="lrn-mini"><div class="lrn-mini__f" style="width:<?php echo $lp_pct; ?>%"></div></div>
   <div style="font-size:.78rem;color:#6c757d;margin-bottom:8px;"><?php echo $ad; ?> / <?php echo $at; ?> complete</div>
   <span class="lrn-status lrn-status--<?php echo $sm; ?>">
@@ -194,7 +230,7 @@ $dashOff = round($circ * (1 - $pct / 100), 2);
   <a id="btn-lesson-<?php echo (int)$lp['id']; ?>"
      href="<?php echo $basePath; ?>/learning/lesson/<?php echo (int)$lp['id']; ?>"
      class="lrn-btn lrn-btn--<?php echo $bm; ?>">
-    <i class="bi bi-arrow-right-circle-fill"></i><?php echo htmlspecialchars($bt); ?>
+    <i class="bi bi-arrow-right-circle-fill"></i><?php echo htmlspecialchars($bt === 'View lesson' ? 'Review Mission' : $bt . ' Mission'); ?>
   </a>
 </div>
 <?php endforeach; ?>

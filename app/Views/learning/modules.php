@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 7
 // Last modified: 2026-05-05
-// Part of: SPED LMS — Modules List
+// Part of: SignED — Modules List
 
-$pageTitle = 'My Modules - SPED LMS';
+$pageTitle = 'My Modules - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

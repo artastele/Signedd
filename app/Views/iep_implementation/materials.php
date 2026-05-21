@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 6
 // Last modified: 2026-05-05
-// Part of: SPED LMS — Materials Management
+// Part of: SignED — Materials Management
 
-$pageTitle = 'Manage Materials - SPED LMS';
+$pageTitle = 'Manage Materials - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Student Records
 // Last modified: 2026-05-06
-// Part of: SPED LMS — Student Record Detail
+// Part of: SignED — Student Record Detail
 
-$pageTitle = 'Student Record - SPED LMS';
+$pageTitle = 'Student Record - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

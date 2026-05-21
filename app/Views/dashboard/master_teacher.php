@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Master Teacher Dashboard - SPED LMS';
+$pageTitle = 'Master Teacher Dashboard - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -17,7 +17,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 <div class="card-body text-center">
                     <i class="bi bi-eye text-primary" style="font-size: 3rem;"></i>
                     <h5 class="card-title mt-3">Class Observation</h5>
-                    <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/observation" class="btn btn-primary">Conduct Observation</a>
+                    <span class="text-muted small">Temporarily unavailable for demo</span>
                 </div>
             </div>
         </div>
@@ -27,7 +27,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 <div class="card-body text-center">
                     <i class="bi bi-clipboard-check text-secondary" style="font-size: 3rem;"></i>
                     <h5 class="card-title mt-3">COT Results</h5>
-                    <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/cot" class="btn btn-primary">Submit Results</a>
+                    <span class="text-muted small">Temporarily unavailable for demo</span>
                 </div>
             </div>
         </div>

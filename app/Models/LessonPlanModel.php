@@ -768,19 +768,29 @@ class LessonPlanModel {
             JOIN lms_activities act ON sub.activity_id = act.id
             JOIN lesson_plans lp ON act.lesson_plan_id = lp.id
             JOIN lesson_assignments la ON lp.id = la.lesson_plan_id
-            WHERE la.student_id = :student_id AND lp.status = 'published'
+            WHERE la.student_id = :student_id
+              AND sub.student_id = :student_id_sub
+              AND lp.status = 'published'
         ");
-        $stmtDone->execute(['student_id' => $studentId]);
+        $stmtDone->execute(['student_id' => $studentId, 'student_id_sub' => $studentId]);
         $completed = (int) $stmtDone->fetchColumn();
 
-        // Average score from lms_grades
+        // Average score from grades, falling back to auto-scored submissions.
         $stmtAvg = $this->db->prepare("
-            SELECT AVG(g.score / NULLIF(g.max_score, 0) * 100)
-            FROM lms_grades g
-            JOIN lms_submissions sub ON g.submission_id = sub.id
+            SELECT AVG(
+                CASE
+                    WHEN g.score IS NOT NULL AND COALESCE(g.max_score, act.max_score, 0) > 0
+                        THEN g.score / NULLIF(COALESCE(g.max_score, act.max_score), 0) * 100
+                    WHEN sub.auto_score IS NOT NULL AND act.max_score > 0
+                        THEN sub.auto_score / NULLIF(act.max_score, 0) * 100
+                    ELSE NULL
+                END
+            )
+            FROM lms_submissions sub
             JOIN lms_activities act ON sub.activity_id = act.id
             JOIN lesson_plans lp ON act.lesson_plan_id = lp.id
             JOIN lesson_assignments la ON lp.id = la.lesson_plan_id
+            LEFT JOIN lms_grades g ON g.submission_id = sub.id
             WHERE la.student_id = :student_id AND lp.status = 'published'
         ");
         $stmtAvg->execute(['student_id' => $studentId]);
@@ -798,7 +808,15 @@ class LessonPlanModel {
                 lp.pdsp_domain AS domain,
                 COUNT(DISTINCT act.id) AS total,
                 COUNT(DISTINCT sub.activity_id) AS completed,
-                ROUND(AVG(g.score / NULLIF(g.max_score, 0) * 100), 1) AS avg_score
+                ROUND(AVG(
+                    CASE
+                        WHEN g.score IS NOT NULL AND COALESCE(g.max_score, act.max_score, 0) > 0
+                            THEN g.score / NULLIF(COALESCE(g.max_score, act.max_score), 0) * 100
+                        WHEN sub.auto_score IS NOT NULL AND act.max_score > 0
+                            THEN sub.auto_score / NULLIF(act.max_score, 0) * 100
+                        ELSE NULL
+                    END
+                ), 1) AS avg_score
             FROM lesson_plans lp
             JOIN lesson_assignments la ON lp.id = la.lesson_plan_id
             JOIN lms_activities act ON act.lesson_plan_id = lp.id

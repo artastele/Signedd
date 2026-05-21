@@ -47,6 +47,19 @@ class DashboardController {
                 $enrollmentModel = new EnrollmentModel();
                 $pendingEnrollments = $enrollmentModel->getPending();
                 $pendingCount = count($pendingEnrollments);
+                $verifiedStudentsCount = 0;
+                $assessmentsDoneCount = 0;
+                $activeIepsCount = 0;
+
+                try {
+                    require_once __DIR__ . '/../../config/db.php';
+                    $db = Database::getInstance()->getConnection();
+                    $verifiedStudentsCount = (int) $db->query("SELECT COUNT(*) FROM student_records")->fetchColumn();
+                    $assessmentsDoneCount = (int) $db->query("SELECT COUNT(*) FROM assessment_records WHERE status IN ('finalized', 'approved')")->fetchColumn();
+                    $activeIepsCount = (int) $db->query("SELECT COUNT(*) FROM iep_records WHERE status IN ('signed', 'signing')")->fetchColumn();
+                } catch (PDOException $e) {
+                    error_log('DashboardController: teacher counter query failed - ' . $e->getMessage());
+                }
                 
                 // Fetch learners for progress tracker widget (Process 6/7 tables may not exist yet)
                 $learners = [];
