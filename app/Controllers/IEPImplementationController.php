@@ -785,12 +785,26 @@ class IEPImplementationController {
                         break;
 
                     case 'true_false':
-                        $qText  = trim($data['question1'] ?? $data['Question1'] ?? $data['statement'] ?? '');
-                        $answer = strtolower(trim($data['correct_answer'] ?? $data['q1_correct'] ?? 'true'));
+                        $questions = [];
+                        for ($q = 1; $q <= 5; $q++) {
+                            $qText = trim($data["question$q"] ?? $data["Question$q"] ?? ($q === 1 ? ($data['statement'] ?? '') : ''));
+                            if ($qText === '') {
+                                continue;
+                            }
+                            $answer = strtolower(trim($data["q{$q}_correct"] ?? ($q === 1 ? ($data['correct_answer'] ?? 'true') : 'true')));
+                            $questions[] = [
+                                'statement' => $qText,
+                                'answer' => $answer === 'false' ? 'false' : 'true',
+                                'points' => 1,
+                            ];
+                        }
+                        $firstQuestion = $questions[0] ?? ['statement' => '', 'answer' => 'true'];
                         $activityData = [
-                            'statement'      => $qText,
-                            'correct_answer' => $answer === 'false' ? 'false' : 'true',
-                            'points'         => 1,
+                            'questions' => $questions,
+                            'statement' => $firstQuestion['statement'],
+                            'answer' => $firstQuestion['answer'],
+                            'correct_answer' => $firstQuestion['answer'],
+                            'points' => 1,
                         ];
                         break;
 
@@ -819,6 +833,44 @@ class IEPImplementationController {
                             }
                         }
                         $activityData = ['pairs' => $pairs, 'points' => 1];
+                        break;
+
+                    case 'drag_drop_sort':
+                        $items = [];
+                        for ($i = 1; $i <= 10; $i++) {
+                            $text = trim($data["item$i"] ?? $data["Item$i"] ?? '');
+                            if ($text !== '') {
+                                $items[] = ['text' => $text, 'order' => count($items) + 1];
+                            }
+                        }
+                        $activityData = ['items' => $items, 'points' => 1];
+                        break;
+
+                    case 'sequencing':
+                        $steps = [];
+                        for ($i = 1; $i <= 10; $i++) {
+                            $text = trim($data["step$i"] ?? $data["Step$i"] ?? '');
+                            if ($text !== '') {
+                                $steps[] = ['text' => $text, 'order' => count($steps) + 1];
+                            }
+                        }
+                        $activityData = ['steps' => $steps, 'points' => 1];
+                        break;
+
+                    case 'flashcards':
+                        $cards = [];
+                        for ($i = 1; $i <= 10; $i++) {
+                            $front = trim($data["front$i"] ?? $data["Front$i"] ?? '');
+                            $back = trim($data["back$i"] ?? $data["Back$i"] ?? '');
+                            if ($front !== '' && $back !== '') {
+                                $cards[] = ['front' => $front, 'back' => $back];
+                            }
+                        }
+                        $activityData = ['cards' => $cards];
+                        break;
+
+                    case 'image_label':
+                        $activityData = ['labels' => [], 'points' => 1];
                         break;
 
                     default:

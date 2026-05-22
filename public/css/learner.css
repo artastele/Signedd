@@ -921,6 +921,48 @@
     box-shadow: 0 0 0 4px rgba(23, 68, 124, .12);
 }
 
+.game-answer-card.locked {
+    cursor: default;
+}
+
+.game-answer-card.locked:hover {
+    transform: none;
+}
+
+.game-answer-card.is-correct {
+    border-color: #2f8f83;
+    background: #effaf6;
+    box-shadow: 0 0 0 4px rgba(47, 143, 131, .14);
+}
+
+.game-answer-card.is-wrong {
+    border-color: #c94b50;
+    background: #fff0f1;
+    box-shadow: 0 0 0 4px rgba(201, 75, 80, .12);
+}
+
+.game-answer-card.is-saved {
+    border-color: #4a90d9;
+    background: #eef6ff;
+    box-shadow: 0 0 0 4px rgba(74, 144, 217, .12);
+}
+
+.answer-result-label {
+    grid-column: 1 / -1;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: max-content;
+    max-width: 100%;
+    margin-top: 4px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .78);
+    color: #17324d;
+    font-size: .8rem;
+    font-weight: 900;
+}
+
 .answer-letter {
     display: inline-flex;
     align-items: center;
@@ -942,6 +984,56 @@
     margin: 18px 0 8px;
     color: #25405c;
     font-weight: 900;
+}
+
+.check-answer-btn {
+    margin-top: 16px;
+}
+
+.answer-feedback {
+    display: none;
+    margin-top: 18px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 2px solid #d8e3ee;
+    background: #f8fbfd;
+}
+
+.answer-feedback.show {
+    display: grid;
+    gap: 4px;
+}
+
+.answer-feedback strong {
+    color: #17324d;
+    font-size: 1rem;
+}
+
+.answer-feedback span {
+    color: #4d647a;
+    font-weight: 700;
+}
+
+.answer-feedback em {
+    color: #63778d;
+    font-style: normal;
+    font-size: .88rem;
+    font-weight: 900;
+}
+
+.answer-feedback.correct {
+    border-color: #2f8f83;
+    background: #effaf6;
+}
+
+.answer-feedback.wrong {
+    border-color: #d67a35;
+    background: #fff7ef;
+}
+
+.answer-feedback.saved {
+    border-color: #4a90d9;
+    background: #eef6ff;
 }
 
 .game-text-input,
@@ -1127,6 +1219,68 @@
 
 .stars-earned span.earned {
     color: #f5b700;
+}
+
+.frontend-score-preview {
+    margin: 8px auto 0;
+    max-width: 620px;
+    color: #52677e;
+    font-weight: 800;
+}
+
+.mission-review-list {
+    display: grid;
+    gap: 10px;
+    max-width: 760px;
+    margin: 18px auto 0;
+    text-align: left;
+}
+
+.mission-review-item {
+    padding: 14px;
+    border: 2px solid #d8e3ee;
+    border-radius: 16px;
+    background: #f8fbfd;
+}
+
+.mission-review-item.correct {
+    border-color: #2f8f83;
+    background: #effaf6;
+}
+
+.mission-review-item.wrong {
+    border-color: #d67a35;
+    background: #fff7ef;
+}
+
+.mission-review-item.saved {
+    border-color: #4a90d9;
+    background: #eef6ff;
+}
+
+.mission-review-item strong {
+    display: block;
+    color: #17324d;
+    margin-bottom: 6px;
+}
+
+.mission-review-item p {
+    margin: 4px 0;
+    color: #4d647a;
+    font-weight: 700;
+}
+
+.review-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: #fff;
+    color: #17324d;
+    font-size: .8rem;
+    font-weight: 900;
 }
 
 .answer-review-panel {

@@ -524,24 +524,52 @@ class LessonPlanModel {
         $n = 0;
         switch ($type) {
             case 'multiple_choice':
-                $n = count($data['questions'] ?? []);
+                foreach (($data['questions'] ?? []) as $q) {
+                    $n += (int)($q['points'] ?? 1);
+                }
                 break;
             case 'fill_in_blanks':
-                $n = count($data['sentences'] ?? []);
+                if (!empty($data['sentences'])) {
+                    foreach ($data['sentences'] as $sentence) {
+                        $n += count($sentence['answers'] ?? []) * (int)($sentence['points'] ?? $data['points'] ?? 1);
+                    }
+                } else {
+                    $n = count($data['answers'] ?? []) * (int)($data['points'] ?? 1);
+                }
                 break;
             case 'matching':
-                $n = count($data['pairs'] ?? []);
+                $sets = $data['sets'] ?? $data['matching_sets'] ?? null;
+                if (!empty($sets)) {
+                    foreach ($sets as $set) {
+                        $n += count($set['pairs'] ?? []) * (int)($set['points'] ?? $data['points'] ?? 1);
+                    }
+                } else {
+                    $n = count($data['pairs'] ?? []) * (int)($data['points'] ?? 1);
+                }
                 break;
             case 'true_false':
-                $n = 1;
+                if (!empty($data['questions'])) {
+                    foreach ($data['questions'] as $q) {
+                        $n += (int)($q['points'] ?? $data['points'] ?? 1);
+                    }
+                } else {
+                    $n = (int)($data['points'] ?? 1);
+                }
                 break;
             case 'image_label':
-                $n = count($data['labels'] ?? []);
+                $n = count($data['labels'] ?? $data['markers'] ?? []) * (int)($data['points'] ?? 1);
                 break;
             case 'drag_drop_sort':
             case 'sequencing':
-                $items = $data['items'] ?? $data['steps'] ?? [];
-                $n = count($items);
+                $sets = $data['sets'] ?? ($type === 'drag_drop_sort' ? ($data['sort_sets'] ?? null) : ($data['sequence_sets'] ?? null));
+                if (!empty($sets)) {
+                    foreach ($sets as $set) {
+                        $n += (int)($set['points'] ?? $data['points'] ?? 1);
+                    }
+                } else {
+                    $items = $data['items'] ?? $data['steps'] ?? [];
+                    $n = count($items) > 0 ? (int)($data['points'] ?? 1) : 0;
+                }
                 break;
             default:
                 $n = 0;

@@ -245,6 +245,21 @@ route('POST', '/iep/save-signature',          'IEPController', 'saveSignature', 
 route('POST', '/iep/upload-signed-doc',        'IEPController', 'upload',         'iep.create');
 // Download IEP document
 route('GET',  '/iep/download/{id}',            'IEPController', 'downloadDocument', 'iep.view');
+
+// Unified transition workflow connected to existing IEP and implementation data
+route('GET',  '/iep/{id}/transition-workflow',              'TransitionWorkflowController', 'workflow',              'transition.view');
+route('GET',  '/iep/{id}/progress-report',                  'TransitionWorkflowController', 'progressReport',       'progress_report.view');
+route('POST', '/iep/{id}/progress-report',                  'TransitionWorkflowController', 'saveProgressReport',   'progress_report.create');
+route('GET',  '/iep/{id}/cot-observation',                  'TransitionWorkflowController', 'cot',                  'cot.view');
+route('POST', '/iep/{id}/cot-observation',                  'TransitionWorkflowController', 'saveCot',              'cot.create');
+route('GET',  '/iep/{id}/transition-readiness',             'TransitionWorkflowController', 'readiness',            'transition_readiness.create');
+route('POST', '/iep/{id}/transition-readiness',             'TransitionWorkflowController', 'saveReadiness',        'transition_readiness.create');
+route('GET',  '/iep/{id}/individual-transition-plan',       'TransitionWorkflowController', 'itp',                  'itp.view');
+route('POST', '/iep/{id}/individual-transition-plan',       'TransitionWorkflowController', 'saveItp',              'itp.create');
+route('GET',  '/iep/{id}/inclusive-iep-itgp',               'TransitionWorkflowController', 'inclusiveIepItgp',     'inclusive_iep.create');
+route('POST', '/iep/{id}/inclusive-iep-itgp',               'TransitionWorkflowController', 'saveInclusiveIepItgp', 'inclusive_iep.create');
+route('GET',  '/iep/{id}/placement-notice',                 'TransitionWorkflowController', 'placementNotice',      'placement_notice.view');
+route('POST', '/iep/{id}/placement-notice',                 'TransitionWorkflowController', 'savePlacementNotice',  'placement_notice.create');
 // New cycle
 
 // IEP Documents — Unified dashboard (replaces p2/review, p3/sign, approval)

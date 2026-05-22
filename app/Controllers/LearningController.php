@@ -271,27 +271,41 @@ class LearningController {
                 break;
 
             case 'true_false':
-                $correctAnswer = $activityData['answer'] ?? $activityData['correct_answer'] ?? null;
-                if ($correctAnswer === null && isset($activityData['questions'][0]['correct_answer'])) {
-                    $correctAnswer = $activityData['questions'][0]['correct_answer'];
+                $score = 0;
+                $tfItems = [];
+                if (!empty($activityData['questions'])) {
+                    foreach ($activityData['questions'] as $q) {
+                        $tfItems[] = [
+                            'answer' => $q['answer'] ?? $q['correct_answer'] ?? 'true',
+                            'points' => $q['points'] ?? ($activityData['points'] ?? 1),
+                        ];
+                    }
+                } else {
+                    $tfItems[] = [
+                        'answer' => $activityData['answer'] ?? $activityData['correct_answer'] ?? ($activityData['questions'][0]['correct_answer'] ?? null),
+                        'points' => $activityData['points'] ?? 1,
+                    ];
                 }
-                $given = $answers[0] ?? ($answers['answer'] ?? null);
-                $points = (int) ($activityData['points'] ?? $activityData['questions'][0]['points'] ?? 1);
-                $autoScore = (strtolower((string) $given) === strtolower((string) $correctAnswer))
-                    ? $points
-                    : 0;
+                foreach ($tfItems as $ti => $item) {
+                    $given = $answers[$ti] ?? ($ti === 0 ? ($answers['answer'] ?? null) : null);
+                    if (strtolower((string) $given) === strtolower((string)($item['answer'] ?? ''))) {
+                        $score += (int)($item['points'] ?? 1);
+                    }
+                }
+                $autoScore = $score;
                 break;
 
             case 'fill_in_blanks':
                 $score = 0;
                 if (!empty($activityData['sentences'])) {
-                    foreach ($activityData['sentences'] as $si => $sentence) {
-                        $given = strtolower(trim($answers[$si] ?? ''));
-                        foreach ($sentence['answers'] ?? [] as $ca) {
-                            if ($given === strtolower(trim($ca))) {
-                                $score += (int) ($activityData['points'] ?? 1);
-                                break;
+                    $answerIndex = 0;
+                    foreach ($activityData['sentences'] as $sentence) {
+                        foreach (($sentence['answers'] ?? []) as $correct) {
+                            $given = strtolower(trim($answers[$answerIndex] ?? ''));
+                            if ($given === strtolower(trim((string) $correct))) {
+                                $score += (int) ($sentence['points'] ?? $activityData['points'] ?? 1);
                             }
+                            $answerIndex++;
                         }
                     }
                 } elseif (!empty($activityData['answers'])) {
@@ -314,9 +328,16 @@ class LearningController {
 
             case 'matching':
                 $score = 0;
-                foreach ($activityData['pairs'] ?? [] as $pi => $pair) {
-                    if ((string) ($answers[$pi] ?? null) === (string) $pair['right']) {
-                        $score += (int) ($activityData['points'] ?? 1);
+                $sets = $activityData['sets'] ?? $activityData['matching_sets'] ?? null;
+                if (empty($sets)) {
+                    $sets = [['pairs' => $activityData['pairs'] ?? [], 'points' => $activityData['points'] ?? 1]];
+                }
+                foreach ($sets as $si => $set) {
+                    foreach ($set['pairs'] ?? [] as $pi => $pair) {
+                        $given = $answers[$si . '_' . $pi] ?? ($si === 0 ? ($answers[$pi] ?? null) : null);
+                        if ((string)$given === (string)($pair['right'] ?? '')) {
+                            $score += (int)($set['points'] ?? $activityData['points'] ?? 1);
+                        }
                     }
                 }
                 $autoScore = $score;
@@ -324,21 +345,42 @@ class LearningController {
 
             case 'drag_drop_sort':
             case 'sequencing':
-                $correctOrder = $activityData['correct_order'] ?? [];
-                if (empty($correctOrder)) {
-                    if (!empty($activityData['items'])) {
-                        $correctOrder = range(0, count($activityData['items']) - 1);
-                    } elseif (!empty($activityData['steps'])) {
-                        $correctOrder = range(0, count($activityData['steps']) - 1);
+                $score = 0;
+                $sets = $activityData['sets'] ?? ($type === 'drag_drop_sort' ? ($activityData['sort_sets'] ?? null) : ($activityData['sequence_sets'] ?? null));
+                if (empty($sets)) {
+                    $sets = [[
+                        'items' => $activityData['items'] ?? $activityData['steps'] ?? [],
+                        'points' => $activityData['points'] ?? 1,
+                        'correct_order' => $activityData['correct_order'] ?? [],
+                    ]];
+                }
+                foreach ($sets as $si => $set) {
+                    $items = $set['items'] ?? $set['steps'] ?? [];
+                    $correctOrder = $set['correct_order'] ?? [];
+                    if (empty($correctOrder)) {
+                        $correctOrder = range(0, count($items) - 1);
+                    }
+                    $givenOrder = is_array($answers[$si] ?? null) ? array_values($answers[$si]) : ($si === 0 ? array_values($answers) : []);
+                    if (array_map('strval', $givenOrder) === array_map('strval', $correctOrder)) {
+                        $score += (int)($set['points'] ?? $activityData['points'] ?? 1);
                     }
                 }
-                $givenOrder = array_values($answers);
-                $autoScore = (array_map('strval', $givenOrder) === array_map('strval', $correctOrder))
-                    ? (int) ($activityData['points'] ?? 1)
-                    : 0;
+                $autoScore = $score;
                 break;
 
             case 'image_label':
+                $score = 0;
+                $labels = $activityData['labels'] ?? $activityData['markers'] ?? [];
+                foreach ($labels as $li => $label) {
+                    $correct = trim((string)($label['answer'] ?? ''));
+                    $given = trim((string)($answers[$li] ?? ''));
+                    if ($correct !== '' && strtolower($given) === strtolower($correct)) {
+                        $score += (int) ($activityData['points'] ?? 1);
+                    }
+                }
+                $autoScore = !empty($labels) ? $score : null;
+                break;
+
             case 'flashcards':
                 $autoScore = null;
                 break;

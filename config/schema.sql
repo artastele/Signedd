@@ -1370,4 +1370,17 @@ ALTER TABLE iep_steps
 INSERT IGNORE INTO db_version (version) VALUES (46);
 
 -- END MIGRATION: v46
+
+-- ============================================
+-- MIGRATION: v47 - Unified Transition + IEP Workflow
+-- Detailed runtime DDL is mirrored in TransitionWorkflowModel::ensureTables()
+-- so demo databases can self-create missing workflow tables without reset/import.
+-- Tables: progress_reports, cot_observations, transition_readiness,
+-- individual_transition_plans, inclusive_iep_records, itgp_records,
+-- itgp_items, placement_notices.
+-- ============================================
+
+INSERT IGNORE INTO db_version (version) VALUES (47);
+
+-- END MIGRATION: v47
 -- (End of versioned migrations in this file — keep db_version in sync when adding v47+.)

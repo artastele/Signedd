@@ -129,10 +129,17 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
         <?php endforeach; ?>
 
     <?php elseif ($actType === 'true_false'): ?>
-        <div class="mb-2 fw-semibold"><?php echo htmlspecialchars($actData['statement'] ?? $actData['question'] ?? ''); ?></div>
         <?php
-        $correct = strtolower($actData['correct_answer'] ?? $actData['answer'] ?? '');
-        $given   = strtolower($answers[0] ?? $answers['0'] ?? $answers['answer'] ?? '');
+        $tfItems = $actData['questions'] ?? [[
+            'statement' => $actData['statement'] ?? $actData['question'] ?? '',
+            'answer' => $actData['correct_answer'] ?? $actData['answer'] ?? '',
+        ]];
+        ?>
+        <?php foreach ($tfItems as $ti => $tfItem): ?>
+        <div class="mb-2 fw-semibold"><?php echo htmlspecialchars($tfItem['statement'] ?? $tfItem['question'] ?? ''); ?></div>
+        <?php
+        $correct = strtolower($tfItem['answer'] ?? $tfItem['correct_answer'] ?? '');
+        $given   = strtolower($answers[$ti] ?? $answers[(string)$ti] ?? ($ti === 0 ? ($answers['answer'] ?? '') : ''));
         $isRight = $given === $correct;
         ?>
         <div class="d-flex gap-3 mt-2">
@@ -161,16 +168,40 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
                 <span class="badge" style="background:#a01422;">Incorrect</span>
             <?php endif; ?>
         </div>
+        <?php endforeach; ?>
 
     <?php elseif ($actType === 'fill_in_blanks'): ?>
-        <?php foreach ($actData['sentences'] ?? [] as $si => $sentence): ?>
+        <?php
+        $fillReviewItems = [];
+        if (!empty($actData['sentences'])) {
+            foreach ($actData['sentences'] as $sentence) {
+                $sentenceAnswers = array_values((array)($sentence['answers'] ?? []));
+                foreach ($sentenceAnswers as $answerIndex => $answerText) {
+                    $fillReviewItems[] = [
+                        'text' => $sentence['text'] ?? '',
+                        'answers' => [$answerText],
+                        'blank_label' => count($sentenceAnswers) > 1 ? 'Blank ' . ($answerIndex + 1) : 'Answer',
+                    ];
+                }
+            }
+        } elseif (!empty($actData['sentence'])) {
+            foreach (array_values((array)($actData['answers'] ?? [])) as $answerIndex => $answerText) {
+                $fillReviewItems[] = [
+                    'text' => $actData['sentence'],
+                    'answers' => [$answerText],
+                    'blank_label' => 'Blank ' . ($answerIndex + 1),
+                ];
+            }
+        }
+        ?>
+        <?php foreach ($fillReviewItems as $si => $sentence): ?>
         <?php
         $given   = trim($answers[$si] ?? $answers[(string)$si] ?? '');
         $correct = array_map('strtolower', array_map('trim', $sentence['answers'] ?? []));
         $isRight = in_array(strtolower($given), $correct);
         ?>
         <div class="mb-3 p-3 rounded" style="background:#f8f9fa;border:1px solid #dee2e6;">
-            <div class="small text-muted mb-1">Sentence <?php echo $si + 1; ?>:</div>
+            <div class="small text-muted mb-1"><?php echo htmlspecialchars($sentence['blank_label'] ?? ('Sentence ' . ($si + 1))); ?>:</div>
             <div class="mb-1"><?php echo htmlspecialchars($sentence['text'] ?? ''); ?></div>
             <div class="d-flex align-items-center gap-2 mt-2">
                 <span class="small fw-semibold">Answer:</span>
@@ -188,14 +219,17 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
         <?php endforeach; ?>
 
     <?php elseif ($actType === 'matching'): ?>
+        <?php $matchingSets = $actData['sets'] ?? $actData['matching_sets'] ?? [['title' => 'Matching Set 1', 'pairs' => $actData['pairs'] ?? []]]; ?>
+        <?php foreach ($matchingSets as $si => $set): ?>
+        <div class="fw-semibold small mb-2"><?php echo htmlspecialchars($set['title'] ?? ('Matching Set ' . ($si + 1))); ?></div>
         <table class="table table-sm table-bordered" style="font-size:.9rem;">
             <thead style="background:#1e4072;color:#fff;">
                 <tr><th>Left</th><th>Learner's Match</th><th>Correct</th><th></th></tr>
             </thead>
             <tbody>
-            <?php foreach ($actData['pairs'] ?? [] as $pi => $pair): ?>
+            <?php foreach ($set['pairs'] ?? [] as $pi => $pair): ?>
             <?php
-            $given   = $answers[$pi] ?? $answers[(string)$pi] ?? '';
+            $given   = $answers[$si . '_' . $pi] ?? ($si === 0 ? ($answers[$pi] ?? $answers[(string)$pi] ?? '') : '');
             $isRight = strtolower(trim($given)) === strtolower(trim($pair['right']));
             ?>
             <tr>
@@ -212,14 +246,23 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
             <?php endforeach; ?>
             </tbody>
         </table>
+        <?php endforeach; ?>
 
     <?php elseif ($actType === 'drag_drop_sort' || $actType === 'sequencing'): ?>
         <?php
-        $items        = $actData['items'] ?? $actData['steps'] ?? [];
-        $correctOrder = $actData['correct_order'] ?? range(0, count($items) - 1);
-        $givenOrder   = array_values($answers);
+        $orderSets = $actData['sets'] ?? ($actType === 'drag_drop_sort' ? ($actData['sort_sets'] ?? null) : ($actData['sequence_sets'] ?? null));
+        if (empty($orderSets)) {
+            $orderSets = [['title' => 'Question 1', 'items' => $actData['items'] ?? $actData['steps'] ?? [], 'correct_order' => $actData['correct_order'] ?? []]];
+        }
+        ?>
+        <?php foreach ($orderSets as $si => $set): ?>
+        <?php
+        $items        = $set['items'] ?? $set['steps'] ?? [];
+        $correctOrder = $set['correct_order'] ?? range(0, count($items) - 1);
+        $givenOrder   = is_array($answers[$si] ?? null) ? array_values($answers[$si]) : ($si === 0 ? array_values($answers) : []);
         $isRight      = array_map('strval', $givenOrder) === array_map('strval', $correctOrder);
         ?>
+        <div class="fw-semibold small mb-2"><?php echo htmlspecialchars($set['title'] ?? ('Question ' . ($si + 1))); ?></div>
         <div class="row g-3">
             <div class="col-md-6">
                 <div class="small fw-semibold mb-2 text-muted">Learner's order:</div>
@@ -253,9 +296,10 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
                 <span class="badge" style="background:#a01422;">Incorrect order</span>
             <?php endif; ?>
         </div>
+        <?php endforeach; ?>
 
     <?php elseif ($actType === 'image_label'): ?>
-        <?php $imgPath = $actData['image_path'] ?? ''; $labels = $actData['labels'] ?? []; ?>
+        <?php $imgPath = $actData['image_path'] ?? ''; $labels = $actData['labels'] ?? $actData['markers'] ?? []; ?>
         <?php if ($imgPath): ?>
         <div style="position:relative;display:inline-block;max-width:100%;margin-bottom:16px;">
             <img src="<?php echo htmlspecialchars($basePath . '/' . ltrim($imgPath, '/')); ?>"
@@ -301,7 +345,10 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
             <i class="ti ti-cards me-2"></i>
             Flashcards are view-only. The learner marked this as reviewed.
         </div>
-        <?php foreach ($actData['cards'] ?? [] as $ci => $card): ?>
+        <?php $flashcardSets = $actData['sets'] ?? $actData['flashcard_sets'] ?? [['title' => 'Flashcard Set 1', 'cards' => $actData['cards'] ?? []]]; ?>
+        <?php foreach ($flashcardSets as $set): ?>
+        <div class="fw-semibold small mb-2"><?php echo htmlspecialchars($set['title'] ?? 'Flashcard Set'); ?></div>
+        <?php foreach ($set['cards'] ?? [] as $card): ?>
         <div class="d-flex gap-3 p-2 rounded mb-2" style="background:#f8f9fa;border:1px solid #dee2e6;">
             <div class="flex-fill p-2 rounded text-center" style="background:#1e4072;color:#fff;font-size:.9rem;">
                 <?php echo htmlspecialchars($card['front'] ?? ''); ?>
@@ -311,6 +358,7 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
                 <?php echo htmlspecialchars($card['back'] ?? ''); ?>
             </div>
         </div>
+        <?php endforeach; ?>
         <?php endforeach; ?>
 
     <?php else: ?>

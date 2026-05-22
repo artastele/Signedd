@@ -11,12 +11,125 @@ $lessonPlanId = (int)($activity['lesson_plan_id'] ?? 0);
 $typeLabel    = ucwords(str_replace('_', ' ', $actType));
 $maxScore     = (int)($activity['max_score'] ?? 0);
 $submittedAnswers = [];
-$fillItems = $actData['sentences'] ?? [];
-if (empty($fillItems) && !empty($actData['sentence'])) {
-    $fillItems = [[
-        'text' => (string)$actData['sentence'],
-        'answers' => $actData['answers'] ?? [],
-    ]];
+$tfItems = [];
+if (!empty($actData['questions']) && $actType === 'true_false') {
+    foreach ($actData['questions'] as $question) {
+        $tfItems[] = [
+            'statement' => $question['statement'] ?? $question['question'] ?? '',
+            'answer' => $question['answer'] ?? $question['correct_answer'] ?? 'true',
+            'points' => $question['points'] ?? ($actData['points'] ?? 1),
+        ];
+    }
+} elseif ($actType === 'true_false') {
+    $tfItems[] = [
+        'statement' => $actData['statement'] ?? $actData['question'] ?? '',
+        'answer' => $actData['answer'] ?? $actData['correct_answer'] ?? ($actData['questions'][0]['correct_answer'] ?? 'true'),
+        'points' => $actData['points'] ?? 1,
+    ];
+}
+
+$fillItems = [];
+if ($actType === 'fill_in_blanks' && !empty($actData['sentences'])) {
+    foreach ($actData['sentences'] as $sentenceIndex => $sentence) {
+        $answers = array_values((array)($sentence['answers'] ?? []));
+        foreach ($answers as $answerIndex => $answerText) {
+            $fillItems[] = [
+                'text' => (string)($sentence['text'] ?? ''),
+                'answers' => [$answerText],
+                'blank_label' => count($answers) > 1 ? 'Blank ' . ($answerIndex + 1) : 'Answer',
+                'points' => $sentence['points'] ?? ($actData['points'] ?? 1),
+                'source_sentence' => $sentenceIndex,
+                'source_blank' => $answerIndex,
+            ];
+        }
+    }
+} elseif ($actType === 'fill_in_blanks' && !empty($actData['sentence'])) {
+    foreach (array_values((array)($actData['answers'] ?? [])) as $answerIndex => $answerText) {
+        $fillItems[] = [
+            'text' => (string)$actData['sentence'],
+            'answers' => [$answerText],
+            'blank_label' => 'Blank ' . ($answerIndex + 1),
+            'points' => $actData['points'] ?? 1,
+        ];
+    }
+}
+
+$matchingSets = [];
+if ($actType === 'matching') {
+    $rawSets = $actData['sets'] ?? $actData['matching_sets'] ?? null;
+    if (is_array($rawSets) && !empty($rawSets)) {
+        foreach ($rawSets as $setIndex => $set) {
+            $matchingSets[] = [
+                'title' => $set['title'] ?? ('Matching Set ' . ($setIndex + 1)),
+                'pairs' => $set['pairs'] ?? [],
+                'points' => $set['points'] ?? ($actData['points'] ?? 1),
+            ];
+        }
+    } else {
+        $matchingSets[] = [
+            'title' => 'Matching Set 1',
+            'pairs' => $actData['pairs'] ?? [],
+            'points' => $actData['points'] ?? 1,
+        ];
+    }
+}
+
+$sortSets = [];
+if ($actType === 'drag_drop_sort') {
+    $rawSets = $actData['sets'] ?? $actData['sort_sets'] ?? null;
+    if (is_array($rawSets) && !empty($rawSets)) {
+        foreach ($rawSets as $setIndex => $set) {
+            $sortSets[] = [
+                'title' => $set['title'] ?? ('Sorting Question ' . ($setIndex + 1)),
+                'items' => $set['items'] ?? [],
+                'points' => $set['points'] ?? ($actData['points'] ?? 1),
+            ];
+        }
+    } else {
+        $sortSets[] = [
+            'title' => 'Sorting Question 1',
+            'items' => $actData['items'] ?? [],
+            'points' => $actData['points'] ?? 1,
+        ];
+    }
+}
+
+$sequenceSets = [];
+if ($actType === 'sequencing') {
+    $rawSets = $actData['sets'] ?? $actData['sequence_sets'] ?? null;
+    if (is_array($rawSets) && !empty($rawSets)) {
+        foreach ($rawSets as $setIndex => $set) {
+            $sequenceSets[] = [
+                'title' => $set['title'] ?? ('Sequence Question ' . ($setIndex + 1)),
+                'steps' => $set['steps'] ?? $set['items'] ?? [],
+                'points' => $set['points'] ?? ($actData['points'] ?? 1),
+            ];
+        }
+    } else {
+        $sequenceSets[] = [
+            'title' => 'Sequence Question 1',
+            'steps' => $actData['steps'] ?? $actData['items'] ?? [],
+            'points' => $actData['points'] ?? 1,
+        ];
+    }
+}
+
+$flashcardSets = [];
+if ($actType === 'flashcards') {
+    $rawSets = $actData['sets'] ?? $actData['flashcard_sets'] ?? null;
+    if (is_array($rawSets) && !empty($rawSets)) {
+        foreach ($rawSets as $setIndex => $set) {
+            $flashcardSets[] = [
+                'title' => $set['title'] ?? ('Flashcard Set ' . ($setIndex + 1)),
+                'cards' => $set['cards'] ?? [],
+            ];
+        }
+    } else {
+        $flashcardSets[] = [
+            'title' => 'Flashcard Set 1',
+            'cards' => $actData['cards'] ?? [],
+        ];
+    }
 }
 
 if (!empty($submission['answers'])) {
@@ -39,9 +152,12 @@ $scorePercent = ($earnedScore !== null && $scoreMax > 0) ? (int)round(($earnedSc
 $starsEarned = $scorePercent === null ? null : ($scorePercent >= 90 ? 3 : ($scorePercent >= 70 ? 2 : 1));
 $questionTotal = match ($actType) {
     'multiple_choice' => count($actData['questions'] ?? []),
+    'true_false' => count($tfItems),
     'fill_in_blanks' => count($fillItems),
-    'matching' => count($actData['pairs'] ?? []),
-    'flashcards' => count($actData['cards'] ?? []),
+    'matching' => count($matchingSets),
+    'drag_drop_sort' => count($sortSets),
+    'sequencing' => count($sequenceSets),
+    'flashcards' => array_sum(array_map(static fn($set) => count($set['cards'] ?? []), $flashcardSets)),
     'image_label' => 1,
     default => 1,
 };
@@ -69,6 +185,28 @@ $getCorrectMcIndex = static function (array $question): ?int {
     }
     return null;
 };
+
+$feedbackData = [
+    'multiple_choice' => [],
+    'true_false' => null,
+    'fill_in_blanks' => [],
+];
+foreach (($actData['questions'] ?? []) as $qi => $question) {
+    $correctIndex = $getCorrectMcIndex($question);
+    $feedbackData['multiple_choice'][$qi] = [
+        'correct' => $correctIndex,
+        'correctText' => $correctIndex !== null
+            ? $getOptionText(($question['options'] ?? [])[$correctIndex] ?? '')
+            : null,
+    ];
+}
+$feedbackData['true_false'] = [];
+foreach ($tfItems as $ti => $tfItem) {
+    $feedbackData['true_false'][$ti] = strtolower((string)($tfItem['answer'] ?? 'true'));
+}
+foreach ($fillItems as $si => $sentence) {
+    $feedbackData['fill_in_blanks'][$si] = array_values(array_map('strval', (array)($sentence['answers'] ?? [])));
+}
 
 require_once __DIR__ . '/../layouts/header.php';
 echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
@@ -156,23 +294,26 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                         </article>
                     <?php endforeach; ?>
                 <?php elseif ($actType === 'true_false'): ?>
-                    <?php
-                    $correct = $actData['answer'] ?? $actData['correct_answer'] ?? ($actData['questions'][0]['correct_answer'] ?? null);
-                    $selected = $submittedAnswers[0] ?? ($submittedAnswers['answer'] ?? null);
-                    $isRight = $correct !== null && strtolower((string)$selected) === strtolower((string)$correct);
-                    ?>
-                    <article class="review-card <?php echo $correct === null ? '' : ($isRight ? 'is-correct' : 'is-wrong'); ?>">
-                        <strong><?php echo htmlspecialchars($actData['statement'] ?? $actData['question'] ?? 'True or false challenge'); ?></strong>
-                        <p>Your answer: <?php echo htmlspecialchars(ucfirst((string)($selected ?? 'No answer'))); ?></p>
-                        <?php if ($correct !== null): ?><p>Correct answer: <?php echo htmlspecialchars(ucfirst((string)$correct)); ?></p><?php endif; ?>
-                    </article>
+                    <?php foreach ($tfItems as $ti => $tfItem): ?>
+                        <?php
+                        $correct = $tfItem['answer'] ?? null;
+                        $selected = $submittedAnswers[$ti] ?? ($ti === 0 ? ($submittedAnswers['answer'] ?? null) : null);
+                        $isRight = $correct !== null && strtolower((string)$selected) === strtolower((string)$correct);
+                        ?>
+                        <article class="review-card <?php echo $correct === null ? '' : ($isRight ? 'is-correct' : 'is-wrong'); ?>">
+                            <strong><?php echo htmlspecialchars($tfItem['statement'] ?? 'True or false challenge'); ?></strong>
+                            <p>Your answer: <?php echo htmlspecialchars(ucfirst((string)($selected ?? 'No answer'))); ?></p>
+                            <?php if ($correct !== null): ?><p>Correct answer: <?php echo htmlspecialchars(ucfirst((string)$correct)); ?></p><?php endif; ?>
+                        </article>
+                    <?php endforeach; ?>
                 <?php elseif ($actType === 'matching'): ?>
-                    <?php foreach (($actData['pairs'] ?? []) as $pi => $pair): ?>
-                        <?php $selected = $submittedAnswers[$pi] ?? ''; $isRight = (string)$selected === (string)($pair['right'] ?? ''); ?>
-                        <article class="review-card <?php echo $isRight ? 'is-correct' : 'is-wrong'; ?>">
-                            <strong><?php echo htmlspecialchars($pair['left'] ?? 'Match item'); ?></strong>
-                            <p>Your match: <?php echo htmlspecialchars((string)($selected ?: 'No answer')); ?></p>
-                            <p>Correct match: <?php echo htmlspecialchars((string)($pair['right'] ?? '')); ?></p>
+                    <?php foreach ($matchingSets as $setIndex => $set): ?>
+                        <article class="review-card">
+                            <strong><?php echo htmlspecialchars($set['title']); ?></strong>
+                            <?php foreach (($set['pairs'] ?? []) as $pi => $pair): ?>
+                                <?php $key = $setIndex . '_' . $pi; $selected = $submittedAnswers[$key] ?? ($submittedAnswers[$pi] ?? ''); ?>
+                                <p><?php echo htmlspecialchars($pair['left'] ?? 'Match item'); ?>: <?php echo htmlspecialchars((string)($selected ?: 'No answer')); ?> | Correct: <?php echo htmlspecialchars((string)($pair['right'] ?? '')); ?></p>
+                            <?php endforeach; ?>
                         </article>
                     <?php endforeach; ?>
                 <?php elseif ($actType === 'fill_in_blanks'): ?>
@@ -186,7 +327,7 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                         </article>
                     <?php endforeach; ?>
                 <?php elseif ($actType === 'image_label'): ?>
-                    <?php foreach (($actData['labels'] ?? []) as $li => $label): ?>
+                    <?php foreach (($actData['labels'] ?? $actData['markers'] ?? []) as $li => $label): ?>
                         <article class="review-card">
                             <strong>Label <?php echo $li + 1; ?></strong>
                             <p>Your answer: <?php echo htmlspecialchars((string)($submittedAnswers[$li] ?? 'No answer')); ?></p>
@@ -224,7 +365,7 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                         <article class="game-question-card" data-step="<?php echo $qi; ?>" data-required="choice">
                             <div class="question-pill">Question Challenge</div>
                             <h2><?php echo htmlspecialchars($q['text'] ?? $q['question'] ?? 'Question'); ?></h2>
-                            <p class="question-hint">Choose one answer card.</p>
+                            <p class="question-hint">Choose one answer card. Your answer will be checked right away.</p>
                             <div class="answer-card-grid">
                                 <?php foreach (($q['options'] ?? []) as $oi => $opt): ?>
                                     <button type="button" class="game-answer-card" data-answer="<?php echo $oi; ?>" onclick="selectGameChoice(this, <?php echo $qi; ?>, <?php echo $oi; ?>)">
@@ -233,53 +374,69 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                                     </button>
                                 <?php endforeach; ?>
                             </div>
+                            <div class="answer-feedback" aria-live="polite"></div>
                         </article>
                     <?php endforeach; ?>
                 <?php elseif ($actType === 'true_false'): ?>
-                    <article class="game-question-card" data-step="0" data-required="choice">
+                    <?php foreach ($tfItems as $ti => $tfItem): ?>
+                    <article class="game-question-card" data-step="<?php echo $ti; ?>" data-required="choice">
                         <div class="question-pill">True or False</div>
-                        <h2><?php echo htmlspecialchars($actData['statement'] ?? $actData['question'] ?? 'Read the statement.'); ?></h2>
+                        <h2><?php echo htmlspecialchars($tfItem['statement'] ?? 'Read the statement.'); ?></h2>
                         <p class="question-hint">Pick the answer that feels right.</p>
                         <div class="answer-card-grid two">
-                            <button type="button" class="game-answer-card" data-answer="true" onclick="selectTrueFalse(this, 'true')">
+                            <button type="button" class="game-answer-card" data-answer="true" onclick="selectTrueFalse(this, 'true', <?php echo $ti; ?>)">
                                 <span class="answer-letter"><i class="bi bi-check-lg"></i></span><span>True</span>
                             </button>
-                            <button type="button" class="game-answer-card" data-answer="false" onclick="selectTrueFalse(this, 'false')">
+                            <button type="button" class="game-answer-card" data-answer="false" onclick="selectTrueFalse(this, 'false', <?php echo $ti; ?>)">
                                 <span class="answer-letter"><i class="bi bi-x-lg"></i></span><span>False</span>
                             </button>
                         </div>
+                        <div class="answer-feedback" aria-live="polite"></div>
                     </article>
+                    <?php endforeach; ?>
                 <?php elseif ($actType === 'fill_in_blanks'): ?>
                     <?php foreach ($fillItems as $si => $sentence): ?>
                         <article class="game-question-card" data-step="<?php echo $si; ?>" data-required="text">
                             <div class="question-pill">Fill the Blank</div>
                             <h2><?php echo htmlspecialchars(str_replace('___', '_____', $sentence['text'] ?? 'Complete the sentence.')); ?></h2>
-                            <label class="game-input-label" for="fib<?php echo $si; ?>">Your answer</label>
+                            <label class="game-input-label" for="fib<?php echo $si; ?>"><?php echo htmlspecialchars($sentence['blank_label'] ?? 'Your answer'); ?></label>
                             <input id="fib<?php echo $si; ?>" class="game-text-input fib-input" data-si="<?php echo $si; ?>" type="text" placeholder="Type your answer">
+                            <button type="button" class="quest-primary-btn check-answer-btn" onclick="checkTextAnswer(<?php echo $si; ?>)">
+                                <i class="bi bi-check2-circle"></i> Check Answer
+                            </button>
+                            <div class="answer-feedback" aria-live="polite"></div>
                         </article>
                     <?php endforeach; ?>
                 <?php elseif ($actType === 'matching'): ?>
-                    <?php $pairs = $actData['pairs'] ?? []; $rights = array_column($pairs, 'right'); shuffle($rights); ?>
-                    <?php foreach ($pairs as $pi => $pair): ?>
-                        <article class="game-question-card" data-step="<?php echo $pi; ?>" data-required="select">
+                    <?php foreach ($matchingSets as $setIndex => $set): ?>
+                        <?php $pairs = $set['pairs'] ?? []; $rights = array_column($pairs, 'right'); shuffle($rights); ?>
+                        <article class="game-question-card" data-step="<?php echo $setIndex; ?>" data-required="select">
                             <div class="question-pill">Matching Mission</div>
-                            <h2><?php echo htmlspecialchars($pair['left'] ?? 'Match this item'); ?></h2>
-                            <label class="game-input-label" for="match<?php echo $pi; ?>">Choose the matching card</label>
-                            <select id="match<?php echo $pi; ?>" class="game-select-input matching-select" data-pi="<?php echo $pi; ?>">
-                                <option value="">Choose a match</option>
-                                <?php foreach ($rights as $right): ?>
-                                    <option value="<?php echo htmlspecialchars((string)$right); ?>"><?php echo htmlspecialchars((string)$right); ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <h2><?php echo htmlspecialchars($set['title'] ?? 'Matching Set'); ?></h2>
+                            <?php foreach ($pairs as $pi => $pair): ?>
+                                <label class="game-input-label" for="match<?php echo $setIndex; ?>_<?php echo $pi; ?>"><?php echo htmlspecialchars($pair['left'] ?? 'Match this item'); ?></label>
+                                <select id="match<?php echo $setIndex; ?>_<?php echo $pi; ?>" class="game-select-input matching-select" data-pi="<?php echo $setIndex; ?>_<?php echo $pi; ?>">
+                                    <option value="">Choose a match</option>
+                                    <?php foreach ($rights as $right): ?>
+                                        <option value="<?php echo htmlspecialchars((string)$right); ?>"><?php echo htmlspecialchars((string)$right); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php endforeach; ?>
+                            <button type="button" class="quest-primary-btn check-answer-btn" onclick="saveCurrentStepAnswer()">
+                                <i class="bi bi-check2-circle"></i> Save Answer
+                            </button>
+                            <div class="answer-feedback" aria-live="polite"></div>
                         </article>
                     <?php endforeach; ?>
                 <?php elseif ($actType === 'drag_drop_sort' || $actType === 'sequencing'): ?>
-                    <?php $items = $actData['items'] ?? $actData['steps'] ?? []; ?>
-                    <article class="game-question-card" data-step="0" data-required="sort">
+                    <?php $orderSets = $actType === 'drag_drop_sort' ? $sortSets : $sequenceSets; ?>
+                    <?php foreach ($orderSets as $setIndex => $set): ?>
+                    <?php $items = $set['items'] ?? $set['steps'] ?? []; ?>
+                    <article class="game-question-card" data-step="<?php echo $setIndex; ?>" data-required="sort">
                         <div class="question-pill">Order Challenge</div>
-                        <h2>Arrange the cards in the correct order.</h2>
+                        <h2><?php echo htmlspecialchars($set['title'] ?? 'Arrange the cards in the correct order.'); ?></h2>
                         <p class="question-hint">Drag the cards up or down.</p>
-                        <ul class="game-sort-list drag-list" id="dragList">
+                        <ul class="game-sort-list drag-list" id="dragList_<?php echo $setIndex; ?>" data-step="<?php echo $setIndex; ?>">
                             <?php foreach ($items as $ii => $item): ?>
                                 <li class="game-sort-item drag-item" draggable="true" data-index="<?php echo $ii; ?>">
                                     <span><i class="bi bi-grip-vertical"></i></span>
@@ -287,9 +444,14 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                                 </li>
                             <?php endforeach; ?>
                         </ul>
+                        <button type="button" class="quest-primary-btn check-answer-btn" onclick="saveCurrentStepAnswer()">
+                            <i class="bi bi-check2-circle"></i> Save Order
+                        </button>
+                        <div class="answer-feedback" aria-live="polite"></div>
                     </article>
+                    <?php endforeach; ?>
                 <?php elseif ($actType === 'image_label'): ?>
-                    <?php $imgPath = $actData['image_path'] ?? ''; $labels = $actData['labels'] ?? []; ?>
+                    <?php $imgPath = $actData['image_path'] ?? ''; $labels = $actData['labels'] ?? $actData['markers'] ?? []; ?>
                     <article class="game-question-card" data-step="0" data-required="labels">
                         <div class="question-pill">Image Label Mission</div>
                         <h2>Label the numbered parts.</h2>
@@ -307,30 +469,49 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                                 <input id="label<?php echo $li; ?>" class="game-text-input label-input" data-li="<?php echo $li; ?>" type="text" placeholder="Type label <?php echo $li + 1; ?>">
                             <?php endforeach; ?>
                         </div>
+                        <button type="button" class="quest-primary-btn check-answer-btn" onclick="saveCurrentStepAnswer()">
+                            <i class="bi bi-check2-circle"></i> Save Labels
+                        </button>
+                        <div class="answer-feedback" aria-live="polite"></div>
                     </article>
                 <?php elseif ($actType === 'flashcards'): ?>
-                    <?php foreach (($actData['cards'] ?? []) as $ci => $card): ?>
-                        <article class="game-question-card" data-step="<?php echo $ci; ?>" data-required="view">
+                    <?php $flashStep = 0; ?>
+                    <?php foreach ($flashcardSets as $setIndex => $set): ?>
+                        <?php foreach (($set['cards'] ?? []) as $card): ?>
+                        <article class="game-question-card" data-step="<?php echo $flashStep; ?>" data-required="view">
                             <div class="question-pill">Flashcard Mission</div>
+                            <h2><?php echo htmlspecialchars($set['title'] ?? ('Flashcard Set ' . ($setIndex + 1))); ?></h2>
                             <button type="button" class="game-flashcard" onclick="this.classList.toggle('flipped')" aria-label="Flip flashcard">
                                 <span class="front"><?php echo htmlspecialchars($card['front'] ?? ''); ?></span>
                                 <span class="back"><?php echo htmlspecialchars($card['back'] ?? ''); ?></span>
                             </button>
                             <p class="question-hint">Click the card to flip it.</p>
+                            <button type="button" class="quest-primary-btn check-answer-btn" onclick="saveCurrentStepAnswer()">
+                                <i class="bi bi-check2-circle"></i> Card Reviewed
+                            </button>
+                            <div class="answer-feedback" aria-live="polite"></div>
                         </article>
+                        <?php $flashStep++; ?>
+                        <?php endforeach; ?>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <article class="game-question-card" data-step="0" data-required="view">
                         <div class="question-pill">Activity</div>
                         <h2>This activity type is ready for teacher review after submission.</h2>
+                        <button type="button" class="quest-primary-btn check-answer-btn" onclick="saveCurrentStepAnswer()">
+                            <i class="bi bi-check2-circle"></i> Continue
+                        </button>
+                        <div class="answer-feedback" aria-live="polite"></div>
                     </article>
                 <?php endif; ?>
 
                 <article class="game-question-card final-screen" data-step="<?php echo $questionTotal; ?>" data-required="final">
                     <div class="complete-badge"><i class="bi bi-stars"></i></div>
-                    <div class="quest-eyebrow">Mission Complete</div>
+                    <div class="quest-eyebrow">Mission Review</div>
                     <h2>Ready to submit?</h2>
                     <p>You answered <strong id="answeredCount">0</strong> of <strong><?php echo $questionTotal; ?></strong> challenges.</p>
+                    <p id="frontendScorePreview" class="frontend-score-preview"></p>
+                    <div id="missionReviewList" class="mission-review-list"></div>
                     <div class="stars-earned">
                         <span class="earned">★</span><span class="earned">★</span><span class="earned">★</span>
                     </div>
@@ -349,9 +530,6 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                 <button type="button" class="quest-secondary-btn" id="backChallengeBtn" onclick="goChallenge(-1)">
                     <i class="bi bi-arrow-left"></i> Back
                 </button>
-                <button type="button" class="quest-primary-btn" id="nextChallengeBtn" onclick="goChallenge(1)" disabled>
-                    Next Challenge <i class="bi bi-arrow-right"></i>
-                </button>
             </nav>
 
             <div id="resultArea" class="game-result-area" style="display:none;"></div>
@@ -365,10 +543,14 @@ const ACTIVITY_ID = <?php echo $actId; ?>;
 const ACTIVITY_TYPE = <?php echo json_encode($actType); ?>;
 const LESSON_PLAN_ID = <?php echo $lessonPlanId; ?>;
 const TOTAL_STEPS = <?php echo $questionTotal; ?>;
+const FEEDBACK_DATA = <?php echo json_encode($feedbackData, JSON_UNESCAPED_SLASHES); ?>;
 
 let currentStep = 0;
 const mcAnswers = {};
-let tfAnswer = null;
+const tfAnswers = {};
+const checkedSteps = {};
+const frontendResults = {};
+const AUTO_ADVANCE_MS = 1500;
 
 function getStepCards() {
     return Array.from(document.querySelectorAll('.game-question-card'));
@@ -390,16 +572,11 @@ function updateGameStage() {
 
     if (counter) counter.textContent = isFinal ? 'Final Review' : 'Question ' + (currentStep + 1) + ' of ' + TOTAL_STEPS;
     if (mood) mood.textContent = isFinal ? 'Mission complete!' : getFriendlyPrompt();
-    if (fill) fill.style.width = Math.min(100, Math.round((currentStep / TOTAL_STEPS) * 100)) + '%';
+    if (fill) fill.style.width = Math.min(100, Math.round((countAnswered() / TOTAL_STEPS) * 100)) + '%';
     if (backBtn) backBtn.disabled = currentStep === 0;
-    if (nextBtn) {
-        nextBtn.style.display = isFinal ? 'none' : '';
-        nextBtn.disabled = !isCurrentStepAnswered();
-        nextBtn.innerHTML = (currentStep === TOTAL_STEPS - 1)
-            ? 'Finish Mission <i class="bi bi-flag"></i>'
-            : 'Next Challenge <i class="bi bi-arrow-right"></i>';
-    }
+    if (nextBtn) nextBtn.style.display = 'none';
     if (answered) answered.textContent = countAnswered();
+    if (isFinal) buildMissionReview();
 }
 
 function getFriendlyPrompt() {
@@ -408,6 +585,7 @@ function getFriendlyPrompt() {
 }
 
 function selectGameChoice(el, qi, oi) {
+    if (checkedSteps[qi]) return;
     document.querySelectorAll('[data-step="' + qi + '"] .game-answer-card').forEach(function(card) {
         card.classList.remove('selected');
         card.setAttribute('aria-pressed', 'false');
@@ -415,30 +593,32 @@ function selectGameChoice(el, qi, oi) {
     el.classList.add('selected');
     el.setAttribute('aria-pressed', 'true');
     mcAnswers[qi] = oi;
-    updateGameStage();
+    checkChoiceStep(qi, oi);
 }
 
-function selectTrueFalse(el, value) {
-    document.querySelectorAll('.game-answer-card').forEach(function(card) {
+function selectTrueFalse(el, value, step) {
+    step = step ?? currentStep;
+    if (checkedSteps[step]) return;
+    getCardForStep(step).querySelectorAll('.game-answer-card').forEach(function(card) {
         card.classList.remove('selected');
         card.setAttribute('aria-pressed', 'false');
     });
     el.classList.add('selected');
     el.setAttribute('aria-pressed', 'true');
-    tfAnswer = value;
-    updateGameStage();
+    tfAnswers[step] = value;
+    checkTrueFalseStep(value, step);
 }
 
 function isCurrentStepAnswered() {
     if (ACTIVITY_TYPE === 'multiple_choice') return mcAnswers[currentStep] !== undefined;
-    if (ACTIVITY_TYPE === 'true_false') return tfAnswer !== null;
+    if (ACTIVITY_TYPE === 'true_false') return tfAnswers[currentStep] !== undefined;
     if (ACTIVITY_TYPE === 'fill_in_blanks') {
         const input = document.querySelector('.game-question-card[data-step="' + currentStep + '"] .fib-input');
         return input && input.value.trim().length > 0;
     }
     if (ACTIVITY_TYPE === 'matching') {
-        const select = document.querySelector('.game-question-card[data-step="' + currentStep + '"] .matching-select');
-        return select && select.value !== '';
+        const selects = Array.from(document.querySelectorAll('.game-question-card[data-step="' + currentStep + '"] .matching-select'));
+        return selects.length > 0 && selects.every(function(select) { return select.value !== ''; });
     }
     if (ACTIVITY_TYPE === 'image_label') {
         return Array.from(document.querySelectorAll('.label-input')).every(function(input) { return input.value.trim().length > 0; });
@@ -448,20 +628,181 @@ function isCurrentStepAnswered() {
 
 function countAnswered() {
     if (ACTIVITY_TYPE === 'multiple_choice') return Object.keys(mcAnswers).length;
-    if (ACTIVITY_TYPE === 'true_false') return tfAnswer === null ? 0 : 1;
+    if (ACTIVITY_TYPE === 'true_false') return Object.keys(tfAnswers).length;
     if (ACTIVITY_TYPE === 'fill_in_blanks') return Array.from(document.querySelectorAll('.fib-input')).filter(function(input) { return input.value.trim().length > 0; }).length;
-    if (ACTIVITY_TYPE === 'matching') return Array.from(document.querySelectorAll('.matching-select')).filter(function(select) { return select.value !== ''; }).length;
+    if (ACTIVITY_TYPE === 'matching' || ACTIVITY_TYPE === 'drag_drop_sort' || ACTIVITY_TYPE === 'sequencing' || ACTIVITY_TYPE === 'flashcards') return Object.keys(checkedSteps).length;
     if (ACTIVITY_TYPE === 'image_label') return Array.from(document.querySelectorAll('.label-input')).filter(function(input) { return input.value.trim().length > 0; }).length;
     return TOTAL_STEPS;
 }
 
 function goChallenge(direction) {
-    if (direction > 0 && !isCurrentStepAnswered()) {
-        Swal.fire({icon:'info',title:'Choose an answer first',text:'Pick or type your answer before moving on.',confirmButtonColor:'#1e4072'});
-        return;
-    }
+    if (direction > 0 && !checkedSteps[currentStep]) return;
     currentStep = Math.max(0, Math.min(TOTAL_STEPS, currentStep + direction));
     updateGameStage();
+}
+
+function currentCard() {
+    return document.querySelector('.game-question-card[data-step="' + currentStep + '"]');
+}
+
+function getCardForStep(step) {
+    return document.querySelector('.game-question-card[data-step="' + step + '"]');
+}
+
+function setFeedback(step, kind, title, detail, nextText) {
+    const card = getCardForStep(step);
+    const feedback = card ? card.querySelector('.answer-feedback') : null;
+    if (!feedback) return;
+    feedback.className = 'answer-feedback show ' + kind;
+    feedback.innerHTML = '<strong>' + title + '</strong><span>' + detail + '</span><em>' + nextText + '</em>';
+}
+
+function labelCard(card, label, icon) {
+    const old = card.querySelector('.answer-result-label');
+    if (old) old.remove();
+    const badge = document.createElement('span');
+    badge.className = 'answer-result-label';
+    badge.innerHTML = '<i class="bi ' + icon + '"></i> ' + label;
+    card.appendChild(badge);
+}
+
+function lockStep(step) {
+    const card = getCardForStep(step);
+    if (!card) return;
+    card.classList.add('is-locked');
+    card.querySelectorAll('button, input, select').forEach(function(control) {
+        if (!control.classList.contains('quest-secondary-btn')) control.disabled = true;
+    });
+}
+
+function autoAdvance(step) {
+    const nextText = step >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...';
+    const feedback = getCardForStep(step)?.querySelector('.answer-feedback em');
+    if (feedback) feedback.textContent = nextText;
+    window.setTimeout(function() {
+        if (currentStep === step) {
+            currentStep = Math.min(TOTAL_STEPS, step + 1);
+            updateGameStage();
+        }
+    }, AUTO_ADVANCE_MS);
+}
+
+function checkChoiceStep(step, selectedIndex) {
+    checkedSteps[step] = true;
+    const card = getCardForStep(step);
+    const correct = FEEDBACK_DATA.multiple_choice?.[step]?.correct;
+    const correctText = FEEDBACK_DATA.multiple_choice?.[step]?.correctText || '';
+    const selectedText = card.querySelector('.game-answer-card[data-answer="' + selectedIndex + '"] span:last-child')?.textContent.trim() || String(selectedIndex);
+    let status = 'saved';
+
+    card.querySelectorAll('.game-answer-card').forEach(function(answerCard) {
+        const value = parseInt(answerCard.dataset.answer, 10);
+        answerCard.classList.add('locked');
+        if (value === selectedIndex) answerCard.classList.add('selected');
+        if (correct !== null && correct !== undefined) {
+            if (value === parseInt(correct, 10)) {
+                answerCard.classList.add('is-correct');
+                labelCard(answerCard, value === selectedIndex ? 'Correct' : 'Correct answer', 'bi-check-circle-fill');
+            } else if (value === selectedIndex) {
+                answerCard.classList.add('is-wrong');
+                labelCard(answerCard, 'Your answer', 'bi-x-circle-fill');
+            }
+        } else if (value === selectedIndex) {
+            answerCard.classList.add('is-saved');
+            labelCard(answerCard, 'Answer saved', 'bi-bookmark-check-fill');
+        }
+    });
+
+    if (correct !== null && correct !== undefined) {
+        status = parseInt(correct, 10) === selectedIndex ? 'correct' : 'wrong';
+        frontendResults[step] = {status: status, selected: selectedText, correct: parseInt(correct, 10), correctText: correctText};
+        setFeedback(step, status === 'correct' ? 'correct' : 'wrong',
+            status === 'correct' ? 'Great job! Correct answer.' : 'Nice try! The correct answer is shown below.',
+            status === 'correct' ? 'You chose the correct card.' : 'Correct answer: ' + correctText,
+            'Next question starting...');
+    } else {
+        frontendResults[step] = {status: 'saved', selected: selectedText, correct: null, correctText: ''};
+        setFeedback(step, 'saved', 'Answer saved!', 'Your answer was saved for the mission.', 'Next question starting...');
+    }
+    lockStep(step);
+    updateGameStage();
+    autoAdvance(step);
+}
+
+function checkTrueFalseStep(value, step) {
+    checkedSteps[step] = true;
+    const correct = FEEDBACK_DATA.true_false?.[step];
+    const card = getCardForStep(step);
+    card.querySelectorAll('.game-answer-card').forEach(function(answerCard) {
+        const answer = String(answerCard.dataset.answer || '').toLowerCase();
+        answerCard.classList.add('locked');
+        if (correct) {
+            if (answer === correct) {
+                answerCard.classList.add('is-correct');
+                labelCard(answerCard, answer === value ? 'Correct' : 'Correct answer', 'bi-check-circle-fill');
+            } else if (answer === value) {
+                answerCard.classList.add('is-wrong');
+                labelCard(answerCard, 'Your answer', 'bi-x-circle-fill');
+            }
+        } else if (answer === value) {
+            answerCard.classList.add('is-saved');
+            labelCard(answerCard, 'Answer saved', 'bi-bookmark-check-fill');
+        }
+    });
+
+    if (correct) {
+        const isCorrect = String(value).toLowerCase() === correct;
+        frontendResults[step] = {status: isCorrect ? 'correct' : 'wrong', selected: value, correct: correct, correctText: correct};
+        setFeedback(step, isCorrect ? 'correct' : 'wrong',
+            isCorrect ? 'Great job! Correct answer.' : 'Nice try! The correct answer is shown below.',
+            isCorrect ? 'You chose the correct card.' : 'Correct answer: ' + correct,
+            step >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+    } else {
+        frontendResults[step] = {status: 'saved', selected: value, correct: null, correctText: ''};
+        setFeedback(step, 'saved', 'Answer saved!', 'Your answer was saved for the mission.', step >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+    }
+    lockStep(step);
+    updateGameStage();
+    autoAdvance(step);
+}
+
+function checkTextAnswer(step) {
+    if (checkedSteps[step]) return;
+    const input = document.querySelector('.game-question-card[data-step="' + step + '"] .fib-input');
+    const value = input ? input.value.trim() : '';
+    if (!value) {
+        Swal.fire({icon:'info',title:'Type an answer first',text:'Enter your answer before checking.',confirmButtonColor:'#1e4072'});
+        return;
+    }
+    checkedSteps[step] = true;
+    const accepted = FEEDBACK_DATA.fill_in_blanks?.[step] || [];
+    const normalized = value.toLowerCase();
+    const match = accepted.length > 0 && accepted.some(function(answer) {
+        return String(answer).trim().toLowerCase() === normalized;
+    });
+    const status = accepted.length > 0 ? (match ? 'correct' : 'wrong') : 'saved';
+    frontendResults[step] = {status: status, selected: value, correct: accepted, correctText: accepted.join(' / ')};
+    setFeedback(step, status,
+        status === 'correct' ? 'Great job! Correct answer.' : (status === 'wrong' ? 'Nice try! The accepted answer is shown below.' : 'Answer saved!'),
+        status === 'wrong' ? 'Accepted answer: ' + accepted.join(' / ') : (status === 'correct' ? 'Your typed answer matches.' : 'Your answer was saved for the mission.'),
+        step >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+    lockStep(step);
+    updateGameStage();
+    autoAdvance(step);
+}
+
+function saveCurrentStepAnswer() {
+    if (checkedSteps[currentStep]) return;
+    if (!isCurrentStepAnswered()) {
+        Swal.fire({icon:'info',title:'Answer first',text:'Complete this challenge before moving on.',confirmButtonColor:'#1e4072'});
+        return;
+    }
+    checkedSteps[currentStep] = true;
+    frontendResults[currentStep] = {status: 'saved', selected: getSelectedAnswerText(currentStep), correct: null, correctText: ''};
+    setFeedback(currentStep, 'saved', 'Answer saved!', 'Your answer was saved for backend scoring.', currentStep >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+    lockStep(currentStep);
+    updateGameStage();
+    autoAdvance(currentStep);
 }
 
 function collectAnswers() {
@@ -470,7 +811,7 @@ function collectAnswers() {
         return mcAnswers;
     }
     if (ACTIVITY_TYPE === 'true_false') {
-        return {0: tfAnswer};
+        return tfAnswers;
     }
     if (ACTIVITY_TYPE === 'fill_in_blanks') {
         document.querySelectorAll('.fib-input').forEach(function(input) { answers[input.dataset.si] = input.value.trim(); });
@@ -481,7 +822,13 @@ function collectAnswers() {
         return answers;
     }
     if (ACTIVITY_TYPE === 'drag_drop_sort' || ACTIVITY_TYPE === 'sequencing') {
-        return Array.from(document.querySelectorAll('#dragList .drag-item')).map(function(item) { return parseInt(item.dataset.index, 10); });
+        if (document.querySelectorAll('.drag-list').length === 1) {
+            return Array.from(document.querySelectorAll('.drag-list .drag-item')).map(function(item) { return parseInt(item.dataset.index, 10); });
+        }
+        document.querySelectorAll('.drag-list').forEach(function(list) {
+            answers[list.dataset.step] = Array.from(list.querySelectorAll('.drag-item')).map(function(item) { return parseInt(item.dataset.index, 10); });
+        });
+        return answers;
     }
     if (ACTIVITY_TYPE === 'image_label') {
         document.querySelectorAll('.label-input').forEach(function(input) { answers[input.dataset.li] = input.value.trim(); });
@@ -495,11 +842,89 @@ function collectAnswers() {
 
 function validateAllAnswered() {
     if (ACTIVITY_TYPE === 'multiple_choice') return Object.keys(mcAnswers).length >= TOTAL_STEPS;
-    if (ACTIVITY_TYPE === 'true_false') return tfAnswer !== null;
+    if (ACTIVITY_TYPE === 'true_false') return Object.keys(tfAnswers).length >= TOTAL_STEPS;
     if (ACTIVITY_TYPE === 'fill_in_blanks') return Array.from(document.querySelectorAll('.fib-input')).every(function(input) { return input.value.trim().length > 0; });
     if (ACTIVITY_TYPE === 'matching') return Array.from(document.querySelectorAll('.matching-select')).every(function(select) { return select.value !== ''; });
     if (ACTIVITY_TYPE === 'image_label') return Array.from(document.querySelectorAll('.label-input')).every(function(input) { return input.value.trim().length > 0; });
     return true;
+}
+
+function getQuestionTitle(step) {
+    const card = getCardForStep(step);
+    const title = card ? card.querySelector('h2') : null;
+    return title ? title.textContent.trim() : 'Challenge ' + (step + 1);
+}
+
+function getSelectedAnswerText(step) {
+    if (ACTIVITY_TYPE === 'multiple_choice') {
+        const selected = getCardForStep(step)?.querySelector('.game-answer-card.selected span:last-child');
+        return selected ? selected.textContent.trim() : 'No answer';
+    }
+    if (ACTIVITY_TYPE === 'true_false') {
+        return tfAnswers[step] === undefined ? 'No answer' : tfAnswers[step];
+    }
+    if (ACTIVITY_TYPE === 'fill_in_blanks') {
+        const input = document.querySelector('.game-question-card[data-step="' + step + '"] .fib-input');
+        return input ? input.value.trim() : 'No answer';
+    }
+    if (ACTIVITY_TYPE === 'matching') {
+        const selects = Array.from(document.querySelectorAll('.game-question-card[data-step="' + step + '"] .matching-select'));
+        if (!selects.length) return 'No answer';
+        return selects.map(function(select, index) {
+            return 'Pair ' + (index + 1) + ': ' + (select.value || 'No answer');
+        }).join('; ');
+    }
+    if (ACTIVITY_TYPE === 'image_label') {
+        return Array.from(document.querySelectorAll('.label-input')).map(function(input, index) {
+            return 'Label ' + (index + 1) + ': ' + (input.value.trim() || 'No answer');
+        }).join('; ');
+    }
+    if (ACTIVITY_TYPE === 'drag_drop_sort' || ACTIVITY_TYPE === 'sequencing') {
+        const list = document.querySelector('.drag-list[data-step="' + step + '"]') || document.querySelector('.drag-list');
+        return Array.from(list ? list.querySelectorAll('.drag-item') : []).map(function(item) {
+            return item.textContent.trim();
+        }).join(' -> ');
+    }
+    if (ACTIVITY_TYPE === 'flashcards') {
+        return 'Card reviewed';
+    }
+    return 'Answer saved';
+}
+
+function buildMissionReview() {
+    const list = document.getElementById('missionReviewList');
+    const preview = document.getElementById('frontendScorePreview');
+    if (!list) return;
+
+    let correctCount = 0;
+    let knownCount = 0;
+    let html = '';
+    for (let step = 0; step < TOTAL_STEPS; step++) {
+        const result = frontendResults[step] || {status: 'saved', selected: getSelectedAnswerText(step), correctText: ''};
+        if (result.status === 'correct' || result.status === 'wrong') knownCount++;
+        if (result.status === 'correct') correctCount++;
+        const label = result.status === 'correct'
+            ? '<span class="review-state correct"><i class="bi bi-check-circle-fill"></i> Correct</span>'
+            : result.status === 'wrong'
+                ? '<span class="review-state wrong"><i class="bi bi-x-circle-fill"></i> Needs practice</span>'
+                : '<span class="review-state saved"><i class="bi bi-bookmark-check-fill"></i> Saved</span>';
+        const correction = result.status === 'wrong' && result.correctText
+            ? '<p>Correct answer: ' + escapeHtml(String(result.correctText)) + '</p>'
+            : '';
+        html += '<article class="mission-review-item ' + result.status + '"><strong>' + escapeHtml(getQuestionTitle(step)) + '</strong><p>Your answer: ' + escapeHtml(String(result.selected ?? getSelectedAnswerText(step))) + '</p>' + correction + label + '</article>';
+    }
+    list.innerHTML = html;
+    if (preview) {
+        preview.textContent = knownCount > 0
+            ? 'Preview score: ' + correctCount + ' of ' + knownCount + ' checked here. Backend scoring is final.'
+            : 'Answers saved. Backend scoring is final.';
+    }
+}
+
+function escapeHtml(value) {
+    return value.replace(/[&<>"']/g, function(char) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char];
+    });
 }
 
 function submitAnswers() {
@@ -559,10 +984,15 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.game-text-input, .game-select-input').forEach(function(field) {
         field.addEventListener('input', updateGameStage);
         field.addEventListener('change', updateGameStage);
+        field.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' && ACTIVITY_TYPE === 'fill_in_blanks') {
+                event.preventDefault();
+                checkTextAnswer(parseInt(field.dataset.si || currentStep, 10));
+            }
+        });
     });
 
-    const list = document.getElementById('dragList');
-    if (list) {
+    document.querySelectorAll('.drag-list').forEach(function(list) {
         list.addEventListener('dragstart', function(e) {
             dragSrc = e.target.closest('.drag-item');
             if (dragSrc) dragSrc.classList.add('dragging');
@@ -580,7 +1010,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (dragSrc) dragSrc.classList.remove('dragging');
             dragSrc = null;
         });
-    }
+    });
 
     updateGameStage();
 });

@@ -35,6 +35,10 @@ require_once __DIR__ . '/../layouts/header.php';
            class="btn btn-sm btn-outline-secondary flex-shrink-0">
             <i class="ti ti-bar-chart-line me-1"></i>Progress tracker
         </a>
+        <a href="<?php echo htmlspecialchars($basePath); ?>/iep/<?php echo (int)$iepId; ?>/transition-workflow"
+           class="btn btn-sm btn-outline-secondary flex-shrink-0">
+            <i class="ti ti-route me-1"></i>Transition workflow
+        </a>
         <div class="flex-grow-1 min-width-0">
             <h4 class="mb-0 fw-bold" style="color:#1e4072;">
                 IEP Implementation &mdash; <?php echo htmlspecialchars($iep['student_name']); ?>
@@ -1034,13 +1038,22 @@ function viewActivity(act) {
             });
             break;
         case 'matching':
-            html += '<table class="table table-sm table-bordered"><thead><tr><th>Left</th><th>Right</th></tr></thead><tbody>';
-            (data.pairs || []).forEach(p => { html += `<tr><td>${p.left}</td><td>${p.right}</td></tr>`; });
-            html += '</tbody></table>';
+            (data.sets || [{title: 'Matching Set 1', pairs: data.pairs || []}]).forEach((set, si) => {
+                html += `<div class="fw-semibold small mb-1">${set.title || 'Matching Set ' + (si + 1)}</div>`;
+                html += '<table class="table table-sm table-bordered"><thead><tr><th>Left</th><th>Right</th></tr></thead><tbody>';
+                (set.pairs || []).forEach(p => { html += `<tr><td>${p.left}</td><td>${p.right}</td></tr>`; });
+                html += '</tbody></table>';
+            });
             break;
-        case 'drag_drop_sort': case 'sequencing':
-            (data.items || []).forEach((item, i) => { html += `<div class="mb-1"><span class="badge bg-secondary me-2">${i+1}</span>${item}</div>`; });
+        case 'drag_drop_sort': case 'sequencing': {
+            const sequenceSets = data.sets || [{title: 'Question 1', items: data.items || data.steps || []}];
+            sequenceSets.forEach((set, si) => {
+                const list = set.items || set.steps || [];
+                html += `<div class="fw-semibold small mb-1">${set.title || 'Question ' + (si + 1)}</div>`;
+                list.forEach((item, i) => { html += `<div class="mb-1"><span class="badge bg-secondary me-2">${i+1}</span>${item.text || item}</div>`; });
+            });
             break;
+        }
         case 'flashcards':
             (data.cards || []).forEach(c => {
                 html += `<div class="mb-2 p-2 border rounded"><strong>Front:</strong> ${c.front} &nbsp;→&nbsp; <strong>Back:</strong> ${c.back}</div>`;
@@ -1670,6 +1683,13 @@ function selectActivityType(type) {
 
     // Render type-specific builder
     renderBuilderTypeArea(type);
+    if (type === 'multiple_choice') addMCQuestion();
+    if (type === 'true_false') addTFStatement();
+    if (type === 'fill_in_blanks') addFibQuestion();
+    if (type === 'matching') addMatchingSet();
+    if (type === 'drag_drop_sort') addSortingQuestion();
+    if (type === 'flashcards') addFlashcardSet();
+    if (type === 'sequencing') addSequenceQuestion();
 
     // Slide builder into view
     const builder = document.getElementById('activityBuilder');
@@ -1767,7 +1787,7 @@ function addMCOption(containerId) {
     mcOptCount++;
     const row = document.createElement('div');
     row.className = 'builder-item-row mc-option-row';
-    const radioName = 'mc_correct_' + containerId + '_' + mcOptCount;
+    const radioName = 'mc_correct_' + containerId;
     row.innerHTML = `
         <input type="radio" name="${radioName}" class="form-check-input mc-correct-radio" title="Mark as correct">
         <input type="text" class="form-control form-control-sm mc-option-text" placeholder="Option text">
@@ -1781,29 +1801,38 @@ function addMCOption(containerId) {
 /* ---- True / False ---- */
 function buildTrueFalse() {
     return `
-    <div class="row g-3">
-        <div class="col-12">
-            <label class="form-label small fw-semibold">Statement <span class="text-danger">*</span></label>
-            <input type="text" class="form-control form-control-sm" id="tfStatement" placeholder="Enter true/false statement">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="fw-semibold small" style="color:#1e4072;">Statements</span>
+        <button type="button" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;" onclick="addTFStatement()">
+            <i class="ti ti-plus me-1"></i>Add Statement
+        </button>
+    </div>
+    <div id="tfStatements"></div>`;
+}
+
+let tfCount = 0;
+function addTFStatement() {
+    tfCount++;
+    const id = 'tfStatement_' + tfCount;
+    const row = document.createElement('div');
+    row.className = 'border rounded p-3 mb-2 tf-statement-row';
+    row.style.background = '#fff';
+    row.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-semibold small">Statement ${tfCount}</span>
+            <button type="button" class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.7rem;" onclick="this.closest('.tf-statement-row').remove()">
+                <i class="ti ti-x me-1"></i>Remove
+            </button>
         </div>
-        <div class="col-12">
-            <label class="form-label small fw-semibold">Correct Answer</label>
-            <div class="d-flex gap-3">
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="tfAnswer" id="tfTrue" value="true" checked>
-                    <label class="form-check-label small" for="tfTrue">True</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="tfAnswer" id="tfFalse" value="false">
-                    <label class="form-check-label small" for="tfFalse">False</label>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <label class="form-label small fw-semibold">Points</label>
-            <input type="number" class="form-control form-control-sm" id="tfPoints" min="0" value="1">
-        </div>
-    </div>`;
+        <input type="text" class="form-control form-control-sm mb-2 tf-statement-text" placeholder="Enter true/false statement">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <label class="small fw-semibold mb-0">Correct Answer:</label>
+            <label class="form-check-label small"><input class="form-check-input tf-answer-radio" type="radio" name="${id}_answer" value="true" checked> True</label>
+            <label class="form-check-label small"><input class="form-check-input tf-answer-radio" type="radio" name="${id}_answer" value="false"> False</label>
+            <label class="small fw-semibold mb-0 ms-2">Points:</label>
+            <input type="number" class="form-control form-control-sm tf-points" style="width:80px;" min="0" value="1">
+        </div>`;
+    document.getElementById('tfStatements').appendChild(row);
 }
 
 /* ---- Fill in the Blanks ---- */
@@ -1812,28 +1841,45 @@ function buildFillInBlanks() {
     <div class="alert alert-info py-2 small mb-3">
         <i class="ti ti-info-circle me-1"></i>Use <code>___</code> (three underscores) to mark blanks in your sentence.
     </div>
-    <div class="row g-3">
-        <div class="col-12">
-            <label class="form-label small fw-semibold">Sentence <span class="text-danger">*</span></label>
-            <input type="text" class="form-control form-control-sm" id="fibSentence"
-                   placeholder="e.g. The ___ is red." oninput="updateFibPreview()">
-            <div id="fibPreview" class="mt-2 p-2 border rounded small" style="background:#f8f9fa;min-height:32px;"></div>
-        </div>
-        <div class="col-12">
-            <label class="form-label small fw-semibold">Answers for each blank</label>
-            <div id="fibAnswers"></div>
-        </div>
-        <div class="col-md-4">
-            <label class="form-label small fw-semibold">Points</label>
-            <input type="number" class="form-control form-control-sm" id="fibPoints" min="0" value="1">
-        </div>
-    </div>`;
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="fw-semibold small" style="color:#1e4072;">Blank Questions</span>
+        <button type="button" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;" onclick="addFibQuestion()">
+            <i class="ti ti-plus me-1"></i>Add Blank Question
+        </button>
+    </div>
+    <div id="fibQuestions"></div>`;
 }
 
-function updateFibPreview() {
-    const sentence = document.getElementById('fibSentence')?.value || '';
-    const preview  = document.getElementById('fibPreview');
-    const answersDiv = document.getElementById('fibAnswers');
+let fibQCount = 0;
+function addFibQuestion() {
+    fibQCount++;
+    const id = 'fibQ_' + fibQCount;
+    const row = document.createElement('div');
+    row.className = 'border rounded p-3 mb-2 fib-question-row';
+    row.style.background = '#fff';
+    row.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-semibold small">Blank Question ${fibQCount}</span>
+            <button type="button" class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.7rem;" onclick="this.closest('.fib-question-row').remove()">
+                <i class="ti ti-x me-1"></i>Remove
+            </button>
+        </div>
+        <input type="text" class="form-control form-control-sm mb-2 fib-sentence" placeholder="e.g. The ___ is red." oninput="updateFibPreview(this)">
+        <div class="fib-preview mt-2 p-2 border rounded small" style="background:#f8f9fa;min-height:32px;"></div>
+        <label class="form-label small fw-semibold mt-2">Answers for each blank</label>
+        <div class="fib-answers"></div>
+        <div class="mt-2 d-flex align-items-center gap-2">
+            <label class="form-label small mb-0">Points:</label>
+            <input type="number" class="form-control form-control-sm fib-points" style="width:80px;" min="0" value="1">
+        </div>`;
+    document.getElementById('fibQuestions').appendChild(row);
+}
+
+function updateFibPreview(input) {
+    const row = input.closest('.fib-question-row');
+    const sentence = input.value || '';
+    const preview  = row.querySelector('.fib-preview');
+    const answersDiv = row.querySelector('.fib-answers');
     if (!preview || !answersDiv) return;
 
     // Highlight blanks
@@ -1866,22 +1912,45 @@ function updateFibPreview() {
 function buildMatching() {
     return `
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <span class="fw-semibold small" style="color:#1e4072;">Pairs</span>
-        <button type="button" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;"
-                onclick="addMatchingPair()">
-            <i class="ti ti-plus me-1"></i>Add Pair
+        <span class="fw-semibold small" style="color:#1e4072;">Matching Sets</span>
+        <button type="button" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;" onclick="addMatchingSet()">
+            <i class="ti ti-plus me-1"></i>Add Matching Set
         </button>
     </div>
-    <div id="matchingPairs"></div>
-    <div class="mt-2 d-flex align-items-center gap-2">
-        <label class="form-label small mb-0">Points per pair:</label>
-        <input type="number" class="form-control form-control-sm" id="matchingPoints" style="width:80px;" min="0" value="1">
-    </div>`;
+    <div id="matchingSets"></div>`;
 }
 
 let matchPairCount = 0;
-function addMatchingPair() {
+let matchingSetCount = 0;
+function addMatchingSet() {
+    matchingSetCount++;
+    const setId = 'matchingSet_' + matchingSetCount;
+    const set = document.createElement('div');
+    set.className = 'border rounded p-3 mb-3 matching-set';
+    set.id = setId;
+    set.style.background = '#fff';
+    set.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <input type="text" class="form-control form-control-sm matching-set-title" value="Matching Set ${matchingSetCount}" style="max-width:220px;">
+            <button type="button" class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.7rem;" onclick="this.closest('.matching-set').remove()">
+                <i class="ti ti-x me-1"></i>Remove Set
+            </button>
+        </div>
+        <div class="matching-pairs"></div>
+        <div class="d-flex align-items-center gap-2 mt-2">
+            <button type="button" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;" onclick="addMatchingPair('${setId}')">
+                <i class="ti ti-plus me-1"></i>Add Pair
+            </button>
+            <label class="form-label small mb-0">Points per pair:</label>
+            <input type="number" class="form-control form-control-sm matching-points" style="width:80px;" min="0" value="1">
+        </div>`;
+    document.getElementById('matchingSets').appendChild(set);
+    addMatchingPair(setId);
+}
+function addMatchingPair(setId) {
     matchPairCount++;
+    const set = document.getElementById(setId);
+    if (!set) return;
     const row = document.createElement('div');
     row.className = 'builder-item-row matching-pair';
     row.draggable = true;
@@ -1894,7 +1963,7 @@ function addMatchingPair() {
                 onclick="this.closest('.matching-pair').remove()">
             <i class="ti ti-x me-1"></i>Remove
         </button>`;
-    document.getElementById('matchingPairs').appendChild(row);
+    set.querySelector('.matching-pairs').appendChild(row);
     initDragHandles();
 }
 
@@ -1902,20 +1971,47 @@ function addMatchingPair() {
 function buildDragDropSort() {
     return `
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <span class="fw-semibold small" style="color:#1e4072;">Items (drag to set correct order)</span>
+        <span class="fw-semibold small" style="color:#1e4072;">Sorting Questions</span>
         <button type="button" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;"
-                onclick="addDragDropItem()">
-            <i class="ti ti-plus me-1"></i>Add Item
+                onclick="addSortingQuestion()">
+            <i class="ti ti-plus me-1"></i>Add Sorting Question
         </button>
     </div>
-    <div id="dragDropItems"></div>
-    <div class="mt-2 d-flex align-items-center gap-2">
-        <label class="form-label small mb-0">Points:</label>
-        <input type="number" class="form-control form-control-sm" id="dragDropPoints" style="width:80px;" min="0" value="1">
-    </div>`;
+    <div id="sortingQuestions"></div>`;
 }
 
-function addDragDropItem() {
+let sortingQuestionCount = 0;
+function addSortingQuestion() {
+    sortingQuestionCount++;
+    const setId = 'sortingQuestion_' + sortingQuestionCount;
+    const set = document.createElement('div');
+    set.className = 'border rounded p-3 mb-3 sorting-question';
+    set.id = setId;
+    set.style.background = '#fff';
+    set.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <input type="text" class="form-control form-control-sm sorting-title" value="Sorting Question ${sortingQuestionCount}" style="max-width:240px;">
+            <button type="button" class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.7rem;" onclick="this.closest('.sorting-question').remove()">
+                <i class="ti ti-x me-1"></i>Remove Question
+            </button>
+        </div>
+        <div class="small text-muted mb-2">Add items in the correct order. Learners will arrange them during the mission.</div>
+        <div class="drag-drop-items"></div>
+        <div class="d-flex align-items-center gap-2 mt-2">
+            <button type="button" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;" onclick="addDragDropItem('${setId}')">
+                <i class="ti ti-plus me-1"></i>Add Item
+            </button>
+            <label class="form-label small mb-0">Points:</label>
+            <input type="number" class="form-control form-control-sm sorting-points" style="width:80px;" min="0" value="1">
+        </div>`;
+    document.getElementById('sortingQuestions').appendChild(set);
+    addDragDropItem(setId);
+    addDragDropItem(setId);
+}
+
+function addDragDropItem(setId) {
+    const set = document.getElementById(setId);
+    if (!set) return;
     const row = document.createElement('div');
     row.className = 'builder-item-row drag-drop-item';
     row.draggable = true;
@@ -1926,7 +2022,7 @@ function addDragDropItem() {
                 onclick="this.closest('.drag-drop-item').remove()">
             <i class="ti ti-x me-1"></i>Remove
         </button>`;
-    document.getElementById('dragDropItems').appendChild(row);
+    set.querySelector('.drag-drop-items').appendChild(row);
     initDragHandles();
 }
 
@@ -2021,17 +2117,50 @@ function placeMarkerOnClick(event) {
 function buildFlashcards() {
     return `
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <span class="fw-semibold small" style="color:#1e4072;">Cards</span>
+        <span class="fw-semibold small" style="color:#1e4072;">Flashcard Sets</span>
         <button type="button" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;"
-                onclick="addFlashcard()">
-            <i class="ti ti-plus me-1"></i>Add Card
+                onclick="addFlashcardSet()">
+            <i class="ti ti-plus me-1"></i>Add Flashcard Set
         </button>
     </div>
-    <div id="flashcardList"></div>`;
+    <div id="flashcardSets"></div>`;
 }
 
 let flashcardCount = 0;
-function addFlashcard() {
+let flashcardSetCount = 0;
+function addFlashcardSet() {
+    flashcardSetCount++;
+    const setId = 'flashcardSet_' + flashcardSetCount;
+    const set = document.createElement('div');
+    set.className = 'border rounded p-3 mb-3 flashcard-set';
+    set.id = setId;
+    set.style.background = '#fff';
+    set.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <input type="text" class="form-control form-control-sm flashcard-set-title" value="Flashcard Set ${flashcardSetCount}" style="max-width:240px;">
+            <button type="button" class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.7rem;" onclick="this.closest('.flashcard-set').remove()">
+                <i class="ti ti-x me-1"></i>Remove Set
+            </button>
+        </div>
+        <div class="flashcard-list"></div>
+        <button type="button" class="btn btn-sm mt-2" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;" onclick="addFlashcard('${setId}')">
+            <i class="ti ti-plus me-1"></i>Add Card
+        </button>`;
+    document.getElementById('flashcardSets').appendChild(set);
+    addFlashcard(setId);
+}
+
+function addFlashcard(setId) {
+    if (!setId) {
+        const existing = document.querySelector('.flashcard-set');
+        if (!existing) {
+            addFlashcardSet();
+            return;
+        }
+        setId = existing.id;
+    }
+    const set = document.getElementById(setId);
+    if (!set) return;
     flashcardCount++;
     const row = document.createElement('div');
     row.className = 'builder-item-row flashcard-row';
@@ -2052,27 +2181,54 @@ function addFlashcard() {
                 onclick="this.closest('.flashcard-row').remove()">
             <i class="ti ti-x me-1"></i>Remove
         </button>`;
-    document.getElementById('flashcardList').appendChild(row);
+    set.querySelector('.flashcard-list').appendChild(row);
 }
 
 /* ---- Sequencing ---- */
 function buildSequencing() {
     return `
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <span class="fw-semibold small" style="color:#1e4072;">Steps (drag to set correct order)</span>
+        <span class="fw-semibold small" style="color:#1e4072;">Sequence Questions</span>
         <button type="button" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;"
-                onclick="addSequencingStep()">
-            <i class="ti ti-plus me-1"></i>Add Step
+                onclick="addSequenceQuestion()">
+            <i class="ti ti-plus me-1"></i>Add Sequence Question
         </button>
     </div>
-    <div id="sequencingSteps"></div>
-    <div class="mt-2 d-flex align-items-center gap-2">
-        <label class="form-label small mb-0">Points:</label>
-        <input type="number" class="form-control form-control-sm" id="sequencingPoints" style="width:80px;" min="0" value="1">
-    </div>`;
+    <div id="sequenceQuestions"></div>`;
 }
 
-function addSequencingStep() {
+let sequenceQuestionCount = 0;
+function addSequenceQuestion() {
+    sequenceQuestionCount++;
+    const setId = 'sequenceQuestion_' + sequenceQuestionCount;
+    const set = document.createElement('div');
+    set.className = 'border rounded p-3 mb-3 sequence-question';
+    set.id = setId;
+    set.style.background = '#fff';
+    set.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <input type="text" class="form-control form-control-sm sequence-title" value="Sequence Question ${sequenceQuestionCount}" style="max-width:240px;">
+            <button type="button" class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.7rem;" onclick="this.closest('.sequence-question').remove()">
+                <i class="ti ti-x me-1"></i>Remove Question
+            </button>
+        </div>
+        <div class="small text-muted mb-2">Add steps in the correct order. Learners will arrange them during the mission.</div>
+        <div class="sequence-steps"></div>
+        <div class="d-flex align-items-center gap-2 mt-2">
+            <button type="button" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;" onclick="addSequencingStep('${setId}')">
+                <i class="ti ti-plus me-1"></i>Add Step
+            </button>
+            <label class="form-label small mb-0">Points:</label>
+            <input type="number" class="form-control form-control-sm sequence-points" style="width:80px;" min="0" value="1">
+        </div>`;
+    document.getElementById('sequenceQuestions').appendChild(set);
+    addSequencingStep(setId);
+    addSequencingStep(setId);
+}
+
+function addSequencingStep(setId) {
+    const set = document.getElementById(setId);
+    if (!set) return;
     const row = document.createElement('div');
     row.className = 'builder-item-row sequencing-step';
     row.draggable = true;
@@ -2083,7 +2239,7 @@ function addSequencingStep() {
                 onclick="this.closest('.sequencing-step').remove()">
             <i class="ti ti-x me-1"></i>Remove
         </button>`;
-    document.getElementById('sequencingSteps').appendChild(row);
+    set.querySelector('.sequence-steps').appendChild(row);
     initDragHandles();
 }
 </script>
@@ -2168,70 +2324,185 @@ function collectActivityData() {
             break;
         }
         case 'true_false': {
+            const questions = [];
+            document.querySelectorAll('.tf-statement-row').forEach(row => {
+                questions.push({
+                    statement: row.querySelector('.tf-statement-text')?.value.trim() || '',
+                    answer: row.querySelector('.tf-answer-radio:checked')?.value || 'true',
+                    points: parseInt(row.querySelector('.tf-points')?.value || '1'),
+                });
+            });
+            const first = questions[0] || {};
             data = {
-                statement: document.getElementById('tfStatement')?.value.trim() || '',
-                answer:    document.querySelector('input[name="tfAnswer"]:checked')?.value || 'true',
-                points:    parseInt(document.getElementById('tfPoints')?.value || '1'),
+                questions,
+                statement: first.statement || '',
+                answer: first.answer || 'true',
+                points: first.points || 1,
             };
             break;
         }
         case 'fill_in_blanks': {
-            const answers = [];
-            document.querySelectorAll('.fib-answer-input').forEach(inp => answers.push(inp.value.trim()));
+            const sentences = [];
+            document.querySelectorAll('.fib-question-row').forEach(row => {
+                const answers = [];
+                row.querySelectorAll('.fib-answer-input').forEach(inp => answers.push(inp.value.trim()));
+                sentences.push({
+                    text: row.querySelector('.fib-sentence')?.value.trim() || '',
+                    answers,
+                    points: parseInt(row.querySelector('.fib-points')?.value || '1'),
+                });
+            });
+            const first = sentences[0] || {};
             data = {
-                sentence: document.getElementById('fibSentence')?.value.trim() || '',
-                answers,
-                points: parseInt(document.getElementById('fibPoints')?.value || '1'),
+                sentences,
+                sentence: first.text || '',
+                answers: first.answers || [],
+                points: first.points || 1,
             };
             break;
         }
         case 'matching': {
-            const pairs = [];
-            document.querySelectorAll('.matching-pair').forEach(row => {
-                pairs.push({
-                    left:  row.querySelector('.matching-left')?.value.trim()  || '',
-                    right: row.querySelector('.matching-right')?.value.trim() || '',
+            const sets = [];
+            document.querySelectorAll('.matching-set').forEach((set, index) => {
+                const pairs = [];
+                set.querySelectorAll('.matching-pair').forEach(row => {
+                    pairs.push({
+                        left:  row.querySelector('.matching-left')?.value.trim()  || '',
+                        right: row.querySelector('.matching-right')?.value.trim() || '',
+                    });
+                });
+                sets.push({
+                    title: set.querySelector('.matching-set-title')?.value.trim() || 'Matching Set ' + (index + 1),
+                    pairs,
+                    points: parseInt(set.querySelector('.matching-points')?.value || '1'),
                 });
             });
-            data = { pairs, points: parseInt(document.getElementById('matchingPoints')?.value || '1') };
+            data = { sets, pairs: sets[0]?.pairs || [], points: sets[0]?.points || 1 };
             break;
         }
         case 'drag_drop_sort': {
-            const items = [];
-            document.querySelectorAll('.drag-drop-item').forEach((row, idx) => {
-                items.push({ text: row.querySelector('.drag-drop-text')?.value.trim() || '', order: idx + 1 });
+            const sets = [];
+            document.querySelectorAll('.sorting-question').forEach((set, setIndex) => {
+                const items = [];
+                set.querySelectorAll('.drag-drop-item').forEach((row, idx) => {
+                    items.push({ text: row.querySelector('.drag-drop-text')?.value.trim() || '', order: idx + 1 });
+                });
+                sets.push({
+                    title: set.querySelector('.sorting-title')?.value.trim() || 'Sorting Question ' + (setIndex + 1),
+                    items,
+                    points: parseInt(set.querySelector('.sorting-points')?.value || '1'),
+                });
             });
-            data = { items, points: parseInt(document.getElementById('dragDropPoints')?.value || '1') };
+            data = { sets, items: sets[0]?.items || [], points: sets[0]?.points || 1 };
             break;
         }
         case 'image_label': {
             data = {
+                labels:  imageLabelMarkers,
                 markers: imageLabelMarkers,
                 points:  parseInt(document.getElementById('imageLabelPoints')?.value || '1'),
             };
             break;
         }
         case 'flashcards': {
-            const cards = [];
-            document.querySelectorAll('.flashcard-row').forEach(row => {
-                cards.push({
-                    front: row.querySelector('.flashcard-front')?.value.trim() || '',
-                    back:  row.querySelector('.flashcard-back')?.value.trim()  || '',
+            const sets = [];
+            document.querySelectorAll('.flashcard-set').forEach((set, index) => {
+                const cards = [];
+                set.querySelectorAll('.flashcard-row').forEach(row => {
+                    cards.push({
+                        front: row.querySelector('.flashcard-front')?.value.trim() || '',
+                        back:  row.querySelector('.flashcard-back')?.value.trim()  || '',
+                    });
+                });
+                sets.push({
+                    title: set.querySelector('.flashcard-set-title')?.value.trim() || 'Flashcard Set ' + (index + 1),
+                    cards,
                 });
             });
-            data = { cards };
+            data = { sets, cards: sets[0]?.cards || [] };
             break;
         }
         case 'sequencing': {
-            const steps = [];
-            document.querySelectorAll('.sequencing-step').forEach((row, idx) => {
-                steps.push({ text: row.querySelector('.sequencing-text')?.value.trim() || '', order: idx + 1 });
+            const sets = [];
+            document.querySelectorAll('.sequence-question').forEach((set, setIndex) => {
+                const steps = [];
+                set.querySelectorAll('.sequencing-step').forEach((row, idx) => {
+                    steps.push({ text: row.querySelector('.sequencing-text')?.value.trim() || '', order: idx + 1 });
+                });
+                sets.push({
+                    title: set.querySelector('.sequence-title')?.value.trim() || 'Sequence Question ' + (setIndex + 1),
+                    steps,
+                    points: parseInt(set.querySelector('.sequence-points')?.value || '1'),
+                });
             });
-            data = { steps, points: parseInt(document.getElementById('sequencingPoints')?.value || '1') };
+            data = { sets, steps: sets[0]?.steps || [], points: sets[0]?.points || 1 };
             break;
         }
     }
     return data;
+}
+
+function validateActivityData(type, data) {
+    if (type === 'multiple_choice') {
+        const questions = (data.questions || []).filter(q => (q.text || '').trim() !== '');
+        if (!questions.length) return 'Add at least one multiple-choice question.';
+        for (const [idx, q] of questions.entries()) {
+            const options = (q.options || []).filter(o => (o.text || '').trim() !== '');
+            if (options.length < 2) return 'Question ' + (idx + 1) + ' needs at least two options.';
+            if (!options.some(o => !!o.isCorrect)) return 'Question ' + (idx + 1) + ' needs one correct answer.';
+        }
+    }
+    if (type === 'true_false') {
+        const questions = (data.questions || []).filter(q => (q.statement || '').trim() !== '');
+        if (!questions.length) return 'Add at least one true/false statement.';
+    }
+    if (type === 'fill_in_blanks') {
+        const sentences = (data.sentences || []).filter(s => (s.text || '').trim() !== '');
+        if (!sentences.length) return 'Add at least one fill-in-the-blank question.';
+        for (const [idx, s] of sentences.entries()) {
+            const blankCount = ((s.text || '').match(/___/g) || []).length;
+            const answers = (s.answers || []).filter(a => (a || '').trim() !== '');
+            if (!blankCount) return 'Blank question ' + (idx + 1) + ' needs at least one ___.';
+            if (answers.length < blankCount) return 'Blank question ' + (idx + 1) + ' needs an answer for every blank.';
+        }
+    }
+    if (type === 'matching') {
+        const sets = data.sets || [{pairs: data.pairs || []}];
+        if (!sets.length) return 'Add at least one matching set.';
+        for (const [idx, set] of sets.entries()) {
+            const pairs = (set.pairs || []).filter(p => (p.left || '').trim() !== '' && (p.right || '').trim() !== '');
+            if (pairs.length < 1) return 'Matching set ' + (idx + 1) + ' needs at least one complete pair.';
+        }
+    }
+    if (type === 'drag_drop_sort') {
+        const sets = data.sets || [{items: data.items || []}];
+        if (!sets.length) return 'Add at least one sorting question.';
+        for (const [idx, set] of sets.entries()) {
+            const items = (set.items || []).filter(i => (i.text || '').trim() !== '');
+            if (items.length < 2) return 'Sorting question ' + (idx + 1) + ' needs at least two items.';
+        }
+    }
+    if (type === 'sequencing') {
+        const sets = data.sets || [{steps: data.steps || []}];
+        if (!sets.length) return 'Add at least one sequence question.';
+        for (const [idx, set] of sets.entries()) {
+            const steps = (set.steps || []).filter(s => (s.text || '').trim() !== '');
+            if (steps.length < 2) return 'Sequence question ' + (idx + 1) + ' needs at least two steps.';
+        }
+    }
+    if (type === 'flashcards') {
+        const sets = data.sets || [{cards: data.cards || []}];
+        if (!sets.length) return 'Add at least one flashcard set.';
+        for (const [idx, set] of sets.entries()) {
+            const cards = (set.cards || []).filter(c => (c.front || '').trim() !== '' && (c.back || '').trim() !== '');
+            if (cards.length < 1) return 'Flashcard set ' + (idx + 1) + ' needs at least one complete card.';
+        }
+    }
+    if (type === 'image_label') {
+        const labels = (data.labels || []).filter(l => (l.answer || '').trim() !== '');
+        if (labels.length < 1) return 'Add at least one image label marker and answer.';
+    }
+    return '';
 }
 
 /* ----------------------------------------------------------------
@@ -2257,6 +2528,11 @@ async function saveActivity() {
     }
 
     const activityData = collectActivityData();
+    const validationMessage = validateActivityData(selectedActivityType, activityData);
+    if (validationMessage) {
+        Swal.fire({ icon: 'warning', title: 'Check activity details', text: validationMessage, confirmButtonColor: '#a01422' });
+        return;
+    }
 
     showLoading('Saving activity…');
     try {
