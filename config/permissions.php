@@ -93,6 +93,8 @@ return [
 
     'master_teacher' => [
         'dashboard.master',
+        'iep.view',
+        'iep.implement',
         'observation.conduct',
         'cot.submit',
         'cot.create',

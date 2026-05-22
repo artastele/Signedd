@@ -56,7 +56,7 @@ Runtime table creation is handled by `TransitionWorkflowModel::ensureTables()` f
 ## Demo Flow
 
 1. Open an existing signed IEP.
-2. Open `Transition workflow` from the IEP repository or IEP implementation workspace.
+2. Open `Transition Workflow` from the IEP repository row action or the IEP implementation workspace header.
 3. Save/finalize a Progress Report Card using existing activity submission evidence.
 4. Save/finalize COT and select the exact observed teacher.
 5. Review Transition Readiness; the page shows a suggested result from learner submission evidence.
@@ -64,6 +64,31 @@ Runtime table creation is handled by `TransitionWorkflowModel::ensureTables()` f
 7. Generate Inclusive IEP + ITGP from existing IEP plus readiness/ITP.
 8. Generate Placement Notice and select the exact receiving teacher account.
 9. Set placement status to `Notice Sent` to send notification to that selected account only.
+
+## Where To Access
+
+- SPED Teacher dashboard: `Transition Workflow` card -> `Go to IEP Records`.
+- SPED Teacher sidebar: IEP Procedure -> `Transition Workflow`.
+- Master Teacher dashboard: `Transition Workflow` card -> `Go to IEP Records`.
+- Master Teacher sidebar: `IEP Records` and `Transition Workflow`.
+- Parent dashboard: `View IEP / Transition Updates`.
+- IEP Repository: each IEP row has a `Transition` button.
+- IEP Implementation Workspace: header has a `Transition workflow` button.
+
+## Button Visibility
+
+- SPED Teacher: can open workflow, create/edit Progress Report, Transition Readiness, ITP, Inclusive IEP + ITGP.
+- Master Teacher: can open workflow, create/edit COT, ITP, Inclusive IEP + ITGP, Placement Notice.
+- Parent: can open workflow from their child IEP and view sections without save buttons.
+- Admin: can access all workflow sections.
+
+## Navigation Test Notes
+
+- Route existence verified in `routes/web.php`.
+- Controller methods verified in `TransitionWorkflowController`.
+- View verified in `app/Views/transition/workflow.php`.
+- Protected route probe returns login redirect when unauthenticated, which is expected.
+- Full browser click-through still requires authenticated role sessions.
 
 ## Known Limitations
 

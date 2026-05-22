@@ -134,12 +134,10 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                                    class="btn btn-sm btn-outline-secondary">
                                     <i class="bi bi-printer me-1"></i>Print
                                 </a>
-                                <?php if (in_array($iep['status'], ['signing','signed','locked'], true)): ?>
                                 <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/transition-workflow"
                                    class="btn btn-sm btn-outline-secondary">
                                     <i class="bi bi-diagram-3 me-1"></i>Transition
                                 </a>
-                                <?php endif; ?>
                                 <?php if ($iep['status'] === 'draft' && in_array($role, ['sped_teacher','admin'])): ?>
                                 <form method="POST" action="<?php echo $basePath; ?>/iep/draft/<?php echo (int)$iep['id']; ?>/delete" class="d-inline"
                                       onsubmit="return confirm('Delete this draft permanently? This cannot be undone.');">

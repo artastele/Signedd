@@ -32,7 +32,7 @@ class IEPController {
         $role     = $this->userRole;
         $basePath = BASE_PATH;
 
-        if (!in_array($role, ['sped_teacher','guidance','principal','parent','admin'])) {
+        if (!in_array($role, ['sped_teacher','guidance','principal','parent','master_teacher','admin'])) {
             $_SESSION['error'] = 'Access denied.';
             header('Location: ' . BASE_PATH . '/dashboard');
             exit;

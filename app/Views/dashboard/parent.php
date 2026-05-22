@@ -310,6 +310,11 @@ require_once __DIR__ . '/../layouts/header.php';
                 <i class="bi bi-list-check"></i> View All Enrollments
             </a>
         </div>
+        <div class="col-md-6 mb-3">
+            <a href="<?php echo BASE_PATH; ?>/iep" class="btn btn-outline-secondary w-100">
+                <i class="bi bi-diagram-3"></i> View IEP / Transition Updates
+            </a>
+        </div>
     </div>
 </div>
 

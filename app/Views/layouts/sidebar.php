@@ -13,7 +13,7 @@ function isActive($path) {
 // Check if any IEP Procedure link is active
 function isIEPProcedureActive() {
     global $currentPath, $basePath;
-    $iepPaths = ['/assessment/conduct', '/iep/meetings', '/iep/p2/', '/iep/p3/', '/iep/documents'];
+    $iepPaths = ['/assessment/conduct', '/iep/meetings', '/iep/p2/', '/iep/p3/', '/iep/documents', '/iep/'];
     foreach ($iepPaths as $path) {
         if (strpos($currentPath, $basePath . $path) === 0) {
             return true;
@@ -142,6 +142,10 @@ function isEnrollmentAvailabilityMenuActive() {
                         <i class="bi bi-3-circle"></i>
                         <span>Part 3: Generate IEP</span>
                     </a>
+                    <a href="<?php echo $basePath; ?>/iep" class="sidebar-submenu-item <?php echo isActive('/iep') && strpos($currentPath, '/transition-workflow') !== false ? 'active' : ''; ?>">
+                        <i class="bi bi-diagram-3"></i>
+                        <span>Transition Workflow</span>
+                    </a>
                 </div>
             </div>
 
@@ -187,6 +191,14 @@ function isEnrollmentAvailabilityMenuActive() {
             </a>
 
         <?php elseif ($role === 'master_teacher'): ?>
+            <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/implementation') ? 'active' : ''; ?>">
+                <i class="bi bi-file-earmark-medical"></i>
+                <span>IEP Records</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/iep/implementation" class="<?php echo isActive('/iep/implementation'); ?>">
+                <i class="bi bi-diagram-3"></i>
+                <span>Transition Workflow</span>
+            </a>
 
         <?php elseif ($role === 'admin'): ?>
             <a href="<?php echo $basePath; ?>/admin/manage-users" class="<?php echo isActive('/admin/manage-users'); ?>">

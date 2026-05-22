@@ -31,6 +31,12 @@ $json = static function ($value): array {
 
 $progressRatings = $json($progress['ratings'] ?? null);
 $cotRatings = $json($cot['ratings'] ?? null);
+$canEditProgress = in_array($role, ['sped_teacher','master_teacher','admin'], true);
+$canEditCot = in_array($role, ['master_teacher','admin'], true);
+$canEditReadiness = in_array($role, ['sped_teacher','master_teacher','admin'], true);
+$canEditItp = in_array($role, ['sped_teacher','master_teacher','admin'], true);
+$canEditInclusive = in_array($role, ['sped_teacher','master_teacher','admin'], true);
+$canEditPlacement = in_array($role, ['master_teacher','admin'], true);
 ?>
 <body data-logged-in="true">
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
@@ -39,9 +45,14 @@ $cotRatings = $json($cot['ratings'] ?? null);
 <div class="main-content">
 <div class="container-fluid py-3">
     <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/workspace/<?php echo $iepId; ?>" class="btn btn-sm" style="background:#1e4072;color:#fff;">
-            <i class="ti ti-arrow-left me-1"></i>Back to IEP Workspace
+        <a href="<?php echo htmlspecialchars($basePath); ?>/iep" class="btn btn-sm" style="background:#1e4072;color:#fff;">
+            <i class="ti ti-arrow-left me-1"></i>Back to IEP Records
         </a>
+        <?php if (in_array($role, ['sped_teacher','master_teacher','admin'], true)): ?>
+        <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/workspace/<?php echo $iepId; ?>" class="btn btn-sm btn-outline-secondary">
+            <i class="ti ti-folder me-1"></i>IEP Workspace
+        </a>
+        <?php endif; ?>
         <div class="flex-grow-1">
             <h4 class="mb-0 fw-bold" style="color:#1e4072;">Unified Transition Workflow</h4>
             <div class="text-muted small">
@@ -60,14 +71,14 @@ $cotRatings = $json($cot['ratings'] ?? null);
     <div class="row g-3 mb-4">
         <?php
         $steps = [
-            ['Progress Report', $progress, 'progress-report'],
-            ['COT Observation', $cot, 'cot-observation'],
-            ['Readiness', $readiness, 'transition-readiness'],
-            ['ITP', $itp, 'individual-transition-plan'],
-            ['Inclusive IEP + ITGP', $inclusive, 'inclusive-iep-itgp'],
-            ['Placement Notice', $placement, 'placement-notice'],
+            ['Progress Report', $progress, 'progress-report', $canEditProgress ? ($progress ? 'Edit / View / Print' : 'Create / View / Print') : 'View / Print'],
+            ['COT Observation', $cot, 'cot-observation', $canEditCot ? ($cot ? 'Edit / View / Print' : 'Create / View / Print') : 'View / Print'],
+            ['Readiness', $readiness, 'transition-readiness', $canEditReadiness ? ($readiness ? 'Edit / View' : 'Evaluate') : 'View'],
+            ['ITP', $itp, 'individual-transition-plan', $canEditItp ? ($itp ? 'Edit / View / Print' : 'Create ITP') : 'View / Print'],
+            ['Inclusive IEP + ITGP', $inclusive, 'inclusive-iep-itgp', $canEditInclusive ? ($inclusive ? 'Sign / View / Print' : 'Generate') : 'View / Print'],
+            ['Placement Notice', $placement, 'placement-notice', $canEditPlacement ? ($placement ? 'Send Notice / View / Print' : 'Generate') : 'View / Print'],
         ];
-        foreach ($steps as [$label, $row, $anchor]):
+        foreach ($steps as [$label, $row, $anchor, $actionLabel]):
         ?>
         <div class="col-md-4 col-xl-2">
             <a href="#<?php echo $anchor; ?>" class="text-decoration-none">
@@ -75,6 +86,9 @@ $cotRatings = $json($cot['ratings'] ?? null);
                     <div class="card-body p-3">
                         <div class="fw-semibold small mb-2" style="color:#1e4072;"><?php echo htmlspecialchars($label); ?></div>
                         <?php echo $statusBadge($row); ?>
+                        <div class="mt-3 btn btn-sm w-100" style="background:#e8edf5;color:#1e4072;border:1px solid #c9d6e8;">
+                            <?php echo htmlspecialchars($actionLabel); ?>
+                        </div>
                     </div>
                 </div>
             </a>
@@ -110,8 +124,12 @@ $cotRatings = $json($cot['ratings'] ?? null);
     </div>
 
     <section class="card mb-4" id="progress-report">
-        <div class="card-header text-white" style="background:#1e4072;">Progress Report Card <?php echo $statusBadge($progress); ?></div>
+        <div class="card-header text-white d-flex justify-content-between align-items-center flex-wrap gap-2" style="background:#1e4072;">
+            <span>Progress Report Card <?php echo $statusBadge($progress); ?></span>
+            <button type="button" class="btn btn-sm btn-light" onclick="window.print()">Print</button>
+        </div>
         <div class="card-body">
+            <?php if (!$canEditProgress): ?><div class="alert alert-secondary py-2 small">View-only access for this role.</div><?php endif; ?>
             <form method="POST" action="<?php echo $basePath; ?>/iep/<?php echo $iepId; ?>/progress-report" class="row g-3">
                 <div class="col-md-3"><label class="form-label small">School Year</label><input name="school_year" class="form-control" value="<?php echo htmlspecialchars($progress['school_year'] ?? $ctx['school_year'] ?? ''); ?>"></div>
                 <div class="col-md-3"><label class="form-label small">Quarter</label><input name="quarter" class="form-control" value="<?php echo htmlspecialchars($progress['quarter'] ?? ''); ?>"></div>
@@ -122,14 +140,20 @@ $cotRatings = $json($cot['ratings'] ?? null);
                 <div class="col-md-6"><label class="form-label small">Progress summary</label><textarea name="progress_summary" class="form-control" rows="3"><?php echo htmlspecialchars($progress['progress_summary'] ?? 'Submissions: ' . (int)($progressSummary['submissions'] ?? 0)); ?></textarea></div>
                 <div class="col-12"><label class="form-label small">Teacher remarks</label><textarea name="teacher_remarks" class="form-control" rows="3"><?php echo htmlspecialchars($progress['teacher_remarks'] ?? ''); ?></textarea></div>
                 <div class="col-md-3"><select name="status" class="form-select"><option value="draft">Draft</option><option value="finalized" <?php echo (($progress['status'] ?? '') === 'finalized') ? 'selected' : ''; ?>>Finalized</option></select></div>
-                <div class="col-12"><button class="btn" style="background:#1e4072;color:#fff;">Save Progress Report</button></div>
+                <div class="col-12">
+                    <?php if ($canEditProgress): ?><button class="btn" style="background:#1e4072;color:#fff;">Save Progress Report</button><?php endif; ?>
+                </div>
             </form>
         </div>
     </section>
 
     <section class="card mb-4" id="cot-observation">
-        <div class="card-header text-white" style="background:#1e4072;">COT Observation <?php echo $statusBadge($cot); ?></div>
+        <div class="card-header text-white d-flex justify-content-between align-items-center flex-wrap gap-2" style="background:#1e4072;">
+            <span>COT Observation <?php echo $statusBadge($cot); ?></span>
+            <button type="button" class="btn btn-sm btn-light" onclick="window.print()">Print</button>
+        </div>
         <div class="card-body">
+            <?php if (!$canEditCot): ?><div class="alert alert-secondary py-2 small">View-only access for this role.</div><?php endif; ?>
             <form method="POST" action="<?php echo $basePath; ?>/iep/<?php echo $iepId; ?>/cot-observation" class="row g-3">
                 <div class="col-md-4">
                     <label class="form-label small">Observed teacher</label>
@@ -150,14 +174,20 @@ $cotRatings = $json($cot['ratings'] ?? null);
                 <div class="col-md-6"><label class="form-label small">Strengths</label><textarea name="strengths" class="form-control" rows="3"><?php echo htmlspecialchars($cot['strengths'] ?? ''); ?></textarea></div>
                 <div class="col-md-6"><label class="form-label small">Recommendations</label><textarea name="recommendations" class="form-control" rows="3"><?php echo htmlspecialchars($cot['recommendations'] ?? ''); ?></textarea></div>
                 <div class="col-md-3"><select name="status" class="form-select"><option value="draft">Draft</option><option value="finalized" <?php echo (($cot['status'] ?? '') === 'finalized') ? 'selected' : ''; ?>>Finalized + Notify Teacher</option></select></div>
-                <div class="col-12"><button class="btn" style="background:#1e4072;color:#fff;">Save COT</button></div>
+                <div class="col-12">
+                    <?php if ($canEditCot): ?><button class="btn" style="background:#1e4072;color:#fff;">Save COT</button><?php endif; ?>
+                </div>
             </form>
         </div>
     </section>
 
     <section class="card mb-4" id="transition-readiness">
-        <div class="card-header text-white" style="background:#1e4072;">Transition Readiness <?php echo $statusBadge($readiness); ?></div>
+        <div class="card-header text-white d-flex justify-content-between align-items-center flex-wrap gap-2" style="background:#1e4072;">
+            <span>Transition Readiness <?php echo $statusBadge($readiness); ?></span>
+            <a href="<?php echo $basePath; ?>/iep/<?php echo $iepId; ?>/transition-readiness" class="btn btn-sm btn-light">Open</a>
+        </div>
         <div class="card-body">
+            <?php if (!$canEditReadiness): ?><div class="alert alert-secondary py-2 small">View-only access for this role.</div><?php endif; ?>
             <form method="POST" action="<?php echo $basePath; ?>/iep/<?php echo $iepId; ?>/transition-readiness" class="row g-3">
                 <div class="col-md-4">
                     <label class="form-label small">Readiness result</label>
@@ -170,30 +200,42 @@ $cotRatings = $json($cot['ratings'] ?? null);
                 <div class="col-md-8"><label class="form-label small">Evidence summary</label><textarea name="evidence_summary" class="form-control" rows="3"><?php echo htmlspecialchars($readiness['evidence_summary'] ?? 'Learner submissions: ' . (int)($progressSummary['submissions'] ?? 0)); ?></textarea></div>
                 <div class="col-12"><label class="form-label small">Teacher recommendation</label><textarea name="teacher_recommendation" class="form-control" rows="3"><?php echo htmlspecialchars($readiness['teacher_recommendation'] ?? ''); ?></textarea></div>
                 <div class="col-md-3"><select name="status" class="form-select"><option value="draft">Draft</option><option value="finalized" <?php echo (($readiness['status'] ?? '') === 'finalized') ? 'selected' : ''; ?>>Finalized</option></select></div>
-                <div class="col-12"><button class="btn" style="background:#1e4072;color:#fff;">Save Readiness</button></div>
+                <div class="col-12">
+                    <?php if ($canEditReadiness): ?><button class="btn" style="background:#1e4072;color:#fff;">Save Readiness</button><?php endif; ?>
+                </div>
             </form>
         </div>
     </section>
 
     <section class="card mb-4" id="individual-transition-plan">
-        <div class="card-header text-white" style="background:#1e4072;">Individual Transition Plan <?php echo $statusBadge($itp); ?></div>
+        <div class="card-header text-white d-flex justify-content-between align-items-center flex-wrap gap-2" style="background:#1e4072;">
+            <span>Individual Transition Plan <?php echo $statusBadge($itp); ?></span>
+            <button type="button" class="btn btn-sm btn-light" onclick="window.print()">Print</button>
+        </div>
         <div class="card-body">
             <?php if (!$readiness): ?><div class="alert alert-warning py-2">Create transition readiness before ITP.</div><?php endif; ?>
+            <?php if (!$canEditItp): ?><div class="alert alert-secondary py-2 small">View-only access for this role.</div><?php endif; ?>
             <form method="POST" action="<?php echo $basePath; ?>/iep/<?php echo $iepId; ?>/individual-transition-plan" class="row g-3">
                 <div class="col-md-4"><label class="form-label small">Entry point</label><input name="entry_point" class="form-control" value="<?php echo htmlspecialchars($itp['entry_point'] ?? ($readiness['readiness_result'] ?? '')); ?>"></div>
                 <div class="col-md-8"><label class="form-label small">Transition services</label><textarea name="transition_services" class="form-control" rows="3"><?php echo htmlspecialchars($itp['transition_services'] ?? ''); ?></textarea></div>
                 <div class="col-md-6"><label class="form-label small">Support needed</label><textarea name="support_needed" class="form-control" rows="3"><?php echo htmlspecialchars($itp['support_needed'] ?? ''); ?></textarea></div>
                 <div class="col-md-6"><label class="form-label small">Team responsibilities</label><textarea name="team_responsibilities" class="form-control" rows="3"><?php echo htmlspecialchars($itp['team_responsibilities'] ?? ''); ?></textarea></div>
                 <div class="col-md-3"><select name="status" class="form-select"><option value="draft">Draft</option><option value="completed" <?php echo (($itp['status'] ?? '') === 'completed') ? 'selected' : ''; ?>>Completed</option></select></div>
-                <div class="col-12"><button class="btn" style="background:#1e4072;color:#fff;" <?php echo !$readiness ? 'disabled' : ''; ?>>Save ITP</button></div>
+                <div class="col-12">
+                    <?php if ($canEditItp): ?><button class="btn" style="background:#1e4072;color:#fff;" <?php echo !$readiness ? 'disabled' : ''; ?>>Save ITP</button><?php endif; ?>
+                </div>
             </form>
         </div>
     </section>
 
     <section class="card mb-4" id="inclusive-iep-itgp">
-        <div class="card-header text-white" style="background:#1e4072;">Inclusive IEP + ITGP <?php echo $statusBadge($inclusive); ?></div>
+        <div class="card-header text-white d-flex justify-content-between align-items-center flex-wrap gap-2" style="background:#1e4072;">
+            <span>Inclusive IEP + ITGP <?php echo $statusBadge($inclusive); ?></span>
+            <button type="button" class="btn btn-sm btn-light" onclick="window.print()">Print</button>
+        </div>
         <div class="card-body">
             <?php if (!$readiness || !$itp): ?><div class="alert alert-warning py-2">Transition readiness and ITP are required first.</div><?php endif; ?>
+            <?php if (!$canEditInclusive): ?><div class="alert alert-secondary py-2 small">View-only access for this role.</div><?php endif; ?>
             <form method="POST" action="<?php echo $basePath; ?>/iep/<?php echo $iepId; ?>/inclusive-iep-itgp" class="row g-3">
                 <div class="col-md-6"><label class="form-label small">Generated Inclusive IEP summary</label><textarea name="generated_summary" class="form-control" rows="3"><?php echo htmlspecialchars($inclusive['generated_summary'] ?? 'Generated from existing IEP #' . $iepId . ' plus transition details.'); ?></textarea></div>
                 <div class="col-md-3"><label class="form-label small">Disability/exceptionality</label><input name="disability" class="form-control" value="<?php echo htmlspecialchars($itgp['disability'] ?? ''); ?>"></div>
@@ -207,15 +249,21 @@ $cotRatings = $json($cot['ratings'] ?? null);
                 <div class="col-md-4"><label class="form-label small">Remarks</label><input name="itgp_remarks" class="form-control"></div>
                 <div class="col-md-4"><label class="form-label small">Recommendations</label><input name="itgp_recommendations" class="form-control" value="<?php echo htmlspecialchars($itgp['recommendations'] ?? ''); ?>"></div>
                 <div class="col-md-3"><select name="status" class="form-select"><option value="draft">Draft</option><option value="for_signature">For Signature</option><option value="signed" <?php echo (($inclusive['status'] ?? '') === 'signed') ? 'selected' : ''; ?>>Signed</option></select></div>
-                <div class="col-12"><button class="btn" style="background:#1e4072;color:#fff;" <?php echo (!$readiness || !$itp) ? 'disabled' : ''; ?>>Save Inclusive IEP + ITGP</button></div>
+                <div class="col-12">
+                    <?php if ($canEditInclusive): ?><button class="btn" style="background:#1e4072;color:#fff;" <?php echo (!$readiness || !$itp) ? 'disabled' : ''; ?>>Save Inclusive IEP + ITGP</button><?php endif; ?>
+                </div>
             </form>
         </div>
     </section>
 
     <section class="card mb-4" id="placement-notice">
-        <div class="card-header text-white" style="background:#1e4072;">Regular Class Placement / Transfer Notice <?php echo $statusBadge($placement); ?></div>
+        <div class="card-header text-white d-flex justify-content-between align-items-center flex-wrap gap-2" style="background:#1e4072;">
+            <span>Regular Class Placement / Transfer Notice <?php echo $statusBadge($placement); ?></span>
+            <button type="button" class="btn btn-sm btn-light" onclick="window.print()">Print</button>
+        </div>
         <div class="card-body">
             <?php if (!$inclusive || !$itgp): ?><div class="alert alert-warning py-2">Inclusive IEP and ITGP are required first.</div><?php endif; ?>
+            <?php if (!$canEditPlacement): ?><div class="alert alert-secondary py-2 small">View-only access for this role.</div><?php endif; ?>
             <form method="POST" action="<?php echo $basePath; ?>/iep/<?php echo $iepId; ?>/placement-notice" class="row g-3">
                 <div class="col-md-4">
                     <label class="form-label small">Receiving teacher account</label>
@@ -234,7 +282,9 @@ $cotRatings = $json($cot['ratings'] ?? null);
                 <div class="col-12"><label class="form-label small">Support needed</label><textarea name="support_needed" class="form-control" rows="3"><?php echo htmlspecialchars($placement['support_needed'] ?? $itp['support_needed'] ?? ''); ?></textarea></div>
                 <div class="col-md-3"><label class="form-label small">Placement status</label><select name="placement_status" class="form-select"><?php foreach (['Draft','For Approval','Approved','Notice Sent','Placed'] as $st): ?><option value="<?php echo $st; ?>" <?php echo (($placement['placement_status'] ?? '') === $st) ? 'selected' : ''; ?>><?php echo $st; ?></option><?php endforeach; ?></select></div>
                 <div class="col-md-3"><label class="form-label small">Approval status</label><select name="approval_status" class="form-select"><option value="draft">Draft</option><option value="for_approval">For approval</option><option value="approved" <?php echo (($placement['approval_status'] ?? '') === 'approved') ? 'selected' : ''; ?>>Approved</option></select></div>
-                <div class="col-12"><button class="btn" style="background:#1e4072;color:#fff;" <?php echo (!$inclusive || !$itgp) ? 'disabled' : ''; ?>>Save Placement Notice</button></div>
+                <div class="col-12">
+                    <?php if ($canEditPlacement): ?><button class="btn" style="background:#1e4072;color:#fff;" <?php echo (!$inclusive || !$itgp) ? 'disabled' : ''; ?>>Save Placement Notice</button><?php endif; ?>
+                </div>
             </form>
         </div>
     </section>
