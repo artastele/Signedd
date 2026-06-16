@@ -203,7 +203,7 @@ class TransitionWorkflowModel {
         $stmt = $this->db->prepare("
             SELECT ir.*, sr.student_name, sr.lrn, sr.enrollment_id,
                    es.parent_id, es.grade_level_to_enroll, es.school_year,
-                   es.guardian_name, es.relationship_to_learner,
+                   CONCAT_WS(' ', es.guardian_first_name, es.guardian_middle_name, es.guardian_last_name) AS guardian_name,
                    pd.status AS pdsp_status,
                    u.name AS drafted_by_name
             FROM iep_records ir
@@ -229,6 +229,60 @@ class TransitionWorkflowModel {
             'itgp' => $this->latestItgp($iepId),
             'placement' => $this->latestPlacement($iepId),
         ];
+    }
+
+    public function getProgressReportOverview(string $role, int $userId): array {
+        if ($role === 'parent') {
+            $stmt = $this->db->prepare(
+                "SELECT ir.id AS iep_id, sr.id AS student_id, sr.student_name, sr.lrn,
+                        pr.id AS progress_report_id, pr.school_year, pr.quarter, pr.status, pr.updated_at
+                 FROM iep_records ir
+                 JOIN student_records sr ON sr.id = ir.student_id
+                 JOIN enrollment_submissions es ON es.id = sr.enrollment_id
+                 LEFT JOIN progress_reports pr ON pr.iep_record_id = ir.id
+                 WHERE es.parent_id = :parent_id
+                 ORDER BY ir.created_at DESC"
+            );
+            $stmt->execute(['parent_id' => $userId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        $stmt = $this->db->prepare(
+            "SELECT ir.id AS iep_id, sr.id AS student_id, sr.student_name, sr.lrn,
+                    pr.id AS progress_report_id, pr.school_year, pr.quarter, pr.status, pr.updated_at
+             FROM iep_records ir
+             JOIN student_records sr ON sr.id = ir.student_id
+             LEFT JOIN progress_reports pr ON pr.iep_record_id = ir.id
+             ORDER BY ir.created_at DESC"
+        );
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getProgressReportById(int $id): ?array {
+        $stmt = $this->db->prepare(
+            "SELECT pr.*, sr.student_name, sr.lrn, ir.id AS iep_id
+             FROM progress_reports pr
+             JOIN student_records sr ON sr.id = pr.student_id
+             JOIN iep_records ir ON ir.id = pr.iep_record_id
+             WHERE pr.id = :id
+             LIMIT 1"
+        );
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    public function getLatestProgressReportByIepId(int $iepId): ?array {
+        return $this->latest('progress_reports', 'iep_record_id', $iepId);
+    }
+
+    public function finalizeProgressReport(int $id): bool {
+        $stmt = $this->db->prepare(
+            "UPDATE progress_reports SET status = 'finalized', updated_at = NOW() WHERE id = :id"
+        );
+        $stmt->execute(['id' => $id]);
+        return $stmt->rowCount() > 0;
     }
 
     private function latest(string $table, string $column, int $id): ?array {
@@ -295,6 +349,32 @@ class TransitionWorkflowModel {
             'submissions' => $subStmt->fetchAll(PDO::FETCH_ASSOC),
             'iep_steps' => $goalStmt->fetchAll(PDO::FETCH_ASSOC),
             'progress_summary' => $progressStmt->fetch(PDO::FETCH_ASSOC) ?: ['submissions' => 0, 'avg_score' => null],
+        ];
+    }
+
+    public function getProgressSnapshot(int $studentId): array {
+        $stmt = $this->db->prepare("
+            SELECT
+                COUNT(*) AS submissions,
+                COUNT(DISTINCT activity_id) AS activities_attempted,
+                COALESCE(AVG(auto_score), 0) AS avg_auto_score,
+                SUM(CASE WHEN auto_score IS NOT NULL THEN 1 ELSE 0 END) AS completed_submissions
+            FROM lms_submissions
+            WHERE student_id = :sid
+        ");
+        $stmt->execute(['sid' => $studentId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $submissions = (int)($row['submissions'] ?? 0);
+        $completed = (int)($row['completed_submissions'] ?? 0);
+        $completionRate = $submissions > 0 ? round(($completed / $submissions) * 100, 1) : 0.0;
+
+        return [
+            'submissions' => $submissions,
+            'activities_attempted' => (int)($row['activities_attempted'] ?? 0),
+            'avg_auto_score' => (float)($row['avg_auto_score'] ?? 0),
+            'completed_submissions' => $completed,
+            'completion_rate' => $completionRate,
         ];
     }
 

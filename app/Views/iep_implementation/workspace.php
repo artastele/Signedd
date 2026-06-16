@@ -35,10 +35,6 @@ require_once __DIR__ . '/../layouts/header.php';
            class="btn btn-sm btn-outline-secondary flex-shrink-0">
             <i class="ti ti-bar-chart-line me-1"></i>Progress tracker
         </a>
-        <a href="<?php echo htmlspecialchars($basePath); ?>/iep/<?php echo (int)$iepId; ?>/transition-workflow"
-           class="btn btn-sm btn-outline-secondary flex-shrink-0">
-            <i class="ti ti-route me-1"></i>Transition workflow
-        </a>
         <div class="flex-grow-1 min-width-0">
             <h4 class="mb-0 fw-bold" style="color:#1e4072;">
                 IEP Implementation &mdash; <?php echo htmlspecialchars($iep['student_name']); ?>

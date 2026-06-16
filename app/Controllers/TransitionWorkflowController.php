@@ -27,42 +27,71 @@ class TransitionWorkflowController {
     }
 
     public function workflow(string $iepId): void {
-        $this->show((int)$iepId, 'overview');
+        $this->redirect((int)$iepId, '');
+    }
+
+    public function grades(string $iepId): void {
+        $this->redirect((int)$iepId, 'progress-report');
+    }
+
+    public function attendance(string $iepId): void {
+        $this->redirect((int)$iepId, 'progress-report');
+    }
+
+    public function progressReports(string $iepId): void {
+        $this->redirect((int)$iepId, 'progress-report');
+    }
+
+    public function cotObservations(string $iepId): void {
+        $this->redirect((int)$iepId, 'cot-observation');
+    }
+
+    public function readinessModule(string $iepId): void {
+        $this->redirect((int)$iepId, 'transition-readiness');
+    }
+
+    public function itpModule(string $iepId): void {
+        $this->redirect((int)$iepId, 'individual-transition-plan');
+    }
+
+    public function iegpModule(string $iepId): void {
+        $this->redirect((int)$iepId, 'inclusive-iep-itgp');
+    }
+
+    public function placementRecommendation(string $iepId): void {
+        $this->redirect((int)$iepId, 'inclusive-iep-itgp');
+    }
+
+    public function placementNotices(string $iepId): void {
+        $this->redirect((int)$iepId, 'placement-notice');
     }
 
     public function progressReport(string $iepId): void {
-        $this->show((int)$iepId, 'progress');
+        $this->redirect((int)$iepId, 'progress-report');
     }
 
     public function cot(string $iepId): void {
-        $this->show((int)$iepId, 'cot');
+        $this->redirect((int)$iepId, 'cot-observation');
     }
 
     public function readiness(string $iepId): void {
-        $this->show((int)$iepId, 'readiness');
+        $this->redirect((int)$iepId, 'transition-readiness');
     }
 
     public function itp(string $iepId): void {
-        $this->show((int)$iepId, 'itp');
+        $this->redirect((int)$iepId, 'individual-transition-plan');
     }
 
     public function inclusiveIepItgp(string $iepId): void {
-        $this->show((int)$iepId, 'inclusive');
+        $this->redirect((int)$iepId, 'inclusive-iep-itgp');
     }
 
     public function placementNotice(string $iepId): void {
-        $this->show((int)$iepId, 'placement');
+        $this->redirect((int)$iepId, 'placement-notice');
     }
 
     private function show(int $iepId, string $section): void {
-        $ctx = $this->loadContextOrRedirect($iepId);
-        $workflow = $this->model->getWorkflow($iepId);
-        $evidence = $this->model->getEvidence((int)$ctx['student_id'], $iepId);
-        $suggestedReadiness = $this->model->suggestReadiness($evidence);
-        $teachers = $this->model->getTeacherAccounts();
-        $basePath = $this->basePath;
-        $role = $this->userRole;
-        require __DIR__ . '/../Views/transition/workflow.php';
+        $this->redirect($iepId, $section);
     }
 
     public function saveProgressReport(string $iepId): void {
@@ -74,11 +103,24 @@ class TransitionWorkflowController {
             'communication' => $_POST['rating_communication'] ?? '',
             'social' => $_POST['rating_social'] ?? '',
         ];
+
+        $snapshot = $this->model->getProgressSnapshot((int)$ctx['student_id']);
+        $autoSummary = sprintf(
+            "Learner submissions: %d | Activities attempted: %d | Completed submissions: %d | Average auto score: %.1f%%",
+            (int)($snapshot['submissions'] ?? 0),
+            (int)($snapshot['activities_attempted'] ?? 0),
+            (int)($snapshot['completed_submissions'] ?? 0),
+            (float)($snapshot['avg_auto_score'] ?? 0)
+        );
+
+        $manualSummary = trim((string)($_POST['progress_summary'] ?? ''));
+        $progressSummary = $manualSummary !== '' ? $manualSummary . "\n\n" . $autoSummary : $autoSummary;
+
         $this->model->upsertProgressReport((int)$iepId, (int)$ctx['student_id'], $this->userId, [
             'school_year' => $_POST['school_year'] ?? ($ctx['school_year'] ?? ''),
             'quarter' => $_POST['quarter'] ?? '',
             'attendance_summary' => trim($_POST['attendance_summary'] ?? ''),
-            'progress_summary' => trim($_POST['progress_summary'] ?? ''),
+            'progress_summary' => $progressSummary,
             'teacher_remarks' => trim($_POST['teacher_remarks'] ?? ''),
             'ratings' => $ratings,
             'status' => $_POST['status'] ?? 'draft',
@@ -128,11 +170,23 @@ class TransitionWorkflowController {
         $ctx = $this->loadContextOrRedirect((int)$iepId);
         $this->requireRole(['sped_teacher','master_teacher','admin']);
         $workflow = $this->model->getWorkflow((int)$iepId);
+
+        if (empty($workflow['progress_report']['id'])) {
+            $_SESSION['error'] = 'Create and save a progress report before transition readiness.';
+            $this->redirect((int)$iepId, 'transition-readiness');
+        }
+
+        $status = $_POST['status'] ?? 'draft';
+        if ($status === 'finalized' && (($workflow['progress_report']['status'] ?? 'draft') !== 'finalized')) {
+            $_SESSION['error'] = 'Finalize the progress report before marking readiness as finalized.';
+            $this->redirect((int)$iepId, 'transition-readiness');
+        }
+
         $this->model->saveReadiness((int)$iepId, (int)$ctx['student_id'], $this->userId, [
             'readiness_result' => $_POST['readiness_result'] ?? 'For Re-evaluation',
             'evidence_summary' => trim($_POST['evidence_summary'] ?? ''),
             'teacher_recommendation' => trim($_POST['teacher_recommendation'] ?? ''),
-            'status' => $_POST['status'] ?? 'draft',
+            'status' => $status,
         ], !empty($workflow['progress_report']['id']) ? (int)$workflow['progress_report']['id'] : null,
            !empty($workflow['cot']['id']) ? (int)$workflow['cot']['id'] : null);
         $_SESSION['success'] = 'Transition readiness saved.';
@@ -271,7 +325,36 @@ class TransitionWorkflowController {
     }
 
     private function redirect(int $iepId, string $section = ''): void {
-        header('Location: ' . $this->basePath . '/iep/' . $iepId . '/transition-workflow' . ($section ? '#' . $section : ''));
+        $ctx = $this->model->getIepContext($iepId);
+        $studentId = $ctx['student_id'] ?? null;
+        $base = $this->basePath;
+
+        switch ($section) {
+            case 'progress-report':
+                if ($studentId) {
+                    header('Location: ' . $base . '/progress-reports/' . intval($studentId));
+                } else {
+                    header('Location: ' . $base . '/progress-reports');
+                }
+                break;
+            case 'cot':
+                header('Location: ' . $base . '/iep/' . $iepId . '/observation-management/cot-observations');
+                break;
+            case 'readiness':
+                header('Location: ' . $base . '/iep/' . $iepId . '/transition-readiness');
+                break;
+            case 'itp':
+                header('Location: ' . $base . '/iep/' . $iepId . '/individual-transition-plan');
+                break;
+            case 'inclusive':
+                header('Location: ' . $base . '/iep/' . $iepId . '/inclusive-iep-itgp');
+                break;
+            case 'placement':
+                header('Location: ' . $base . '/iep/' . $iepId . '/placement-notice');
+                break;
+            default:
+                header('Location: ' . $base . '/iep');
+        }
         exit;
     }
 }

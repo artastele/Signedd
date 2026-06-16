@@ -1383,4 +1383,82 @@ INSERT IGNORE INTO db_version (version) VALUES (46);
 INSERT IGNORE INTO db_version (version) VALUES (47);
 
 -- END MIGRATION: v47
--- (End of versioned migrations in this file — keep db_version in sync when adding v47+.)
+
+-- ============================================
+-- MIGRATION: v48 - Student Attendance Records Table
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS attendance_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    attendance_date DATE NOT NULL,
+    status ENUM('present', 'absent', 'tardy', 'excused') NOT NULL DEFAULT 'present',
+    remarks TEXT NULL,
+    created_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_student_date (student_id, attendance_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (48);
+
+-- END MIGRATION: v48
+
+-- ============================================
+-- MIGRATION: v49 - Process 8 Progress Report Card Tables
+-- ============================================
+
+-- Recreate attendance_records to support F2F (manual) and online (auto_activity) attendance
+DROP TABLE IF EXISTS attendance_records;
+CREATE TABLE attendance_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    date DATE NOT NULL,
+    status ENUM('present', 'absent') NOT NULL DEFAULT 'present',
+    source ENUM('manual', 'auto_activity') NOT NULL DEFAULT 'manual',
+    recorded_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_student_date_src (student_id, date, source)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Add document_path and finalized_at to progress_reports if not exists
+ALTER TABLE progress_reports 
+    ADD COLUMN IF NOT EXISTS document_path VARCHAR(255) NULL AFTER status,
+    ADD COLUMN IF NOT EXISTS finalized_at DATETIME NULL AFTER document_path;
+
+-- Create grade_entries to store F2F (manual) and online (auto) scores per quarter and domain
+CREATE TABLE IF NOT EXISTS grade_entries (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    quarter VARCHAR(50) NOT NULL,
+    domain VARCHAR(191) NOT NULL,
+    source ENUM('auto', 'manual') NOT NULL,
+    score DECIMAL(5, 2) NOT NULL,
+    recorded_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_student_quarter_domain_src (student_id, quarter, domain, source)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create report_remarks to store teacher/parent remarks & signatures per quarter
+CREATE TABLE IF NOT EXISTS report_remarks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    progress_report_id INT NOT NULL,
+    quarter VARCHAR(50) NOT NULL,
+    remark_type ENUM('teacher', 'parent') NOT NULL,
+    remark_text TEXT NULL,
+    signature_name VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (progress_report_id) REFERENCES progress_reports(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_report_quarter_type (progress_report_id, quarter, remark_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (49);
+
+-- END MIGRATION: v49
+-- (End of versioned migrations in this file — keep db_version in sync when adding v49+.)

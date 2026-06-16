@@ -134,9 +134,27 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                                    class="btn btn-sm btn-outline-secondary">
                                     <i class="bi bi-printer me-1"></i>Print
                                 </a>
-                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/transition-workflow"
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/learning-outcomes/grades"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-bar-chart-line me-1"></i>Grades
+                                </a>
+                                <?php if ($role === 'master_teacher'): ?>
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/observation-management/cot-observations"
                                    class="btn btn-sm btn-outline-secondary">
-                                    <i class="bi bi-diagram-3 me-1"></i>Transition
+                                    <i class="bi bi-eye me-1"></i>COT
+                                </a>
+                                <?php endif; ?>
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/transition-management/readiness"
+                                   class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-check2-circle me-1"></i>Readiness
+                                </a>
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/inclusion-planning/itp"
+                                   class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-people me-1"></i>ITP
+                                </a>
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/placement-management/notices"
+                                   class="btn btn-sm btn-outline-dark">
+                                    <i class="bi bi-envelope me-1"></i>Notices
                                 </a>
                                 <?php if ($iep['status'] === 'draft' && in_array($role, ['sped_teacher','admin'])): ?>
                                 <form method="POST" action="<?php echo $basePath; ?>/iep/draft/<?php echo (int)$iep['id']; ?>/delete" class="d-inline"

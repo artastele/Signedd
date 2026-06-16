@@ -4,6 +4,7 @@
 // Part of: SignED — Student Record Detail
 
 $pageTitle = 'Student Record - SignED';
+require_once __DIR__ . '/../../Middleware/RoleMiddleware.php';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -14,13 +15,20 @@ require_once __DIR__ . '/../layouts/header.php';
 
 <div class="main-content">
     <!-- Back Button -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <a href="<?php echo $basePath; ?>/students" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Back to Student Records
         </a>
-        <a href="<?php echo $basePath; ?>/assessment/history/<?php echo $student['id']; ?>" class="btn btn-primary">
-            <i class="bi bi-clock-history"></i> View Assessment History
-        </a>
+        <div>
+            <a href="<?php echo $basePath; ?>/assessment/history/<?php echo $student['id']; ?>" class="btn btn-primary me-2">
+                <i class="bi bi-clock-history"></i> View Assessment History
+            </a>
+            <?php if (RoleMiddleware::hasPermission('progress_report.view') || RoleMiddleware::hasPermission('progress_report.view_own_child')): ?>
+                <a href="<?php echo $basePath; ?>/progress-reports/<?php echo $student['id']; ?>" class="btn btn-outline-primary">
+                    <i class="bi bi-bar-chart-line"></i> View Grades
+                </a>
+            <?php endif; ?>
+        </div>
     </div>
 
     <h1 class="mb-4">

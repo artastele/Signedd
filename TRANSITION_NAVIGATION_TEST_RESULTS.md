@@ -16,13 +16,14 @@
 
 | Page | Button | Route | Result |
 |---|---|---|---|
-| IEP Repository | Transition | `/iep/{id}/transition-workflow` | Added |
+| IEP Repository | Open Transition Workflow | `/iep/{id}/transition-workflow` | Added and rendered |
 | IEP Implementation Workspace | Transition workflow | `/iep/{id}/transition-workflow` | Added |
-| SPED Teacher Dashboard | Transition Workflow | `/iep` | Added |
-| Master Teacher Dashboard | Transition Workflow | `/iep` | Added |
-| Parent Dashboard | View IEP / Transition Updates | `/iep` | Added |
-| Master Teacher Sidebar | IEP Records / Transition Workflow | `/iep`, `/iep/implementation` | Added |
-| SPED Teacher Sidebar | Transition Workflow | `/iep` | Added |
+| SPED Teacher Dashboard | Transition Workflow | `/iep` | Added and rendered |
+| Master Teacher Dashboard | Transition Workflow | `/iep` | Added and rendered |
+| Parent Dashboard | View IEP / Transition Updates | `/iep` | Added and rendered |
+| Master Teacher Sidebar | IEP Records | `/iep` | Added |
+| SPED Teacher Sidebar | IEP Records | `/iep` | Added |
+| Admin Sidebar | IEP Records | `/iep` | Added |
 
 ## Role Visibility
 
@@ -35,7 +36,19 @@
 
 ## Browser Test Status
 
-Authenticated browser testing was not completed in this environment because the in-app browser backend was unavailable in the earlier session. A safe unauthenticated HTTP probe confirmed `/iep/1/transition-workflow` redirects to `/login`, which is expected for protected routes.
+Authenticated HTTP rendering was tested with real sessions:
+
+| Role | Test | Result |
+|---|---|---|
+| SPED Teacher | `/dashboard` contains `Transition Workflow` and `Go to IEP Records` | Pass |
+| SPED Teacher | `/iep` contains `Open Transition Workflow` row action | Pass, 4 buttons rendered |
+| SPED Teacher | `/iep/7/transition-workflow` returns 200 and all six cards | Pass |
+| Master Teacher | `/dashboard` contains `Transition Workflow` | Pass |
+| Master Teacher | `/iep` contains `Open Transition Workflow` row action | Pass |
+| Master Teacher | `/iep/7/transition-workflow` returns 200 and Placement Notice card | Pass |
+| Parent | `/dashboard` contains `View IEP / Transition Updates` | Pass |
+| Parent | `/iep` contains `Open Transition Workflow` row action | Pass |
+| Parent | `/iep/7/transition-workflow` returns 200, cards render, save buttons hidden | Pass |
 
 ## Screenshots Needed
 
@@ -49,9 +62,9 @@ Authenticated browser testing was not completed in this environment because the 
 
 | Feature | Form Visible | Save Works | Status Updates | Notes |
 |---|---|---|---|---|
-| Progress Report | Needs authenticated test | Needs authenticated test | Needs authenticated test | SPED Teacher |
-| COT Observation | Needs authenticated test | Needs authenticated test | Needs authenticated test | Master Teacher |
-| Transition Readiness | Needs authenticated test | Needs authenticated test | Needs authenticated test | SPED/Master |
-| ITP | Needs authenticated test | Needs authenticated test | Needs authenticated test | After readiness |
-| Inclusive IEP + ITGP | Needs authenticated test | Needs authenticated test | Needs authenticated test | After readiness + ITP |
-| Placement Notice | Needs authenticated test | Needs authenticated test | Needs authenticated test | After inclusive IEP + ITGP |
+| Progress Report | Rendered | Not submitted in this pass | Needs save test | SPED Teacher |
+| COT Observation | Rendered | Not submitted in this pass | Needs save test | Master Teacher |
+| Transition Readiness | Rendered | Not submitted in this pass | Needs save test | SPED/Master |
+| ITP | Rendered | Not submitted in this pass | Needs save test | After readiness |
+| Inclusive IEP + ITGP | Rendered | Not submitted in this pass | Needs save test | After readiness + ITP |
+| Placement Notice | Rendered | Not submitted in this pass | Needs save test | After inclusive IEP + ITGP |

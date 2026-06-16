@@ -84,6 +84,19 @@ route('GET', '/api/locations/barangays/{province}/{city}', 'LocationController',
 // Services (General Information)
 route('GET', '/services', 'ServicesController', 'index');
 
+// Process 8 — Progress Report Card
+route('GET', '/progress-reports', 'ProgressReportController', 'index', 'progress_report.view');
+route('GET', '/progress-reports/{student_id}', 'ProgressReportController', 'show', 'progress_report.view');
+route('POST', '/progress-reports/{student_id}', 'ProgressReportController', 'store', 'progress_report.manage');
+route('POST', '/progress-reports/{student_id}/grades', 'ProgressReportController', 'saveGrades', 'progress_report.manage');
+route('POST', '/progress-reports/{student_id}/remarks', 'ProgressReportController', 'saveRemarks', 'progress_report.manage');
+route('POST', '/progress-reports/{id}/finalize', 'ProgressReportController', 'finalize', 'progress_report.manage');
+
+// Process 8 — Student Attendance Sheet
+route('GET', '/progress-reports/{student_id}/attendance', 'ProgressReportController', 'attendance', 'progress_report.view');
+route('POST', '/progress-reports/{student_id}/attendance', 'ProgressReportController', 'saveAttendance', 'progress_report.manage');
+route('POST', '/progress-reports/{student_id}/attendance/delete/{id}', 'ProgressReportController', 'deleteAttendance', 'progress_report.manage');
+
 // Role Selection
 route('GET', '/role/select', 'RoleController', 'showSelection', 'role.select');
 route('POST', '/role/select-parent', 'RoleController', 'selectParent', 'role.select');
@@ -247,19 +260,26 @@ route('POST', '/iep/upload-signed-doc',        'IEPController', 'upload',       
 route('GET',  '/iep/download/{id}',            'IEPController', 'downloadDocument', 'iep.view');
 
 // Unified transition workflow connected to existing IEP and implementation data
-route('GET',  '/iep/{id}/transition-workflow',              'TransitionWorkflowController', 'workflow',              'transition.view');
-route('GET',  '/iep/{id}/progress-report',                  'TransitionWorkflowController', 'progressReport',       'progress_report.view');
-route('POST', '/iep/{id}/progress-report',                  'TransitionWorkflowController', 'saveProgressReport',   'progress_report.create');
-route('GET',  '/iep/{id}/cot-observation',                  'TransitionWorkflowController', 'cot',                  'cot.view');
-route('POST', '/iep/{id}/cot-observation',                  'TransitionWorkflowController', 'saveCot',              'cot.create');
-route('GET',  '/iep/{id}/transition-readiness',             'TransitionWorkflowController', 'readiness',            'transition_readiness.create');
-route('POST', '/iep/{id}/transition-readiness',             'TransitionWorkflowController', 'saveReadiness',        'transition_readiness.create');
-route('GET',  '/iep/{id}/individual-transition-plan',       'TransitionWorkflowController', 'itp',                  'itp.view');
-route('POST', '/iep/{id}/individual-transition-plan',       'TransitionWorkflowController', 'saveItp',              'itp.create');
-route('GET',  '/iep/{id}/inclusive-iep-itgp',               'TransitionWorkflowController', 'inclusiveIepItgp',     'inclusive_iep.create');
-route('POST', '/iep/{id}/inclusive-iep-itgp',               'TransitionWorkflowController', 'saveInclusiveIepItgp', 'inclusive_iep.create');
-route('GET',  '/iep/{id}/placement-notice',                 'TransitionWorkflowController', 'placementNotice',      'placement_notice.view');
-route('POST', '/iep/{id}/placement-notice',                 'TransitionWorkflowController', 'savePlacementNotice',  'placement_notice.create');
+// Legacy unified workflow removed — use dedicated module routes below.
+// Process 7–13 module entry points (new dedicated controllers)
+route('GET',  '/iep/{id}/observation-management/cot-observations', 'ObservationController', 'index', 'observation.conduct');
+route('POST', '/iep/{id}/observation-management/cot-observations', 'ObservationController', 'save',  'cot.create');
+route('GET',  '/iep/{id}/cot-observation',                       'ObservationController', 'index', 'observation.conduct');
+route('POST', '/iep/{id}/cot-observation',                       'ObservationController', 'save',  'cot.create');
+route('GET',  '/iep/{id}/transition-management/readiness',       'TransitionReadinessController', 'index', 'transition_readiness.create');
+route('POST', '/iep/{id}/transition-management/readiness',       'TransitionReadinessController', 'save',  'transition_readiness.create');
+route('GET',  '/iep/{id}/transition-readiness',                  'TransitionReadinessController', 'index', 'transition_readiness.create');
+route('POST', '/iep/{id}/transition-readiness',                  'TransitionReadinessController', 'save',  'transition_readiness.create');
+route('GET',  '/iep/{id}/inclusion-planning/itp',                'ITPController', 'index', 'itp.view');
+route('POST', '/iep/{id}/inclusion-planning/itp',                'ITPController', 'save',  'itp.create');
+route('GET',  '/iep/{id}/individual-transition-plan',            'ITPController', 'index', 'itp.view');
+route('POST', '/iep/{id}/individual-transition-plan',            'ITPController', 'save',  'itp.create');
+route('GET',  '/iep/{id}/inclusive-iep-itgp',                    'ITGPController', 'index', 'inclusive_iep.create');
+route('POST', '/iep/{id}/inclusive-iep-itgp',                    'ITGPController', 'save',  'inclusive_iep.create');
+route('GET',  '/iep/{id}/placement-management/notices',          'ClassPlacementController', 'index', 'placement_notice.view');
+route('POST', '/iep/{id}/placement-management/notices',          'ClassPlacementController', 'save',  'placement_notice.create');
+route('GET',  '/iep/{id}/placement-notice',                      'ClassPlacementController', 'index', 'placement_notice.view');
+route('POST', '/iep/{id}/placement-notice',                      'ClassPlacementController', 'save',  'placement_notice.create');
 // New cycle
 
 // IEP Documents — Unified dashboard (replaces p2/review, p3/sign, approval)

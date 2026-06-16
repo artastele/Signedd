@@ -42,8 +42,22 @@ class IEPController {
         $filterYear   = $_GET['school_year'] ?? '';
         $filterStatus = $_GET['status'] ?? '';
 
-        if ($role === 'sped_teacher' || $role === 'admin') {
+        if ($role === 'sped_teacher') {
             $ieps = $this->iepModel->getByTeacher($this->userId);
+            foreach ($this->iepModel->getSignedForRole($role, $this->userId) as $signedIep) {
+                $exists = false;
+                foreach ($ieps as $existingIep) {
+                    if ((int)$existingIep['id'] === (int)$signedIep['id']) {
+                        $exists = true;
+                        break;
+                    }
+                }
+                if (!$exists) {
+                    $ieps[] = $signedIep;
+                }
+            }
+        } elseif ($role === 'admin') {
+            $ieps = $this->iepModel->getSignedForRole($role, $this->userId);
         } elseif ($role === 'parent') {
             $ieps = $this->iepModel->getSignedForRole('parent', $this->userId);
         } else {
