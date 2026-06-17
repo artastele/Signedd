@@ -115,6 +115,10 @@ return [
         'student.records',
         'student.view',
         'account.settings',
+        'observation.schedule',
+        'observation.rate',
+        'observation.finalize',
+        'observation.manage_indicators',
     ],
 
     'learner' => [
@@ -129,5 +133,7 @@ return [
 
     'admin' => [
         '*', // Full access to all permissions
+        'observation.view_all',
+        'observation.manage_indicators',
     ],
 ];

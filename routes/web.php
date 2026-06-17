@@ -262,10 +262,6 @@ route('GET',  '/iep/download/{id}',            'IEPController', 'downloadDocumen
 // Unified transition workflow connected to existing IEP and implementation data
 // Legacy unified workflow removed — use dedicated module routes below.
 // Process 7–13 module entry points (new dedicated controllers)
-route('GET',  '/iep/{id}/observation-management/cot-observations', 'ObservationController', 'index', 'observation.conduct');
-route('POST', '/iep/{id}/observation-management/cot-observations', 'ObservationController', 'save',  'cot.create');
-route('GET',  '/iep/{id}/cot-observation',                       'ObservationController', 'index', 'observation.conduct');
-route('POST', '/iep/{id}/cot-observation',                       'ObservationController', 'save',  'cot.create');
 route('GET',  '/iep/{id}/transition-management/readiness',       'TransitionReadinessController', 'index', 'transition_readiness.create');
 route('POST', '/iep/{id}/transition-management/readiness',       'TransitionReadinessController', 'save',  'transition_readiness.create');
 route('GET',  '/iep/{id}/transition-readiness',                  'TransitionReadinessController', 'index', 'transition_readiness.create');
@@ -348,6 +344,22 @@ route('GET', '/admin/activity-logs/export', 'AdminController', 'exportActivityLo
 
 route('GET', '/students', 'StudentController', 'index', 'student.records');
 route('GET', '/students/view/{id}', 'StudentController', 'view', 'student.view');
+
+// ============================================
+// PROCESS 9 — CLASSROOM OBSERVATION TOOL (COT)
+// ============================================
+route('GET', '/cot/indicators', 'ClassroomObservationController', 'manageIndicators', 'observation.manage_indicators');
+route('POST', '/cot/indicators/save', 'ClassroomObservationController', 'saveIndicators', 'observation.manage_indicators');
+route('POST', '/cot/indicators/load-defaults', 'ClassroomObservationController', 'loadDefaultIndicators', 'observation.manage_indicators');
+
+route('GET', '/cot/observations', 'ClassroomObservationController', 'history', 'observation.schedule');
+route('GET', '/cot/observations/schedule', 'ClassroomObservationController', 'showScheduleForm', 'observation.schedule');
+route('POST', '/cot/observations/schedule', 'ClassroomObservationController', 'schedule', 'observation.schedule');
+route('GET', '/cot/observations/{id}/rate', 'ClassroomObservationController', 'rateLive', 'observation.rate');
+route('POST', '/cot/observations/{id}/rate/save', 'ClassroomObservationController', 'saveRating', 'observation.rate');
+route('POST', '/cot/observations/{id}/comments/save', 'ClassroomObservationController', 'saveComments', 'observation.rate');
+route('POST', '/cot/observations/{id}/finalize', 'ClassroomObservationController', 'finalize', 'observation.finalize');
+route('GET', '/cot/observations/{id}/view', 'ClassroomObservationController', 'view', 'observation.schedule');
 
 // ============================================
 // 404 NOT FOUND

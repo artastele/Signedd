@@ -455,7 +455,7 @@ function getRatingDescription(string $code): string {
             <div class="card border-0 shadow-sm p-4 bg-white">
                 <h4 class="fw-bold mb-3" style="color: #1e4072;"><i class="bi bi-percent me-1"></i> Configure Ratings & F2F Scores</h4>
                 <p class="text-muted small">
-                    Auto-computed grades are calculated from online activities graded in Process 7. 
+                    Auto-computed grades are calculated from graded LMS online activities. 
                     You can input manual Face-to-Face class scores to average with the auto score.
                 </p>
 
@@ -467,7 +467,7 @@ function getRatingDescription(string $code): string {
                             <thead class="table-light">
                                 <tr>
                                     <th class="text-start">Learning Domain</th>
-                                    <th>Online Activity Average (Process 7)</th>
+                                    <th>Online Activity Average (LMS)</th>
                                     <th>Face-to-Face Class Score (Manual)</th>
                                     <th>Combined Score</th>
                                     <th>Final Rating</th>
@@ -607,12 +607,12 @@ function getRatingDescription(string $code): string {
                     </div>
                 </div>
 
-                <!-- Right: Process 7 Auto-Attendance logs -->
+                <!-- Right: LMS Auto-Attendance logs -->
                 <div class="col-lg-6">
                     <div class="card border-0 shadow-sm p-4 bg-white">
                         <h4 class="fw-bold mb-3" style="color: #a01422;"><i class="bi bi-cloud-check me-1"></i> Async Online Attendance Logs</h4>
                         <p class="text-muted small">
-                            Automatically counts any date where the student opened or submitted any activities in the LMS (Process 7).
+                            Automatically counts any date where the student opened or submitted any activities in the LMS.
                         </p>
 
                         <div class="bg-light p-3 rounded mb-4">

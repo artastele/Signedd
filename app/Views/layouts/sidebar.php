@@ -58,7 +58,7 @@ function isEnrollmentAvailabilityMenuActive() {
             </a>
 
         <?php elseif ($role === 'learner'): ?>
-            <!-- Process 7 — Learner nav links -->
+            <!-- LMS Learner nav links -->
             <a href="<?php echo $basePath; ?>/learning/dashboard" class="<?php echo isActive('/learning/dashboard'); ?>">
                 <i class="bi bi-book-open"></i>
                 <span>My Lessons</span>
@@ -199,11 +199,27 @@ function isEnrollmentAvailabilityMenuActive() {
                 <i class="bi bi-folder2-open"></i>
                 <span>IEP Records</span>
             </a>
+            <a href="<?php echo $basePath; ?>/cot/indicators" class="<?php echo isActive('/cot/indicators'); ?>">
+                <i class="bi bi-list-task"></i>
+                <span>COT Indicator Sets</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/cot/observations" class="<?php echo isActive('/cot/observations'); ?>">
+                <i class="bi bi-eye"></i>
+                <span>Observations</span>
+            </a>
 
         <?php elseif ($role === 'admin'): ?>
             <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/implementation') ? 'active' : ''; ?>">
                 <i class="bi bi-folder2-open"></i>
                 <span>IEP Records</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/cot/indicators" class="<?php echo isActive('/cot/indicators'); ?>">
+                <i class="bi bi-list-task"></i>
+                <span>COT Indicator Sets</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/cot/observations" class="<?php echo isActive('/cot/observations'); ?>">
+                <i class="bi bi-eye"></i>
+                <span>Observations</span>
             </a>
             <a href="<?php echo $basePath; ?>/admin/manage-users" class="<?php echo isActive('/admin/manage-users'); ?>">
                 <i class="bi bi-people"></i>

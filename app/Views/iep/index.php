@@ -138,12 +138,6 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                                    class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-bar-chart-line me-1"></i>Grades
                                 </a>
-                                <?php if ($role === 'master_teacher'): ?>
-                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/observation-management/cot-observations"
-                                   class="btn btn-sm btn-outline-secondary">
-                                    <i class="bi bi-eye me-1"></i>COT
-                                </a>
-                                <?php endif; ?>
                                 <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/transition-management/readiness"
                                    class="btn btn-sm btn-outline-success">
                                     <i class="bi bi-check2-circle me-1"></i>Readiness

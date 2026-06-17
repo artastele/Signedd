@@ -1461,4 +1461,58 @@ CREATE TABLE IF NOT EXISTS report_remarks (
 INSERT IGNORE INTO db_version (version) VALUES (49);
 
 -- END MIGRATION: v49
--- (End of versioned migrations in this file — keep db_version in sync when adding v49+.)
+
+-- ============================================
+-- MIGRATION: v50 - Process 9 Classroom Observation Tool (COT) Tables
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS cot_indicator_sets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_year VARCHAR(50) NOT NULL,
+    indicator_number INT NOT NULL,
+    indicator_text TEXT NOT NULL,
+    competency_code VARCHAR(50) NOT NULL,
+    created_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_school_year (school_year)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS classroom_observations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    observer_id INT NOT NULL,
+    observed_teacher_id INT NOT NULL,
+    school_year VARCHAR(50) NOT NULL,
+    quarter VARCHAR(50) NOT NULL,
+    observation_number INT NOT NULL,
+    subject_grade_level VARCHAR(255) NOT NULL,
+    scheduled_at DATETIME NOT NULL,
+    status ENUM('scheduled', 'in_progress', 'finalized') NOT NULL DEFAULT 'scheduled',
+    other_comments TEXT NULL,
+    average_score DECIMAL(5, 2) NULL,
+    finalized_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (observer_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (observed_teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_observer_id (observer_id),
+    INDEX idx_observed_teacher_id (observed_teacher_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS observation_ratings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    observation_id INT NOT NULL,
+    indicator_id INT NOT NULL,
+    rating VARCHAR(5) NOT NULL,
+    rated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (observation_id) REFERENCES classroom_observations(id) ON DELETE CASCADE,
+    FOREIGN KEY (indicator_id) REFERENCES cot_indicator_sets(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_observation_indicator (observation_id, indicator_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (50);
+
+-- END MIGRATION: v50
+-- (End of versioned migrations in this file — keep db_version in sync when adding v50+.)

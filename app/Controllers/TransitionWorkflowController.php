@@ -338,7 +338,8 @@ class TransitionWorkflowController {
                 }
                 break;
             case 'cot':
-                header('Location: ' . $base . '/iep/' . $iepId . '/observation-management/cot-observations');
+            case 'cot-observation':
+                header('Location: ' . $base . '/cot/observations');
                 break;
             case 'readiness':
                 header('Location: ' . $base . '/iep/' . $iepId . '/transition-readiness');
