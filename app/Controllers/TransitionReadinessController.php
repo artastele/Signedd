@@ -27,7 +27,7 @@ class TransitionReadinessController {
     }
 
     public function index(string $iepId): void {
-        RoleMiddleware::check('transition_readiness.create');
+        RoleMiddleware::check('transition_readiness.view');
 
         $iepId = (int) $iepId;
         $ctx = $this->model->getIepContext($iepId);
@@ -53,9 +53,56 @@ class TransitionReadinessController {
         $role = $this->userRole;
         $iep = $ctx;
         $readiness = $workflow['readiness'] ?? null;
+
+        if (!$readiness) {
+            $evidence = $this->model->getEvidence((int)$ctx['student_id'], $iepId);
+            $suggestedReadinessResult = $this->model->suggestReadiness($evidence);
+
+            $readinessData = [
+                'readiness_result' => $suggestedReadinessResult,
+                'evidence_summary' => '',
+                'teacher_recommendation' => '',
+                'status' => 'draft',
+                'overall_status' => 'partial',
+                'overall_status_overridden' => 0,
+                'overall_remarks' => '',
+            ];
+            
+            $readinessId = $this->model->saveReadiness(
+                $iepId,
+                (int) $ctx['student_id'],
+                $this->userId,
+                $readinessData,
+                (int)$workflow['progress_report']['id'], 
+                !empty($workflow['cot']['id']) ? (int)$workflow['cot']['id'] : null
+            );
+
+            $defaultGoals = $this->model->getTransitionGoals($iepId, null);
+            $goalInputs = [];
+            foreach ($defaultGoals as $goal) {
+                $goalInputs[] = [
+                    'iep_step_id' => $goal['step_id'],
+                    'goal_text' => $goal['goal_text'] ?? '',
+                    'pdsp_domain' => $goal['pdsp_domain'] ?? '',
+                    'suggested_status' => $goal['suggested_status'] ?? 'partial',
+                    'final_status' => $goal['final_status'] ?? 'partial',
+                    'status_overridden' => 0,
+                    'remarks' => '',
+                ];
+            }
+
+            if ($readinessId && count($goalInputs) > 0) {
+                $this->model->saveReadinessGoals($readinessId, $goalInputs);
+            }
+
+            $workflow = $this->model->getWorkflow($iepId);
+            $readiness = $workflow['readiness'] ?? null;
+        }
+
         $progressReport = $workflow['progress_report'] ?? null;
         $cot = $workflow['cot'] ?? null;
         $progressSnapshot = $this->model->getProgressSnapshot((int)$ctx['student_id']);
+        $readinessGoals = $this->model->getTransitionGoals($iepId, $readiness['id'] ?? null);
         require_once __DIR__ . '/../Views/transition-readiness/index.php';
     }
 
@@ -77,19 +124,64 @@ class TransitionReadinessController {
             exit;
         }
 
-        $this->model->saveReadiness(
+        $readinessData = [
+            'readiness_result' => $_POST['readiness_result'] ?? 'For Re-evaluation',
+            'evidence_summary' => trim($_POST['evidence_summary'] ?? ''),
+            'teacher_recommendation' => trim($_POST['teacher_recommendation'] ?? ''),
+            'status' => $_POST['status'] ?? 'draft',
+            'overall_status' => $_POST['overall_status'] ?? 'partial',
+            'overall_status_overridden' => !empty($_POST['overall_status_overridden']),
+            'overall_remarks' => trim($_POST['overall_remarks'] ?? ''),
+        ];
+
+        $readinessId = $this->model->saveReadiness(
             $iepId,
             (int) $ctx['student_id'],
             $this->userId,
-            [
-                'readiness_result' => $_POST['readiness_result'] ?? 'For Re-evaluation',
-                'evidence_summary' => trim($_POST['evidence_summary'] ?? ''),
-                'teacher_recommendation' => trim($_POST['teacher_recommendation'] ?? ''),
-                'status' => $_POST['status'] ?? 'draft',
-            ],
+            $readinessData,
             (int)$workflow['progress_report']['id'], 
             !empty($workflow['cot']['id']) ? (int)$workflow['cot']['id'] : null
         );
+
+        $goalInputs = [];
+        foreach ($_POST['goals'] ?? [] as $stepId => $goalData) {
+            $goalInputs[] = [
+                'iep_step_id' => $stepId,
+                'goal_text' => $goalData['goal_text'] ?? '',
+                'pdsp_domain' => $goalData['pdsp_domain'] ?? '',
+                'suggested_status' => $goalData['suggested_status'] ?? 'partial',
+                'final_status' => $goalData['final_status'] ?? 'partial',
+                'status_overridden' => !empty($goalData['status_overridden']),
+                'remarks' => $goalData['remarks'] ?? '',
+            ];
+        }
+
+        if ($readinessId && count($goalInputs) > 0) {
+            $this->model->saveReadinessGoals($readinessId, $goalInputs);
+        }
+
+        if ($readinessId && ($readinessData['status'] === 'finalized')) {
+            require_once __DIR__ . '/../Models/NotificationModel.php';
+            $notifModel = new NotificationModel();
+            
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("
+                SELECT id FROM users
+                WHERE role IN ('guidance', 'principal') AND status = 'active'
+            ");
+            $stmt->execute();
+            $staff = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($staff as $user) {
+                $notifModel->create(
+                    (int)$user['id'],
+                    'transition_readiness',
+                    'Transition Readiness Finalized',
+                    "Transition readiness for student " . ($ctx['student_name'] ?? 'learner') . " has been finalized.",
+                    ['iep_id' => $iepId, 'readiness_id' => $readinessId]
+                );
+            }
+        }
 
         $_SESSION['success'] = 'Transition readiness saved.';
         header('Location: ' . $this->basePath . '/iep/' . $iepId . '/transition-readiness');

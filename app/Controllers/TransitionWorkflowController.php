@@ -182,15 +182,37 @@ class TransitionWorkflowController {
             $this->redirect((int)$iepId, 'transition-readiness');
         }
 
-        $this->model->saveReadiness((int)$iepId, (int)$ctx['student_id'], $this->userId, [
+        $readinessId = $this->model->saveReadiness((int)$iepId, (int)$ctx['student_id'], $this->userId, [
             'readiness_result' => $_POST['readiness_result'] ?? 'For Re-evaluation',
             'evidence_summary' => trim($_POST['evidence_summary'] ?? ''),
             'teacher_recommendation' => trim($_POST['teacher_recommendation'] ?? ''),
             'status' => $status,
         ], !empty($workflow['progress_report']['id']) ? (int)$workflow['progress_report']['id'] : null,
            !empty($workflow['cot']['id']) ? (int)$workflow['cot']['id'] : null);
+
+        if ($readinessId && $status === 'finalized') {
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("
+                SELECT id FROM users
+                WHERE role IN ('guidance', 'principal') AND status = 'active'
+            ");
+            $stmt->execute();
+            $staff = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($staff as $user) {
+                $this->notifications->create(
+                    (int)$user['id'],
+                    'transition_readiness',
+                    'Transition Readiness Finalized',
+                    "Transition readiness for student " . ($ctx['student_name'] ?? 'learner') . " has been finalized.",
+                    ['iep_id' => (int)$iepId, 'readiness_id' => $readinessId]
+                );
+            }
+        }
+
         $_SESSION['success'] = 'Transition readiness saved.';
         $this->redirect((int)$iepId, 'transition-readiness');
+        exit;
     }
 
     public function saveItp(string $iepId): void {

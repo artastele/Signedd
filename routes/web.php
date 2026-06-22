@@ -262,14 +262,22 @@ route('GET',  '/iep/download/{id}',            'IEPController', 'downloadDocumen
 // Unified transition workflow connected to existing IEP and implementation data
 // Legacy unified workflow removed — use dedicated module routes below.
 // Process 7–13 module entry points (new dedicated controllers)
-route('GET',  '/iep/{id}/transition-management/readiness',       'TransitionReadinessController', 'index', 'transition_readiness.create');
+route('GET',  '/iep/{id}/transition-management/readiness',       'TransitionReadinessController', 'index', 'transition_readiness.view');
 route('POST', '/iep/{id}/transition-management/readiness',       'TransitionReadinessController', 'save',  'transition_readiness.create');
-route('GET',  '/iep/{id}/transition-readiness',                  'TransitionReadinessController', 'index', 'transition_readiness.create');
+route('GET',  '/iep/{id}/transition-readiness',                  'TransitionReadinessController', 'index', 'transition_readiness.view');
 route('POST', '/iep/{id}/transition-readiness',                  'TransitionReadinessController', 'save',  'transition_readiness.create');
 route('GET',  '/iep/{id}/inclusion-planning/itp',                'ITPController', 'index', 'itp.view');
 route('POST', '/iep/{id}/inclusion-planning/itp',                'ITPController', 'save',  'itp.create');
 route('GET',  '/iep/{id}/individual-transition-plan',            'ITPController', 'index', 'itp.view');
 route('POST', '/iep/{id}/individual-transition-plan',            'ITPController', 'save',  'itp.create');
+route('POST', '/iep/{id}/itp/assign',                            'ITPController', 'assignTeam', 'itp.create');
+route('POST', '/iep/{id}/itp/narrative',                         'ITPController', 'saveNarrative', 'itp.create');
+route('POST', '/iep/{id}/itp/matrix',                            'ITPController', 'saveMatrix', 'itp.create');
+route('POST', '/iep/{id}/itp/signature/save',                    'ITPController', 'saveParentSignature', 'itp.sign');
+route('POST', '/iep/{id}/itp/finalize',                          'ITPController', 'finalizeItp', 'itp.finalize');
+route('GET',  '/itp-team/edit/{id}',                             'ITPController', 'editTeamMember', 'itp.fill_own_row');
+route('POST', '/itp-team/save/{id}',                             'ITPController', 'saveTeamMember', 'itp.fill_own_row');
+route('POST', '/itp-team/remind/{id}',                           'ITPController', 'remindTeamMember', 'itp.create');
 route('GET',  '/iep/{id}/inclusive-iep-itgp',                    'ITGPController', 'index', 'inclusive_iep.create');
 route('POST', '/iep/{id}/inclusive-iep-itgp',                    'ITGPController', 'save',  'inclusive_iep.create');
 route('GET',  '/iep/{id}/placement-management/notices',          'ClassPlacementController', 'index', 'placement_notice.view');
