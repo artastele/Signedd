@@ -1122,4 +1122,18 @@ class IEPModel {
         ");
         return $stmt->execute(['iep_id' => $iepId, 'user_id' => $userId]);
     }
+
+    public function getByGeneralTeacher($userId) {
+        $stmt = $this->db->prepare("
+            SELECT ir.*, sr.student_name, sr.lrn, u.name AS drafted_by_name
+            FROM iep_records ir
+            JOIN student_records sr ON ir.student_id = sr.id
+            JOIN general_teacher_assignments gta ON sr.id = gta.student_id
+            JOIN users u ON ir.drafted_by = u.id
+            WHERE gta.general_teacher_id = :user_id
+            ORDER BY ir.created_at DESC
+        ");
+        $stmt->execute(['user_id' => $userId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
 }

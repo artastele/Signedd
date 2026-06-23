@@ -58,9 +58,14 @@ return [
         'inclusive_iep.create',
         'inclusive_iep.sign',
         'placement_notice.view',
+        'placement_notice.create',
+        'placement_notice.approve',
         'activity.logs',
         'activity.record',
         'account.settings',
+        'itgp.view',
+        'itgp.comment',
+        'class_placement.view',
     ],
 
     'guidance' => [
@@ -101,6 +106,8 @@ return [
         'reports.view',
         'staff.approve',
         'account.settings',
+        'itgp.view',
+        'class_placement.view',
     ],
 
     'master_teacher' => [
@@ -141,6 +148,20 @@ return [
         'learning.assignments',
         'learning.progress',
         'account.settings',
+    ],
+
+    'general_teacher' => [
+        'dashboard.teacher',
+        'iep.view',
+        'student.records',
+        'student.view',
+        'itgp.manage',
+        'itgp.finalize',
+        'itgp.comment',
+        'class_placement.review',
+        'class_placement.confirm',
+        'account.settings',
+        'role.select',
     ],
 
     'admin' => [

@@ -32,7 +32,7 @@ class IEPController {
         $role     = $this->userRole;
         $basePath = BASE_PATH;
 
-        if (!in_array($role, ['sped_teacher','guidance','principal','parent','master_teacher','admin'])) {
+        if (!in_array($role, ['sped_teacher','guidance','principal','parent','master_teacher','admin','general_teacher'])) {
             $_SESSION['error'] = 'Access denied.';
             header('Location: ' . BASE_PATH . '/dashboard');
             exit;
@@ -56,6 +56,8 @@ class IEPController {
                     $ieps[] = $signedIep;
                 }
             }
+        } elseif ($role === 'general_teacher') {
+            $ieps = $this->iepModel->getByGeneralTeacher($this->userId);
         } elseif ($role === 'admin') {
             $ieps = $this->iepModel->getSignedForRole($role, $this->userId);
         } elseif ($role === 'parent') {

@@ -146,6 +146,10 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                                    class="btn btn-sm btn-outline-info">
                                     <i class="bi bi-people me-1"></i>ITP
                                 </a>
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/inclusive-iep-itgp"
+                                   class="btn btn-sm btn-outline-warning">
+                                    <i class="bi bi-journal-text me-1"></i>ITGP
+                                </a>
                                 <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/placement-management/notices"
                                    class="btn btn-sm btn-outline-dark">
                                     <i class="bi bi-envelope me-1"></i>Notices

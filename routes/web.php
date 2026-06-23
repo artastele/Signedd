@@ -278,12 +278,14 @@ route('POST', '/iep/{id}/itp/finalize',                          'ITPController'
 route('GET',  '/itp-team/edit/{id}',                             'ITPController', 'editTeamMember', 'itp.fill_own_row');
 route('POST', '/itp-team/save/{id}',                             'ITPController', 'saveTeamMember', 'itp.fill_own_row');
 route('POST', '/itp-team/remind/{id}',                           'ITPController', 'remindTeamMember', 'itp.create');
-route('GET',  '/iep/{id}/inclusive-iep-itgp',                    'ITGPController', 'index', 'inclusive_iep.create');
-route('POST', '/iep/{id}/inclusive-iep-itgp',                    'ITGPController', 'save',  'inclusive_iep.create');
-route('GET',  '/iep/{id}/placement-management/notices',          'ClassPlacementController', 'index', 'placement_notice.view');
-route('POST', '/iep/{id}/placement-management/notices',          'ClassPlacementController', 'save',  'placement_notice.create');
-route('GET',  '/iep/{id}/placement-notice',                      'ClassPlacementController', 'index', 'placement_notice.view');
-route('POST', '/iep/{id}/placement-notice',                      'ClassPlacementController', 'save',  'placement_notice.create');
+route('GET',  '/iep/{id}/inclusive-iep-itgp',                    'ITGPController', 'index');
+route('POST', '/iep/{id}/inclusive-iep-itgp',                    'ITGPController', 'save');
+route('POST', '/iep/{id}/inclusive-iep-itgp/assign',             'ITGPController', 'assignGeneralTeacher');
+route('POST', '/iep/{id}/inclusive-iep-itgp/comment',            'ITGPController', 'addComment');
+route('GET',  '/iep/{id}/placement-management/notices',          'ClassPlacementController', 'index');
+route('POST', '/iep/{id}/placement-management/notices',          'ClassPlacementController', 'save');
+route('GET',  '/iep/{id}/placement-notice',                      'ClassPlacementController', 'index');
+route('POST', '/iep/{id}/placement-notice',                      'ClassPlacementController', 'save');
 // New cycle
 
 // IEP Documents — Unified dashboard (replaces p2/review, p3/sign, approval)

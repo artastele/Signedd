@@ -13,9 +13,20 @@ function isActive($path) {
 // Check if any IEP Procedure link is active
 function isIEPProcedureActive() {
     global $currentPath, $basePath;
-    $iepPaths = ['/assessment/conduct', '/iep/meetings', '/iep/p2/', '/iep/p3/', '/iep/documents', '/iep/'];
+    $iepPaths = [
+        '/assessment/conduct', 
+        '/iep/meetings', 
+        '/iep/p2/', 
+        '/iep/p3/', 
+        '/iep/documents', 
+        '/iep/',
+        '/transition-readiness',
+        '/individual-transition-plan',
+        '/inclusive-iep-itgp',
+        '/placement-notice'
+    ];
     foreach ($iepPaths as $path) {
-        if (strpos($currentPath, $basePath . $path) === 0) {
+        if (strpos($currentPath, $basePath . $path) !== false) {
             return true;
         }
     }
@@ -134,14 +145,39 @@ function isEnrollmentAvailabilityMenuActive() {
                         <i class="bi bi-1-circle"></i>
                         <span>Part 1: Assessment</span>
                     </a>
-                            <a href="<?php echo $basePath; ?>/iep/meetings" class="sidebar-submenu-item <?php echo isActive('/iep/meetings'); ?>">
+                    <a href="<?php echo $basePath; ?>/iep/meetings" class="sidebar-submenu-item <?php echo isActive('/iep/meetings'); ?>">
                         <i class="bi bi-2-circle"></i>
                         <span>Part 2: Meeting & PDSP</span>
                     </a>
-                    <a href="<?php echo $basePath; ?>/iep" class="sidebar-submenu-item <?php echo isActive('/iep') && !isActive('/iep/meetings') && !isActive('/iep/availability') ? 'active' : ''; ?>">
+                    <a href="<?php echo $basePath; ?>/iep" class="sidebar-submenu-item <?php echo isActive('/iep') && !isActive('/iep/meetings') && !isActive('/iep/availability') && !preg_match('#/iep/\\d+/#', $currentPath) ? 'active' : ''; ?>">
                         <i class="bi bi-3-circle"></i>
                         <span>Part 3: Generate IEP</span>
                     </a>
+                    <?php
+                    $currentIepId = null;
+                    if (preg_match('#/iep/(\d+)#', $currentPath, $matches)) {
+                        $currentIepId = (int)$matches[1];
+                    }
+                    if ($currentIepId):
+                    ?>
+                        <div class="border-top border-secondary opacity-25 my-2"></div>
+                        <a href="<?php echo $basePath; ?>/iep/<?php echo $currentIepId; ?>/transition-readiness" class="sidebar-submenu-item <?php echo isActive('/iep/' . $currentIepId . '/transition-readiness'); ?>">
+                            <i class="bi bi-4-circle"></i>
+                            <span>Part 4: Transition Readiness</span>
+                        </a>
+                        <a href="<?php echo $basePath; ?>/iep/<?php echo $currentIepId; ?>/individual-transition-plan" class="sidebar-submenu-item <?php echo isActive('/iep/' . $currentIepId . '/individual-transition-plan'); ?>">
+                            <i class="bi bi-5-circle"></i>
+                            <span>Part 5: Individual Plan (ITP)</span>
+                        </a>
+                        <a href="<?php echo $basePath; ?>/iep/<?php echo $currentIepId; ?>/inclusive-iep-itgp" class="sidebar-submenu-item <?php echo isActive('/iep/' . $currentIepId . '/inclusive-iep-itgp'); ?>">
+                            <i class="bi bi-6-circle"></i>
+                            <span>Part 6: Inclusive IEP (ITGP)</span>
+                        </a>
+                        <a href="<?php echo $basePath; ?>/iep/<?php echo $currentIepId; ?>/placement-notice" class="sidebar-submenu-item <?php echo isActive('/iep/' . $currentIepId . '/placement-notice'); ?>">
+                            <i class="bi bi-7-circle"></i>
+                            <span>Part 7: Placement Notice</span>
+                        </a>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -161,6 +197,29 @@ function isEnrollmentAvailabilityMenuActive() {
                 <i class="bi bi-folder2-open"></i>
                 <span>IEP Records</span>
             </a>
+
+        <?php elseif ($role === 'general_teacher'): ?>
+            <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !preg_match('#/iep/\\d+/#', $currentPath) ? 'active' : ''; ?>">
+                <i class="bi bi-folder2-open"></i>
+                <span>Assigned IEPs</span>
+            </a>
+            <?php
+            $currentIepId = null;
+            if (preg_match('#/iep/(\d+)#', $currentPath, $matches)) {
+                $currentIepId = (int)$matches[1];
+            }
+            if ($currentIepId):
+            ?>
+                <div class="border-top border-secondary opacity-25 my-2"></div>
+                <a href="<?php echo $basePath; ?>/iep/<?php echo $currentIepId; ?>/inclusive-iep-itgp" class="sidebar-submenu-item <?php echo isActive('/iep/' . $currentIepId . '/inclusive-iep-itgp'); ?>">
+                    <i class="bi bi-file-text"></i>
+                    <span>Inclusive IEP (ITGP)</span>
+                </a>
+                <a href="<?php echo $basePath; ?>/iep/<?php echo $currentIepId; ?>/placement-notice" class="sidebar-submenu-item <?php echo isActive('/iep/' . $currentIepId . '/placement-notice'); ?>">
+                    <i class="bi bi-envelope"></i>
+                    <span>Placement Notice</span>
+                </a>
+            <?php endif; ?>
 
         <?php elseif ($role === 'guidance'): ?>
             <a href="<?php echo $basePath; ?>/iep/availability" class="<?php echo isActive('/iep/availability'); ?>">

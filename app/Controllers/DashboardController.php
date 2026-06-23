@@ -86,6 +86,9 @@ class DashboardController {
             case 'master_teacher':
                 require_once __DIR__ . '/../Views/dashboard/master_teacher.php';
                 break;
+            case 'general_teacher':
+                header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/iep');
+                exit;
             case 'general':
             case 'user':
             default:

@@ -141,74 +141,72 @@ class TransitionWorkflowModel {
                 FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
                 FOREIGN KEY (original_iep_record_id) REFERENCES iep_records(id) ON DELETE CASCADE,
                 FOREIGN KEY (transition_readiness_id) REFERENCES transition_readiness(id) ON DELETE CASCADE,
-                FOREIGN KEY (itp_id) REFERENCES individual_transition_plans(id) ON DELETE CASCADE,
+                FOREIGN KEY (itp_id) REFERENCES itp_records(id) ON DELETE CASCADE,
                 FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
                 INDEX idx_inclusive_original_iep (original_iep_record_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "CREATE TABLE IF NOT EXISTS itgp_records (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 student_id INT NOT NULL,
-                inclusive_iep_id INT NOT NULL,
-                transition_readiness_id INT NOT NULL,
                 itp_id INT NOT NULL,
-                created_by INT NOT NULL,
-                learner_name VARCHAR(255) NULL,
-                disability VARCHAR(255) NULL,
+                general_teacher_id INT NOT NULL,
+                goal TEXT NULL,
                 entry_point VARCHAR(255) NULL,
+                learning_packages TEXT NULL,
                 recommendations TEXT NULL,
-                status ENUM('draft','for_signature','signed') NOT NULL DEFAULT 'draft',
+                status ENUM('draft','finalized') NOT NULL DEFAULT 'draft',
+                finalized_at DATETIME NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
-                FOREIGN KEY (inclusive_iep_id) REFERENCES inclusive_iep_records(id) ON DELETE CASCADE,
-                FOREIGN KEY (transition_readiness_id) REFERENCES transition_readiness(id) ON DELETE CASCADE,
-                FOREIGN KEY (itp_id) REFERENCES individual_transition_plans(id) ON DELETE CASCADE,
-                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
-                INDEX idx_itgp_inclusive (inclusive_iep_id)
+                FOREIGN KEY (itp_id) REFERENCES itp_records(id) ON DELETE CASCADE,
+                FOREIGN KEY (general_teacher_id) REFERENCES users(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-            "CREATE TABLE IF NOT EXISTS itgp_items (
+            "CREATE TABLE IF NOT EXISTS itgp_activities (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 itgp_id INT NOT NULL,
-                goal TEXT NULL,
-                learning_packages TEXT NULL,
                 competency_skill TEXT NULL,
                 activities TEXT NULL,
                 time_frame VARCHAR(255) NULL,
                 person_responsible VARCHAR(255) NULL,
                 remarks TEXT NULL,
-                recommendations TEXT NULL,
                 display_order INT NOT NULL DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (itgp_id) REFERENCES itgp_records(id) ON DELETE CASCADE,
-                INDEX idx_itgp_items (itgp_id, display_order)
+                FOREIGN KEY (itgp_id) REFERENCES itgp_records(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-            "CREATE TABLE IF NOT EXISTS placement_notices (
+            "CREATE TABLE IF NOT EXISTS itgp_comments (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                itgp_id INT NOT NULL,
+                posted_by INT NOT NULL,
+                comment_text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (itgp_id) REFERENCES itgp_records(id) ON DELETE CASCADE,
+                FOREIGN KEY (posted_by) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS general_teacher_assignments (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 student_id INT NOT NULL,
-                inclusive_iep_id INT NOT NULL,
+                general_teacher_id INT NOT NULL,
+                assigned_by INT NOT NULL,
+                assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+                FOREIGN KEY (general_teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE KEY unique_assignment (student_id, general_teacher_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "CREATE TABLE IF NOT EXISTS class_placements (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                student_id INT NOT NULL,
                 itgp_id INT NOT NULL,
-                transition_readiness_id INT NOT NULL,
-                receiving_teacher_id INT NOT NULL,
-                generated_by INT NOT NULL,
-                receiving_teacher_name VARCHAR(255) NULL,
-                receiving_teacher_role VARCHAR(100) NULL,
-                target_grade_section VARCHAR(255) NULL,
-                effective_date DATE NULL,
-                support_needed TEXT NULL,
-                placement_status ENUM('Draft','For Approval','Approved','Notice Sent','Placed') NOT NULL DEFAULT 'Draft',
-                approval_status ENUM('draft','for_approval','approved') NOT NULL DEFAULT 'draft',
-                notification_sent_at TIMESTAMP NULL,
-                parent_notification_sent_at TIMESTAMP NULL,
+                reviewed_by INT NOT NULL,
+                status ENUM('confirmed','on_hold') NOT NULL DEFAULT 'confirmed',
+                hold_reason TEXT NULL,
+                confirmed_at DATETIME NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
-                FOREIGN KEY (inclusive_iep_id) REFERENCES inclusive_iep_records(id) ON DELETE CASCADE,
                 FOREIGN KEY (itgp_id) REFERENCES itgp_records(id) ON DELETE CASCADE,
-                FOREIGN KEY (transition_readiness_id) REFERENCES transition_readiness(id) ON DELETE CASCADE,
-                FOREIGN KEY (receiving_teacher_id) REFERENCES users(id) ON DELETE CASCADE,
-                FOREIGN KEY (generated_by) REFERENCES users(id) ON DELETE CASCADE,
-                INDEX idx_placement_teacher (receiving_teacher_id),
-                INDEX idx_placement_student (student_id)
+                FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "CREATE TABLE IF NOT EXISTS itp_records (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -287,6 +285,16 @@ class TransitionWorkflowModel {
         }
 
         $this->ensureTransitionReadinessSchema();
+        $this->ensureGeneralTeacherAndPlacementSchema();
+    }
+
+    private function ensureGeneralTeacherAndPlacementSchema(): void {
+        try {
+            $this->db->exec("ALTER TABLE users MODIFY COLUMN role ENUM('user','parent','sped_teacher','guidance','principal','master_teacher','learner','admin','general_teacher') DEFAULT 'user'");
+        } catch (Throwable $e) {
+            error_log('TransitionWorkflowModel::ensureGeneralTeacherAndPlacementSchema (role): ' . $e->getMessage());
+        }
+        $this->addColumnIfNotExists('student_records', 'status', "ENUM('active','mainstreamed') NOT NULL DEFAULT 'active'");
     }
 
     private function ensureTransitionReadinessSchema(): void {
@@ -352,9 +360,9 @@ class TransitionWorkflowModel {
             'cot' => $this->latest('cot_observations', 'iep_record_id', $iepId),
             'readiness' => $this->latest('transition_readiness', 'iep_record_id', $iepId),
             'itp' => $studentId ? $this->getItpByStudent($studentId) : null,
-            'inclusive_iep' => $this->latest('inclusive_iep_records', 'original_iep_record_id', $iepId),
-            'itgp' => $this->latestItgp($iepId),
-            'placement' => $this->latestPlacement($iepId),
+            'itgp' => $studentId ? $this->getItgpByStudent($studentId) : null,
+            'assignment' => $studentId ? $this->getAssignmentByStudent($studentId) : null,
+            'placement' => $studentId ? $this->getLatestPlacementByStudent($studentId) : null,
         ];
     }
 
@@ -1292,5 +1300,209 @@ class TransitionWorkflowModel {
             WHERE id = :id
         ");
         return $stmt->execute(['id' => $itpId]);
+    }
+
+    public function getItgpByStudent(int $studentId): ?array {
+        $stmt = $this->db->prepare("SELECT * FROM itgp_records WHERE student_id = :student_id ORDER BY created_at DESC LIMIT 1");
+        $stmt->execute(['student_id' => $studentId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $stmtAct = $this->db->prepare("SELECT * FROM itgp_activities WHERE itgp_id = :itgp_id ORDER BY display_order ASC");
+            $stmtAct->execute(['itgp_id' => $row['id']]);
+            $row['activities'] = $stmtAct->fetchAll(PDO::FETCH_ASSOC);
+        }
+        return $row ?: null;
+    }
+
+    public function getItgpById(int $id): ?array {
+        $stmt = $this->db->prepare("SELECT * FROM itgp_records WHERE id = :id LIMIT 1");
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $stmtAct = $this->db->prepare("SELECT * FROM itgp_activities WHERE itgp_id = :itgp_id ORDER BY display_order ASC");
+            $stmtAct->execute(['itgp_id' => $row['id']]);
+            $row['activities'] = $stmtAct->fetchAll(PDO::FETCH_ASSOC);
+        }
+        return $row ?: null;
+    }
+
+    public function getAssignmentByStudent(int $studentId): ?array {
+        $stmt = $this->db->prepare("
+            SELECT gta.*, u.name AS general_teacher_name, u.email AS general_teacher_email
+            FROM general_teacher_assignments gta
+            JOIN users u ON u.id = gta.general_teacher_id
+            WHERE gta.student_id = :student_id
+            ORDER BY gta.assigned_at DESC LIMIT 1
+        ");
+        $stmt->execute(['student_id' => $studentId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    public function assignGeneralTeacher(int $studentId, int $teacherId, int $assignedBy): bool {
+        $stmt = $this->db->prepare("
+            INSERT INTO general_teacher_assignments (student_id, general_teacher_id, assigned_by, assigned_at)
+            VALUES (:student_id, :general_teacher_id, :assigned_by, NOW())
+            ON DUPLICATE KEY UPDATE general_teacher_id = :general_teacher_id_up, assigned_by = :assigned_by_up, assigned_at = NOW()
+        ");
+        return $stmt->execute([
+            'student_id' => $studentId,
+            'general_teacher_id' => $teacherId,
+            'assigned_by' => $assignedBy,
+            'general_teacher_id_up' => $teacherId,
+            'assigned_by_up' => $assignedBy
+        ]);
+    }
+
+    public function getApprovedGeneralTeachers(): array {
+        $stmt = $this->db->prepare("SELECT id, name, email FROM users WHERE role = 'general_teacher' AND status = 'active' ORDER BY name ASC");
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function saveItgp(int $studentId, int $itpId, int $teacherId, array $data): int {
+        $existing = $this->getItgpByStudent($studentId);
+        
+        $payload = [
+            'student_id' => $studentId,
+            'itp_id' => $itpId,
+            'general_teacher_id' => $teacherId,
+            'goal' => $data['goal'] ?? null,
+            'entry_point' => $data['entry_point'] ?? null,
+            'learning_packages' => $data['learning_packages'] ?? null,
+            'recommendations' => $data['recommendations'] ?? null,
+            'status' => $data['status'] ?? 'draft',
+        ];
+
+        if ($existing) {
+            $payload['id'] = (int)$existing['id'];
+            $finalizedAtClause = "";
+            if ($data['status'] === 'finalized') {
+                $finalizedAtClause = ", finalized_at = NOW()";
+            }
+            $stmt = $this->db->prepare("
+                UPDATE itgp_records SET
+                    goal = :goal,
+                    entry_point = :entry_point,
+                    learning_packages = :learning_packages,
+                    recommendations = :recommendations,
+                    status = :status
+                    $finalizedAtClause
+                WHERE id = :id
+            ");
+            $stmt->execute([
+                'goal' => $payload['goal'],
+                'entry_point' => $payload['entry_point'],
+                'learning_packages' => $payload['learning_packages'],
+                'recommendations' => $payload['recommendations'],
+                'status' => $payload['status'],
+                'id' => $payload['id']
+            ]);
+            $itgpId = (int)$existing['id'];
+        } else {
+            $finalizedAtVal = ($data['status'] === 'finalized') ? "NOW()" : "NULL";
+            $stmt = $this->db->prepare("
+                INSERT INTO itgp_records (student_id, itp_id, general_teacher_id, goal, entry_point, learning_packages, recommendations, status, finalized_at)
+                VALUES (:student_id, :itp_id, :general_teacher_id, :goal, :entry_point, :learning_packages, :recommendations, :status, $finalizedAtVal)
+            ");
+            $stmt->execute([
+                'student_id' => $studentId,
+                'itp_id' => $itpId,
+                'general_teacher_id' => $teacherId,
+                'goal' => $payload['goal'],
+                'entry_point' => $payload['entry_point'],
+                'learning_packages' => $payload['learning_packages'],
+                'recommendations' => $payload['recommendations'],
+                'status' => $payload['status'],
+            ]);
+            $itgpId = (int)$this->db->lastInsertId();
+        }
+
+        // Re-sync activities
+        $this->db->prepare("DELETE FROM itgp_activities WHERE itgp_id = :id")->execute(['id' => $itgpId]);
+        
+        $insAct = $this->db->prepare("
+            INSERT INTO itgp_activities (itgp_id, competency_skill, activities, time_frame, person_responsible, remarks, display_order)
+            VALUES (:itgp_id, :competency_skill, :activities, :time_frame, :person_responsible, :remarks, :display_order)
+        ");
+        
+        foreach (($data['activities'] ?? []) as $idx => $act) {
+            $insAct->execute([
+                'itgp_id' => $itgpId,
+                'competency_skill' => $act['competency_skill'] ?? null,
+                'activities' => $act['activities'] ?? null,
+                'time_frame' => $act['time_frame'] ?? null,
+                'person_responsible' => $act['person_responsible'] ?? null,
+                'remarks' => $act['remarks'] ?? null,
+                'display_order' => $idx
+            ]);
+        }
+
+        return $itgpId;
+    }
+
+    public function getItgpComments(int $itgpId): array {
+        $stmt = $this->db->prepare("
+            SELECT ic.*, u.name AS author_name, u.role AS author_role
+            FROM itgp_comments ic
+            JOIN users u ON u.id = ic.posted_by
+            WHERE ic.itgp_id = :itgp_id
+            ORDER BY ic.created_at ASC
+        ");
+        $stmt->execute(['itgp_id' => $itgpId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function addItgpComment(int $itgpId, int $userId, string $text): bool {
+        $stmt = $this->db->prepare("
+            INSERT INTO itgp_comments (itgp_id, posted_by, comment_text, created_at)
+            VALUES (:itgp_id, :posted_by, :comment_text, NOW())
+        ");
+        return $stmt->execute([
+            'itgp_id' => $itgpId,
+            'posted_by' => $userId,
+            'comment_text' => $text
+        ]);
+    }
+
+    public function saveClassPlacement(int $studentId, int $itgpId, int $reviewerId, string $status, ?string $holdReason = null): bool {
+        $confirmedAt = ($status === 'confirmed') ? 'NOW()' : 'NULL';
+        $stmt = $this->db->prepare("
+            INSERT INTO class_placements (student_id, itgp_id, reviewed_by, status, hold_reason, confirmed_at, created_at)
+            VALUES (:student_id, :itgp_id, :reviewed_by, :status, :hold_reason, $confirmedAt, NOW())
+        ");
+        $success = $stmt->execute([
+            'student_id' => $studentId,
+            'itgp_id' => $itgpId,
+            'reviewed_by' => $reviewerId,
+            'status' => $status,
+            'hold_reason' => $holdReason
+        ]);
+
+        if ($success && $status === 'confirmed') {
+            // Archive/Mainstream the student in student_records
+            $stmtSR = $this->db->prepare("UPDATE student_records SET status = 'mainstreamed' WHERE id = :student_id");
+            $stmtSR->execute(['student_id' => $studentId]);
+        }
+        return $success;
+    }
+
+    public function getLatestPlacementByStudent(int $studentId): ?array {
+        $stmt = $this->db->prepare("SELECT * FROM class_placements WHERE student_id = :student_id ORDER BY created_at DESC LIMIT 1");
+        $stmt->execute(['student_id' => $studentId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    public function getPlacementHistory(int $studentId): array {
+        $stmt = $this->db->prepare("
+            SELECT cp.*, u.name AS reviewer_name, u.role AS reviewer_role
+            FROM class_placements cp
+            JOIN users u ON u.id = cp.reviewed_by
+            WHERE cp.student_id = :student_id
+            ORDER BY cp.created_at DESC
+        ");
+        $stmt->execute(['student_id' => $studentId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

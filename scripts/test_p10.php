@@ -155,10 +155,10 @@ if ($tr_id) {
 
 $itp_url = $base_url . "/iep/$iep_id/inclusion-planning/itp";
 $res = makeRequest($itp_url);
-if ($res['code'] === 200 && stripos($res['body'], 'locked') === false) {
+if ($res['code'] === 200 && stripos($res['body'], 'Individual Transition Plan - SignED') !== false) {
     $results['Unlock Test'] = 'PASS';
 } else {
-    $results['Unlock Test'] = 'FAIL (Or Unverified)';
+    $results['Unlock Test'] = 'FAIL (Or Unverified) - Code: ' . $res['code'] . ' Body snippet: ' . substr(strip_tags($res['body']), 0, 200);
 }
 
 $stmt = $db->query("SELECT * FROM notifications WHERE (type LIKE '%transition%' OR message LIKE '%transition%') AND created_at >= DATE_SUB(NOW(), INTERVAL 1 MINUTE)");

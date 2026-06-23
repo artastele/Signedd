@@ -1660,4 +1660,92 @@ CREATE TABLE IF NOT EXISTS itp_program_matrix (
 INSERT IGNORE INTO db_version (version) VALUES (52);
 
 -- END MIGRATION: v52
--- (End of versioned migrations in this file — keep db_version in sync when adding v50+.)
+
+-- ============================================
+-- MIGRATION: v53 - Process 12 General Teacher & ITGP Tables
+-- ============================================
+
+ALTER TABLE users MODIFY COLUMN role ENUM('user','parent','sped_teacher','guidance','principal','master_teacher','learner','admin','general_teacher') DEFAULT 'user';
+
+CREATE TABLE IF NOT EXISTS itgp_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    itp_id INT NOT NULL,
+    general_teacher_id INT NOT NULL,
+    goal TEXT NULL,
+    entry_point VARCHAR(255) NULL,
+    learning_packages TEXT NULL,
+    recommendations TEXT NULL,
+    status ENUM('draft','finalized') NOT NULL DEFAULT 'draft',
+    finalized_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (itp_id) REFERENCES itp_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (general_teacher_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS itgp_activities (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    itgp_id INT NOT NULL,
+    competency_skill TEXT NULL,
+    activities TEXT NULL,
+    time_frame VARCHAR(255) NULL,
+    person_responsible VARCHAR(255) NULL,
+    remarks TEXT NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (itgp_id) REFERENCES itgp_records(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS itgp_comments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    itgp_id INT NOT NULL,
+    posted_by INT NOT NULL,
+    comment_text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (itgp_id) REFERENCES itgp_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (posted_by) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS general_teacher_assignments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    general_teacher_id INT NOT NULL,
+    assigned_by INT NOT NULL,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (general_teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_assignment (student_id, general_teacher_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (53);
+
+-- END MIGRATION: v53
+
+-- ============================================
+-- MIGRATION: v54 - Process 13 Class Placements & Mainstream Status
+-- ============================================
+
+ALTER TABLE student_records ADD COLUMN status ENUM('active','mainstreamed') NOT NULL DEFAULT 'active';
+
+CREATE TABLE IF NOT EXISTS class_placements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    itgp_id INT NOT NULL,
+    reviewed_by INT NOT NULL,
+    status ENUM('confirmed','on_hold') NOT NULL DEFAULT 'confirmed',
+    hold_reason TEXT NULL,
+    confirmed_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (itgp_id) REFERENCES itgp_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (54);
+
+-- END MIGRATION: v54
+
