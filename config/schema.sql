@@ -784,6 +784,15 @@ VALUES (1, 'System Admin', 'admin@spedlms.local',
         '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
         'admin', 'active', TRUE, 'local');
 
+-- Demo accounts (password: password)
+INSERT IGNORE INTO users (id, name, first_name, last_name, email, contact_number, password_hash, role, status, email_verified, auth_provider) VALUES
+(2,  'Demo Parent',         'Demo', 'Parent',         'demo.parent@spedlms.local',         '09123456701', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'parent',          'active', TRUE, 'local'),
+(3,  'Demo SPED Teacher',   'Demo', 'SPED Teacher',   'demo.sped@spedlms.local',           '09123456702', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'sped_teacher',    'active', TRUE, 'local'),
+(4,  'Demo Guidance',       'Demo', 'Guidance',       'demo.guidance@spedlms.local',       '09123456703', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'guidance',        'active', TRUE, 'local'),
+(5,  'Demo Principal',      'Demo', 'Principal',      'demo.principal@spedlms.local',      '09123456704', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'principal',       'active', TRUE, 'local'),
+(6,  'Demo Master Teacher', 'Demo', 'Master Teacher', 'demo.master@spedlms.local',         '09123456705', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'master_teacher',  'active', TRUE, 'local'),
+(7,  'Demo Learner',        'Demo', 'Learner',        'demo.learner@spedlms.local',        '09123456706', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'learner',         'active', TRUE, 'local');
+
 INSERT IGNORE INTO dlp_settings (setting_key, setting_value, description) VALUES
 ('dlp_enable_watermark',        'true',                    'Enable watermark on sensitive documents'),
 ('dlp_enable_screenshot_block', 'true',                    'Block screenshot attempts'),
@@ -1395,6 +1404,31 @@ CREATE TABLE IF NOT EXISTS progress_reports (
     INDEX idx_progress_reports_student (student_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS cot_observations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    iep_record_id INT NOT NULL,
+    observed_teacher_id INT NOT NULL,
+    created_by INT NOT NULL,
+    lesson_plan_id INT NULL,
+    school_year VARCHAR(20) NULL,
+    quarter VARCHAR(50) NULL,
+    observation_date DATE NULL,
+    ratings JSON NULL,
+    strengths TEXT NULL,
+    recommendations TEXT NULL,
+    status ENUM('draft','finalized') NOT NULL DEFAULT 'draft',
+    notification_sent_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (iep_record_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (observed_teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_cot_iep (iep_record_id),
+    INDEX idx_cot_teacher (observed_teacher_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT IGNORE INTO db_version (version) VALUES (47);
 
 -- END MIGRATION: v47
@@ -1666,6 +1700,10 @@ INSERT IGNORE INTO db_version (version) VALUES (52);
 -- ============================================
 
 ALTER TABLE users MODIFY COLUMN role ENUM('user','parent','sped_teacher','guidance','principal','master_teacher','learner','admin','general_teacher') DEFAULT 'user';
+
+INSERT IGNORE INTO users (id, name, first_name, last_name, email, contact_number, password_hash, role, status, email_verified, auth_provider)
+VALUES (8, 'Demo General Teacher', 'Demo', 'General Teacher', 'demo.genteacher@spedlms.local', '09123456707',
+        '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'general_teacher', 'active', TRUE, 'local');
 
 CREATE TABLE IF NOT EXISTS itgp_records (
     id INT AUTO_INCREMENT PRIMARY KEY,
