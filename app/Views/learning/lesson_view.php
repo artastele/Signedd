@@ -43,7 +43,6 @@ $typeMap = [
     'sequencing' => ['Sequencing', 'bi-sort-numeric-down'],
 ];
 ?>
-<body data-logged-in="true">
 
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
@@ -54,27 +53,33 @@ $typeMap = [
             <a href="<?php echo htmlspecialchars($basePath); ?>/learning/dashboard" class="mission-back-link">
                 <i class="bi bi-arrow-left"></i> Back to My Lessons
             </a>
-            <a href="<?php echo htmlspecialchars($basePath); ?>/learning/progress" class="quest-secondary-btn">
-                <i class="bi bi-bar-chart-line"></i> View Progress
+            <a href="<?php echo htmlspecialchars($basePath); ?>/learning/dashboard?tab=badges" class="quest-secondary-btn">
+                <i class="bi bi-trophy-fill"></i> View My Badges
             </a>
         </div>
 
         <section class="lesson-hero-card">
-            <div>
-                <div class="quest-eyebrow">Learning Mission Hub</div>
+            <div class="lesson-hero-card__content">
+                <div class="quest-eyebrow">🚀 Learning Mission Hub</div>
                 <h1><?php echo htmlspecialchars($lessonPlan['title'] ?? 'Lesson'); ?></h1>
                 <p>Complete your learning mission today.</p>
                 <div class="lesson-badge-row">
-                    <span><i class="bi bi-bookmark-star"></i> <?php echo htmlspecialchars($domainLabel); ?></span>
+                    <span><i class="bi bi-bookmark-star-fill"></i> <?php echo htmlspecialchars($domainLabel); ?></span>
                     <?php if (!empty($schoolYear)): ?>
                         <span><i class="bi bi-calendar3"></i> SY <?php echo htmlspecialchars($schoolYear); ?></span>
                     <?php endif; ?>
                 </div>
             </div>
             <div class="lesson-hero-stats">
-                <div><strong><?php echo $materialCount; ?></strong><span>Materials</span></div>
-                <div><strong><?php echo $activityCount; ?></strong><span>Activities</span></div>
-                <div><strong><?php echo $completedCount; ?></strong><span>Completed</span></div>
+                <div class="hero-stat-card"><strong class="stat-count-num"><?php echo $materialCount; ?></strong><span>Guides</span></div>
+                <div class="hero-stat-card"><strong class="stat-count-num"><?php echo $activityCount; ?></strong><span>Challenges</span></div>
+                <div class="hero-stat-card"><strong class="stat-count-num success"><?php echo $completedCount; ?></strong><span>Completed</span></div>
+            </div>
+            <div class="lesson-hero-card__mascot">
+                <?php 
+                $mascotState = 'happy';
+                require __DIR__ . '/../components/mascot.php'; 
+                ?>
             </div>
         </section>
 
@@ -82,7 +87,7 @@ $typeMap = [
             <div class="path-step is-active"><span>1</span><strong>Read Material</strong></div>
             <div class="path-step"><span>2</span><strong>Start Activity</strong></div>
             <div class="path-step"><span>3</span><strong>Complete Mission</strong></div>
-            <div class="path-step"><span>4</span><strong>View Progress</strong></div>
+            <div class="path-step"><span>4</span><strong>Win Badges!</strong></div>
         </section>
 
         <section class="mission-section" id="materials">

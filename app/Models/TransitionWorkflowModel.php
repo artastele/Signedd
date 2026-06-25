@@ -1007,6 +1007,7 @@ class TransitionWorkflowModel {
 
         if ($existing) {
             $payload['id'] = (int)$existing['id'];
+            unset($payload['student_id']);
             $this->db->prepare("
                 UPDATE itp_records SET 
                     transition_readiness_id = :transition_readiness_id,

@@ -1465,7 +1465,7 @@ CREATE TABLE attendance_records (
     id INT AUTO_INCREMENT PRIMARY KEY,
     student_id INT NOT NULL,
     date DATE NOT NULL,
-    status ENUM('present', 'absent') NOT NULL DEFAULT 'present',
+    status ENUM('present', 'absent', 'tardy', 'excused') NOT NULL DEFAULT 'present',
     source ENUM('manual', 'auto_activity') NOT NULL DEFAULT 'manual',
     recorded_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1497,6 +1497,7 @@ CREATE TABLE IF NOT EXISTS report_remarks (
     remark_type ENUM('teacher', 'parent') NOT NULL,
     remark_text TEXT NULL,
     signature_name VARCHAR(255) NULL,
+    signature_data MEDIUMTEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (progress_report_id) REFERENCES progress_reports(id) ON DELETE CASCADE,
     UNIQUE KEY unique_report_quarter_type (progress_report_id, quarter, remark_type)
@@ -1786,4 +1787,27 @@ CREATE TABLE IF NOT EXISTS class_placements (
 INSERT IGNORE INTO db_version (version) VALUES (54);
 
 -- END MIGRATION: v54
+
+-- ============================================
+-- MIGRATION: v55 - SPED LMS Activity System Overhaul
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `activity_attempt_log` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `activity_id` INT UNSIGNED NOT NULL,
+  `student_id` INT UNSIGNED NOT NULL,
+  `question_index` TINYINT UNSIGNED NOT NULL,
+  `selected_value` VARCHAR(255) NOT NULL,
+  `correct_value` VARCHAR(255) NOT NULL,
+  `is_correct` TINYINT(1) NOT NULL DEFAULT 0,
+  `attempted_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_activity_student` (`activity_id`, `student_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `lms_submissions`
+  ADD COLUMN IF NOT EXISTS `flashcard_results` JSON NULL AFTER `auto_score`;
+
+INSERT IGNORE INTO db_version (version) VALUES (55);
+
+-- END MIGRATION: v55
 

@@ -376,7 +376,10 @@ class IEPImplementationController {
     public function addActivity() {
         header('Content-Type: application/json');
         try {
-            $body = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $body = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($body)) {
+                $body = $_POST;
+            }
 
             $lessonPlanId = (int) ($body['lesson_plan_id'] ?? 0);
             $title        = trim($body['title']            ?? '');
@@ -400,20 +403,51 @@ class IEPImplementationController {
                 exit;
             }
 
-            // Ensure activity_data is a JSON string
+            // Ensure activity_data is an array for manipulation
+            $activityDataArr = [];
             if (is_array($activityData)) {
-                $activityDataJson = json_encode($activityData);
+                $activityDataArr = $activityData;
             } elseif (is_string($activityData)) {
-                // Validate it's valid JSON
-                json_decode($activityData);
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    echo json_encode(['success' => false, 'message' => 'activity_data must be valid JSON.']);
+                $activityDataArr = json_decode($activityData, true) ?? [];
+            }
+
+            // Upload image file for image_label (scoring/validation)
+            if ($activityType === 'image_label') {
+                $imagePath = null;
+                if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
+                    $file    = $_FILES['image_file'];
+                    $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                    $allowed = ['jpg', 'jpeg', 'png'];
+                    if (!in_array($ext, $allowed)) {
+                        echo json_encode(['success' => false, 'message' => 'Allowed image types: JPG, PNG.']);
+                        exit;
+                    }
+                    if ($file['size'] > 5 * 1024 * 1024) {
+                        echo json_encode(['success' => false, 'message' => 'Image file must be under 5MB.']);
+                        exit;
+                    }
+                    $uploadDir = __DIR__ . '/../../public/uploads/activities/' . $lessonPlanId . '/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    $fileName = 'act_' . time() . '_' . uniqid() . '.' . $ext;
+                    $fullPath = $uploadDir . $fileName;
+                    if (move_uploaded_file($file['tmp_name'], $fullPath)) {
+                        $imagePath = 'uploads/activities/' . $lessonPlanId . '/' . $fileName;
+                    }
+                }
+
+                if ($imagePath) {
+                    $activityDataArr['image_path'] = $imagePath;
+                }
+
+                if (empty($activityDataArr['image_path'])) {
+                    echo json_encode(['success' => false, 'message' => 'Please upload an image before saving this activity.']);
                     exit;
                 }
-                $activityDataJson = $activityData;
-            } else {
-                $activityDataJson = '{}';
             }
+
+            $activityDataJson = json_encode($activityDataArr);
 
             $existing     = $this->model->getActivities($lessonPlanId);
             $displayOrder = count($existing);

@@ -22,7 +22,6 @@ $ringCircumference = round(2 * M_PI * $ringRadius, 2);
 $ringDashOffset = round($ringCircumference * (1 - $pct / 100), 2);
 $totalSubs = !empty($recentSubmissions) ? count($recentSubmissions) : count($recentGrades ?? []);
 ?>
-<body data-logged-in="true">
 
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
@@ -73,23 +72,17 @@ $totalSubs = !empty($recentSubmissions) ? count($recentSubmissions) : count($rec
             </a>
         </section>
 
-        <section class="overall-progress-card">
-            <div class="progress-ring-small">
-                <svg width="118" height="118" viewBox="0 0 112 112" role="img" aria-label="<?php echo $pct; ?> percent complete">
-                    <circle cx="56" cy="56" r="<?php echo $ringRadius; ?>" fill="none" stroke="#e6edf5" stroke-width="10"/>
-                    <circle cx="56" cy="56" r="<?php echo $ringRadius; ?>" fill="none" stroke="#ef9f27" stroke-width="10"
-                            stroke-dasharray="<?php echo $ringCircumference; ?>" stroke-dashoffset="<?php echo $ringDashOffset; ?>"
-                            stroke-linecap="round" transform="rotate(-90 56 56)"/>
-                    <text x="56" y="61" text-anchor="middle" font-size="20" font-weight="900" fill="#173765"><?php echo $pct; ?>%</text>
-                </svg>
+        <section class="overall-progress-card cartoonish-hero-progress">
+            <div class="overall-progress-mascot">
+                <?php 
+                $mascotState = ($pct >= 100) ? 'cheering' : 'happy';
+                require __DIR__ . '/../components/mascot.php'; 
+                ?>
             </div>
             <div class="overall-progress-copy">
-                <div class="quest-eyebrow">Overall Progress</div>
-                <h2><?php echo (int)$overallComplete; ?> of <?php echo (int)$overallTotal; ?> missions completed</h2>
-                <p><?php echo htmlspecialchars($progressMsg); ?></p>
-                <div class="progress-mini-track" aria-hidden="true">
-                    <span style="width:<?php echo $pct; ?>%"></span>
-                </div>
+                <div class="quest-eyebrow">🌟 Mission Progress</div>
+                <h2>You have completed <?php echo (int)$overallComplete; ?> of <?php echo (int)$overallTotal; ?> learning missions!</h2>
+                <p class="congrats-text"><?php echo htmlspecialchars($progressMsg); ?></p>
             </div>
         </section>
 
@@ -109,12 +102,18 @@ $totalSubs = !empty($recentSubmissions) ? count($recentSubmissions) : count($rec
                         <article class="domain-progress-row">
                             <div>
                                 <strong><?php echo htmlspecialchars($domain['domain']); ?></strong>
-                                <small><?php echo (int)$domain['completed']; ?> / <?php echo (int)$domain['total']; ?> complete<?php echo $avgScore !== null ? ' - Avg ' . $avgScore . '%' : ''; ?></small>
+                                <small><?php echo (int)$domain['completed']; ?> of <?php echo (int)$domain['total']; ?> missions done</small>
                             </div>
-                            <div class="domain-progress-meter">
+                            <div class="domain-progress-meter cartoon-meter">
                                 <span style="width:<?php echo $domainPct; ?>%"></span>
                             </div>
-                            <b><?php echo $domainPct; ?>%</b>
+                            <b class="domain-status-label">
+                                <?php if ($domain['completed'] >= $domain['total'] && $domain['total'] > 0): ?>
+                                    🏆 All Done!
+                                <?php else: ?>
+                                    ⭐ Practicing
+                                <?php endif; ?>
+                            </b>
                         </article>
                     <?php endforeach; ?>
                 </div>

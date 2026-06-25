@@ -6,6 +6,8 @@
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../Models/LessonPlanModel.php';
 require_once __DIR__ . '/../Models/GamificationModel.php';
+require_once __DIR__ . '/../Helpers/ScoreHelper.php';
+require_once __DIR__ . '/../Helpers/FlashcardResult.php';
 
 class LearningController {
 
@@ -212,7 +214,7 @@ class LearningController {
 
     // ----------------------------------------------------------------
     // POST /learning/activity/{id}/submit
-    // ----------------------------------------------------------------
+    // ------------------------------------------------------------
     public function submitActivity(string $activityId): void {
         header('Content-Type: application/json');
         $activityId = (int) $activityId;
@@ -237,35 +239,70 @@ class LearningController {
         $autoScore    = null;
         $maxScore     = (int) ($activity['max_score'] ?? 0);
 
+        $db = Database::getInstance()->getConnection();
+
+        // Attempt logging helper (scoring/accessibility)
+        $logAttempt = function($questionIndex, $selectedValue, $correctValue, $isCorrect) use ($db, $activityId, $studentId) {
+            try {
+                $stmt = $db->prepare("
+                    INSERT INTO activity_attempt_log 
+                        (activity_id, student_id, question_index, selected_value, correct_value, is_correct, attempted_at)
+                    VALUES 
+                        (:a, :s, :qi, :sv, :cv, :ic, NOW())
+                ");
+                $stmt->execute([
+                    'a' => $activityId,
+                    's' => $studentId,
+                    'qi' => $questionIndex,
+                    'sv' => (string) $selectedValue,
+                    'cv' => (string) $correctValue,
+                    'ic' => $isCorrect ? 1 : 0
+                ]);
+            } catch (\Throwable $e) {
+                error_log("Failed to log activity attempt: " . $e->getMessage());
+            }
+        };
+
         switch ($type) {
             case 'multiple_choice':
                 $score = 0;
                 foreach ($activityData['questions'] ?? [] as $qi => $q) {
                     $userAnswer = $answers[$qi] ?? null;
                     $questionPoints = (int) ($q['points'] ?? 1);
-
+                    $correctIndex = null;
+                    
                     if (isset($q['correct_answer'])) {
-                        if ((string) $q['correct_answer'] === (string) $userAnswer) {
-                            $score += $questionPoints;
-                        }
-                        continue;
-                    }
-
-                    foreach ($q['options'] ?? [] as $oi => $opt) {
-                        $isCorrect = null;
-                        if (isset($opt['is_correct'])) {
-                            $isCorrect = $opt['is_correct'];
-                        } elseif (isset($opt['isCorrect'])) {
-                            $isCorrect = $opt['isCorrect'];
-                        } elseif (isset($opt['correct_answer'])) {
-                            $isCorrect = $opt['correct_answer'];
-                        }
-
-                        if (!empty($isCorrect) && (string) $oi === (string) $userAnswer) {
-                            $score += $questionPoints;
-                            break;
+                        $correctIndex = $q['correct_answer'];
+                    } else {
+                        foreach ($q['options'] ?? [] as $oi => $opt) {
+                            $isCorrectOpt = null;
+                            if (isset($opt['is_correct'])) {
+                                $isCorrectOpt = $opt['is_correct'];
+                            } elseif (isset($opt['isCorrect'])) {
+                                $isCorrectOpt = $opt['isCorrect'];
+                            } elseif (isset($opt['correct_answer'])) {
+                                $isCorrectOpt = $opt['correct_answer'];
+                            }
+                            if (!empty($isCorrectOpt)) {
+                                $correctIndex = $oi;
+                                break;
+                            }
                         }
                     }
+
+                    $isCorrect = ($correctIndex !== null && (string)$correctIndex === (string)$userAnswer);
+                    if ($isCorrect) {
+                        $score += $questionPoints;
+                    }
+                    
+                    $userAnswerText = isset(($q['options'] ?? [])[$userAnswer]) 
+                        ? (is_array($q['options'][$userAnswer]) ? ($q['options'][$userAnswer]['text'] ?? $q['options'][$userAnswer]['label'] ?? '') : $q['options'][$userAnswer])
+                        : (string)$userAnswer;
+                    $correctAnswerText = isset(($q['options'] ?? [])[$correctIndex]) 
+                        ? (is_array($q['options'][$correctIndex]) ? ($q['options'][$correctIndex]['text'] ?? $q['options'][$correctIndex]['label'] ?? '') : $q['options'][$correctIndex])
+                        : (string)$correctIndex;
+                    
+                    $logAttempt($qi, $userAnswerText, $correctAnswerText, $isCorrect);
                 }
                 $autoScore = $score;
                 break;
@@ -288,21 +325,33 @@ class LearningController {
                 }
                 foreach ($tfItems as $ti => $item) {
                     $given = $answers[$ti] ?? ($ti === 0 ? ($answers['answer'] ?? null) : null);
-                    if (strtolower((string) $given) === strtolower((string)($item['answer'] ?? ''))) {
+                    $correct = $item['answer'] ?? 'true';
+                    $isCorrect = (strtolower(trim((string)$given)) === strtolower(trim((string)$correct)));
+                    if ($isCorrect) {
                         $score += (int)($item['points'] ?? 1);
                     }
+                    $logAttempt($ti, $given ?? '', $correct, $isCorrect);
                 }
                 $autoScore = $score;
                 break;
 
             case 'fill_in_blanks':
                 $score = 0;
+                $mode = $activityData['answer_mode'] ?? 'word_bank';
+                $useFuzzy = ($mode === 'free_type');
+                
                 if (!empty($activityData['sentences'])) {
                     $answerIndex = 0;
                     foreach ($activityData['sentences'] as $sentence) {
                         foreach (($sentence['answers'] ?? []) as $correct) {
-                            $given = strtolower(trim($answers[$answerIndex] ?? ''));
-                            if ($given === strtolower(trim((string) $correct))) {
+                            $given = $answers[$answerIndex] ?? '';
+                            $matched = false;
+                            if ($useFuzzy) {
+                                $matched = ScoreHelper::fuzzyMatch($given, (string)$correct, 2);
+                            } else {
+                                $matched = (strtolower(trim((string)$given)) === strtolower(trim((string)$correct)));
+                            }
+                            if ($matched) {
                                 $score += (int) ($sentence['points'] ?? $activityData['points'] ?? 1);
                             }
                             $answerIndex++;
@@ -310,15 +359,14 @@ class LearningController {
                     }
                 } elseif (!empty($activityData['answers'])) {
                     foreach ($activityData['answers'] as $si => $correct) {
-                        $given = strtolower(trim($answers[$si] ?? ''));
-                        if ($given === strtolower(trim((string) $correct))) {
-                            $score += (int) ($activityData['points'] ?? 1);
+                        $given = $answers[$si] ?? '';
+                        $matched = false;
+                        if ($useFuzzy) {
+                            $matched = ScoreHelper::fuzzyMatch($given, (string)$correct, 2);
+                        } else {
+                            $matched = (strtolower(trim((string)$given)) === strtolower(trim((string)$correct)));
                         }
-                    }
-                } elseif (!empty($activityData['sentence']) && !empty($activityData['answers'])) {
-                    foreach ($activityData['answers'] as $si => $correct) {
-                        $given = strtolower(trim($answers[$si] ?? ''));
-                        if ($given === strtolower(trim((string) $correct))) {
+                        if ($matched) {
                             $score += (int) ($activityData['points'] ?? 1);
                         }
                     }
@@ -332,12 +380,34 @@ class LearningController {
                 if (empty($sets)) {
                     $sets = [['pairs' => $activityData['pairs'] ?? [], 'points' => $activityData['points'] ?? 1]];
                 }
+                
+                $totalExpectedPairs = 0;
+                foreach ($sets as $set) {
+                    $totalExpectedPairs += count($set['pairs'] ?? []);
+                }
+                
+                $totalSubmittedPairs = 0;
+                foreach ($answers as $k => $v) {
+                    if ($v !== null && $v !== '') {
+                        $totalSubmittedPairs++;
+                    }
+                }
+                
+                if ($totalSubmittedPairs !== $totalExpectedPairs) {
+                    echo json_encode(['success' => false, 'message' => 'Please match all terms before saving.']);
+                    exit;
+                }
+                
+                $qi = 0;
                 foreach ($sets as $si => $set) {
                     foreach ($set['pairs'] ?? [] as $pi => $pair) {
                         $given = $answers[$si . '_' . $pi] ?? ($si === 0 ? ($answers[$pi] ?? null) : null);
-                        if ((string)$given === (string)($pair['right'] ?? '')) {
+                        $correct = $pair['right'] ?? '';
+                        $isCorrect = ((string)$given === (string)$correct);
+                        if ($isCorrect) {
                             $score += (int)($set['points'] ?? $activityData['points'] ?? 1);
                         }
+                        $logAttempt($qi++, $pair['left'] . ' = ' . $given, $pair['left'] . ' = ' . $correct, $isCorrect);
                     }
                 }
                 $autoScore = $score;
@@ -346,6 +416,7 @@ class LearningController {
             case 'drag_drop_sort':
             case 'sequencing':
                 $score = 0;
+                $tolerance = (int)($activityData['tolerance'] ?? 0);
                 $sets = $activityData['sets'] ?? ($type === 'drag_drop_sort' ? ($activityData['sort_sets'] ?? null) : ($activityData['sequence_sets'] ?? null));
                 if (empty($sets)) {
                     $sets = [[
@@ -361,7 +432,14 @@ class LearningController {
                         $correctOrder = range(0, count($items) - 1);
                     }
                     $givenOrder = is_array($answers[$si] ?? null) ? array_values($answers[$si]) : ($si === 0 ? array_values($answers) : []);
-                    if (array_map('strval', $givenOrder) === array_map('strval', $correctOrder)) {
+                    
+                    $isPass = ScoreHelper::compareOrder(
+                        array_map('strval', $givenOrder),
+                        array_map('strval', $correctOrder),
+                        $tolerance
+                    );
+                    
+                    if ($isPass) {
                         $score += (int)($set['points'] ?? $activityData['points'] ?? 1);
                     }
                 }
@@ -374,9 +452,11 @@ class LearningController {
                 foreach ($labels as $li => $label) {
                     $correct = trim((string)($label['answer'] ?? ''));
                     $given = trim((string)($answers[$li] ?? ''));
-                    if ($correct !== '' && strtolower($given) === strtolower($correct)) {
+                    $isCorrect = ($correct !== '' && strtolower($given) === strtolower($correct));
+                    if ($isCorrect) {
                         $score += (int) ($activityData['points'] ?? 1);
                     }
+                    $logAttempt($li, $given, $correct, $isCorrect);
                 }
                 $autoScore = !empty($labels) ? $score : null;
                 break;
@@ -388,10 +468,15 @@ class LearningController {
 
         $this->model->saveSubmission($activityId, $studentId, $this->userId, json_encode($answers), $autoScore);
 
+        if ($type === 'flashcards' && !empty($input['flashcard_results'])) {
+            $flashcardResultsJson = json_encode($input['flashcard_results']);
+            $db->prepare("UPDATE lms_submissions SET flashcard_results = :res WHERE activity_id = :a AND student_id = :s")
+               ->execute(['res' => $flashcardResultsJson, 'a' => $activityId, 's' => $studentId]);
+        }
+
         // ── Step 12-14: Stars, XP, Badges ──────────────────────────
         try {
             // Fetch the submission id we just saved
-            $db      = Database::getInstance()->getConnection();
             $stmtSub = $db->prepare("SELECT id FROM lms_submissions WHERE activity_id=:a AND student_id=:s ORDER BY submitted_at DESC LIMIT 1");
             $stmtSub->execute(['a' => $activityId, 's' => $studentId]);
             $subId = (int) $stmtSub->fetchColumn();
@@ -402,17 +487,35 @@ class LearningController {
             }
 
             // Step 13 — XP per event
-            $xpType = in_array($type, ['flashcards', 'image_label']) ? 'view' : ($autoScore !== null ? 'quiz' : 'submission');
-            if ($xpType === 'view') {
-                if (!$this->gamification->xpAlreadyAwarded($studentId, 'view', $activityId))
-                    $this->gamification->awardXP($studentId, 5, 'Viewed activity', 'view', $activityId);
-            } elseif ($xpType === 'quiz' && $maxScore > 0) {
-                $xp = (int) round(($autoScore / $maxScore) * $maxScore);
-                if (!$this->gamification->xpAlreadyAwarded($studentId, 'quiz', $activityId))
-                    $this->gamification->awardXP($studentId, max($xp, 1), 'Quiz submitted', 'quiz', $activityId);
+            if ($type === 'flashcards') {
+                $results = $input['flashcard_results'] ?? [];
+                $sumConfidence = 0;
+                $count = count($results);
+                foreach ($results as $resVal) {
+                    $sumConfidence += isset($resVal['confidence']) ? (int)$resVal['confidence'] : 0;
+                }
+                $maxPossible = $count * 2;
+                $rate = $maxPossible > 0 ? ($sumConfidence / $maxPossible) : 0.0;
+                $baseXp = 20; // Base XP for flashcard completion
+                $xp = (int) round($rate * $baseXp);
+                $xp = max($xp, 1);
+                
+                if (!$this->gamification->xpAlreadyAwarded($studentId, 'flashcards_complete', $activityId)) {
+                    $this->gamification->awardXP($studentId, $xp, 'Flashcards Confidence XP', 'flashcards_complete', $activityId);
+                }
             } else {
-                if (!$this->gamification->xpAlreadyAwarded($studentId, 'submission', $activityId))
-                    $this->gamification->awardXP($studentId, 10, 'Activity submitted', 'submission', $activityId);
+                $xpType = ($type === 'image_label') ? 'view' : ($autoScore !== null ? 'quiz' : 'submission');
+                if ($xpType === 'view') {
+                    if (!$this->gamification->xpAlreadyAwarded($studentId, 'view', $activityId))
+                        $this->gamification->awardXP($studentId, 5, 'Viewed activity', 'view', $activityId);
+                } elseif ($xpType === 'quiz' && $maxScore > 0) {
+                    $xp = (int) round(($autoScore / $maxScore) * $maxScore);
+                    if (!$this->gamification->xpAlreadyAwarded($studentId, 'quiz', $activityId))
+                        $this->gamification->awardXP($studentId, max($xp, 1), 'Quiz submitted', 'quiz', $activityId);
+                } else {
+                    if (!$this->gamification->xpAlreadyAwarded($studentId, 'submission', $activityId))
+                        $this->gamification->awardXP($studentId, 10, 'Activity submitted', 'submission', $activityId);
+                }
             }
 
             // Lesson completion bonus (+20 XP)
@@ -441,7 +544,7 @@ class LearningController {
             $earnedKeys = $this->gamification->getEarnedBadgeKeys($studentId);
             foreach ($earnedKeys as $bk) {
                 if (!$this->gamification->xpAlreadyAwarded($studentId, 'badge_bonus', 0))
-                    break; // bonus handled separately — skip double counting
+                    break;
             }
 
             // Log submission

@@ -134,26 +134,36 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                                    class="btn btn-sm btn-outline-secondary">
                                     <i class="bi bi-printer me-1"></i>Print
                                 </a>
+                                <?php if (RoleMiddleware::hasPermission('progress_report.view') || RoleMiddleware::hasPermission('progress_report.view_own_child')): ?>
                                 <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/learning-outcomes/grades"
                                    class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-bar-chart-line me-1"></i>Grades
                                 </a>
+                                <?php endif; ?>
+                                <?php if (RoleMiddleware::hasPermission('transition_readiness.view') || RoleMiddleware::hasPermission('transition_readiness.create')): ?>
                                 <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/transition-management/readiness"
                                    class="btn btn-sm btn-outline-success">
                                     <i class="bi bi-check2-circle me-1"></i>Readiness
                                 </a>
+                                <?php endif; ?>
+                                <?php if (RoleMiddleware::hasPermission('itp.view') || RoleMiddleware::hasPermission('itp.view_own_child') || RoleMiddleware::hasPermission('itp.create')): ?>
                                 <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/inclusion-planning/itp"
                                    class="btn btn-sm btn-outline-info">
                                     <i class="bi bi-people me-1"></i>ITP
                                 </a>
+                                <?php endif; ?>
+                                <?php if (RoleMiddleware::hasPermission('itgp.view') || RoleMiddleware::hasPermission('itgp.manage')): ?>
                                 <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/inclusive-iep-itgp"
                                    class="btn btn-sm btn-outline-warning">
                                     <i class="bi bi-journal-text me-1"></i>ITGP
                                 </a>
+                                <?php endif; ?>
+                                <?php if (RoleMiddleware::hasPermission('class_placement.view') || RoleMiddleware::hasPermission('class_placement.review')): ?>
                                 <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/placement-management/notices"
                                    class="btn btn-sm btn-outline-dark">
                                     <i class="bi bi-envelope me-1"></i>Notices
                                 </a>
+                                <?php endif; ?>
                                 <?php if ($iep['status'] === 'draft' && in_array($role, ['sped_teacher','admin'])): ?>
                                 <form method="POST" action="<?php echo $basePath; ?>/iep/draft/<?php echo (int)$iep['id']; ?>/delete" class="d-inline"
                                       onsubmit="return confirm('Delete this draft permanently? This cannot be undone.');">

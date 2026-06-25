@@ -42,6 +42,9 @@ function isEnrollmentAvailabilityMenuActive() {
     }
     return false;
 }
+if ($role === 'learner') {
+    return;
+}
 ?>
 
 <div class="sidebar" id="sidebar">
@@ -192,6 +195,10 @@ function isEnrollmentAvailabilityMenuActive() {
             <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
                 <i class="bi bi-bar-chart-line"></i>
                 <span>Grades</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/attendance-log" class="<?php echo isActive('/attendance-log'); ?>">
+                <i class="bi bi-calendar-check"></i>
+                <span>Attendance Log</span>
             </a>
             <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/implementation') && !isActive('/iep/meetings') ? 'active' : ''; ?>">
                 <i class="bi bi-folder2-open"></i>

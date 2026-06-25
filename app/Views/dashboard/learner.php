@@ -41,7 +41,6 @@ if (!isset($avgScore))           $avgScore           = 0;
 $r = 54; $circ = round(2 * M_PI * $r, 2);
 $dashOff = round($circ * (1 - $pct / 100), 2);
 ?>
-<body data-logged-in="true">
 
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
@@ -131,106 +130,142 @@ $dashOff = round($circ * (1 - $pct / 100), 2);
 <!-- Welcome banner -->
 <div class="lrn-banner">
   <div class="lrn-banner__left">
-    <div class="lrn-banner__emoji">👋</div>
+    <div class="lrn-banner__mascot">
+      <?php 
+      $mascotState = 'waving';
+      require __DIR__ . '/../components/mascot.php'; 
+      ?>
+    </div>
     <div class="lrn-banner__text">
       <?php if ($pct === 100): ?>
-        Amazing, <?php echo htmlspecialchars($firstName); ?>! You finished everything! 🏆
+        <h2>Amazing, <?php echo htmlspecialchars($firstName); ?>!</h2>
+        <p>You finished everything! You are a superstar! 🏆</p>
       <?php else: ?>
-        Hi <?php echo htmlspecialchars($firstName); ?>!<br>
-        <span style="font-size:.95rem;font-weight:500;">Ready to learn something awesome today?</span>
+        <h2>Hi <?php echo htmlspecialchars($firstName); ?>!</h2>
+        <p>Your learning adventure is waiting! Let's learn something awesome! 🌟</p>
       <?php endif; ?>
     </div>
   </div>
   <div class="lrn-banner__stars">
-    <span>⭐</span> <?php echo number_format($totalStars ?? 0); ?> Stars
+    <span class="star-animation">⭐</span>
+    <div class="star-details">
+      <strong><?php echo number_format($totalStars ?? 0); ?></strong>
+      <span>Stars Earned</span>
+    </div>
   </div>
 </div>
 
 <?php if (!empty($nextLesson)): ?>
-<section class="quest-continue" aria-labelledby="continueQuestTitle">
-  <div>
-    <span class="quest-eyebrow">Continue Learning</span>
+<section class="quest-continue hero-quest-card" aria-labelledby="continueQuestTitle">
+  <div class="quest-continue__content">
+    <span class="quest-eyebrow">🚀 Your Next Adventure</span>
     <h2 id="continueQuestTitle"><?php echo htmlspecialchars($nextLesson['title'] ?? 'Next mission'); ?></h2>
-    <p><?php echo $missionRemaining > 0 ? $missionRemaining . ' activity mission' . ($missionRemaining === 1 ? '' : 's') . ' left in your quest.' : 'Review your completed lesson and keep your skills sharp.'; ?></p>
+    <p class="quest-desc">
+      <?php 
+      if ($missionRemaining > 0) {
+          echo 'You have <strong>' . $missionRemaining . ' challenge' . ($missionRemaining === 1 ? '' : 's') . '</strong> left in this mission. Let\'s do it! 💪';
+      } else {
+          echo 'You\'ve finished this mission! Tap below to review your achievement and keep practicing. 🌟';
+      }
+      ?>
+    </p>
+    <a href="<?php echo $basePath; ?>/learning/lesson/<?php echo (int)$nextLesson['id']; ?>" class="quest-primary-btn btn-hero-start">
+      <i class="bi bi-rocket-takeoff-fill"></i>
+      <span><?php echo $pct > 0 ? 'Continue Mission' : 'Start Mission'; ?></span>
+    </a>
   </div>
-  <a href="<?php echo $basePath; ?>/learning/lesson/<?php echo (int)$nextLesson['id']; ?>" class="quest-primary-btn">
-    <i class="bi bi-play-circle-fill"></i>
-    <?php echo $pct > 0 ? 'Continue Mission' : 'Start Mission'; ?>
-  </a>
+  <div class="quest-continue__mascot">
+    <?php 
+    $mascotState = 'pointing';
+    require __DIR__ . '/../components/mascot.php'; 
+    ?>
+  </div>
 </section>
 <?php endif; ?>
 
-<!-- Progress ring card -->
-<div class="lrn-ring-card">
-  <h3>📊 My Progress</h3>
-  <svg width="130" height="130" viewBox="0 0 130 130" role="img" aria-label="<?php echo $pct; ?> percent complete">
-    <circle cx="65" cy="65" r="<?php echo $r; ?>" fill="none" stroke="#e9e9e9" stroke-width="12"/>
-    <circle cx="65" cy="65" r="<?php echo $r; ?>" fill="none" stroke="#ef9f27" stroke-width="12"
-            stroke-dasharray="<?php echo $circ; ?>" stroke-dashoffset="<?php echo $dashOff; ?>"
-            stroke-linecap="round" transform="rotate(-90 65 65)"/>
-    <text x="65" y="68" text-anchor="middle" font-size="22" font-weight="700" fill="#ef9f27"><?php echo $pct; ?>%</text>
-  </svg>
-  <div class="lrn-ring-msg"><?php echo htmlspecialchars($progressMsg); ?></div>
-</div>
-
 <!-- Stat cards -->
 <div class="lrn-stats">
-  <div class="lrn-stat lrn-stat--mod">
-    <span class="lrn-stat__ico">📚</span>
-    <div class="lrn-stat__num"><?php echo count($lessonPlans ?? []); ?></div>
-    <div class="lrn-stat__lbl">Lesson Quests</div>
+  <div class="lrn-stat lrn-stat--mod card-cartoonish-stat">
+    <div class="stat-icon-wrapper mod-theme">📚</div>
+    <div class="stat-content">
+      <div class="lrn-stat__num"><?php echo count($lessonPlans ?? []); ?></div>
+      <div class="lrn-stat__lbl">Lessons Assigned</div>
+    </div>
   </div>
-  <div class="lrn-stat lrn-stat--done">
-    <span class="lrn-stat__ico">✅</span>
-    <div class="lrn-stat__num"><?php echo (int)$overallComplete; ?></div>
-    <div class="lrn-stat__lbl">Missions Done</div>
+  <div class="lrn-stat lrn-stat--done card-cartoonish-stat">
+    <div class="stat-icon-wrapper done-theme">🏆</div>
+    <div class="stat-content">
+      <div class="lrn-stat__num"><?php echo (int)$overallComplete; ?></div>
+      <div class="lrn-stat__lbl">Missions Completed</div>
+    </div>
   </div>
-  <div class="lrn-stat lrn-stat--star">
-    <span class="lrn-stat__ico">⭐</span>
-    <div class="lrn-stat__num" style="font-size:1.55rem;"><?php echo htmlspecialchars($latestScoreLabel); ?></div>
-    <div class="lrn-stat__lbl">Latest Power</div>
+  <div class="lrn-stat lrn-stat--star card-cartoonish-stat">
+    <div class="stat-icon-wrapper star-theme">🌟</div>
+    <div class="stat-content">
+      <div class="lrn-stat__num" style="font-size:1.3rem;"><?php echo htmlspecialchars($latestScoreLabel); ?></div>
+      <div class="lrn-stat__lbl">Latest Power</div>
+    </div>
   </div>
 </div>
 
+<?php
+$activeTab = isset($_GET['tab']) && $_GET['tab'] === 'badges' ? 'badges' : 'lessons';
+?>
 <!-- Tabs -->
 <div class="lrn-tabs" role="tablist">
-  <button id="tab-lessons"  class="lrn-tab active" role="tab" aria-selected="true"  onclick="lTab('lessons')">My Lessons</button>
-  <button id="tab-progress" class="lrn-tab"        role="tab" aria-selected="false" onclick="lTab('progress')">My Progress</button>
-  <button id="tab-badges"   class="lrn-tab"        role="tab" aria-selected="false" onclick="lTab('badges')">My Badges</button>
+  <button id="tab-lessons"  class="lrn-tab <?php echo $activeTab === 'lessons' ? 'active' : ''; ?>" role="tab" aria-selected="<?php echo $activeTab === 'lessons' ? 'true' : 'false'; ?>"  onclick="lTab('lessons')"><i class="bi bi-book-open-fill"></i> My Lessons</button>
+  <button id="tab-badges"   class="lrn-tab <?php echo $activeTab === 'badges' ? 'active' : ''; ?>" role="tab" aria-selected="<?php echo $activeTab === 'badges' ? 'true' : 'false'; ?>" onclick="lTab('badges')"><i class="bi bi-patch-check-fill"></i> My Badges</button>
 </div>
 
 <!-- TAB 1: MY LESSONS -->
-<div id="panel-lessons" class="lrn-panel active" role="tabpanel">
+<div id="panel-lessons" class="lrn-panel <?php echo $activeTab === 'lessons' ? 'active' : ''; ?>" role="tabpanel">
 <?php if (empty($lessonPlans)): ?>
-  <div class="text-center py-5 text-muted">
-    <span style="font-size:3rem;display:block;margin-bottom:12px;">📚</span>
-    <p style="font-size:1rem;">Your teacher hasn't published any lessons yet.<br>Check back soon!</p>
+  <div class="text-center py-5 text-muted empty-state-friendly">
+    <span style="font-size:4rem;display:block;margin-bottom:12px;">🌟</span>
+    <h3>No lessons assigned yet!</h3>
+    <p>Your awesome learning quests will show up here as soon as your teacher adds them. Stay tuned! 😊</p>
   </div>
 <?php else: ?>
 <div class="lrn-grid quest-grid">
 <?php foreach ($lessonPlans as $lp):
   $at=(int)($lp['activity_count']??0); $ad=(int)($lp['completed_count']??0);
   $lp_pct=($at>0)?round(($ad/$at)*100):0;
-  if($ad>=$at&&$at>0){$cm='done';$sm='done';$si='bi-check-circle-fill';$st='Done';       $bm='done';$bt='View lesson';}
-  elseif($ad>0)       {$cm='prog';$sm='prog';$si='bi-clock-fill';      $st='In progress';$bm='cont';$bt='Continue';}
-  else                {$cm='';   $sm='none';$si='bi-circle';           $st='Not started';$bm='start';$bt='Start';}
+  if($ad>=$at&&$at>0){$cm='done';$sm='done';$si='bi-check-circle-fill';$st='Completed!';   $bm='done';$bt='View lesson';}
+  elseif($ad>0)       {$cm='prog';$sm='prog';$si='bi-clock-fill';      $st='In Progress';$bm='cont';$bt='Continue';}
+  else                {$cm='';   $sm='none';$si='bi-circle';           $st='Not Started';$bm='start';$bt='Start';}
 ?>
 <div class="lrn-lcard quest-mission-card<?php echo $cm?' lrn-lcard--'.$cm:''; ?>">
   <span class="lrn-domain"><?php echo htmlspecialchars($lp['pdsp_domain']); ?></span>
   <div class="lrn-ltitle"><?php echo htmlspecialchars($lp['title']); ?></div>
-  <div class="quest-mission-meta">
-    <span><i class="bi bi-controller"></i> <?php echo $at; ?> challenge<?php echo $at === 1 ? '' : 's'; ?></span>
-    <span><i class="bi bi-flag"></i> <?php echo $lp_pct; ?>%</span>
+  
+  <!-- Friendly star/step progress representation -->
+  <div class="stars-progress-bar">
+    <?php
+    $maxStarsToShow = 5;
+    $completedStars = $at > 0 ? round(($ad / $at) * $maxStarsToShow) : 0;
+    for ($starIdx = 1; $starIdx <= $maxStarsToShow; $starIdx++) {
+        if ($starIdx <= $completedStars) {
+            echo '<i class="bi bi-star-fill star-earned"></i>';
+        } else {
+            echo '<i class="bi bi-star star-unearned"></i>';
+        }
+    }
+    ?>
+    <span class="stars-text"><?php echo $ad; ?> / <?php echo $at; ?> Done</span>
   </div>
-  <div class="lrn-mini"><div class="lrn-mini__f" style="width:<?php echo $lp_pct; ?>%"></div></div>
-  <div style="font-size:.78rem;color:#6c757d;margin-bottom:8px;"><?php echo $ad; ?> / <?php echo $at; ?> complete</div>
+
+  <div class="quest-mission-meta">
+    <span><i class="bi bi-controller"></i> <?php echo $at; ?> Challenge<?php echo $at === 1 ? '' : 's'; ?></span>
+    <span><i class="bi bi-flag-fill"></i> <?php echo $lp_pct; ?>% Complete</span>
+  </div>
+
   <span class="lrn-status lrn-status--<?php echo $sm; ?>">
     <i class="bi <?php echo $si; ?>"></i><?php echo $st; ?>
   </span>
   <a id="btn-lesson-<?php echo (int)$lp['id']; ?>"
      href="<?php echo $basePath; ?>/learning/lesson/<?php echo (int)$lp['id']; ?>"
      class="lrn-btn lrn-btn--<?php echo $bm; ?>">
-    <i class="bi bi-arrow-right-circle-fill"></i><?php echo htmlspecialchars($bt === 'View lesson' ? 'Review Mission' : $bt . ' Mission'); ?>
+    <i class="bi bi-rocket-takeoff-fill"></i><?php echo htmlspecialchars($bt === 'View lesson' ? 'Review Mission' : $bt . ' Mission'); ?>
   </a>
 </div>
 <?php endforeach; ?>
@@ -238,45 +273,24 @@ $dashOff = round($circ * (1 - $pct / 100), 2);
 <?php endif; ?>
 </div>
 
-<!-- TAB 2: MY PROGRESS -->
-<div id="panel-progress" class="lrn-panel" role="tabpanel">
-  <div class="lrn-ring-card">
-    <h3>📊 Overall Progress</h3>
-    <svg width="130" height="130" viewBox="0 0 130 130" role="img" aria-label="<?php echo $pct; ?> percent complete">
-      <circle cx="65" cy="65" r="<?php echo $r; ?>" fill="none" stroke="#e9e9e9" stroke-width="12"/>
-      <circle cx="65" cy="65" r="<?php echo $r; ?>" fill="none" stroke="#ef9f27" stroke-width="12"
-              stroke-dasharray="<?php echo $circ; ?>" stroke-dashoffset="<?php echo $dashOff; ?>"
-              stroke-linecap="round" transform="rotate(-90 65 65)"/>
-      <text x="65" y="68" text-anchor="middle" font-size="22" font-weight="700" fill="#ef9f27"><?php echo $pct; ?>%</text>
-    </svg>
-    <div class="lrn-ring-msg"><?php echo htmlspecialchars($progressMsg); ?></div>
-  </div>
-  <div class="lrn-prog-grid">
-    <div class="lrn-prog-stat lrn-prog-stat--star"><span class="ico">⭐</span><div class="val"><?php echo number_format($totalStars??0); ?></div><div class="lbl">Total Stars</div></div>
-    <div class="lrn-prog-stat lrn-prog-stat--done"><span class="ico">✅</span><div class="val"><?php echo (int)$overallComplete; ?></div><div class="lbl">Completed</div></div>
-    <div class="lrn-prog-stat lrn-prog-stat--mat"><span class="ico">📚</span><div class="val"><?php echo count($lessonPlans??[]); ?></div><div class="lbl">Total Modules</div></div>
-    <div class="lrn-prog-stat lrn-prog-stat--sub"><span class="ico">📝</span><div class="val"><?php echo (int)$overallComplete; ?></div><div class="lbl">Submissions</div></div>
-  </div>
-  <div class="lrn-prog-msg"><?php echo htmlspecialchars($progressMsg); ?></div>
-</div>
-
 <!-- TAB 3: MY BADGES -->
-<div id="panel-badges" class="lrn-panel" role="tabpanel">
+<div id="panel-badges" class="lrn-panel <?php echo $activeTab === 'badges' ? 'active' : ''; ?>" role="tabpanel">
   <?php $ec = count(array_filter($badges, fn($b) => $b['earned'])); ?>
-  <p style="font-size:.9rem;color:#6c757d;margin-bottom:14px;">
-    🏅 <strong style="color:#1e4072;"><?php echo $ec; ?></strong> of
-    <strong style="color:#1e4072;"><?php echo count($badges); ?></strong> badges earned!
-  </p>
+  <div class="badge-status-banner">
+    🏅 You have earned <strong style="color:var(--kid-orange); font-size: 1.3rem;"><?php echo $ec; ?></strong> of
+    <strong><?php echo count($badges); ?></strong> collectible badges! Keep going superstar!
+  </div>
   <?php if (empty($badges)): ?>
-    <div class="text-center py-4 text-muted">
-      <span style="font-size:3rem;display:block;margin-bottom:10px;">🏅</span>
-      <p>Complete activities to earn your first badge!</p>
+    <div class="text-center py-4 text-muted empty-state-friendly">
+      <span style="font-size:4rem;display:block;margin-bottom:10px;">🏅</span>
+      <h3>No badges yet!</h3>
+      <p>Complete your first activity mission to unlock a shiny badge! 🌟</p>
     </div>
   <?php else: ?>
   <div class="lrn-shelf">
   <?php foreach ($badges as $b): ?>
     <div class="lrn-badge lrn-badge--<?php echo $b['earned'] ? 'earned' : 'locked'; ?>"
-         title="<?php echo $b['earned'] ? htmlspecialchars($b['name']) : 'Keep going to unlock!'; ?>">
+         title="<?php echo $b['earned'] ? htmlspecialchars($b['name']) : 'Locked badge - complete missions to unlock!'; ?>">
       <div class="lrn-badge__circle"><i class="ti <?php echo htmlspecialchars($b['icon']); ?>"></i></div>
       <div class="lrn-badge__name"><?php echo htmlspecialchars($b['name']); ?></div>
     </div>

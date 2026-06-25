@@ -85,6 +85,7 @@ route('GET', '/api/locations/barangays/{province}/{city}', 'LocationController',
 route('GET', '/services', 'ServicesController', 'index');
 
 // Process 8 — Progress Report Card
+route('GET', '/attendance-log', 'ProgressReportController', 'attendanceIndex', 'progress_report.view');
 route('GET', '/progress-reports', 'ProgressReportController', 'index', 'progress_report.view');
 route('GET', '/progress-reports/{student_id}', 'ProgressReportController', 'show', 'progress_report.view');
 route('POST', '/progress-reports/{student_id}', 'ProgressReportController', 'store', 'progress_report.manage');
@@ -95,6 +96,7 @@ route('POST', '/progress-reports/{id}/finalize', 'ProgressReportController', 'fi
 // Process 8 — Student Attendance Sheet
 route('GET', '/progress-reports/{student_id}/attendance', 'ProgressReportController', 'attendance', 'progress_report.view');
 route('POST', '/progress-reports/{student_id}/attendance', 'ProgressReportController', 'saveAttendance', 'progress_report.manage');
+route('POST', '/progress-reports/{student_id}/attendance/import', 'ProgressReportController', 'importAttendance', 'progress_report.manage');
 route('POST', '/progress-reports/{student_id}/attendance/delete/{id}', 'ProgressReportController', 'deleteAttendance', 'progress_report.manage');
 
 // Role Selection
@@ -260,6 +262,8 @@ route('POST', '/iep/upload-signed-doc',        'IEPController', 'upload',       
 route('GET',  '/iep/download/{id}',            'IEPController', 'downloadDocument', 'iep.view');
 
 // Unified transition workflow connected to existing IEP and implementation data
+route('GET',  '/iep/{id}/learning-outcomes/grades',              'TransitionWorkflowController', 'grades', 'progress_report.view');
+route('GET',  '/iep/{id}/learning-outcomes/attendance',          'TransitionWorkflowController', 'attendance', 'progress_report.view');
 // Legacy unified workflow removed — use dedicated module routes below.
 // Process 7–13 module entry points (new dedicated controllers)
 route('GET',  '/iep/{id}/transition-management/readiness',       'TransitionReadinessController', 'index', 'transition_readiness.view');

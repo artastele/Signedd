@@ -27,7 +27,7 @@ class ProgressReportModel {
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 student_id INT NOT NULL,
                 date DATE NOT NULL,
-                status ENUM('present', 'absent') NOT NULL DEFAULT 'present',
+                status ENUM('present', 'absent', 'tardy', 'excused') NOT NULL DEFAULT 'present',
                 source ENUM('manual', 'auto_activity') NOT NULL DEFAULT 'manual',
                 recorded_by INT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -61,6 +61,7 @@ class ProgressReportModel {
                 remark_type ENUM('teacher', 'parent') NOT NULL,
                 remark_text TEXT NULL,
                 signature_name VARCHAR(255) NULL,
+                signature_data MEDIUMTEXT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (progress_report_id) REFERENCES progress_reports(id) ON DELETE CASCADE,
                 UNIQUE KEY unique_report_quarter_type (progress_report_id, quarter, remark_type)
@@ -73,6 +74,18 @@ class ProgressReportModel {
             } catch (Throwable $e) {
                 error_log('ProgressReportModel::ensureTables execution error: ' . $e->getMessage());
             }
+        }
+
+        try {
+            $this->db->exec("ALTER TABLE attendance_records MODIFY status ENUM('present', 'absent', 'tardy', 'excused') NOT NULL DEFAULT 'present'");
+        } catch (Throwable $e) {
+            error_log('ProgressReportModel::ensureTables attendance status migration error: ' . $e->getMessage());
+        }
+
+        try {
+            $this->db->exec("ALTER TABLE report_remarks ADD COLUMN IF NOT EXISTS signature_data MEDIUMTEXT NULL AFTER signature_name");
+        } catch (Throwable $e) {
+            error_log('ProgressReportModel::ensureTables signature_data migration error: ' . $e->getMessage());
         }
     }
 
@@ -236,7 +249,118 @@ class ProgressReportModel {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function getAttendanceRecordsForMonth(int $studentId, string $yearMonth): array {
+        $stmt = $this->db->prepare(
+            "SELECT ar.*, u.name AS logger_name
+             FROM attendance_records ar
+             JOIN users u ON u.id = ar.recorded_by
+             WHERE ar.student_id = :student_id
+               AND DATE_FORMAT(ar.date, '%Y-%m') = :year_month
+             ORDER BY ar.date ASC, ar.id ASC"
+        );
+        $stmt->execute([
+            'student_id' => $studentId,
+            'year_month' => $yearMonth
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getAttendanceStats(int $studentId, ?string $yearMonth = null): array {
+        $where = 'student_id = :student_id';
+        $params = ['student_id' => $studentId];
+        if ($yearMonth) {
+            $where .= " AND DATE_FORMAT(date, '%Y-%m') = :year_month";
+            $params['year_month'] = $yearMonth;
+        }
+
+        $stmt = $this->db->prepare(
+            "SELECT status, COUNT(*) AS total
+             FROM attendance_records
+             WHERE $where
+             GROUP BY status"
+        );
+        $stmt->execute($params);
+        $stats = [
+            'total' => 0,
+            'present' => 0,
+            'absent' => 0,
+            'tardy' => 0,
+            'excused' => 0,
+            'rate' => 0
+        ];
+
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $status = $row['status'];
+            $count = (int)$row['total'];
+            if (array_key_exists($status, $stats)) {
+                $stats[$status] = $count;
+            }
+            $stats['total'] += $count;
+        }
+
+        $stats['rate'] = $stats['total'] > 0 ? round(($stats['present'] / $stats['total']) * 100, 1) : 0;
+        return $stats;
+    }
+
+    public function getAttendanceLearners(): array {
+        $stmt = $this->db->prepare(
+            "SELECT sr.id AS student_id,
+                    sr.student_name,
+                    sr.lrn,
+                    es.school_year,
+                    es.grade_level_to_enroll,
+                    ir.id AS iep_id,
+                    COUNT(ar.id) AS attendance_entries,
+                    SUM(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END) AS present_entries,
+                    MAX(ar.created_at) AS last_attendance_at
+             FROM student_records sr
+             LEFT JOIN enrollment_submissions es ON es.id = sr.enrollment_id
+             LEFT JOIN (
+                SELECT student_id, MAX(id) AS id
+                FROM iep_records
+                GROUP BY student_id
+             ) ir ON ir.student_id = sr.id
+             LEFT JOIN attendance_records ar ON ar.student_id = sr.id
+             GROUP BY sr.id, sr.student_name, sr.lrn, es.school_year, es.grade_level_to_enroll, ir.id
+             ORDER BY sr.student_name ASC"
+        );
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getAttendanceLearnersForParent(int $parentId): array {
+        $stmt = $this->db->prepare(
+            "SELECT sr.id AS student_id,
+                    sr.student_name,
+                    sr.lrn,
+                    es.school_year,
+                    es.grade_level_to_enroll,
+                    ir.id AS iep_id,
+                    COUNT(ar.id) AS attendance_entries,
+                    SUM(CASE WHEN ar.status = 'present' THEN 1 ELSE 0 END) AS present_entries,
+                    MAX(ar.created_at) AS last_attendance_at
+             FROM student_records sr
+             JOIN enrollment_submissions es ON es.id = sr.enrollment_id
+             LEFT JOIN (
+                SELECT student_id, MAX(id) AS id
+                FROM iep_records
+                GROUP BY student_id
+             ) ir ON ir.student_id = sr.id
+             LEFT JOIN attendance_records ar ON ar.student_id = sr.id
+             WHERE es.parent_id = :parent_id
+             GROUP BY sr.id, sr.student_name, sr.lrn, es.school_year, es.grade_level_to_enroll, ir.id
+             ORDER BY sr.student_name ASC"
+        );
+        $stmt->execute(['parent_id' => $parentId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function saveAttendanceRecord(int $studentId, string $date, string $status, string $source, int $recordedBy): bool {
+        $allowed = ['present', 'absent', 'tardy', 'excused'];
+        if (!in_array($status, $allowed, true)) {
+            $status = 'present';
+        }
+
         $stmt = $this->db->prepare(
             "INSERT INTO attendance_records (student_id, date, status, source, recorded_by)
              VALUES (:student_id, :date, :status, :source, :recorded_by)
@@ -355,6 +479,156 @@ class ProgressReportModel {
             'text' => $text,
             'signature' => $signature
         ]);
+    }
+
+    public function saveReportRemarkWithSignatureData(int $reportId, string $quarter, string $type, ?string $text, ?string $signature, ?string $signatureData): bool {
+        $stmt = $this->db->prepare(
+            "INSERT INTO report_remarks (progress_report_id, quarter, remark_type, remark_text, signature_name, signature_data)
+             VALUES (:report_id, :quarter, :type, :text, :signature, NULLIF(:signature_data, ''))
+             ON DUPLICATE KEY UPDATE
+                 remark_text = VALUES(remark_text),
+                 signature_name = VALUES(signature_name),
+                 signature_data = COALESCE(NULLIF(:signature_data_update, ''), signature_data)"
+        );
+        return $stmt->execute([
+            'report_id' => $reportId,
+            'quarter' => $quarter,
+            'type' => $type,
+            'text' => $text,
+            'signature' => $signature,
+            'signature_data' => $signatureData ?? '',
+            'signature_data_update' => $signatureData ?? ''
+        ]);
+    }
+
+    public function getReportRemark(int $reportId, string $quarter, string $type): ?array {
+        $stmt = $this->db->prepare(
+            "SELECT * FROM report_remarks
+             WHERE progress_report_id = :report_id
+               AND quarter = :quarter
+               AND remark_type = :type
+             LIMIT 1"
+        );
+        $stmt->execute([
+            'report_id' => $reportId,
+            'quarter' => $quarter,
+            'type' => $type
+        ]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    public function importSf2CsvForStudent(int $studentId, string $filePath, string $yearMonth, int $recordedBy, bool $blankAsPresent = false): array {
+        $student = $this->getStudent($studentId);
+        if (!$student) {
+            return ['imported' => 0, 'skipped' => 0, 'errors' => ['Student not found.']];
+        }
+
+        $handle = fopen($filePath, 'r');
+        if (!$handle) {
+            return ['imported' => 0, 'skipped' => 0, 'errors' => ['Could not read uploaded CSV file.']];
+        }
+
+        $header = null;
+        $dayIndexes = [];
+        $lrnIndex = null;
+        $nameIndex = null;
+        $targetRow = null;
+
+        while (($row = fgetcsv($handle)) !== false) {
+            if ($header === null) {
+                $candidate = array_map(fn($cell) => trim((string)$cell), $row);
+                $nonEmpty = array_filter($candidate, fn($cell) => $cell !== '');
+                if (count($nonEmpty) < 2) {
+                    continue;
+                }
+
+                foreach ($candidate as $idx => $label) {
+                    $normalized = strtolower(trim($label));
+                    if ($lrnIndex === null && strpos($normalized, 'lrn') !== false) {
+                        $lrnIndex = $idx;
+                    }
+                    if ($nameIndex === null && (strpos($normalized, 'name') !== false || strpos($normalized, 'learner') !== false)) {
+                        $nameIndex = $idx;
+                    }
+                    if (preg_match('/^(?:day\s*)?0?([1-9]|[12][0-9]|3[01])(?:\D.*)?$/i', $normalized, $m)) {
+                        $dayIndexes[(int)$m[1]] = $idx;
+                    }
+                }
+
+                if (!empty($dayIndexes)) {
+                    $header = $candidate;
+                }
+                continue;
+            }
+
+            $rowLrn = $lrnIndex !== null ? trim((string)($row[$lrnIndex] ?? '')) : '';
+            $rowName = $nameIndex !== null ? trim((string)($row[$nameIndex] ?? '')) : '';
+            $matchesLrn = $rowLrn !== '' && $rowLrn === (string)$student['lrn'];
+            $matchesName = $rowName !== '' && strcasecmp($rowName, (string)$student['student_name']) === 0;
+
+            if ($matchesLrn || $matchesName || ($lrnIndex === null && $nameIndex === null && $targetRow === null)) {
+                $targetRow = $row;
+                break;
+            }
+        }
+        fclose($handle);
+
+        if ($header === null) {
+            return ['imported' => 0, 'skipped' => 0, 'errors' => ['Could not find SF2 day columns in the CSV header. Use columns named 1 through 31 or Day 1 through Day 31.']];
+        }
+        if ($targetRow === null) {
+            return ['imported' => 0, 'skipped' => 0, 'errors' => ['No row matched this learner by LRN or learner name.']];
+        }
+
+        $imported = 0;
+        $skipped = 0;
+        $errors = [];
+        $daysInMonth = (int)date('t', strtotime($yearMonth . '-01'));
+
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            if (!isset($dayIndexes[$day])) {
+                $skipped++;
+                continue;
+            }
+
+            $raw = trim((string)($targetRow[$dayIndexes[$day]] ?? ''));
+            $status = $this->normalizeSf2Status($raw, $blankAsPresent);
+            if ($status === null) {
+                $skipped++;
+                continue;
+            }
+
+            $date = sprintf('%s-%02d', $yearMonth, $day);
+            if ($this->saveAttendanceRecord($studentId, $date, $status, 'manual', $recordedBy)) {
+                $imported++;
+            } else {
+                $errors[] = 'Failed to import day ' . $day . '.';
+            }
+        }
+
+        return ['imported' => $imported, 'skipped' => $skipped, 'errors' => $errors];
+    }
+
+    private function normalizeSf2Status(string $value, bool $blankAsPresent): ?string {
+        $clean = strtolower(trim($value));
+        $clean = str_replace(['.', '-', '_'], '', $clean);
+
+        if ($clean === '') {
+            return $blankAsPresent ? 'present' : null;
+        }
+
+        $presentValues = ['p', 'present', '/', '✓', '✔', '1'];
+        $absentValues = ['a', 'absent', 'x', '0'];
+        $tardyValues = ['t', 'tardy', 'late', 'l'];
+        $excusedValues = ['e', 'excused', 'excuse'];
+
+        if (in_array($clean, $presentValues, true)) return 'present';
+        if (in_array($clean, $absentValues, true)) return 'absent';
+        if (in_array($clean, $tardyValues, true)) return 'tardy';
+        if (in_array($clean, $excusedValues, true)) return 'excused';
+
+        return null;
     }
 
     public function finalizeProgressReportWithDoc(int $id, ?string $docPath): bool {

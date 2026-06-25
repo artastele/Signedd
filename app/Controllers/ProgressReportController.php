@@ -48,6 +48,22 @@ class ProgressReportController {
         require_once __DIR__ . '/../Views/progress-reports/index.php';
     }
 
+    public function attendanceIndex(): void {
+        RoleMiddleware::check('progress_report.view');
+
+        if ($this->userRole === 'parent') {
+            $learners = $this->model->getAttendanceLearnersForParent($this->userId);
+        } else {
+            $learners = $this->model->getAttendanceLearners();
+        }
+        $success = $_SESSION['success'] ?? null;
+        $error = $_SESSION['error'] ?? null;
+        unset($_SESSION['success'], $_SESSION['error']);
+
+        $basePath = $this->basePath;
+        require_once __DIR__ . '/../Views/progress-reports/attendance-list.php';
+    }
+
     public function show(int $studentId): void {
         if ($this->userRole === 'parent') {
             RoleMiddleware::check('progress_report.view_own_child');
@@ -78,6 +94,13 @@ class ProgressReportController {
 
         $quarter = $_GET['quarter'] ?? ($progressReport['quarter'] ?? '1st Quarter');
         $activeTab = $_GET['tab'] ?? 'report';
+        if ($activeTab === 'attendance') {
+            header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '/attendance');
+            exit;
+        }
+        if ($activeTab !== 'report') {
+            $activeTab = 'report';
+        }
         $canEdit = RoleMiddleware::hasPermission('progress_report.manage') && (!$progressReport || $progressReport['status'] !== 'finalized');
 
         $activeDomains = $this->model->getActiveDomains();
@@ -134,7 +157,8 @@ class ProgressReportController {
             foreach ($remarksList as $rem) {
                 $remarksMap[$rem['quarter']][$rem['remark_type']] = [
                     'text' => $rem['remark_text'],
-                    'signature' => $rem['signature_name']
+                    'signature' => $rem['signature_name'],
+                    'signature_data' => $rem['signature_data'] ?? ''
                 ];
             }
         }
@@ -270,13 +294,27 @@ class ProgressReportController {
             }
             $text = trim($_POST['parent_comment'] ?? '');
             $sig = trim($_POST['parent_signature'] ?? '');
-            $this->model->saveReportRemark($reportId, $quarter, 'parent', $text, $sig);
+            $sigData = trim($_POST['parent_signature_data'] ?? '');
+            $existing = $this->model->getReportRemark($reportId, $quarter, 'parent');
+            if ($sigData === '' && empty($existing['signature_data'])) {
+                $_SESSION['error'] = 'Parent/guardian signature is required.';
+                header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '?tab=report&quarter=' . urlencode($quarter));
+                exit;
+            }
+            $this->model->saveReportRemarkWithSignatureData($reportId, $quarter, 'parent', $text, $sig, $sigData);
             $_SESSION['success'] = 'Comment and signature saved.';
         } else {
             RoleMiddleware::check('progress_report.manage');
             $text = trim($_POST['teacher_remark'] ?? '');
             $sig = trim($_POST['teacher_signature'] ?? '');
-            $this->model->saveReportRemark($reportId, $quarter, 'teacher', $text, $sig);
+            $sigData = trim($_POST['teacher_signature_data'] ?? '');
+            $existing = $this->model->getReportRemark($reportId, $quarter, 'teacher');
+            if ($sigData === '' && empty($existing['signature_data'])) {
+                $_SESSION['error'] = 'Teacher signature is required.';
+                header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '?tab=report&quarter=' . urlencode($quarter));
+                exit;
+            }
+            $this->model->saveReportRemarkWithSignatureData($reportId, $quarter, 'teacher', $text, $sig, $sigData);
             $_SESSION['success'] = 'Remarks and signature saved.';
         }
 
@@ -314,8 +352,48 @@ class ProgressReportController {
     }
 
     public function attendance(int $studentId): void {
-        header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '?tab=attendance');
-        exit;
+        if ($this->userRole === 'parent') {
+            RoleMiddleware::check('progress_report.view_own_child');
+            if (!$this->model->isParentOfStudent($this->userId, $studentId)) {
+                $_SESSION['error'] = 'You may only view attendance for your child.';
+                header('Location: ' . $this->basePath . '/progress-reports');
+                exit;
+            }
+        } else {
+            RoleMiddleware::check('progress_report.view');
+        }
+
+        $student = $this->model->getStudent($studentId);
+        if (!$student) {
+            $_SESSION['error'] = 'Student not found.';
+            header('Location: ' . $this->basePath . '/attendance-log');
+            exit;
+        }
+
+        $iep = $this->model->getLatestIepForStudent($studentId);
+        if (!$iep) {
+            $_SESSION['error'] = 'No IEP record found for this student.';
+            header('Location: ' . $this->basePath . '/attendance-log');
+            exit;
+        }
+
+        $yearMonth = $_GET['month'] ?? date('Y-m');
+        if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
+            $yearMonth = date('Y-m');
+        }
+
+        $attendanceRecords = $this->model->getAttendanceRecordsForMonth($studentId, $yearMonth);
+        $allAttendanceRecords = $this->model->getAttendanceRecords($studentId);
+        $autoDates = $this->model->getAutoAttendanceFromLogs($studentId);
+        $stats = $this->model->getAttendanceStats($studentId, $yearMonth);
+        $canEdit = RoleMiddleware::hasPermission('progress_report.manage');
+
+        $success = $_SESSION['success'] ?? null;
+        $error = $_SESSION['error'] ?? null;
+        unset($_SESSION['success'], $_SESSION['error']);
+
+        $basePath = $this->basePath;
+        require_once __DIR__ . '/../Views/progress-reports/attendance.php';
     }
 
     public function saveAttendance(int $studentId): void {
@@ -323,10 +401,11 @@ class ProgressReportController {
 
         $date = $_POST['attendance_date'] ?? '';
         $status = $_POST['status'] ?? 'present';
+        $month = preg_match('/^\d{4}-\d{2}/', $date) ? substr($date, 0, 7) : date('Y-m');
 
         if (empty($date)) {
             $_SESSION['error'] = 'Attendance date is required.';
-            header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '?tab=attendance');
+            header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '/attendance?month=' . urlencode($month));
             exit;
         }
 
@@ -338,7 +417,41 @@ class ProgressReportController {
             $_SESSION['error'] = 'Failed to record attendance.';
         }
 
-        header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '?tab=attendance');
+        header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '/attendance?month=' . urlencode($month));
+        exit;
+    }
+
+    public function importAttendance(int $studentId): void {
+        RoleMiddleware::check('progress_report.manage');
+
+        $yearMonth = $_POST['sf2_month'] ?? date('Y-m');
+        if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
+            $yearMonth = date('Y-m');
+        }
+
+        if (empty($_FILES['sf2_file']['tmp_name']) || !is_uploaded_file($_FILES['sf2_file']['tmp_name'])) {
+            $_SESSION['error'] = 'Please choose an SF2 CSV file to import.';
+            header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '/attendance?month=' . urlencode($yearMonth));
+            exit;
+        }
+
+        $ext = strtolower(pathinfo($_FILES['sf2_file']['name'] ?? '', PATHINFO_EXTENSION));
+        if ($ext !== 'csv') {
+            $_SESSION['error'] = 'SF2 import currently accepts CSV files. Export the LIS SF2 sheet as CSV, then upload it here.';
+            header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '/attendance?month=' . urlencode($yearMonth));
+            exit;
+        }
+
+        $blankAsPresent = !empty($_POST['blank_as_present']);
+        $result = $this->model->importSf2CsvForStudent($studentId, $_FILES['sf2_file']['tmp_name'], $yearMonth, $this->userId, $blankAsPresent);
+
+        if (!empty($result['errors'])) {
+            $_SESSION['error'] = implode(' ', $result['errors']);
+        } else {
+            $_SESSION['success'] = 'SF2 import complete: ' . (int)$result['imported'] . ' day(s) imported, ' . (int)$result['skipped'] . ' skipped.';
+        }
+
+        header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '/attendance?month=' . urlencode($yearMonth));
         exit;
     }
 
@@ -353,7 +466,8 @@ class ProgressReportController {
             $_SESSION['error'] = 'Failed to delete attendance entry.';
         }
 
-        header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '?tab=attendance');
+        $month = $_GET['month'] ?? date('Y-m');
+        header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '/attendance?month=' . urlencode($month));
         exit;
     }
 }

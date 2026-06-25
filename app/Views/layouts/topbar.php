@@ -8,10 +8,24 @@ $role = $_SESSION['role'] ?? 'user';
 <!-- Top Navigation Bar -->
 <div class="topbar">
     <div class="topbar-left">
+        <?php if ($role !== 'learner'): ?>
         <!-- Hamburger — visible on mobile only -->
         <button class="hamburger-btn" id="sidebarHamburger" type="button" aria-label="Toggle sidebar">
             <i class="bi bi-list"></i>
         </button>
+        <?php else: ?>
+        <!-- Top Pill Navigation for Learner -->
+        <nav class="learner-top-nav">
+            <a href="<?php echo $basePath; ?>/learning/dashboard" class="learner-nav-pill <?php echo isActive('/learning/dashboard') && !isset($_GET['tab']) ? 'active' : ''; ?>">
+                <i class="bi bi-house-heart-fill"></i>
+                <span>Home</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/learning/dashboard?tab=badges" class="learner-nav-pill <?php echo isset($_GET['tab']) && $_GET['tab'] === 'badges' ? 'active' : ''; ?>">
+                <i class="bi bi-trophy-fill"></i>
+                <span>My Badges</span>
+            </a>
+        </nav>
+        <?php endif; ?>
     </div>
     
     <div class="topbar-right">
@@ -58,7 +72,7 @@ $role = $_SESSION['role'] ?? 'user';
                     </div>
                 </li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item" href="<?php echo $basePath; ?>/dashboard"><i class="bi bi-house-door"></i> Dashboard</a></li>
+                <li><a class="dropdown-item" href="<?php echo $role === 'learner' ? $basePath . '/learning/dashboard' : $basePath . '/dashboard'; ?>"><i class="bi bi-house-door"></i> Dashboard</a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item text-danger" href="<?php echo $basePath; ?>/logout"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
             </ul>

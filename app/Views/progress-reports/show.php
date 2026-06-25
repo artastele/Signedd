@@ -97,33 +97,14 @@ function getRatingDescription(string $code): string {
             </div>
         </div>
 
-        <!-- Main Tabbed Navigation -->
-        <ul class="nav nav-pills mb-4 gap-2" id="reportTab" role="tablist">
-            <li class="nav-item" role="presentation">
-                <a href="?tab=report&quarter=<?php echo urlencode($quarter); ?>" class="nav-link px-4 py-2.5 fw-semibold <?php echo $activeTab === 'report' ? 'active' : 'btn-outline-primary'; ?>" style="<?php echo $activeTab === 'report' ? 'background-color:#1e4072;' : ''; ?>">
-                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> SF9 Report Card
-                </a>
-            </li>
-            <li class="nav-item" role="presentation">
-                <a href="?tab=grades&quarter=<?php echo urlencode($quarter); ?>" class="nav-link px-4 py-2.5 fw-semibold <?php echo $activeTab === 'grades' ? 'active' : 'btn-outline-primary'; ?>" style="<?php echo $activeTab === 'grades' ? 'background-color:#1e4072;' : ''; ?>">
-                    <i class="bi bi-percent me-1"></i> Grades Config
-                </a>
-            </li>
-            <li class="nav-item" role="presentation">
-                <a href="?tab=attendance&quarter=<?php echo urlencode($quarter); ?>" class="nav-link px-4 py-2.5 fw-semibold <?php echo $activeTab === 'attendance' ? 'active' : 'btn-outline-primary'; ?>" style="<?php echo $activeTab === 'attendance' ? 'background-color:#1e4072;' : ''; ?>">
-                    <i class="bi bi-calendar-check me-1"></i> Attendance Log
-                </a>
-            </li>
-        </ul>
-
-        <!-- Quarter Switcher Widget (All Tabs except Attendance Sheet Config) -->
+        <!-- Quarter Switcher Widget -->
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body p-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2">
                     <span class="fw-semibold text-secondary">Active Quarter:</span>
                     <div class="btn-group" role="group">
                         <?php foreach (['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'] as $q): ?>
-                            <a href="?tab=<?php echo urlencode($activeTab); ?>&quarter=<?php echo urlencode($q); ?>" class="btn btn-sm <?php echo $quarter === $q ? 'btn-primary' : 'btn-outline-secondary'; ?>" style="<?php echo $quarter === $q ? 'background-color:#1e4072; border-color:#1e4072;' : ''; ?>">
+                            <a href="?quarter=<?php echo urlencode($q); ?>" class="btn btn-sm <?php echo $quarter === $q ? 'btn-primary' : 'btn-outline-secondary'; ?>" style="<?php echo $quarter === $q ? 'background-color:#1e4072; border-color:#1e4072;' : ''; ?>">
                                 <?php echo $q; ?>
                             </a>
                         <?php endforeach; ?>
@@ -326,7 +307,7 @@ function getRatingDescription(string $code): string {
                             <textarea name="progress_summary" class="form-control" rows="3" placeholder="Describe the learner's overall achievements and highlights..." <?php echo $canEdit ? '' : 'readonly'; ?>><?php echo htmlspecialchars($progressReport['progress_summary'] ?? ''); ?></textarea>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary">General Teacher Remarks</label>
+                            <label class="form-label small fw-bold text-secondary">Teacher's Remark</label>
                             <textarea name="teacher_remarks" class="form-control" rows="3" placeholder="Add recommendations or support required..." <?php echo $canEdit ? '' : 'readonly'; ?>><?php echo htmlspecialchars($progressReport['teacher_remarks'] ?? ''); ?></textarea>
                         </div>
                     </div>
@@ -365,6 +346,20 @@ function getRatingDescription(string $code): string {
                                             <div>
                                                 <label class="form-label small">Teacher Signature Name</label>
                                                 <input type="text" name="teacher_signature" class="form-control form-control-sm" value="<?php echo htmlspecialchars($remarksMap[$quarter]['teacher']['signature'] ?? ''); ?>" <?php echo ($isTeacher && $canEdit) ? '' : 'readonly'; ?>>
+                                                <input type="hidden" name="teacher_signature_data" id="teacher_signature_data">
+                                                <?php if (!empty($remarksMap[$quarter]['teacher']['signature_data'])): ?>
+                                                    <div class="mt-2 p-2 bg-white border rounded">
+                                                        <img src="<?php echo htmlspecialchars($remarksMap[$quarter]['teacher']['signature_data']); ?>" alt="Teacher signature" style="max-height: 90px; max-width: 100%;">
+                                                    </div>
+                                                <?php endif; ?>
+                                                <?php if ($isTeacher && $canEdit): ?>
+                                                    <div class="mt-2">
+                                                        <canvas id="teacherSignaturePad" class="sf9-signature-pad"></canvas>
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" data-clear-signature="teacher">
+                                                            <i class="bi bi-eraser me-1"></i> Clear Signature
+                                                        </button>
+                                                    </div>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </div>
@@ -382,6 +377,20 @@ function getRatingDescription(string $code): string {
                                             <div>
                                                 <label class="form-label small">Parent/Guardian Signature Name</label>
                                                 <input type="text" name="parent_signature" class="form-control form-control-sm" value="<?php echo htmlspecialchars($remarksMap[$quarter]['parent']['signature'] ?? ''); ?>" <?php echo ($isParent && (!$progressReport || $progressReport['status'] !== 'finalized')) ? '' : 'readonly'; ?>>
+                                                <input type="hidden" name="parent_signature_data" id="parent_signature_data">
+                                                <?php if (!empty($remarksMap[$quarter]['parent']['signature_data'])): ?>
+                                                    <div class="mt-2 p-2 bg-white border rounded">
+                                                        <img src="<?php echo htmlspecialchars($remarksMap[$quarter]['parent']['signature_data']); ?>" alt="Parent/guardian signature" style="max-height: 90px; max-width: 100%;">
+                                                    </div>
+                                                <?php endif; ?>
+                                                <?php if ($isParent && (!$progressReport || $progressReport['status'] !== 'finalized')): ?>
+                                                    <div class="mt-2">
+                                                        <canvas id="parentSignaturePad" class="sf9-signature-pad"></canvas>
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" data-clear-signature="parent">
+                                                            <i class="bi bi-eraser me-1"></i> Clear Signature
+                                                        </button>
+                                                    </div>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </div>
@@ -537,118 +546,87 @@ function getRatingDescription(string $code): string {
                 </form>
             </div>
 
-        <?php elseif ($activeTab === 'attendance'): ?>
-            <!-- ATTENDANCE TAB -->
-            <div class="row g-4">
-                <!-- Left: F2F Daily Attendance Logger -->
-                <div class="col-lg-6">
-                    <div class="card border-0 shadow-sm p-4 bg-white">
-                        <h4 class="fw-bold mb-3" style="color: #1e4072;"><i class="bi bi-calendar-plus me-1"></i> F2F Attendance Log</h4>
-                        
-                        <?php if ($canEdit): ?>
-                            <form method="POST" action="<?php echo $basePath; ?>/progress-reports/<?php echo (int)$student['id']; ?>/attendance" class="mb-4">
-                                <div class="row g-2">
-                                    <div class="col-md-5">
-                                        <label class="form-label small fw-bold">Date</label>
-                                        <input type="date" name="attendance_date" class="form-control form-control-sm" required>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label small fw-bold">Status</label>
-                                        <select name="status" class="form-select form-select-sm">
-                                            <option value="present">Present</option>
-                                            <option value="absent">Absent</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3 d-flex align-items-end">
-                                        <button type="submit" class="btn btn-sm btn-primary w-100 py-1.5" style="background-color:#1e4072;">Record</button>
-                                    </div>
-                                </div>
-                            </form>
-                        <?php endif; ?>
-
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Status</th>
-                                        <th>Logger</th>
-                                        <?php if ($canEdit): ?><th>Action</th><?php endif; ?>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php if (empty($attendanceRecords)): ?>
-                                        <tr>
-                                            <td colspan="4" class="text-center text-muted py-3">No manual F2F attendance records yet.</td>
-                                        </tr>
-                                    <?php else: ?>
-                                        <?php foreach ($attendanceRecords as $record): ?>
-                                            <tr>
-                                                <td><?php echo date('F d, Y', strtotime($record['date'])); ?></td>
-                                                <td>
-                                                    <span class="badge <?php echo $record['status'] === 'present' ? 'bg-success' : 'bg-danger'; ?>">
-                                                        <?php echo ucfirst($record['status']); ?>
-                                                    </span>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($record['logger_name'] ?? 'System'); ?></td>
-                                                <?php if ($canEdit): ?>
-                                                    <td>
-                                                        <form method="POST" action="<?php echo $basePath; ?>/progress-reports/<?php echo (int)$student['id']; ?>/attendance/delete/<?php echo (int)$record['id']; ?>" onsubmit="return confirm('Are you sure you want to delete this attendance record?');" class="m-0">
-                                                            <button type="submit" class="btn btn-sm text-danger p-0 border-0"><i class="bi bi-trash"></i></button>
-                                                        </form>
-                                                    </td>
-                                                <?php endif; ?>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Right: LMS Auto-Attendance logs -->
-                <div class="col-lg-6">
-                    <div class="card border-0 shadow-sm p-4 bg-white">
-                        <h4 class="fw-bold mb-3" style="color: #a01422;"><i class="bi bi-cloud-check me-1"></i> Async Online Attendance Logs</h4>
-                        <p class="text-muted small">
-                            Automatically counts any date where the student opened or submitted any activities in the LMS.
-                        </p>
-
-                        <div class="bg-light p-3 rounded mb-4">
-                            <h6 class="fw-bold text-secondary mb-1">Total Online Active Days:</h6>
-                            <h3 class="fw-bold text-dark mb-0"><?php echo count($autoDates); ?> Days</h3>
-                        </div>
-
-                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                            <table class="table table-sm table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Log Entry</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php if (empty($autoDates)): ?>
-                                        <tr>
-                                            <td colspan="2" class="text-center text-muted py-3">No auto-detected online activity yet.</td>
-                                        </tr>
-                                    <?php else: ?>
-                                        <?php foreach ($autoDates as $logDate): ?>
-                                            <tr>
-                                                <td><?php echo date('F d, Y', strtotime($logDate)); ?></td>
-                                                <td><span class="text-success fw-bold"><i class="bi bi-check-circle"></i> Auto Activity Counted</span></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
         <?php endif; ?>
     </div>
 </div>
+
+<style>
+.sf9-signature-pad {
+    width: 100%;
+    height: 150px;
+    display: block;
+    background: #fff;
+    border: 2px dashed #1e4072;
+    border-radius: 6px;
+    touch-action: none;
+    cursor: crosshair;
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof SignaturePad === 'undefined') return;
+
+    const pads = {};
+
+    function setupPad(role, canvasId, inputId) {
+        const canvas = document.getElementById(canvasId);
+        const input = document.getElementById(inputId);
+        if (!canvas || !input) return;
+
+        const pad = new SignaturePad(canvas, { penColor: '#1e4072' });
+        pads[role] = { pad, input, canvas };
+
+        function resizeCanvas() {
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            const width = canvas.offsetWidth;
+            const height = canvas.offsetHeight;
+            canvas.width = width * ratio;
+            canvas.height = height * ratio;
+            canvas.getContext('2d').scale(ratio, ratio);
+            pad.clear();
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+    }
+
+    setupPad('teacher', 'teacherSignaturePad', 'teacher_signature_data');
+    setupPad('parent', 'parentSignaturePad', 'parent_signature_data');
+
+    document.querySelectorAll('[data-clear-signature]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const role = button.getAttribute('data-clear-signature');
+            if (pads[role]) {
+                pads[role].pad.clear();
+                pads[role].input.value = '';
+            }
+        });
+    });
+
+    document.querySelectorAll('form[action$="/remarks"]').forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            let missingSignature = false;
+            Object.keys(pads).forEach(function (role) {
+                const bundle = pads[role];
+                if (!bundle.pad.isEmpty()) {
+                    bundle.input.value = bundle.pad.toDataURL('image/png');
+                } else {
+                    const existingImage = bundle.canvas.closest('div').parentElement.querySelector('img');
+                    if (!existingImage) {
+                        missingSignature = true;
+                    }
+                }
+            });
+
+            if (missingSignature) {
+                event.preventDefault();
+                alert('Please draw the required signature before saving.');
+            }
+        });
+    });
+});
+</script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

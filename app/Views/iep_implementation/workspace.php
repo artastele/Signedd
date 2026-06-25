@@ -1837,6 +1837,18 @@ function buildFillInBlanks() {
     <div class="alert alert-info py-2 small mb-3">
         <i class="ti ti-info-circle me-1"></i>Use <code>___</code> (three underscores) to mark blanks in your sentence.
     </div>
+    <div class="mb-3">
+        <label class="form-label small fw-semibold">Answer Mode</label>
+        <div class="d-flex gap-3">
+            <label class="form-check-label small"><input type="radio" class="form-check-input fib-mode-radio" name="fib_mode" value="word_bank" checked onchange="toggleFibModeFields()"> Word Bank</label>
+            <label class="form-check-label small"><input type="radio" class="form-check-input fib-mode-radio" name="fib_mode" value="free_type" onchange="toggleFibModeFields()"> Free Type</label>
+        </div>
+    </div>
+    <div class="mb-3" id="fibDistractorsWrap">
+        <label class="form-label small fw-semibold">Distractor Words (comma-separated, optional)</label>
+        <input type="text" class="form-control form-control-sm" id="fibDistractors" placeholder="e.g. red, blue, running">
+        <small class="text-muted small">Wrong options shown in the pool to increase difficulty</small>
+    </div>
     <div class="d-flex justify-content-between align-items-center mb-2">
         <span class="fw-semibold small" style="color:#1e4072;">Blank Questions</span>
         <button type="button" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;" onclick="addFibQuestion()">
@@ -1845,6 +1857,13 @@ function buildFillInBlanks() {
     </div>
     <div id="fibQuestions"></div>`;
 }
+
+function toggleFibModeFields() {
+    const isWordBank = document.querySelector('.fib-mode-radio:checked')?.value === 'word_bank';
+    const wrap = document.getElementById('fibDistractorsWrap');
+    if (wrap) wrap.style.display = isWordBank ? 'block' : 'none';
+}
+
 
 let fibQCount = 0;
 function addFibQuestion() {
@@ -2027,9 +2046,13 @@ let imageLabelMarkers = [];
 function buildImageLabel() {
     return `
     <div class="mb-3">
-        <label class="form-label small fw-semibold">Upload Image (JPG/PNG, max 5MB)</label>
+        <label class="form-label small fw-semibold">Upload Image * (JPG/PNG, max 5MB)</label>
         <input type="file" class="form-control form-control-sm" id="imageLabelFile"
                accept=".jpg,.jpeg,.png" onchange="previewImageLabel(this)">
+    </div>
+    <div class="mb-3">
+        <label class="form-label small fw-semibold">Image Description (for visually impaired accessibility fallback)</label>
+        <textarea class="form-control form-control-sm" id="imageLabelDescription" rows="2" placeholder="Describe what is happening in the image..."></textarea>
     </div>
     <div id="imageLabelPreviewWrap" style="display:none;">
         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -2041,6 +2064,10 @@ function buildImageLabel() {
         </div>
         <div id="imageLabelCanvas" class="mb-3" onclick="placeMarkerOnClick(event)"></div>
         <div id="imageLabelAnswers"></div>
+        <div id="imageLabelPillsPreview" class="mt-3">
+            <label class="form-label small fw-semibold">Label Preview (Pills):</label>
+            <div class="d-flex flex-wrap gap-2" id="imageLabelPillsContainer"></div>
+        </div>
     </div>
     <div class="mt-2 d-flex align-items-center gap-2">
         <label class="form-label small mb-0">Points per label:</label>
@@ -2063,6 +2090,7 @@ function previewImageLabel(input) {
         document.getElementById('imageLabelPreviewWrap').style.display = '';
         imageLabelMarkers = [];
         document.getElementById('imageLabelAnswers').innerHTML = '';
+        updateLabelPillsPreview();
     };
     reader.readAsDataURL(file);
 }
@@ -2073,6 +2101,22 @@ function addImageLabelMarker() {
     const canvas = document.getElementById('imageLabelCanvas');
     if (canvas) canvas.style.cursor = 'crosshair';
     showToast('info', 'Click on the image to place a marker');
+}
+
+function updateLabelPillsPreview() {
+    const container = document.getElementById('imageLabelPillsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    imageLabelMarkers.forEach(m => {
+        const text = (m.answer || '').trim();
+        if (text) {
+            const pill = document.createElement('span');
+            pill.className = 'badge bg-secondary text-white px-2 py-1 me-1 mb-1';
+            pill.style.fontSize = '0.75rem';
+            pill.textContent = text;
+            container.appendChild(pill);
+        }
+    });
 }
 
 function placeMarkerOnClick(event) {
@@ -2105,9 +2149,11 @@ function placeMarkerOnClick(event) {
         <span class="badge" style="background:#a01422;min-width:24px;">${idx}</span>
         <input type="text" class="form-control form-control-sm image-label-answer"
                data-idx="${idx - 1}" placeholder="Answer for label ${idx}"
-               oninput="imageLabelMarkers[${idx - 1}].answer = this.value">`;
+               oninput="imageLabelMarkers[${idx - 1}].answer = this.value; updateLabelPillsPreview();">`;
     answersDiv.appendChild(row);
+    updateLabelPillsPreview();
 }
+
 
 /* ---- Flashcards ---- */
 function buildFlashcards() {
@@ -2349,11 +2395,16 @@ function collectActivityData() {
                 });
             });
             const first = sentences[0] || {};
+            const mode = document.querySelector('.fib-mode-radio:checked')?.value || 'word_bank';
+            const distractorsVal = document.getElementById('fibDistractors')?.value || '';
+            const distractors = distractorsVal.split(',').map(s => s.trim()).filter(s => s.length > 0);
             data = {
                 sentences,
                 sentence: first.text || '',
                 answers: first.answers || [],
                 points: first.points || 1,
+                answer_mode: mode,
+                distractors: distractors
             };
             break;
         }
@@ -2397,6 +2448,7 @@ function collectActivityData() {
                 labels:  imageLabelMarkers,
                 markers: imageLabelMarkers,
                 points:  parseInt(document.getElementById('imageLabelPoints')?.value || '1'),
+                description: document.getElementById('imageLabelDescription')?.value.trim() || '',
             };
             break;
         }
@@ -2495,6 +2547,10 @@ function validateActivityData(type, data) {
         }
     }
     if (type === 'image_label') {
+        const fileInput = document.getElementById('imageLabelFile');
+        if (!fileInput || !fileInput.files.length) {
+            return 'Please upload an image before saving this activity.';
+        }
         const labels = (data.labels || []).filter(l => (l.answer || '').trim() !== '');
         if (labels.length < 1) return 'Add at least one image label marker and answer.';
     }
@@ -2532,15 +2588,33 @@ async function saveActivity() {
 
     showLoading('Saving activity…');
     try {
-        const data = await postJSON(BASE + '/iep/implementation/activity/create', {
-            lesson_plan_id: parseInt(lpId),
-            title,
-            instructions,
-            activity_type: selectedActivityType,
-            activity_data: activityData,
-            max_score:     maxScore,
-            due_date:      dueDate,
-        });
+        let data;
+        if (selectedActivityType === 'image_label') {
+            const fileInput = document.getElementById('imageLabelFile');
+            const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+            const formData = new FormData();
+            formData.append('lesson_plan_id', parseInt(lpId));
+            formData.append('title', title);
+            formData.append('instructions', instructions);
+            formData.append('activity_type', selectedActivityType);
+            formData.append('activity_data', JSON.stringify(activityData));
+            formData.append('max_score', maxScore);
+            if (dueDate) formData.append('due_date', dueDate);
+            if (file) {
+                formData.append('image_file', file);
+            }
+            data = await postForm(BASE + '/iep/implementation/activity/create', formData);
+        } else {
+            data = await postJSON(BASE + '/iep/implementation/activity/create', {
+                lesson_plan_id: parseInt(lpId),
+                title,
+                instructions,
+                activity_type: selectedActivityType,
+                activity_data: activityData,
+                max_score:     maxScore,
+                due_date:      dueDate,
+            });
+        }
 
         Swal.close();
         if (data.success) {
