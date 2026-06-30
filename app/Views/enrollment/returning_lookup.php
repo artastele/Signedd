@@ -25,7 +25,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
                 <div class="card-body">
                     <p class="text-muted">
-                        Search by LRN or student name to find previous enrollment data. 
+                        Search by DepEd LRN or student name to find previous enrollment data. 
                         This will auto-fill most fields in the enrollment form.
                     </p>
 
@@ -78,7 +78,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             <form id="lrnSearchForm">
                                 <div class="mb-3">
                                     <label for="search_lrn" class="form-label">
-                                        <strong>Learner Reference Number (LRN)</strong>
+                                        <strong>DepEd LRN</strong>
                                     </label>
                                     <input type="text" class="form-control form-control-lg" 
                                            id="search_lrn" name="search_lrn" 
@@ -292,7 +292,8 @@ function displayResults(students) {
                     <div>
                         <h6 class="mb-1">${fullName}</h6>
                         <p class="mb-1">
-                            <strong>LRN:</strong> ${student.lrn || 'Not assigned'} | 
+                            <strong>Student ID:</strong> ${student.student_id ? student.student_id : '—'} | 
+                            <strong>DepEd LRN:</strong> ${student.lrn || 'Not yet assigned'} | 
                             <strong>Birth Date:</strong> ${student.birth_date} | 
                             <strong>Grade:</strong> ${student.grade_level_to_enroll}
                         </p>

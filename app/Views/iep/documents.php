@@ -42,6 +42,20 @@ require_once __DIR__ . '/../layouts/header.php';
     <?php endif; ?>
 
     <?php
+    require_once __DIR__ . '/../../Models/StudentModel.php';
+    $iepDocStudentModel = new StudentModel();
+    $iepDocStudentCodeCache = [];
+    $iepDocStudentCode = static function (array $doc) use ($iepDocStudentModel, &$iepDocStudentCodeCache) {
+        $fk = (int)($doc['student_id'] ?? 0);
+        if (!$fk) {
+            return null;
+        }
+        if (!isset($iepDocStudentCodeCache[$fk])) {
+            $rec = $iepDocStudentModel->findById($fk);
+            $iepDocStudentCodeCache[$fk] = $rec['student_id'] ?? null;
+        }
+        return $iepDocStudentCodeCache[$fk];
+    };
     $role = $_SESSION['role'];
     // Build tabs based on role
     $tabs = [];
@@ -128,7 +142,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <tr>
                                         <td>
                                             <strong><?php echo htmlspecialchars($doc['student_name']); ?></strong><br>
-                                            <small class="text-muted">LRN: <?php echo htmlspecialchars($doc['lrn'] ?? 'N/A'); ?></small>
+                                            <small class="text-muted">Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($iepDocStudentCode($doc))); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($doc['lrn'] ?? null)); ?></small>
                                         </td>
                                         <td><?php echo date('M d, Y', strtotime($doc['meeting_date'])); ?></td>
                                         <td>
@@ -212,7 +226,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <tr>
                                         <td>
                                             <strong><?php echo htmlspecialchars($doc['student_name']); ?></strong><br>
-                                            <small class="text-muted">LRN: <?php echo htmlspecialchars($doc['lrn'] ?? 'N/A'); ?></small>
+                                            <small class="text-muted">Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($iepDocStudentCode($doc))); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($doc['lrn'] ?? null)); ?></small>
                                         </td>
                                         <td><?php echo date('M d, Y', strtotime($doc['meeting_date'])); ?></td>
                                         <td>
@@ -278,7 +292,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <thead style="background: #f5f5f5;">
                                     <tr>
                                         <th>Student</th>
-                                        <th>LRN</th>
+                                        <th>Student ID</th>
+                                        <th>DepEd LRN</th>
                                         <th>Created By</th>
                                         <th>Created</th>
                                         <th>Signatures</th>
@@ -289,7 +304,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <?php foreach ($approvalDocuments as $doc): ?>
                                     <tr>
                                         <td><strong><?php echo htmlspecialchars($doc['student_name']); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($doc['lrn']); ?></td>
+                                        <td><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($iepDocStudentCode($doc))); ?></td>
+                                        <td><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($doc['lrn'] ?? null)); ?></td>
                                         <td><?php echo htmlspecialchars($doc['created_by_name']); ?></td>
                                         <td><?php echo date('M d, Y', strtotime($doc['created_at'])); ?></td>
                                         <td>

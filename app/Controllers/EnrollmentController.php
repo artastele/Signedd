@@ -466,7 +466,7 @@ class EnrollmentController {
                 }
             }
 
-            // 3. Create student record (generates LRN if needed)
+            // 3. Create student record (generates internal Student ID)
             require_once __DIR__ . '/../Models/StudentModel.php';
             $studentModel = new StudentModel();
             $studentData = $studentModel->createStudentRecord($enrollmentId, $userId);
@@ -474,7 +474,7 @@ class EnrollmentController {
             // 4. Create learner account with credentials
             $accountData = $studentModel->createLearnerAccount(
                 $studentData['id'],
-                $studentData['lrn'],
+                $studentData['student_id'],
                 $enrollment
             );
             
@@ -487,7 +487,7 @@ class EnrollmentController {
                 $enrollment['parent_id'],
                 'enrollment_approved',
                 'Enrollment Approved! ✅',
-                "Enrollment approved for {$enrollment['first_name']} {$enrollment['last_name']}. LRN: {$studentData['lrn']}. Temporary password: {$accountData['temp_password']}",
+                "Enrollment approved for {$enrollment['first_name']} {$enrollment['last_name']}. Student ID: {$studentData['student_id']}. Temporary password: {$accountData['temp_password']}",
                 ['enrollment_id' => $enrollmentId, 'student_id' => $studentData['id']]
             );
 
@@ -499,7 +499,7 @@ class EnrollmentController {
                     
                     <div style='background-color: #f0f8ff; padding: 20px; border-left: 4px solid #1e4072; margin: 20px 0;'>
                         <h3 style='color: #1e4072; margin-top: 0;'>Learner Login Credentials</h3>
-                        <p><strong>LRN (Username):</strong> <code style='background: #fff; padding: 5px 10px; border-radius: 3px;'>{$studentData['lrn']}</code></p>
+                        <p><strong>Student ID (Username):</strong> <code style='background: #fff; padding: 5px 10px; border-radius: 3px;'>{$studentData['student_id']}</code></p>
                         <p><strong>Temporary Password:</strong> <code style='background: #fff; padding: 5px 10px; border-radius: 3px;'>{$accountData['temp_password']}</code></p>
                         <p style='color: #a01422; margin-top: 15px;'><strong>⚠️ Important:</strong> Please change this password after first login.</p>
                     </div>
@@ -515,7 +515,7 @@ class EnrollmentController {
                 );
             }
 
-            $_SESSION['success'] = "Enrollment approved! Learner account created. LRN: {$studentData['lrn']}, Password: {$accountData['temp_password']}";
+            $_SESSION['success'] = "Enrollment approved! Learner account created. Student ID: {$studentData['student_id']}, Password: {$accountData['temp_password']}";
 
         } catch (Exception $e) {
             error_log('Approve enrollment error: ' . $e->getMessage());
@@ -1006,7 +1006,20 @@ class EnrollmentController {
             // Get optional school year filter
             $schoolYear = $_GET['school_year'] ?? null;
             
-            if ($searchType === 'lrn') {
+            if ($searchType === 'student_id') {
+                $studentIdCode = $_GET['student_id'] ?? '';
+
+                if (empty($studentIdCode) || !preg_match('/^\d{8}$/', $studentIdCode)) {
+                    echo json_encode(['success' => false, 'message' => 'Invalid Student ID format']);
+                    exit;
+                }
+
+                $student = $this->enrollmentModel->searchByStudentIdCode($studentIdCode, $schoolYear);
+                if ($student) {
+                    $students = [$student];
+                }
+
+            } elseif ($searchType === 'lrn') {
                 $lrn = $_GET['lrn'] ?? '';
                 
                 if (empty($lrn) || !preg_match('/^\d{12}$/', $lrn)) {

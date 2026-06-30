@@ -326,10 +326,10 @@ class LessonPlanModel {
         $stmt = $this->db->prepare("
             INSERT INTO lms_activities
                 (lesson_plan_id, title, instructions, activity_type, activity_data,
-                 max_score, due_date, display_order, created_at)
+                 max_score, due_date, display_order, is_f2f, created_at)
             VALUES
                 (:lesson_plan_id, :title, :instructions, :activity_type, :activity_data,
-                 :max_score, :due_date, :display_order, NOW())
+                 :max_score, :due_date, :display_order, :is_f2f, NOW())
         ");
         $stmt->execute([
             'lesson_plan_id' => $data['lesson_plan_id'],
@@ -340,6 +340,7 @@ class LessonPlanModel {
             'max_score'      => $data['max_score']      ?? 0,
             'due_date'       => $data['due_date']       ?? null,
             'display_order'  => $data['display_order']  ?? 0,
+            'is_f2f'         => $data['is_f2f']         ?? 0,
         ]);
         return $this->db->lastInsertId();
     }

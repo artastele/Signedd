@@ -28,7 +28,7 @@ class ClassPlacementController {
         $this->notifications = new NotificationModel();
     }
 
-    public function index(string $iepId): void {
+    public function index(string $iepId = ''): void {
         // Enforce RBAC permissions
         if (!RoleMiddleware::hasPermission('class_placement.review') && !RoleMiddleware::hasPermission('class_placement.view') && $this->userRole !== 'admin') {
             http_response_code(403);

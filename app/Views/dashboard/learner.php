@@ -137,6 +137,11 @@ $dashOff = round($circ * (1 - $pct / 100), 2);
       ?>
     </div>
     <div class="lrn-banner__text">
+      <?php if (!empty($studentIdCode)): ?>
+        <div class="small opacity-90 mb-1">Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($studentIdCode)); ?></div>
+      <?php else: ?>
+        <?php /* $studentIdCode from controller when available */ ?>
+      <?php endif; ?>
       <?php if ($pct === 100): ?>
         <h2>Amazing, <?php echo htmlspecialchars($firstName); ?>!</h2>
         <p>You finished everything! You are a superstar! 🏆</p>

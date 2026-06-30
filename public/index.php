@@ -51,6 +51,9 @@ require_once __DIR__ . '/../app/Middleware/RoleMiddleware.php';
 if (file_exists(__DIR__ . '/../app/Helpers/MailHelper.php')) {
     require_once __DIR__ . '/../app/Helpers/MailHelper.php';
 }
+if (file_exists(__DIR__ . '/../app/Helpers/StudentDisplayHelper.php')) {
+    require_once __DIR__ . '/../app/Helpers/StudentDisplayHelper.php';
+}
 
 // Apply schema migrations on first run
 $schemaManager = new SchemaManager();

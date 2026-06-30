@@ -7,6 +7,7 @@ require_once __DIR__ . '/../layouts/header.php';
 $role = $_SESSION['role'];
 $basePath = BASE_PATH;
 $isFinalized = ($itp && $itp['status'] === 'finalized');
+$activeStep = 11;
 ?>
 <body data-logged-in="true">
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
@@ -20,7 +21,7 @@ $isFinalized = ($itp && $itp['status'] === 'finalized');
                 <h1 class="mb-1" style="color:#1e4072; font-weight:700;">
                     <i class="bi bi-file-earmark-person me-2"></i>Individual Transition Plan (ITP)
                 </h1>
-                <p class="text-muted mb-0">Process 11 — Collaborative & Digital Transition Planning</p>
+                <p class="text-muted mb-0">Part 5 — Collaborative & Digital Transition Planning</p>
             </div>
             <div>
                 <a href="<?= $basePath ?>/iep" class="btn btn-outline-secondary">
@@ -42,6 +43,9 @@ $isFinalized = ($itp && $itp['status'] === 'finalized');
             </div>
         <?php endif; ?>
 
+        <!-- Wizard Navigation -->
+        <?php require_once __DIR__ . '/../layouts/transition_nav.php'; ?>
+
         <?php if ($isFinalized): ?>
             <div class="alert alert-info py-3 mb-4" style="border-left: 5px solid #1e4072; background-color: #eef4fc;">
                 <h5 class="alert-heading text-primary-emphasis mb-1"><i class="bi bi-lock-fill me-2"></i>Finalized and Locked</h5>
@@ -50,6 +54,11 @@ $isFinalized = ($itp && $itp['status'] === 'finalized');
         <?php endif; ?>
 
         <form method="post" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/individual-transition-plan">
+            <?php
+            require_once __DIR__ . '/../../Models/StudentModel.php';
+            $itpStudentRec = (new StudentModel())->findById((int)($iep['student_id'] ?? 0));
+            $itpStudentCode = $itpStudentRec['student_id'] ?? null;
+            ?>
             <!-- Part I: Personal Information -->
             <div class="card shadow-sm border-0 mb-4 overflow-hidden" style="border-radius: 12px;">
                 <div class="card-header text-white py-3" style="background: linear-gradient(135deg, #1e4072 0%, #2a528f 100%);">
@@ -68,9 +77,14 @@ $isFinalized = ($itp && $itp['status'] === 'finalized');
                                    value="<?= htmlspecialchars($personalInfo['date_of_birth'] ?? '') ?>" <?= $isFinalized ? 'readonly' : 'required' ?>>
                         </div>
                         <div class="col-md-6 col-lg-4">
-                            <label for="lrn" class="form-label small font-weight-bold text-muted text-uppercase">LRN (Learner Reference Number)</label>
+                            <label for="student_id_display" class="form-label small font-weight-bold text-muted text-uppercase">Student ID</label>
+                            <input type="text" id="student_id_display" class="form-control form-control-lg border-2 bg-light" style="border-radius: 8px;"
+                                   value="<?= htmlspecialchars(StudentDisplayHelper::formatStudentId($itpStudentCode)) ?>" readonly>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <label for="lrn" class="form-label small font-weight-bold text-muted text-uppercase">DepEd LRN (optional — assigned by DepEd LIS)</label>
                             <input type="text" id="lrn" name="lrn" class="form-control form-control-lg border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars($personalInfo['lrn'] ?? '') ?>" <?= $isFinalized ? 'readonly' : 'required' ?> maxlength="12">
+                                   value="<?= htmlspecialchars(StudentDisplayHelper::lrnFieldValue($personalInfo['lrn'] ?? null)) ?>" <?= $isFinalized ? 'readonly' : '' ?> maxlength="12">
                         </div>
 
                         <div class="col-md-6">
@@ -152,7 +166,7 @@ $isFinalized = ($itp && $itp['status'] === 'finalized');
                     <h5 class="mb-0 font-weight-bold"><i class="bi bi-box-arrow-in-right me-2"></i>Point of Entry</h5>
                 </div>
                 <div class="card-body p-4 bg-white">
-                    <p class="text-muted small mb-3">Please check the point of entry appropriate to the status of the learner (pre-selected based on Process 10 evaluation result).</p>
+                    <p class="text-muted small mb-3">Please check the point of entry appropriate to the status of the learner (pre-selected based on Part 4 evaluation result).</p>
                     
                     <?php
                     $points = [
@@ -292,9 +306,9 @@ $isFinalized = ($itp && $itp['status'] === 'finalized');
 
                                                 <!-- Edit own row action -->
                                                 <?php if (!$isFinalized && $isOwnRow && $member['name'] !== 'Not Applicable'): ?>
-                                                    <a href="<?= $basePath ?>/itp-team/edit/<?= $member['id'] ?>" class="btn btn-sm btn-danger text-white" style="background-color: #a01422;" id="btn_edit_own_<?= $member['id'] ?>">
+                                                    <button type="button" class="btn btn-sm btn-danger text-white" style="background-color: #a01422;" data-bs-toggle="modal" data-bs-target="#editOwnDetailsModal_<?= $member['id'] ?>" id="btn_edit_own_<?= $member['id'] ?>">
                                                         <i class="bi bi-pencil-square"></i> Fill My Details
-                                                    </a>
+                                                    </button>
                                                 <?php endif; ?>
 
                                                 <!-- Remind action for SPED Teacher/Admin -->
@@ -321,27 +335,83 @@ $isFinalized = ($itp && $itp['status'] === 'finalized');
                                                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                                                         </div>
                                                         <div class="modal-body p-4">
-                                                            <div class="mb-3">
-                                                                <label for="assign_user_select_<?= $member['id'] ?>" class="form-label font-weight-bold text-muted small">Select User Account</label>
-                                                                <select name="assigned_user_id" id="assign_user_select_<?= $member['id'] ?>" class="form-select border-2" style="border-radius: 8px;">
-                                                                    <option value="">-- Choose Account --</option>
-                                                                    <?php 
-                                                                    $userList = [];
-                                                                    if ($member['role'] === 'school_head') $userList = $schoolHeads;
-                                                                    elseif ($member['role'] === 'guidance_teacher') $userList = $guidanceTeachers;
-                                                                    elseif ($member['role'] === 'parent_guardian') $userList = $parents;
-                                                                    elseif ($member['role'] === 'learner') $userList = $learners;
-                                                                    elseif ($member['role'] === 'itp_coordinator') $userList = $coordinators;
-                                                                    else $userList = $linkagesUsers;
+                                                              <?php
+                                                              // Query parent user ID and details
+                                                              $db = Database::getInstance()->getConnection();
+                                                              $stmtParent = $db->prepare("
+                                                                  SELECT es.parent_id, u.name AS parent_name, u.email AS parent_email
+                                                                  FROM student_records sr
+                                                                  JOIN enrollment_submissions es ON es.id = sr.enrollment_id
+                                                                  JOIN users u ON u.id = es.parent_id
+                                                                  WHERE sr.id = :student_id LIMIT 1
+                                                              ");
+                                                              $stmtParent->execute(['student_id' => (int)($iep['student_id'] ?? 0)]);
+                                                              $studentParent = $stmtParent->fetch(PDO::FETCH_ASSOC);
 
-                                                                    foreach ($userList as $u):
-                                                                    ?>
-                                                                        <option value="<?= $u['id'] ?>" <?= (intval($member['assigned_user_id']) === intval($u['id'])) ? 'selected' : '' ?>>
-                                                                            <?= htmlspecialchars($u['name']) ?> (<?= htmlspecialchars($u['role']) ?>)
-                                                                        </option>
-                                                                    <?php endforeach; ?>
-                                                                </select>
-                                                            </div>
+                                                              // Query learner user ID and details
+                                                              $stmtLearner = $db->prepare("
+                                                                  SELECT u.id AS learner_user_id, u.name AS learner_name, u.email AS learner_email
+                                                                  FROM student_records sr
+                                                                  JOIN users u ON u.email = CONCAT('learner_', sr.student_id, '@spedlms.local')
+                                                                  WHERE sr.id = :student_id LIMIT 1
+                                                              ");
+                                                              $stmtLearner->execute(['student_id' => (int)($iep['student_id'] ?? 0)]);
+                                                              $studentLearner = $stmtLearner->fetch(PDO::FETCH_ASSOC);
+                                                              ?>
+
+                                                              <?php if ($member['role'] === 'parent_guardian'): ?>
+                                                                  <div class="mb-3">
+                                                                      <label class="form-label font-weight-bold text-muted small text-uppercase d-block">Parent/Guardian Account (Auto-selected)</label>
+                                                                      <?php if ($studentParent): ?>
+                                                                          <div class="p-3 border rounded bg-light" style="border-left: 4px solid #1e4072;">
+                                                                              <strong class="text-dark d-block"><?= htmlspecialchars($studentParent['parent_name']) ?></strong>
+                                                                              <span class="text-muted small"><?= htmlspecialchars($studentParent['parent_email']) ?></span>
+                                                                          </div>
+                                                                          <input type="hidden" name="assigned_user_id" value="<?= intval($studentParent['parent_id']) ?>">
+                                                                      <?php else: ?>
+                                                                          <div class="alert alert-danger py-2 small mb-0">
+                                                                              No parent linked to this student record.
+                                                                          </div>
+                                                                      <?php endif; ?>
+                                                                  </div>
+                                                              <?php elseif ($member['role'] === 'learner'): ?>
+                                                                  <div class="mb-3">
+                                                                      <label class="form-label font-weight-bold text-muted small text-uppercase d-block">Learner Account (Auto-selected)</label>
+                                                                      <?php if ($studentLearner): ?>
+                                                                          <div class="p-3 border rounded bg-light" style="border-left: 4px solid #1e4072;">
+                                                                              <strong class="text-dark d-block"><?= htmlspecialchars($studentLearner['learner_name']) ?></strong>
+                                                                              <span class="text-muted small"><?= htmlspecialchars($studentLearner['learner_email']) ?></span>
+                                                                          </div>
+                                                                          <input type="hidden" name="assigned_user_id" value="<?= intval($studentLearner['learner_user_id']) ?>">
+                                                                      <?php else: ?>
+                                                                          <div class="alert alert-danger py-2 small mb-0">
+                                                                              No learner account found for this student.
+                                                                          </div>
+                                                                      <?php endif; ?>
+                                                                  </div>
+                                                              <?php else: ?>
+                                                                  <div class="mb-3">
+                                                                      <label for="assign_user_select_<?= $member['id'] ?>" class="form-label font-weight-bold text-muted small">Select User Account</label>
+                                                                      <select name="assigned_user_id" id="assign_user_select_<?= $member['id'] ?>" class="form-select border-2" style="border-radius: 8px;">
+                                                                          <option value="">-- Choose Account --</option>
+                                                                          <?php 
+                                                                          $userList = [];
+                                                                          if ($member['role'] === 'school_head') $userList = $schoolHeads;
+                                                                          elseif ($member['role'] === 'guidance_teacher') $userList = $guidanceTeachers;
+                                                                          elseif ($member['role'] === 'parent_guardian') $userList = $parents;
+                                                                          elseif ($member['role'] === 'learner') $userList = $learners;
+                                                                          elseif ($member['role'] === 'itp_coordinator') $userList = $coordinators;
+                                                                          else $userList = $linkagesUsers;
+
+                                                                          foreach ($userList as $u):
+                                                                          ?>
+                                                                              <option value="<?= $u['id'] ?>" <?= (intval($member['assigned_user_id']) === intval($u['id'])) ? 'selected' : '' ?>>
+                                                                                  <?= htmlspecialchars($u['name']) ?> (<?= htmlspecialchars($u['role']) ?>)
+                                                                                </option>
+                                                                          <?php endforeach; ?>
+                                                                      </select>
+                                                                  </div>
+                                                              <?php endif; ?>    
 
                                                             <?php if (in_array($member['role'], ['guidance_teacher', 'learner', 'linkages'], true)): ?>
                                                                 <div class="form-check p-3 border rounded-3 bg-light" style="border-color: #cbd5e1;">
@@ -379,6 +449,64 @@ $isFinalized = ($itp && $itp['status'] === 'finalized');
                                                 }
                                             });
                                         </script>
+                                    <?php endif; ?>
+
+                                    <!-- Edit Own Details Modal -->
+                                    <?php if (!$isFinalized && $isOwnRow && $member['name'] !== 'Not Applicable'): ?>
+                                        <div class="modal fade" id="editOwnDetailsModal_<?= $member['id'] ?>" tabindex="-1" aria-labelledby="editOwnDetailsModalLabel_<?= $member['id'] ?>" aria-hidden="true">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
+                                                    <form method="post" action="<?= $basePath ?>/itp-team/save/<?= intval($member['id']) ?>">
+                                                        <div class="modal-header text-white" style="background-color: #1e4072;">
+                                                            <h5 class="modal-title font-weight-bold" id="editOwnDetailsModalLabel_<?= $member['id'] ?>">Update My Details</h5>
+                                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body p-4 text-start">
+                                                            <div class="mb-4 p-3 border rounded bg-light text-wrap" style="border-color: #cbd5e1; border-left: 4px solid #a01422; font-size: 0.9rem;">
+                                                                <span class="font-weight-bold text-dark d-block">Role: <?= htmlspecialchars(ucwords(str_replace('_', ' ', $member['role']))) ?></span>
+                                                                <span class="text-muted small">
+                                                                    <strong>Student:</strong> <?= htmlspecialchars($iep['student_name'] ?? 'N/A') ?><br>
+                                                                    <strong>DepEd LRN:</strong> <?= htmlspecialchars($iep['lrn'] ?? '') ?>
+                                                                </span>
+                                                            </div>
+
+                                                            <?php
+                                                            // Prefill name/email if empty
+                                                            $prefillName = $member['name'] ?: ($member['user_name'] ?? '');
+                                                            if ($prefillName === 'Not Assigned') {
+                                                                $prefillName = '';
+                                                            }
+                                                            $prefillContact = $member['contact_details'] ?: ($member['user_email'] ?? '');
+                                                            ?>
+
+                                                            <div class="mb-3">
+                                                                <label for="modal_name_<?= $member['id'] ?>" class="form-label small font-weight-bold text-muted text-uppercase">Full Name / Representative</label>
+                                                                <input type="text" id="modal_name_<?= $member['id'] ?>" name="name" class="form-control border-2" style="border-radius: 8px;" 
+                                                                       value="<?= htmlspecialchars($prefillName) ?>" required>
+                                                            </div>
+
+                                                            <div class="mb-3">
+                                                                <label for="modal_contact_<?= $member['id'] ?>" class="form-label small font-weight-bold text-muted text-uppercase">Contact Details (Email / Phone)</label>
+                                                                <input type="text" id="modal_contact_<?= $member['id'] ?>" name="contact_details" class="form-control border-2" style="border-radius: 8px;" 
+                                                                       value="<?= htmlspecialchars($prefillContact) ?>" required>
+                                                            </div>
+
+                                                            <div class="mb-3">
+                                                                <label for="modal_date_started_<?= $member['id'] ?>" class="form-label small font-weight-bold text-muted text-uppercase">Date Started Working with Learner</label>
+                                                                <input type="date" id="modal_date_started_<?= $member['id'] ?>" name="date_started" class="form-control border-2" style="border-radius: 8px;" 
+                                                                       value="<?= htmlspecialchars($member['date_started'] ?? '') ?>">
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer bg-light p-3 gap-2">
+                                                            <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                                                            <button type="submit" class="btn text-white px-5" style="background-color: #a01422; font-weight: 600; border-radius: 8px;">
+                                                                <i class="bi bi-save me-2"></i>Save Details
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
                                     <?php endif; ?>
                                 <?php endforeach; ?>
                             </tbody>
@@ -635,56 +763,8 @@ $isFinalized = ($itp && $itp['status'] === 'finalized');
                 </div>
                 <div class="card-body p-4 bg-white">
                     <div class="row g-4">
-                        <!-- Left Column: Parent Signature -->
-                        <div class="col-md-6 border-end">
-                            <h6 class="font-weight-bold mb-3" style="color: #1e4072;">
-                                <i class="bi bi-pen me-2"></i>Parent / Guardian Digital Signature
-                            </h6>
-                            
-                            <?php if ($parentSignature): ?>
-                                <div class="p-3 border rounded-3 bg-light text-center">
-                                    <span class="badge bg-success mb-2"><i class="bi bi-check-circle-fill me-1"></i>Digitally Signed</span>
-                                    <div class="my-3">
-                                        <img src="<?= $basePath ?>/<?= htmlspecialchars($parentSignature['signature_image_path']) ?>" 
-                                             alt="Parent Signature" style="max-height: 100px; border-bottom: 2px solid #cbd5e1; padding-bottom: 5px;">
-                                    </div>
-                                    <small class="text-muted d-block">Signed on: <?= date('F d, Y h:i A', strtotime($parentSignature['signed_at'])) ?></small>
-                                </div>
-                            <?php elseif ($canSignAsParent && !$isFinalized): ?>
-                                <div class="p-3 border rounded-3 bg-light text-center">
-                                    <p class="text-muted small mb-3">Draw your signature inside the box below, then click Submit Signature.</p>
-                                    <div class="mb-3">
-                                        <canvas id="parentSigCanvas" style="border: 2px dashed #1e4072; border-radius: 8px; width: 100%; height: 200px; cursor: crosshair; touch-action: none; background-color: #ffffff;"></canvas>
-                                    </div>
-                                    <div class="d-flex justify-content-center gap-2">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn_clear_sig">
-                                            <i class="bi bi-eraser me-1"></i>Clear
-                                        </button>
-                                        <button type="button" class="btn btn-sm text-white" style="background-color: #a01422;" id="btn_submit_sig">
-                                            <i class="bi bi-check-circle me-1"></i>Submit Signature
-                                        </button>
-                                    </div>
-                                </div>
-                            <?php else: ?>
-                                <div class="p-3 border rounded-3 bg-light text-center py-4">
-                                    <i class="bi bi-clock-history text-warning" style="font-size: 2rem;"></i>
-                                    <?php
-                                    $parentName = 'Parent / Guardian';
-                                    foreach ($teamMembers as $m) {
-                                        if ($m['role'] === 'parent_guardian' && $m['name']) {
-                                            $parentName = $m['name'];
-                                            break;
-                                        }
-                                    }
-                                    ?>
-                                    <h6 class="mt-2 text-muted">Awaiting Parent Signature</h6>
-                                    <p class="text-muted small mb-0">Must be signed by: <strong><?= htmlspecialchars($parentName) ?></strong></p>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-
-                        <!-- Right Column: Finalization -->
-                        <div class="col-md-6">
+                        <!-- Full-width: Finalization -->
+                        <div class="col-12">
                             <h6 class="font-weight-bold mb-3" style="color: #1e4072;">
                                 <i class="bi bi-shield-lock me-2"></i>ITP Finalize & Lock
                             </h6>
@@ -710,32 +790,19 @@ $isFinalized = ($itp && $itp['status'] === 'finalized');
                                     </div>
                                 <?php endif; ?>
 
-                                <!-- Parent Signature Gate -->
-                                <?php if (!$parentSignature): ?>
-                                    <div class="alert alert-danger py-3 mb-3 small d-flex align-items-start gap-2">
-                                        <i class="bi bi-slash-circle-fill text-danger fs-5 mt-1"></i>
-                                        <div>
-                                            <strong class="text-danger">Hard Gate Blocked:</strong> Parent/Guardian signature is required to finalize this Individual Transition Plan.
-                                            <p class="mb-0 text-muted mt-1">Please have the parent sign the form first.</p>
-                                        </div>
+                                <div class="alert alert-info py-3 mb-3 small d-flex align-items-start gap-2">
+                                    <i class="bi bi-info-circle-fill text-info fs-5 mt-1"></i>
+                                    <div>
+                                        <strong class="text-info">Ready to Finalize:</strong> All required assignments and settings have been checked.
+                                        <p class="mb-0 text-muted mt-1">Finalizing this transition plan will lock all sections from future edits.</p>
                                     </div>
-                                    <button class="btn btn-secondary btn-lg w-100 disabled" style="font-weight:600;" disabled>
-                                        <i class="bi bi-lock me-2"></i>Finalize ITP (Blocked)
+                                </div>
+
+                                <form method="post" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/itp/finalize" onsubmit="return confirm('Are you sure you want to finalize and lock this ITP? This cannot be undone.');">
+                                    <button type="submit" class="btn btn-lg w-100 text-white" style="background-color: #a01422; font-weight:600;" id="btn_finalize_itp">
+                                        <i class="bi bi-unlock-fill me-2"></i>Finalize and Lock ITP
                                     </button>
-                                <?php else: ?>
-                                    <div class="alert alert-success py-3 mb-3 small d-flex align-items-start gap-2">
-                                        <i class="bi bi-check-circle-fill text-success fs-5 mt-1"></i>
-                                        <div>
-                                            <strong class="text-success">Gates Cleared:</strong> Parent signature is verified.
-                                            <p class="mb-0 text-muted mt-1">You are ready to finalize this transition plan. This action will lock all sections from future edits.</p>
-                                        </div>
-                                    </div>
-                                    <form method="post" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/itp/finalize" onsubmit="return confirm('Are you sure you want to finalize and lock this ITP? This cannot be undone.');">
-                                        <button type="submit" class="btn btn-lg w-100 text-white" style="background-color: #a01422; font-weight:600;" id="btn_finalize_itp">
-                                            <i class="bi bi-unlock-fill me-2"></i>Finalize and Lock ITP
-                                        </button>
-                                    </form>
-                                <?php endif; ?>
+                                </form>
                             <?php else: ?>
                                 <div class="p-3 border rounded-3 bg-light text-center py-4">
                                     <i class="bi bi-info-circle text-info" style="font-size: 2rem;"></i>
@@ -747,60 +814,6 @@ $isFinalized = ($itp && $itp['status'] === 'finalized');
                     </div>
                 </div>
             </div>
-
-            <?php if (!$parentSignature && $canSignAsParent && !$isFinalized): ?>
-                <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
-                <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    const canvas = document.getElementById('parentSigCanvas');
-                    if (canvas) {
-                        const sigPad = new SignaturePad(canvas, { penColor: '#1e4072' });
-                        
-                        function resizeCanvas() {
-                            const ratio = Math.max(window.devicePixelRatio || 1, 1);
-                            canvas.width = canvas.offsetWidth * ratio;
-                            canvas.height = canvas.offsetHeight * ratio;
-                            canvas.getContext('2d').scale(ratio, ratio);
-                            sigPad.clear();
-                        }
-                        
-                        window.addEventListener('resize', resizeCanvas);
-                        resizeCanvas();
-                        
-                        document.getElementById('btn_clear_sig').addEventListener('click', function() {
-                            sigPad.clear();
-                        });
-                        
-                        document.getElementById('btn_submit_sig').addEventListener('click', function() {
-                            if (sigPad.isEmpty()) {
-                                alert('Please draw your signature first.');
-                                return;
-                            }
-                            const fd = new FormData();
-                            fd.append('signature_data', sigPad.toDataURL('image/png'));
-                            
-                            fetch('<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/itp/signature/save', {
-                                method: 'POST',
-                                body: fd
-                            })
-                            .then(r => r.json())
-                            .then(data => {
-                                if (data.success) {
-                                    alert('Signature submitted successfully!');
-                                    location.reload();
-                                } else {
-                                    alert(data.message || 'Failed to save signature.');
-                                }
-                            })
-                            .catch(err => {
-                                console.error(err);
-                                alert('An error occurred while saving the signature.');
-                            });
-                        });
-                    }
-                });
-                </script>
-            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>

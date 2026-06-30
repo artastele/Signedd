@@ -31,7 +31,7 @@ class LearningController {
 
     // ----------------------------------------------------------------
     // Resolve student_records.id for the current session user.
-    // For role=learner: email is learner_{LRN}@spedlms.local
+    // For role=learner: email is learner_{StudentID}@spedlms.local
     // For role=parent:  look up via enrollment_submissions.parent_id
     // ----------------------------------------------------------------
     private function getStudentId(): ?int {
@@ -43,8 +43,16 @@ class LearningController {
                 $stmt->execute(['uid' => $this->userId]);
                 $user = $stmt->fetch();
 
-                if ($user && preg_match('/learner_(\d+)@/', $user['email'], $m)) {
-                    $lrn  = $m[1];
+                if ($user && preg_match('/learner_(\d{8})@/', $user['email'], $m)) {
+                    $code = $m[1];
+                    $stmt = $db->prepare("SELECT id FROM student_records WHERE student_id = :student_id LIMIT 1");
+                    $stmt->execute(['student_id' => $code]);
+                    $row = $stmt->fetch();
+                    if ($row) return (int) $row['id'];
+                }
+
+                if ($user && preg_match('/learner_(\d{12})@/', $user['email'], $m)) {
+                    $lrn = $m[1];
                     $stmt = $db->prepare("SELECT id FROM student_records WHERE lrn = :lrn LIMIT 1");
                     $stmt->execute(['lrn' => $lrn]);
                     $row = $stmt->fetch();
@@ -94,6 +102,14 @@ class LearningController {
     public function dashboard(): void {
         $studentId   = $this->getStudentId();
         $studentName = $studentId ? $this->getStudentName($studentId) : 'Learner';
+        $studentIdCode = null;
+        if ($studentId) {
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("SELECT student_id FROM student_records WHERE id = :id LIMIT 1");
+            $stmt->execute(['id' => $studentId]);
+            $row = $stmt->fetch();
+            $studentIdCode = $row['student_id'] ?? null;
+        }
         $basePath    = $this->basePath;
 
         // Gamification summary for sidebar/topbar

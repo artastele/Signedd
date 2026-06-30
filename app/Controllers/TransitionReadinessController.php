@@ -26,7 +26,7 @@ class TransitionReadinessController {
         $this->model = new TransitionWorkflowModel();
     }
 
-    public function index(string $iepId): void {
+    public function index(string $iepId = ''): void {
         RoleMiddleware::check('transition_readiness.view');
 
         $iepId = (int) $iepId;

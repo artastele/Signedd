@@ -10,6 +10,11 @@ require __DIR__ . '/../layouts/topbar.php';
 
 <div class="main-content">
     <div class="container-fluid py-4">
+        <?php
+        require_once __DIR__ . '/../../Models/StudentModel.php';
+        $assessmentStudentRecord = (new StudentModel())->findById((int)($assessment['student_id'] ?? 0));
+        $assessmentStudentCode = $assessmentStudentRecord['student_id'] ?? null;
+        ?>
         <!-- Page Header -->
         <div class="row mb-4">
             <div class="col-12">
@@ -30,7 +35,8 @@ require __DIR__ . '/../layouts/topbar.php';
                     <div class="col-md-6">
                         <h6 class="text-muted mb-2">Student Information</h6>
                         <p class="mb-1"><strong>Name:</strong> <?php echo htmlspecialchars($assessment['student_name']); ?></p>
-                        <p class="mb-1"><strong>LRN:</strong> <code><?php echo htmlspecialchars($assessment['lrn']); ?></code></p>
+                        <p class="mb-1"><strong>Student ID:</strong> <code><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($assessmentStudentCode)); ?></code></p>
+                        <p class="mb-1"><strong>DepEd LRN:</strong> <code><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($assessment['lrn'] ?? null)); ?></code></p>
                         <p class="mb-1"><strong>Date of Birth:</strong> <?php echo htmlspecialchars($assessment['date_of_birth']); ?></p>
                     </div>
                     <div class="col-md-6">

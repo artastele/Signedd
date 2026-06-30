@@ -82,7 +82,7 @@ $isParent = $_SESSION['role'] === 'parent';
                     </h4>
                     <div class="row">
                         <div class="col-md-6 mb-2">
-                            <strong>LRN:</strong> <?php echo htmlspecialchars($enrollment['lrn'] ?? 'Not assigned'); ?>
+                            <strong>DepEd LRN:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($enrollment['lrn'] ?? null)); ?>
                         </div>
                         <div class="col-md-6 mb-2">
                             <strong>Birth Date:</strong> <?php echo date('F j, Y', strtotime($enrollment['birth_date'])); ?>

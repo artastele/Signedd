@@ -60,7 +60,8 @@ $basePath = defined('BASE_PATH') ? BASE_PATH : '';
                     <thead style="background-color: #1e4072; color: white;">
                         <tr>
                             <th>Student Name</th>
-                            <th>LRN</th>
+                            <th>Student ID</th>
+                            <th>DepEd LRN</th>
                             <th>Meeting Date</th>
                             <th>Status</th>
                             <th>Signatures</th>
@@ -70,15 +71,28 @@ $basePath = defined('BASE_PATH') ? BASE_PATH : '';
                     <tbody>
                         <?php if (empty($p3Documents)): ?>
                             <tr>
-                                <td colspan="6" class="text-center py-4 text-muted">
+                                <td colspan="7" class="text-center py-4 text-muted">
                                     <i class="fas fa-inbox"></i> No pending documents
                                 </td>
                             </tr>
                         <?php else: ?>
+                            <?php
+                            require_once __DIR__ . '/../../Models/StudentModel.php';
+                            $p3StudentModel = new StudentModel();
+                            $p3StudentCodeCache = [];
+                            ?>
                             <?php foreach ($p3Documents as $doc): ?>
+                                <?php
+                                $p3Fk = (int)($doc['student_id'] ?? 0);
+                                if ($p3Fk && !isset($p3StudentCodeCache[$p3Fk])) {
+                                    $p3Rec = $p3StudentModel->findById($p3Fk);
+                                    $p3StudentCodeCache[$p3Fk] = $p3Rec['student_id'] ?? null;
+                                }
+                                ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($doc['student_name']); ?></td>
-                                    <td><?php echo htmlspecialchars($doc['lrn'] ?? 'N/A'); ?></td>
+                                    <td><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($p3StudentCodeCache[$p3Fk] ?? null)); ?></td>
+                                    <td><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($doc['lrn'] ?? null)); ?></td>
                                     <td><?php echo date('M d, Y', strtotime($doc['meeting_date'])); ?></td>
                                     <td>
                                         <span class="badge bg-warning">

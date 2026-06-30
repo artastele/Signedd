@@ -24,15 +24,23 @@ class RoleMiddleware {
             return true;
         }
 
-        // Check if role has the required permission
         if (!isset(self::$permissions[$userRole])) {
             self::forbidden();
         }
 
         $rolePermissions = self::$permissions[$userRole];
 
-        // Check for wildcard or specific permission
-        if (in_array('*', $rolePermissions) || in_array($requiredPermission, $rolePermissions)) {
+        if (in_array('*', $rolePermissions)) {
+            return true;
+        }
+
+        if (is_array($requiredPermission)) {
+            foreach ($requiredPermission as $permission) {
+                if (in_array($permission, $rolePermissions)) {
+                    return true;
+                }
+            }
+        } elseif (in_array($requiredPermission, $rolePermissions)) {
             return true;
         }
 

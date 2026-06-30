@@ -25,6 +25,12 @@ require_once __DIR__ . '/../layouts/header.php';
         <?php endif; ?>
     </div>
 
+    <?php
+    require_once __DIR__ . '/../../Models/StudentModel.php';
+    $meetingListStudentModel = new StudentModel();
+    $meetingListCodeCache = [];
+    ?>
+
     <!-- Upcoming Meetings -->
     <div class="card mb-4">
         <div class="card-header" style="background-color: #1e4072; color: white;">
@@ -52,10 +58,17 @@ require_once __DIR__ . '/../layouts/header.php';
                         </thead>
                         <tbody>
                             <?php foreach ($upcomingMeetings as $meeting): ?>
+                                <?php
+                                $meetingFk = (int)($meeting['student_id'] ?? 0);
+                                if ($meetingFk && !isset($meetingListCodeCache[$meetingFk])) {
+                                    $meetingRec = $meetingListStudentModel->findById($meetingFk);
+                                    $meetingListCodeCache[$meetingFk] = $meetingRec['student_id'] ?? null;
+                                }
+                                ?>
                                 <tr>
                                     <td>
                                         <strong><?php echo htmlspecialchars($meeting['student_name']); ?></strong><br>
-                                        <small class="text-muted">LRN: <?php echo htmlspecialchars($meeting['lrn']); ?></small>
+                                        <small class="text-muted">Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($meetingListCodeCache[$meetingFk] ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($meeting['lrn'] ?? null)); ?></small>
                                     </td>
                                     <td>
                                         <?php echo date('F d, Y', strtotime($meeting['meeting_date'])); ?><br>

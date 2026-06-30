@@ -120,7 +120,7 @@ function completeSpedEnrollment(
 
     if ($enrollment['status'] === 'verified' && $enrollment['learner_account_created']) {
         $stmt = Database::getInstance()->getConnection()->prepare("
-            SELECT sr.id, sr.lrn, sr.student_name
+            SELECT sr.id, sr.student_id, sr.lrn, sr.student_name
             FROM student_records sr
             WHERE sr.enrollment_id = :enrollment_id
             LIMIT 1
@@ -129,6 +129,7 @@ function completeSpedEnrollment(
         $existing = $stmt->fetch(PDO::FETCH_ASSOC);
         return [
             'student_id' => (int) $existing['id'],
+            'student_id_code' => $existing['student_id'],
             'lrn' => $existing['lrn'],
             'name' => $existing['student_name'],
             'temp_password' => '(already enrolled)',
@@ -145,16 +146,16 @@ function completeSpedEnrollment(
     $studentData = $studentModel->createStudentRecord($enrollmentId, $spedTeacherId);
     $accountData = $studentModel->createLearnerAccount(
         $studentData['id'],
-        $studentData['lrn'],
+        $studentData['student_id'],
         $enrollment
     );
 
     $enrollmentModel->updateStatus($enrollmentId, 'verified', $spedTeacherId);
     $enrollmentModel->markLearnerAccountCreated($enrollmentId);
-    $enrollmentModel->update($enrollmentId, ['lrn' => $studentData['lrn']]);
 
     return [
         'student_id' => (int) $studentData['id'],
+        'student_id_code' => $studentData['student_id'],
         'lrn' => $studentData['lrn'],
         'name' => $studentData['name'],
         'temp_password' => $accountData['temp_password'],
@@ -204,7 +205,7 @@ foreach ($parents as $i => &$parent) {
 
     $result = completeSpedEnrollment($enrollmentModel, $studentModel, $enrollmentId, $spedTeacherId);
     $action = $result['skipped'] ? 'Already enrolled' : 'Enrolled in SPED';
-    echo "{$action}: {$result['name']} | LRN {$result['lrn']} | learner password {$result['temp_password']}\n";
+    echo "{$action}: {$result['name']} | Student ID {$result['student_id_code']} | learner password {$result['temp_password']}\n";
 
     $enrolled[] = array_merge($result, [
         'parent_email' => $parent['email'],
@@ -218,7 +219,7 @@ echo "\n--- Self-check ---\n";
 $verified = $studentModel->getVerifiedStudents();
 echo 'Verified SPED students: ' . count($verified) . "\n";
 foreach ($verified as $row) {
-    echo "  {$row['student_name']} | LRN {$row['lrn']} | {$row['disability_type']} | {$row['grade_level_to_enroll']}\n";
+    echo "  {$row['student_name']} | Student ID {$row['student_id']} | {$row['disability_type']} | {$row['grade_level_to_enroll']}\n";
 }
 
 $pending = $enrollmentModel->getPending();

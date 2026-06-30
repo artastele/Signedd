@@ -175,7 +175,7 @@ require_once __DIR__ . '/../layouts/header.php';
                         <!-- Buttons Selector -->
                         <div class="col-lg-6">
                             <div class="rating-btn-container" id="rating-group-<?= $indicator['id'] ?>">
-                                <?php foreach (['2', '3', '4', '5', '6', 'NO'] as $val): 
+                                <?php foreach (['2', '3', '4', '5', '6', 'NO', 'N/A'] as $val): 
                                     $btnClass = 'rating-btn-no';
                                     if ($val === '2' || $val === '3') {
                                         $btnClass = 'rating-btn-' . $val;

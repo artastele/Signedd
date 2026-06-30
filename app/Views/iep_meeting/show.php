@@ -14,6 +14,11 @@ require __DIR__ . '/../layouts/header.php';
 
 <div class="main-content">
     <div class="container-fluid py-4">
+        <?php
+        require_once __DIR__ . '/../../Models/StudentModel.php';
+        $meetingShowStudentRec = (new StudentModel())->findById((int)($meeting['student_id'] ?? 0));
+        $meetingShowStudentCode = $meetingShowStudentRec['student_id'] ?? null;
+        ?>
         <!-- Page Header -->
         <div class="row mb-4">
             <div class="col-12 d-flex justify-content-between align-items-center">
@@ -59,8 +64,11 @@ require __DIR__ . '/../layouts/header.php';
                             <?php echo htmlspecialchars($meeting['student_name'] ?? 'N/A'); ?>
                         </p>
                         <p class="mb-2">
-                            <strong>LRN:</strong> 
-                            <code><?php echo htmlspecialchars($meeting['lrn'] ?? 'N/A'); ?></code>
+                            <strong>Student ID:</strong> 
+                            <code><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($meetingShowStudentCode)); ?></code>
+                            &nbsp;·&nbsp;
+                            <strong>DepEd LRN:</strong> 
+                            <code><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($meeting['lrn'] ?? null)); ?></code>
                         </p>
                         <p class="mb-2">
                             <strong>Date of Birth:</strong> 

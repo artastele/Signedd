@@ -1,90 +1,214 @@
 <?php
-// Inclusive IEP + ITGP view for Process 12
+// Inclusive IEP + ITGP view for Part 6 — Three-Way Workflow
 $pageTitle = 'Inclusive IEP & ITGP — SignED';
 require_once __DIR__ . '/../layouts/header.php';
-$role = $_SESSION['role'];
-$basePath = BASE_PATH;
-$isFinalized = (!empty($itgp['status']) && $itgp['status'] === 'finalized');
+$role      = $_SESSION['role'];
+$basePath  = BASE_PATH;
+$itgpStatus = $itgp['status'] ?? 'not_started';
+$isFinalized = ($itgpStatus === 'finalized');
 $hasAssignment = !empty($assignment);
 $isAssignedTeacher = ($hasAssignment && (int)$assignment['general_teacher_id'] === (int)$_SESSION['user_id']);
-$canEdit = (!$isFinalized && ($role === 'general_teacher' && $isAssignedTeacher) || $role === 'admin');
+$activeStep = 12;
+
+$isGenTeacher    = ($role === 'general_teacher');
+$isSpedTeacher   = ($role === 'sped_teacher');
+$isMasterTeacher = ($role === 'master_teacher');
+$isAdmin         = ($role === 'admin');
+$isPrivileged    = in_array($role, ['sped_teacher','master_teacher','principal','admin'], true);
+
+$statusLabels = [
+    'not_started'          => ['Not Started',                  'secondary'],
+    'draft'                => ['Draft — Gen. Teacher',         'warning'],
+    'pending_sned_review'  => ['Pending SPED Review',          'info'],
+    'ready_for_inspection' => ['Ready for Inspection',         'primary'],
+    'inspected'            => ['Inspected — Awaiting Finalize','success'],
+    'finalized'            => ['Finalized & Locked',           'dark'],
+];
+[$statusLabel, $statusBadge] = $statusLabels[$itgpStatus] ?? ['Unknown', 'secondary'];
 ?>
 <body data-logged-in="true">
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
 
 <div class="main-content">
-    <div class="container-fluid py-4" style="max-width: 1400px;">
-        <!-- Header Section -->
-        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-            <div>
-                <h1 class="mb-1" style="color:#1e4072; font-weight:700;">
-                    <i class="bi bi-journal-check me-2"></i>Inclusive IEP & ITGP
-                </h1>
-                <p class="text-muted mb-0">Process 12 — Individualized Transition Goal Plan</p>
-            </div>
-            <div>
-                <a href="<?= $basePath ?>/iep" class="btn btn-outline-secondary">
-                    <i class="bi bi-arrow-left me-1"></i>Back to IEPs
-                </a>
+<div class="container-fluid py-4" style="max-width:1400px;">
+
+    <!-- ── Page Header ── -->
+    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+        <div>
+            <h1 class="mb-1" style="color:#1e4072; font-weight:700; font-size:1.6rem;">
+                <i class="bi bi-journal-check me-2"></i>Inclusive IEP & ITGP
+            </h1>
+            <p class="text-muted mb-0 small">Part 6 — Individualized Transition Goal Plan</p>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="badge bg-<?= $statusBadge ?> py-2 px-3" style="font-size:0.82rem; border-radius:20px;">
+                <i class="bi bi-circle-fill me-1" style="font-size:0.45rem; vertical-align:middle;"></i><?= $statusLabel ?>
+            </span>
+            <a href="<?= $basePath ?>/iep" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back to IEPs
+            </a>
+        </div>
+    </div>
+
+    <!-- ── Flash Alerts ── -->
+    <?php if (!empty($success)): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i><?= htmlspecialchars($success) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
+    <?php if (!empty($error)): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i><?= htmlspecialchars($error) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
+
+    <!-- ── Transition Wizard Nav ── -->
+    <?php require_once __DIR__ . '/../layouts/transition_nav.php'; ?>
+
+    <!-- ── ITGP Workflow Progress Stepper ── -->
+    <div class="card border-0 shadow-sm mb-4" style="border-radius:14px;">
+        <div class="card-body px-4 py-3">
+            <p class="small fw-semibold text-muted text-uppercase mb-3" style="letter-spacing:.05em;">ITGP Workflow Progress</p>
+            <div class="d-flex align-items-start">
+                <?php
+                $wfSteps = [
+                    ['icon'=>'bi-pencil-square',  'label'=>'Gen. Teacher', 'sub'=>'Draft ITGP',        'statuses'=>['draft','pending_sned_review','ready_for_inspection','inspected','finalized']],
+                    ['icon'=>'bi-chat-dots-fill', 'label'=>'SPED Teacher', 'sub'=>'Review & Remarks',   'statuses'=>['pending_sned_review','ready_for_inspection','inspected','finalized']],
+                    ['icon'=>'bi-pen-fill',        'label'=>'Master Teacher','sub'=>'Inspect & Sign',    'statuses'=>['ready_for_inspection','inspected','finalized']],
+                    ['icon'=>'bi-lock-fill',       'label'=>'SPED Teacher', 'sub'=>'Finalize & Lock',   'statuses'=>['inspected','finalized']],
+                ];
+                $activeWf = match($itgpStatus) {
+                    'draft'                => 0,
+                    'pending_sned_review'  => 1,
+                    'ready_for_inspection' => 2,
+                    'inspected'            => 3,
+                    'finalized'            => 4,
+                    default                => 0,
+                };
+                foreach ($wfSteps as $i => $ws):
+                    $isDone    = in_array($itgpStatus, $ws['statuses'], true);
+                    $isCurrent = ($activeWf === $i);
+                    if ($isDone && !$isCurrent) {
+                        $bg = '#1e4072'; $textC = 'white'; $badge = 'Done';  $badgeCls = 'success';
+                    } elseif ($isCurrent) {
+                        $bg = '#a01422'; $textC = 'white'; $badge = 'Active'; $badgeCls = 'danger';
+                    } else {
+                        $bg = '#dee2e6'; $textC = '#6c757d'; $badge = null; $badgeCls = '';
+                    }
+                ?>
+                <div class="text-center" style="flex:1; position:relative;">
+                    <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center mb-2" style="width:48px;height:48px;background:<?= $bg ?>;color:<?= $textC ?>;font-size:1.1rem;">
+                        <i class="bi <?= $ws['icon'] ?>"></i>
+                    </div>
+                    <div class="small fw-semibold" style="color:<?= $isCurrent ? '#a01422' : ($isDone ? '#1e4072' : '#adb5bd') ?>; font-size:.78rem;"><?= $ws['label'] ?></div>
+                    <div class="text-muted" style="font-size:.72rem;"><?= $ws['sub'] ?></div>
+                    <?php if ($badge): ?>
+                        <span class="badge bg-<?= $badgeCls ?> mt-1" style="font-size:.65rem;"><?= $badge ?></span>
+                    <?php endif; ?>
+                </div>
+                <?php if ($i < count($wfSteps)-1): ?>
+                    <div style="flex:.8; height:3px; margin-top:22px; background:<?= in_array($itgpStatus, $ws['statuses']) ? '#1e4072' : '#dee2e6' ?>;"></div>
+                <?php endif; ?>
+                <?php endforeach; ?>
             </div>
         </div>
+    </div>
 
-        <!-- Alert messages -->
-        <?php if (!empty($success)): ?>
-            <div class="alert alert-success alert-dismissible fade show animate__animated animate__fadeIn" role="alert">
-                <i class="bi bi-check-circle-fill me-2"></i><?= htmlspecialchars($success) ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        <?php endif; ?>
-        <?php if (!empty($error)): ?>
-            <div class="alert alert-danger alert-dismissible fade show animate__animated animate__fadeIn" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-2"></i><?= htmlspecialchars($error) ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        <?php endif; ?>
+    <!-- ── MAIN TWO-COLUMN LAYOUT ── -->
+    <div class="row g-4">
 
-        <?php if ($isFinalized): ?>
-            <div class="alert alert-success py-3 mb-4 d-flex align-items-center shadow-sm" style="border-left: 5px solid #3b6d11; background-color: #f4faf0;">
-                <i class="bi bi-lock-fill me-3 fs-3 text-success"></i>
-                <div>
-                    <h5 class="alert-heading text-success mb-1" style="font-weight: 600;">ITGP Finalized & Signed</h5>
-                    <p class="mb-0 small text-muted">This ITGP transition plan has been finalized. Form fields are locked, but co-teaching comments remain active.</p>
+        <!-- ════ LEFT COLUMN: Reference Tools ════ -->
+        <div class="col-xl-4 col-lg-5 d-flex flex-column gap-4">
+
+            <!-- General Teacher Assignment Card -->
+            <div class="card border-0 shadow-sm" style="border-radius:12px;">
+                <div class="card-header bg-white border-bottom py-3 px-4" style="border-radius:12px 12px 0 0;">
+                    <h6 class="mb-0 fw-bold" style="color:#1e4072; font-size:.9rem;">
+                        <i class="bi bi-person-badge-fill me-2"></i>Assigned General Ed Teacher
+                    </h6>
+                </div>
+                <div class="card-body p-3">
+                    <?php if (!$hasAssignment): ?>
+                        <div class="text-center py-2 mb-3">
+                            <div class="rounded-circle bg-warning-subtle d-inline-flex align-items-center justify-content-center mb-2" style="width:48px;height:48px;">
+                                <i class="bi bi-person-plus text-warning fs-4"></i>
+                            </div>
+                            <p class="small text-muted mb-0">No teacher assigned yet.</p>
+                        </div>
+                        <?php if ($isPrivileged): ?>
+                            <form method="POST" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp/assign">
+                                <select name="general_teacher_id" class="form-select form-select-sm mb-2 border-2" required>
+                                    <option value="">-- Select General Ed Teacher --</option>
+                                    <?php foreach ($generalTeachers as $gt): ?>
+                                        <option value="<?= $gt['id'] ?>"><?= htmlspecialchars($gt['name']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <button type="submit" class="btn btn-sm w-100 text-white fw-semibold" style="background:#1e4072; border-radius:7px;">
+                                    <i class="bi bi-check-lg me-1"></i>Assign Teacher
+                                </button>
+                            </form>
+                        <?php else: ?>
+                            <span class="badge bg-secondary w-100 py-2">Contact SPED Teacher to assign</span>
+                        <?php endif; ?>
+
+                    <?php else: ?>
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center flex-shrink-0" style="width:42px;height:42px;">
+                                <i class="bi bi-person-fill fs-5"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold" style="color:#1e4072; font-size:.93rem;"><?= htmlspecialchars($assignment['general_teacher_name']) ?></div>
+                                <div class="text-muted small"><?= htmlspecialchars($assignment['general_teacher_email'] ?? '') ?></div>
+                            </div>
+                        </div>
+                        <?php if ($isPrivileged && !$isFinalized): ?>
+                            <form method="POST" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp/assign">
+                                <div class="input-group input-group-sm">
+                                    <select name="general_teacher_id" class="form-select border-2" required>
+                                        <option value="">Re-assign teacher...</option>
+                                        <?php foreach ($generalTeachers as $gt): ?>
+                                            <option value="<?= $gt['id'] ?>" <?= (int)$gt['id'] === (int)$assignment['general_teacher_id'] ? 'disabled' : '' ?>><?= htmlspecialchars($gt['name']) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="submit" class="btn btn-sm text-white" style="background:#a01422;">Change</button>
+                                </div>
+                            </form>
+                        <?php endif; ?>
+                    <?php endif; ?>
                 </div>
             </div>
-        <?php endif; ?>
 
-        <div class="row g-4">
-            <!-- Left Column: Reference Panels & Consultation Comments -->
-            <div class="col-xl-5 col-lg-6">
-                <!-- Collapsible References Accordion -->
-                <div class="accordion shadow-sm border-0 mb-4" id="referenceAccordion" style="border-radius: 12px; overflow: hidden;">
-                    <!-- IEP Reference Panel -->
-                    <div class="accordion-item border-0">
-                        <h2 class="accordion-header" id="headingIep">
-                            <button class="accordion-button collapsed text-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapseIep" aria-expanded="false" aria-controls="collapseIep" style="background-color: #1e4072;">
-                                <i class="bi bi-file-earmark-medical me-2"></i>I. Original Signed IEP Goals
+            <!-- Reference Accordion -->
+            <div class="card border-0 shadow-sm" style="border-radius:12px; overflow:hidden;">
+                <div class="card-header bg-white border-bottom py-3 px-4">
+                    <h6 class="mb-0 fw-bold" style="color:#1e4072; font-size:.9rem;">
+                        <i class="bi bi-collection-fill me-2"></i>Reference Documents
+                    </h6>
+                </div>
+                <div class="accordion" id="referenceAccordion" style="border-radius:0;">
+                    <!-- IEP Goals -->
+                    <div class="accordion-item border-0 border-bottom">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed py-3 small fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseIep" style="background:#f8f9fa; color:#1e4072;">
+                                <i class="bi bi-file-earmark-medical me-2 text-primary"></i>I. Original IEP Goals
                             </button>
                         </h2>
-                        <div id="collapseIep" class="accordion-collapse collapse" aria-labelledby="headingIep" data-bs-parent="#referenceAccordion">
-                            <div class="accordion-body bg-light-subtle">
+                        <div id="collapseIep" class="accordion-collapse collapse" data-bs-parent="#referenceAccordion">
+                            <div class="accordion-body p-3 bg-light-subtle" style="font-size:.85rem;">
                                 <?php if (empty($iepSteps)): ?>
                                     <p class="text-muted small mb-0">No IEP objectives found.</p>
                                 <?php else: ?>
                                     <div class="table-responsive">
-                                        <table class="table table-sm table-bordered small mb-0 bg-white">
-                                            <thead>
-                                                <tr class="table-secondary">
-                                                    <th style="width: 50px;">No.</th>
-                                                    <th>Domain</th>
-                                                    <th>Target Objective / Steps</th>
-                                                </tr>
-                                            </thead>
+                                        <table class="table table-sm table-bordered mb-0 bg-white" style="font-size:.82rem;">
+                                            <thead><tr class="table-secondary"><th>No.</th><th>Domain</th><th>Objective</th></tr></thead>
                                             <tbody>
                                                 <?php foreach ($iepSteps as $step): ?>
                                                     <tr>
-                                                        <td class="text-center font-weight-bold"><?= (int)$step['step_number'] ?></td>
-                                                        <td><span class="badge bg-secondary"><?= htmlspecialchars($step['pdsp_domain']) ?></span></td>
+                                                        <td class="text-center fw-bold"><?= (int)$step['step_number'] ?></td>
+                                                        <td><span class="badge bg-secondary" style="font-size:.7rem;"><?= htmlspecialchars($step['pdsp_domain']) ?></span></td>
                                                         <td><?= htmlspecialchars($step['goal_text']) ?></td>
                                                     </tr>
                                                 <?php endforeach; ?>
@@ -95,435 +219,598 @@ $canEdit = (!$isFinalized && ($role === 'general_teacher' && $isAssignedTeacher)
                             </div>
                         </div>
                     </div>
-
-                    <!-- PDSP Reference Panel -->
-                    <div class="accordion-item border-0 border-top border-light-subtle">
-                        <h2 class="accordion-header" id="headingPdsp">
-                            <button class="accordion-button collapsed text-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePdsp" aria-expanded="false" aria-controls="collapsePdsp" style="background-color: #1e4072;">
-                                <i class="bi bi-person-badge-fill me-2"></i>II. Signed PDSP Domains & Recommendations
+                    <!-- PDSP -->
+                    <div class="accordion-item border-0 border-bottom">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed py-2 small fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePdsp" style="background:#f8f9fa; color:#1e4072; font-size:.82rem;">
+                                <i class="bi bi-person-badge-fill me-2 text-primary"></i>II. PDSP Domains
                             </button>
                         </h2>
-                        <div id="collapsePdsp" class="accordion-collapse collapse" aria-labelledby="headingPdsp" data-bs-parent="#referenceAccordion">
-                            <div class="accordion-body bg-light-subtle">
+                        <div id="collapsePdsp" class="accordion-collapse collapse" data-bs-parent="#referenceAccordion">
+                            <div class="accordion-body p-2 bg-light-subtle" style="font-size:.78rem;">
+                                <?php if (!empty($pdspSignedDocPath)):
+                                    $pdspDocUrl = $basePath . '/' . ltrim($pdspSignedDocPath, '/');
+                                    $pdspExt = strtolower(pathinfo($pdspSignedDocPath, PATHINFO_EXTENSION));
+                                    $pdspIsImage = in_array($pdspExt, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
+                                ?>
+                                <div class="mb-2 p-2 rounded bg-white border text-center">
+                                    <div class="text-muted text-uppercase fw-semibold mb-1" style="font-size:.65rem; letter-spacing:.04em;">Part 2 — Signed PDSP</div>
+                                    <?php if ($pdspIsImage): ?>
+                                        <img src="<?= htmlspecialchars($pdspDocUrl) ?>" alt="Signed PDSP"
+                                             class="rounded border img-fluid itgp-doc-thumb"
+                                             style="max-height:90px; cursor:pointer; object-fit:contain;"
+                                             onclick="window.open('<?= htmlspecialchars($pdspDocUrl, ENT_QUOTES) ?>','_blank')">
+                                        <div class="mt-1"><a href="<?= htmlspecialchars($pdspDocUrl) ?>" target="_blank" class="small text-decoration-none"><i class="bi bi-box-arrow-up-right me-1"></i>View full size</a></div>
+                                    <?php else: ?>
+                                        <a href="<?= htmlspecialchars($pdspDocUrl) ?>" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.72rem;">
+                                            <i class="bi bi-file-earmark-pdf me-1"></i>View PDSP Document
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
+                                <?php endif; ?>
+
                                 <?php if (empty($pdspDomains)): ?>
-                                    <p class="text-muted small mb-0">No PDSP domains records found.</p>
+                                    <p class="text-muted small mb-0">No PDSP domains found.</p>
                                 <?php else: ?>
-                                    <div class="list-group list-group-flush gap-2">
-                                        <?php foreach ($pdspDomains as $domain): ?>
-                                            <div class="list-group-item p-3 border rounded shadow-xs bg-white">
-                                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                                    <strong class="text-primary"><?= htmlspecialchars($domain['domain_name']) ?></strong>
-                                                    <?php if (!empty($domain['sub_domain'])): ?>
-                                                        <span class="badge bg-light text-dark border"><?= htmlspecialchars($domain['sub_domain']) ?></span>
-                                                    <?php endif; ?>
-                                                </div>
-                                                <p class="small text-muted mb-1"><strong>Skills:</strong> <?= htmlspecialchars($domain['skills_description'] ?? 'None') ?></p>
-                                                <?php if (!empty($domain['educational_recommendation'])): ?>
-                                                    <p class="small mb-0 text-success-emphasis bg-success-subtle p-2 rounded">
-                                                        <i class="bi bi-lightbulb-fill me-1"></i><?= htmlspecialchars($domain['educational_recommendation']) ?>
-                                                    </p>
-                                                <?php endif; ?>
-                                            </div>
-                                        <?php endforeach; ?>
+                                    <div class="d-flex flex-column gap-1">
+                                    <?php foreach ($pdspDomains as $domain): ?>
+                                        <div class="px-2 py-1 rounded bg-white border" style="line-height:1.3;">
+                                            <div class="fw-semibold text-primary" style="font-size:.75rem;"><?= htmlspecialchars($domain['domain_name']) ?></div>
+                                            <?php if (!empty($domain['skills_description'])): ?>
+                                                <div class="text-muted" style="font-size:.72rem;"><?= htmlspecialchars($domain['skills_description']) ?></div>
+                                            <?php endif; ?>
+                                            <?php if (!empty($domain['educational_recommendation'])): ?>
+                                                <div class="text-success-emphasis mt-1" style="font-size:.7rem;"><i class="bi bi-lightbulb me-1"></i><?= htmlspecialchars($domain['educational_recommendation']) ?></div>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endforeach; ?>
                                     </div>
                                 <?php endif; ?>
                             </div>
                         </div>
                     </div>
-
-                    <!-- ITP Reference Panel -->
-                    <div class="accordion-item border-0 border-top border-light-subtle">
-                        <h2 class="accordion-header" id="headingItp">
-                            <button class="accordion-button text-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapseItp" aria-expanded="true" aria-controls="collapseItp" style="background-color: #1e4072;">
-                                <i class="bi bi-arrow-left-right me-2"></i>III. Finalized Transition Plan (ITP)
+                    <!-- ITP -->
+                    <div class="accordion-item border-0 border-bottom">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed py-2 small fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseItp" style="background:#f8f9fa; color:#1e4072; font-size:.82rem;">
+                                <i class="bi bi-arrow-left-right me-2 text-primary"></i>III. Finalized ITP
                             </button>
                         </h2>
-                        <div id="collapseItp" class="accordion-collapse collapse show" aria-labelledby="headingItp" data-bs-parent="#referenceAccordion">
-                            <div class="accordion-body bg-light-subtle">
-                                <div class="mb-3">
-                                    <strong class="small text-muted text-uppercase d-block mb-1">Point of Entry:</strong>
-                                    <span class="px-3 py-1 rounded bg-white border text-dark font-weight-bold d-inline-block shadow-xs">
-                                        <?= htmlspecialchars($itp['point_of_entry'] ?? 'Not Specified') ?>
-                                    </span>
-                                </div>
-
-                                <div class="mb-3">
-                                    <strong class="small text-muted text-uppercase d-block mb-1">Recommendations (Beginning of SY):</strong>
-                                    <div class="p-2 border rounded bg-white small text-muted shadow-xs">
-                                        <?= nl2br(htmlspecialchars($itpRecommendationsBeginning ?? 'No recommendations set.')) ?>
-                                    </div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <strong class="small text-muted text-uppercase d-block mb-1">Recommendations (End of SY):</strong>
-                                    <div class="p-2 border rounded bg-white small text-muted shadow-xs">
-                                        <?= nl2br(htmlspecialchars($itpRecommendationsEnd ?? 'No recommendations set.')) ?>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <strong class="small text-muted text-uppercase d-block mb-2">Narratives:</strong>
-                                    <div class="row g-2">
-                                        <?php foreach (['strengths', 'interests', 'talents', 'skills', 'needs'] as $sec): ?>
-                                            <div class="col-12">
-                                                <div class="p-2 border rounded bg-white shadow-xs">
-                                                    <strong class="small text-uppercase text-secondary d-block border-bottom pb-1 mb-1">
-                                                        <?= ucfirst($sec) ?>
-                                                    </strong>
-                                                    <?php if (empty($itpSections[$sec])): ?>
-                                                        <span class="text-muted small">None listed.</span>
-                                                    <?php else: ?>
-                                                        <ul class="mb-0 ps-3 small text-muted">
-                                                            <?php foreach ($itpSections[$sec] as $item): ?>
-                                                                <li><?= htmlspecialchars($item) ?></li>
-                                                            <?php endforeach; ?>
-                                                        </ul>
-                                                    <?php endif; ?>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                </div>
+                        <div id="collapseItp" class="accordion-collapse collapse" data-bs-parent="#referenceAccordion">
+                            <div class="accordion-body p-2 bg-light-subtle" style="font-size:.78rem;">
+                                <p class="mb-1 small"><strong>Point of Entry:</strong> <?= htmlspecialchars($itp['point_of_entry'] ?? 'Not set') ?></p>
+                                <p class="mb-0 small text-muted"><strong>Recommendations (Beg. SY):</strong><br><?= nl2br(htmlspecialchars($itpRecommendationsBeginning ?? 'None')) ?></p>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Comments & Consultation Board -->
-                <div class="card shadow-sm border-0" style="border-radius: 12px; height: 500px; display: flex; flex-direction: column; overflow: hidden;">
-                    <div class="card-header text-white py-3" style="background: #1e4072;">
-                        <h5 class="mb-0 font-weight-bold"><i class="bi bi-chat-dots-fill me-2"></i>Co-Teaching Consultation & Comments</h5>
-                    </div>
-                    <!-- Chronological Message Bubbles Pane -->
-                    <div class="card-body p-3 flex-grow-1 overflow-y-auto bg-light" id="commentsBox" style="display: flex; flex-direction: column; gap: 12px;">
-                        <?php if (empty($comments)): ?>
-                            <div class="text-center my-auto text-muted">
-                                <i class="bi bi-chat-square-quote fs-2"></i>
-                                <p class="small mt-2">No discussion messages yet.<br>General & SPED Teachers can collaborate here.</p>
-                            </div>
-                        <?php else: ?>
-                            <?php foreach ($comments as $comment): 
-                                $isMe = ((int)$comment['posted_by'] === (int)$_SESSION['user_id']);
-                                $isGeneralTeacher = ($comment['author_role'] === 'general_teacher');
-                                $bubbleBg = $isGeneralTeacher ? '#fceeee' : '#eef4fc';
-                                $borderColor = $isGeneralTeacher ? '#f5c6cb' : '#bee5eb';
-                                $textColor = $isGeneralTeacher ? '#a01422' : '#1e4072';
-                                $align = $isMe ? 'align-self-end text-end' : 'align-self-start';
-                                $bubbleAlign = $isMe ? 'align-self-end' : 'align-self-start';
-                            ?>
-                                <div class="d-flex flex-column <?= $bubbleAlign ?>" style="max-width: 85%;">
-                                    <div class="d-flex align-items-center mb-1 px-1 gap-2 <?= $isMe ? 'flex-row-reverse' : '' ?>">
-                                        <span class="small font-weight-bold" style="color: #495057;"><?= htmlspecialchars($comment['author_name']) ?></span>
-                                        <span class="badge small" style="background-color: <?= $isGeneralTeacher ? '#a01422' : '#1e4072' ?>; color: white;">
-                                            <?= $isGeneralTeacher ? 'General Ed' : 'SPED' ?>
-                                        </span>
-                                    </div>
-                                    <div class="p-3 border rounded shadow-sm text-start" style="background-color: <?= $bubbleBg ?>; border-color: <?= $borderColor ?> !important; color: #212529; border-radius: 12px;">
-                                        <span style="font-size: 0.95rem; line-height: 1.4;"><?= nl2br(htmlspecialchars($comment['comment_text'])) ?></span>
-                                        <div class="text-muted small mt-2 text-end" style="font-size: 0.75rem;">
-                                            <?= date('M d, Y h:i A', strtotime($comment['created_at'])) ?>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </div>
-                    <!-- Comment Input Box -->
-                    <div class="card-footer bg-white border-top p-3">
-                        <form method="POST" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp/comment">
-                            <div class="input-group">
-                                <textarea name="comment_text" class="form-control" placeholder="Ask a question or advise on goals..." rows="1" style="border-radius: 8px 0 0 8px; resize: none;" required></textarea>
-                                <button type="submit" class="btn text-white px-4" style="background: #1e4072; border-radius: 0 8px 8px 0;">
-                                    <i class="bi bi-send-fill"></i>
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right Column: ITGP Form & General Teacher Assignment -->
-            <div class="col-xl-7 col-lg-6">
-                <!-- General Teacher Assignment Section -->
-                <?php if (!$hasAssignment): ?>
-                    <div class="card shadow-sm border-0 mb-4 bg-warning-subtle" style="border-radius: 12px; border-left: 5px solid #ffc107 !important;">
-                        <div class="card-body p-4">
-                            <h5 class="font-weight-bold text-warning-emphasis mb-2"><i class="bi bi-person-plus-fill me-2"></i>General Education Teacher Assignment Pending</h5>
-                            <p class="small text-muted">A General Education Teacher must be assigned to student records before editing or finalizing this goal plan.</p>
-                            <?php if (in_array($role, ['sped_teacher', 'master_teacher', 'principal', 'admin'], true)): ?>
-                                <form method="POST" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp/assign" class="row g-2 align-items-center mt-2">
-                                    <div class="col-sm-8">
-                                        <select name="general_teacher_id" class="form-select border-2" required>
-                                            <option value="">-- Choose General Ed Teacher --</option>
-                                            <?php foreach ($generalTeachers as $gt): ?>
-                                                <option value="<?= $gt['id'] ?>"><?= htmlspecialchars($gt['name']) ?> (<?= htmlspecialchars($gt['email']) ?>)</option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                    <div class="col-sm-4">
-                                        <button type="submit" class="btn text-white w-100" style="background: #1e4072; font-weight: 600;">
-                                            Assign Teacher
-                                        </button>
-                                    </div>
-                                </form>
-                            <?php else: ?>
-                                <span class="badge bg-secondary p-2 mt-1">Contact the SPED Teacher to assign your account</span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php else: ?>
-                    <div class="card shadow-sm border-0 mb-4 bg-light" style="border-radius: 12px;">
-                        <div class="card-body p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                            <div class="d-flex align-items-center">
-                                <div class="bg-primary text-white rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
-                                    <i class="bi bi-person-fill fs-4"></i>
-                                </div>
-                                <div>
-                                    <span class="small text-muted d-block text-uppercase font-weight-bold">Assigned General Ed Teacher</span>
-                                    <strong style="color: #1e4072;"><?= htmlspecialchars($assignment['general_teacher_name']) ?></strong>
-                                    <span class="text-muted small ms-2">(<?= htmlspecialchars($assignment['general_teacher_email']) ?>)</span>
-                                </div>
-                            </div>
-                            <?php if (in_array($role, ['sped_teacher', 'master_teacher', 'principal', 'admin'], true) && !$isFinalized): ?>
-                                <form method="POST" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp/assign" class="d-inline">
-                                    <div class="input-group input-group-sm">
-                                        <select name="general_teacher_id" class="form-select" required>
-                                            <option value="">Re-assign Teacher...</option>
-                                            <?php foreach ($generalTeachers as $gt): ?>
-                                                <option value="<?= $gt['id'] ?>" <?= (int)$gt['id'] === (int)$assignment['general_teacher_id'] ? 'disabled' : '' ?>><?= htmlspecialchars($gt['name']) ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <button type="submit" class="btn text-white" style="background: #a01422;">Change</button>
-                                    </div>
-                                </form>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
-                <!-- ITGP Goal Form -->
-                <div class="card shadow-sm border-0 mb-4 overflow-hidden" style="border-radius: 12px;">
-                    <div class="card-header text-white py-3" style="background: linear-gradient(135deg, #1e4072 0%, #2a528f 100%);">
-                        <h5 class="mb-0 font-weight-bold"><i class="bi bi-pencil-square me-2"></i>Individual Transition Goal Plan (ITGP)</h5>
-                    </div>
-                    <div class="card-body p-4 bg-white">
-                        <form id="itgpForm" method="post" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp">
-                            <!-- Student Profile Header (Auto-filled) -->
-                            <div class="row mb-4 p-3 rounded border bg-light-subtle g-3">
-                                <div class="col-md-6">
-                                    <label class="form-label small font-weight-bold text-muted text-uppercase mb-0">Learner Name</label>
-                                    <div class="form-control-plaintext font-weight-bold text-dark fs-5"><?= htmlspecialchars($iep['student_name']) ?></div>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label small font-weight-bold text-muted text-uppercase mb-0">Disability Type / Exceptionality</label>
-                                    <div class="form-control-plaintext text-muted"><?= htmlspecialchars($iep['disability_type'] ?? 'Not set') ?></div>
-                                </div>
-                            </div>
-
-                            <div class="row g-3">
-                                <!-- Goal Pre-filled from ITP Recommendations -->
-                                <div class="col-12">
-                                    <label for="itgp_goal" class="form-label small font-weight-bold text-muted text-uppercase">Transition Goal / Target Objective <span class="text-danger">*</span></label>
-                                    <textarea id="itgp_goal" name="itgp_goal" class="form-control border-2" style="border-radius: 8px;" rows="2" 
-                                              placeholder="Define the primary transition target or objective..." 
-                                              <?= !$canEdit ? 'readonly' : 'required' ?>><?= htmlspecialchars($itgp['goal'] ?? $itpRecommendationsBeginning ?? '') ?></textarea>
-                                </div>
-
-                                <!-- Entry Point Pre-filled from ITP Point of Entry -->
-                                <div class="col-md-6">
-                                    <label for="entry_point" class="form-label small font-weight-bold text-muted text-uppercase">Point of Entry <span class="text-danger">*</span></label>
-                                    <input id="entry_point" name="entry_point" type="text" class="form-control border-2" style="border-radius: 8px;" 
-                                           placeholder="e.g. Regular Class (Mainstreamed)"
-                                           value="<?= htmlspecialchars($itgp['entry_point'] ?? $itp['point_of_entry'] ?? '') ?>" <?= !$canEdit ? 'readonly' : 'required' ?>>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <label for="learning_packages" class="form-label small font-weight-bold text-muted text-uppercase">Learning Packages / Curriculum Options</label>
-                                    <input id="learning_packages" name="learning_packages" type="text" class="form-control border-2" style="border-radius: 8px;" 
-                                           placeholder="e.g. Life Skills Package, Pre-vocational Package"
-                                           value="<?= htmlspecialchars($itgp['learning_packages'] ?? '') ?>" <?= !$canEdit ? 'readonly' : '' ?>>
-                                </div>
-
-                                <!-- Activities Table (Dynamic Rows) -->
-                                <div class="col-12 mt-4">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <label class="form-label small font-weight-bold text-muted text-uppercase mb-0">Enabling Activities & Learning Tasks</label>
-                                        <?php if ($canEdit): ?>
-                                            <button type="button" class="btn btn-sm btn-outline-primary" id="addActivityBtn">
-                                                <i class="bi bi-plus-lg me-1"></i>Add Activity Row
-                                            </button>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="table-responsive">
-                                        <table class="table table-bordered align-middle" id="activitiesTable" style="font-size: 0.9rem;">
-                                            <thead class="text-white" style="background-color: #1e4072;">
-                                                <tr>
-                                                    <th>Competency / Skill</th>
-                                                    <th>Activities</th>
-                                                    <th>Time Frame</th>
-                                                    <th>Person Responsible</th>
-                                                    <th>Remarks</th>
-                                                    <?php if ($canEdit): ?>
-                                                        <th style="width: 50px;">Action</th>
-                                                    <?php endif; ?>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <?php 
-                                                $activitiesList = !empty($itgp['activities']) ? $itgp['activities'] : [['competency_skill' => '', 'activities' => '', 'time_frame' => '', 'person_responsible' => '', 'remarks' => '']];
-                                                foreach ($activitiesList as $idx => $act): ?>
-                                                    <tr>
-                                                        <td>
-                                                            <textarea name="activities[<?= $idx ?>][competency_skill]" class="form-control form-control-sm border-0 shadow-none bg-transparent" placeholder="Competency" rows="2" <?= !$canEdit ? 'readonly' : '' ?>><?= htmlspecialchars($act['competency_skill'] ?? '') ?></textarea>
-                                                        </td>
-                                                        <td>
-                                                            <textarea name="activities[<?= $idx ?>][activities]" class="form-control form-control-sm border-0 shadow-none bg-transparent" placeholder="Activities" rows="2" <?= !$canEdit ? 'readonly' : '' ?>><?= htmlspecialchars($act['activities'] ?? '') ?></textarea>
-                                                        </td>
-                                                        <td>
-                                                            <input type="text" name="activities[<?= $idx ?>][time_frame]" class="form-control form-control-sm border-0 shadow-none bg-transparent" placeholder="Time Frame" value="<?= htmlspecialchars($act['time_frame'] ?? '') ?>" <?= !$canEdit ? 'readonly' : '' ?>>
-                                                        </td>
-                                                        <td>
-                                                            <input type="text" name="activities[<?= $idx ?>][person_responsible]" class="form-control form-control-sm border-0 shadow-none bg-transparent" placeholder="Responsible" value="<?= htmlspecialchars($act['person_responsible'] ?? '') ?>" <?= !$canEdit ? 'readonly' : '' ?>>
-                                                        </td>
-                                                        <td>
-                                                            <textarea name="activities[<?= $idx ?>][remarks]" class="form-control form-control-sm border-0 shadow-none bg-transparent" placeholder="Remarks" rows="2" <?= !$canEdit ? 'readonly' : '' ?>><?= htmlspecialchars($act['remarks'] ?? '') ?></textarea>
-                                                        </td>
-                                                        <?php if ($canEdit): ?>
-                                                            <td class="text-center">
-                                                                <button type="button" class="btn btn-sm btn-outline-danger border-0 remove-row-btn">
-                                                                    <i class="bi bi-trash-fill"></i>
-                                                                </button>
-                                                            </td>
-                                                        <?php endif; ?>
-                                                    </tr>
-                                                <?php endforeach; ?>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <div class="col-12 mt-4">
-                                    <label for="itgp_recommendations" class="form-label small font-weight-bold text-muted text-uppercase">Educational Recommendations <span class="text-danger">*</span></label>
-                                    <textarea id="itgp_recommendations" name="itgp_recommendations" class="form-control border-2" style="border-radius: 8px;" rows="3" 
-                                              placeholder="Provide future recommendations for transition or regular class placement..." 
-                                              <?= !$canEdit ? 'readonly' : 'required' ?>><?= htmlspecialchars($itgp['recommendations'] ?? '') ?></textarea>
-                                </div>
-                            </div>
-
-                            <!-- Action Buttons -->
-                            <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-3">
-                                <?php if ($canEdit): ?>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <label for="status" class="form-label small font-weight-bold text-muted text-uppercase mb-0 me-2">Action Status:</label>
-                                        <select id="status" name="status" class="form-select form-select-sm border-2" style="border-radius: 6px; width: 180px;">
-                                            <option value="draft"<?= ($itgp['status'] ?? 'draft') === 'draft' ? ' selected' : '' ?>>Save as Draft</option>
-                                            <option value="finalized"<?= ($itgp['status'] ?? '') === 'finalized' ? ' selected' : '' ?>>Finalize & Lock</option>
-                                        </select>
-                                    </div>
-                                    <button type="submit" class="btn btn-lg text-white px-5" style="background-color: #a01422; border-radius: 8px; font-weight: 600;">
-                                        <i class="bi bi-save me-2"></i>Save ITGP
-                                    </button>
-                                <?php elseif ($isFinalized): ?>
-                                    <div>
-                                        <span class="text-muted small"><i class="bi bi-info-circle me-1"></i>Goal plan is finalized and signed. You can now view Class Placement Notice.</span>
-                                    </div>
-                                    <a href="<?= $basePath ?>/iep/<?= $iep['id'] ?>/placement-notice" class="btn btn-lg text-white px-5" style="background-color: #1e4072; border-radius: 8px; font-weight: 600;">
-                                        View Class Placement <i class="bi bi-arrow-right ms-2"></i>
+                    <!-- Learner Documents -->
+                    <div class="accordion-item border-0">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button py-2 small fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDocs" style="background:#f8f9fa; color:#1e4072; font-size:.82rem;">
+                                <i class="bi bi-folder2-open me-2 text-primary"></i>IV. View Documents
+                            </button>
+                        </h2>
+                        <div id="collapseDocs" class="accordion-collapse collapse show" data-bs-parent="#referenceAccordion">
+                            <div class="accordion-body p-2 bg-light-subtle">
+                                <div class="d-flex flex-column gap-2">
+                                    <a href="<?= $basePath ?>/iep/print/report-card/<?= intval($iep['student_id']) ?>" target="_blank" rel="noopener"
+                                       class="btn btn-sm btn-outline-danger py-1 px-2 d-flex align-items-center justify-content-between" style="font-size:.75rem; border-radius:6px;">
+                                        <span><i class="bi bi-file-earmark-bar-graph me-1"></i>SF9 Report Card</span>
+                                        <i class="bi bi-box-arrow-up-right"></i>
                                     </a>
-                                <?php else: ?>
-                                    <div>
-                                        <span class="text-muted small"><i class="bi bi-info-circle me-1"></i>You do not have editing permissions on this ITGP record.</span>
-                                    </div>
-                                <?php endif; ?>
+                                    <?php if (!empty($pdspSignedDocPath)):
+                                        $pdspDocUrl = $basePath . '/' . ltrim($pdspSignedDocPath, '/');
+                                    ?>
+                                    <a href="<?= htmlspecialchars($pdspDocUrl) ?>" target="_blank" rel="noopener"
+                                       class="btn btn-sm btn-outline-primary py-1 px-2 d-flex align-items-center justify-content-between" style="font-size:.75rem; border-radius:6px;">
+                                        <span><i class="bi bi-file-earmark-medical me-1"></i>Signed PDSP (Part 2)</span>
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                    </a>
+                                    <?php endif; ?>
+                                    <?php if (empty($progressReport)): ?>
+                                        <p class="text-muted mb-0 small" style="font-size:.7rem;"><i class="bi bi-info-circle me-1"></i>No finalized progress report on file yet.</p>
+                                    <?php elseif ($progressReport['status'] !== 'finalized'): ?>
+                                        <p class="text-muted mb-0 small" style="font-size:.7rem;"><i class="bi bi-info-circle me-1"></i>Progress report is still in draft.</p>
+                                    <?php endif; ?>
+                                </div>
                             </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
+
+            <!-- Discussion Board -->
+            <div class="card border-0 shadow-sm d-flex flex-column" style="border-radius:12px; overflow:hidden; min-height:380px; max-height:480px;">
+                <div class="card-header border-bottom py-3 px-4" style="background:#1e4072; color:white; border-radius:12px 12px 0 0;">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-chat-dots-fill me-2"></i>Discussion Board</h6>
+                </div>
+                <div class="flex-grow-1 overflow-y-auto p-3 bg-light" id="commentsBox" style="display:flex; flex-direction:column; gap:10px;">
+                    <?php if (empty($comments)): ?>
+                        <div class="m-auto text-center text-muted">
+                            <i class="bi bi-chat-square-quote fs-2"></i>
+                            <p class="small mt-2">No messages yet.<br>Teachers can use this to collaborate.</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($comments as $comment):
+                            $isMe  = ((int)$comment['posted_by'] === (int)$_SESSION['user_id']);
+                            $isGen = ($comment['author_role'] === 'general_teacher');
+                            $bubbleBg = $isGen ? '#fff3f3' : '#f0f4ff';
+                            $align = $isMe ? 'align-self-end' : 'align-self-start';
+                        ?>
+                            <div class="d-flex flex-column <?= $align ?>" style="max-width:88%;">
+                                <div class="d-flex align-items-center gap-2 mb-1 <?= $isMe ? 'flex-row-reverse' : '' ?>">
+                                    <span class="small fw-semibold text-muted"><?= htmlspecialchars($comment['author_name']) ?></span>
+                                    <span class="badge" style="background:<?= $isGen ? '#a01422' : '#1e4072' ?>; font-size:.65rem;"><?= $isGen ? 'Gen. Ed' : 'SPED' ?></span>
+                                </div>
+                                <div class="p-2 px-3 rounded-3 shadow-sm" style="background:<?= $bubbleBg ?>; border:1px solid <?= $isGen ? '#f5c6cb' : '#d0dcf5' ?>; font-size:.88rem; line-height:1.4;">
+                                    <?= nl2br(htmlspecialchars($comment['comment_text'])) ?>
+                                    <div class="text-muted mt-1" style="font-size:.7rem;"><?= date('M d, Y g:i A', strtotime($comment['created_at'])) ?></div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+                <?php if (!$isFinalized): ?>
+                <div class="card-footer bg-white border-top p-2">
+                    <form method="POST" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp/comment">
+                        <div class="input-group">
+                            <textarea name="comment_text" class="form-control form-control-sm border-0 bg-light" placeholder="Write a note or question..." rows="1" style="resize:none; border-radius:8px 0 0 8px;" required></textarea>
+                            <button type="submit" class="btn btn-sm text-white px-3" style="background:#1e4072; border-radius:0 8px 8px 0;">
+                                <i class="bi bi-send-fill"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <?php endif; ?>
+            </div>
+
+        </div><!-- /left column -->
+
+        <!-- ════ RIGHT COLUMN: Workflow Action Panels ════ -->
+        <div class="col-xl-8 col-lg-7 d-flex flex-column gap-4">
+
+            <?php if ($isFinalized): ?>
+            <!-- ══ FINALIZED ══ -->
+            <div class="card border-0 shadow-sm" style="border-radius:14px; border-left:5px solid #3b6d11 !important;">
+                <div class="card-body p-4 d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-success-subtle d-flex align-items-center justify-content-center flex-shrink-0" style="width:56px;height:56px;">
+                        <i class="bi bi-lock-fill fs-3 text-success"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold text-success mb-1">ITGP Finalized & Locked</h5>
+                        <p class="text-muted small mb-0">This transition goal plan has been signed by the Master Teacher and finalized by the SPED Teacher.</p>
+                    </div>
+                    <a href="<?= $basePath ?>/iep/<?= $iep['id'] ?>/placement-notice" class="btn text-white ms-auto fw-semibold" style="background:#1e4072; border-radius:8px;">
+                        Part 7: Placement Notice <i class="bi bi-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+            <!-- Show full ITGP summary -->
+            <?php include __DIR__ . '/partials/itgp_readonly_summary.php'; ?>
+
+            <?php elseif ($itgpStatus === 'inspected' && $isSpedTeacher): ?>
+            <!-- ══ STEP 4: SPED FINALIZE ══ -->
+            <div class="card border-0 shadow" style="border-radius:14px; overflow:hidden;">
+                <div class="card-header py-3 px-4 text-white" style="background:linear-gradient(135deg,#3b6d11,#5a9c1a);">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-check2-all me-2"></i>Step 4: Finalize & Lock ITGP</h5>
+                    <p class="mb-0 small opacity-75">The Master Teacher has inspected and signed. Review below, then finalize.</p>
+                </div>
+                <div class="card-body p-4">
+                    <?php include __DIR__ . '/partials/itgp_readonly_summary.php'; ?>
+
+                    <!-- SPED Remarks display -->
+                    <?php if (!empty($itgp['sned_remarks'])): ?>
+                    <div class="card border-0 mb-4" style="border-radius:10px; border-left:4px solid #1e4072 !important; background:#f0f4ff;">
+                        <div class="card-body p-3">
+                            <h6 class="fw-bold mb-2" style="color:#1e4072; font-size:.88rem;"><i class="bi bi-chat-dots-fill me-2"></i>SPED Teacher Consult Remarks</h6>
+                            <p class="mb-1 small"><?= nl2br(htmlspecialchars($itgp['sned_remarks'])) ?></p>
+                            <?php if (!empty($itgp['sned_reviewed_at'])): ?>
+                                <small class="text-muted">Reviewed: <?= date('M d, Y g:i A', strtotime($itgp['sned_reviewed_at'])) ?></small>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <!-- Master Signature display -->
+                    <?php if (!empty($itgp['master_signature'])): ?>
+                    <div class="card border-0 mb-4 bg-light" style="border-radius:10px;">
+                        <div class="card-body p-3">
+                            <h6 class="fw-bold text-muted text-uppercase small mb-2"><i class="bi bi-pen-fill me-1"></i>Master Teacher Signature & Recommendations</h6>
+                            <?php if (!empty($itgp['master_teacher_recommendations'])): ?>
+                                <p class="small mb-3"><strong>Recommendations:</strong><br><?= nl2br(htmlspecialchars($itgp['master_teacher_recommendations'])) ?></p>
+                            <?php endif; ?>
+                            <img src="<?= htmlspecialchars($itgp['master_signature']) ?>" class="border rounded bg-white" style="max-width:280px; max-height:100px; object-fit:contain;" alt="Signature">
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <form method="POST" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp/finalize" onsubmit="return confirm('Finalize and lock this ITGP? This action cannot be undone.');">
+                        <button type="submit" class="btn btn-lg text-white px-5 fw-bold" style="background:#3b6d11; border-radius:8px;">
+                            <i class="bi bi-lock-fill me-2"></i>Finalize & Lock ITGP
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <?php elseif ($itgpStatus === 'ready_for_inspection' && $isMasterTeacher): ?>
+            <!-- ══ STEP 3: MASTER TEACHER INSPECT & SIGN ══ -->
+            <div class="card border-0 shadow" style="border-radius:14px; overflow:hidden;">
+                <div class="card-header py-3 px-4 text-white" style="background:linear-gradient(135deg,#1e4072,#2a528f);">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-pen-fill me-2"></i>Step 3: Inspect & Digitally Sign</h5>
+                    <p class="mb-0 small opacity-75">Review the ITGP draft and SPED Teacher remarks, then add your recommendations and signature.</p>
+                </div>
+                <div class="card-body p-4">
+                    <?php include __DIR__ . '/partials/itgp_readonly_summary.php'; ?>
+
+                    <!-- SPED Remarks display -->
+                    <?php if (!empty($itgp['sned_remarks'])): ?>
+                    <div class="card border-0 mb-4" style="border-radius:10px; border-left:4px solid #0d6efd !important; background:#f0f4ff;">
+                        <div class="card-body p-3">
+                            <h6 class="fw-bold mb-2" style="color:#1e4072; font-size:.88rem;"><i class="bi bi-chat-dots-fill me-2"></i>SPED Teacher Consult Remarks</h6>
+                            <p class="mb-1 small"><?= nl2br(htmlspecialchars($itgp['sned_remarks'])) ?></p>
+                            <?php if (!empty($itgp['sned_reviewed_at'])): ?>
+                                <small class="text-muted">Reviewed: <?= date('M d, Y g:i A', strtotime($itgp['sned_reviewed_at'])) ?></small>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <form method="POST" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp/inspect" id="inspectForm">
+                        <div class="mb-4">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Recommendations (Beginning of School Year) <span class="text-danger">*</span></label>
+                            <textarea name="master_recommendations" class="form-control border-2" rows="4" style="border-radius:8px;"
+                                placeholder="Enter your recommendations and observations as Master Teacher II..." required><?= htmlspecialchars($itgp['master_teacher_recommendations'] ?? '') ?></textarea>
+                        </div>
+
+                        <!-- Signature Pad -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Digital Signature <span class="text-danger">*</span></label>
+                            <div class="border rounded-3 overflow-hidden bg-white shadow-sm">
+                                <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-light border-bottom">
+                                    <small class="text-muted"><i class="bi bi-pen me-1"></i>Draw your signature below</small>
+                                    <button type="button" id="clearSigBtn" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-eraser me-1"></i>Clear
+                                    </button>
+                                </div>
+                                <canvas id="signatureCanvas" height="160" style="width:100%; cursor:crosshair; display:block; touch-action:none; background:white;"></canvas>
+                            </div>
+                            <input type="hidden" name="master_signature" id="masterSignatureInput">
+                            <div id="sigWarning" class="text-danger small mt-1" style="display:none;">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Please provide your digital signature.
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-lg text-white px-5 fw-bold" style="background:#1e4072; border-radius:8px;">
+                            <i class="bi bi-pen-fill me-2"></i>Digitally Inspect & Sign
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <?php elseif ($itgpStatus === 'pending_sned_review' && ($isSpedTeacher || $isAdmin)): ?>
+            <!-- ══ STEP 2: SPED TEACHER REMARKS ══ -->
+            <div class="card border-0 shadow" style="border-radius:14px; overflow:hidden;">
+                <div class="card-header py-3 px-4 text-white" style="background:linear-gradient(135deg,#1e4072,#2a528f);">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-chat-dots-fill me-2"></i>Step 2: Review Draft & Add Consult Remarks</h5>
+                    <p class="mb-0 small opacity-75">If revisions are needed, send consult remarks to the General Teacher. If the draft is acceptable as-is, forward directly for Master Teacher inspection.</p>
+                </div>
+                <div class="card-body p-4">
+                    <?php include __DIR__ . '/partials/itgp_readonly_summary.php'; ?>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase mb-1">Consult Remarks / Recommended Learning Accommodations</label>
+                        <textarea id="snedRemarksText" class="form-control form-control-sm border" rows="4" style="border-radius:6px; font-size:.88rem;"
+                            placeholder="Optional for inspection. Required when sending back for revision..."><?= htmlspecialchars($itgp['sned_remarks'] ?? '') ?></textarea>
+                        <div class="text-muted mt-1" style="font-size:.72rem;"><i class="bi bi-info-circle me-1"></i>Required only when sending remarks to the General Teacher.</div>
+                    </div>
+
+                    <form id="sendBackForm" method="POST" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp/send-back" style="display:none;">
+                        <input type="hidden" name="sned_remarks" id="hiddenRemarksBack">
+                    </form>
+                    <form id="forwardInspectForm" method="POST" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp/sned-remarks" style="display:none;">
+                        <input type="hidden" name="sned_remarks" id="hiddenRemarksForward">
+                    </form>
+
+                    <div class="d-flex align-items-center gap-2 flex-wrap pt-1">
+                        <button type="button" id="sendRemarksBtn" class="btn btn-sm btn-outline-secondary fw-semibold px-3" style="border-radius:6px; font-size:.82rem;">
+                            <i class="bi bi-arrow-return-left me-1"></i>Send Remarks to Gen. Teacher
+                        </button>
+                        <button type="button" id="forwardInspectBtn" class="btn btn-sm text-white fw-semibold px-3" style="background:#1e4072; border-radius:6px; font-size:.82rem;">
+                            <i class="bi bi-send-fill me-1"></i>No Revisions — Forward for Inspection
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <?php elseif (($itgpStatus === 'draft' || $itgpStatus === 'not_started') && $isGenTeacher && $isAssignedTeacher): ?>
+            <!-- ══ STEP 1: GENERAL TEACHER DRAFT FORM ══ -->
+            <div class="card border-0 shadow" style="border-radius:14px; overflow:hidden;">
+                <div class="card-header py-3 px-4 text-white" style="background:linear-gradient(135deg,#1e4072,#2a528f);">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-pencil-square me-2"></i>Step 1: Draft Individualized Transition Goal Plan</h5>
+                    <p class="mb-0 small opacity-75">Fill in the ITGP goals and activities. You can save a draft or submit for SPED Teacher review.</p>
+                </div>
+                <div class="card-body p-4">
+                    <!-- SPED Revision Notice (shown when SPED sent remarks back) -->
+                    <?php if (!empty($itgp['sned_remarks']) && !empty($itgp['sned_reviewed_at'])): ?>
+                    <div class="alert alert-warning d-flex align-items-start gap-3 mb-4" style="border-left:5px solid #ffc107; border-radius:10px;">
+                        <i class="bi bi-arrow-return-left fs-3 text-warning flex-shrink-0 mt-1"></i>
+                        <div>
+                            <h6 class="fw-bold mb-1 text-warning-emphasis">Revision Requested by SPED Teacher</h6>
+                            <p class="mb-1 small"><?= nl2br(htmlspecialchars($itgp['sned_remarks'])) ?></p>
+                            <small class="text-muted">Sent back: <?= date('M d, Y g:i A', strtotime($itgp['sned_reviewed_at'])) ?></small>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <form id="itgpForm" method="post" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp">
+                        <!-- Student Info Row -->
+                        <div class="row g-3 mb-4 p-3 rounded-3 bg-light-subtle border">
+                            <div class="col-md-6">
+                                <span class="form-label small text-muted text-uppercase fw-bold d-block mb-0">Learner Name</span>
+                                <span class="fw-bold" style="color:#1e4072; font-size:1.05rem;"><?= htmlspecialchars($iep['student_name']) ?></span>
+                            </div>
+                            <div class="col-md-6">
+                                <span class="form-label small text-muted text-uppercase fw-bold d-block mb-0">Disability / Exceptionality</span>
+                                <span class="text-muted"><?= htmlspecialchars($iep['disability_type'] ?? 'Not set') ?></span>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label for="itgp_goal" class="form-label small fw-bold text-muted text-uppercase">Transition Goal / Target Objective <span class="text-danger">*</span></label>
+                                <textarea id="itgp_goal" name="itgp_goal" class="form-control border-2" rows="2" style="border-radius:8px;"
+                                    placeholder="Define the primary transition target or objective..." required><?= htmlspecialchars($itgp['goal'] ?? $itpRecommendationsBeginning ?? '') ?></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="entry_point" class="form-label small fw-bold text-muted text-uppercase">Point of Entry <span class="text-danger">*</span></label>
+                                <input id="entry_point" name="entry_point" type="text" class="form-control border-2" style="border-radius:8px;"
+                                    placeholder="e.g. Regular Class (Mainstreamed)"
+                                    value="<?= htmlspecialchars($itgp['entry_point'] ?? $itp['point_of_entry'] ?? '') ?>" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="learning_packages" class="form-label small fw-bold text-muted text-uppercase">Learning Packages</label>
+                                <input id="learning_packages" name="learning_packages" type="text" class="form-control border-2" style="border-radius:8px;"
+                                    placeholder="e.g. Life Skills, Pre-vocational"
+                                    value="<?= htmlspecialchars($itgp['learning_packages'] ?? '') ?>">
+                            </div>
+
+                            <!-- Activities Table -->
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label small fw-bold text-muted text-uppercase mb-0">Enabling Activities & Learning Tasks</label>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="addActivityBtn">
+                                        <i class="bi bi-plus-lg me-1"></i>Add Row
+                                    </button>
+                                </div>
+                                <div class="table-responsive border rounded-3">
+                                    <table class="table table-bordered align-middle mb-0" id="activitiesTable" style="font-size:.85rem;">
+                                        <thead class="text-white" style="background:#1e4072;">
+                                            <tr>
+                                                <th>Competency / Skill</th>
+                                                <th>Activities</th>
+                                                <th>Time Frame</th>
+                                                <th>Person Responsible</th>
+                                                <th>Remarks</th>
+                                                <th style="width:40px;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php
+                                            $activitiesList = !empty($itgp['activities']) ? $itgp['activities'] : [['competency_skill'=>'','activities'=>'','time_frame'=>'','person_responsible'=>'','remarks'=>'']];
+                                            foreach ($activitiesList as $idx => $act): ?>
+                                                <tr>
+                                                    <td><textarea name="activities[<?= $idx ?>][competency_skill]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Competency"><?= htmlspecialchars($act['competency_skill'] ?? '') ?></textarea></td>
+                                                    <td><textarea name="activities[<?= $idx ?>][activities]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Activities"><?= htmlspecialchars($act['activities'] ?? '') ?></textarea></td>
+                                                    <td><input type="text" name="activities[<?= $idx ?>][time_frame]" class="form-control form-control-sm border-0 shadow-none" placeholder="Time Frame" value="<?= htmlspecialchars($act['time_frame'] ?? '') ?>"></td>
+                                                    <td><input type="text" name="activities[<?= $idx ?>][person_responsible]" class="form-control form-control-sm border-0 shadow-none" placeholder="Person" value="<?= htmlspecialchars($act['person_responsible'] ?? '') ?>"></td>
+                                                    <td><textarea name="activities[<?= $idx ?>][remarks]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Remarks"><?= htmlspecialchars($act['remarks'] ?? '') ?></textarea></td>
+                                                    <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger border-0 remove-row-btn"><i class="bi bi-trash-fill"></i></button></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <label for="itgp_recommendations" class="form-label small fw-bold text-muted text-uppercase">Educational Recommendations</label>
+                                <textarea id="itgp_recommendations" name="itgp_recommendations" class="form-control border-2" rows="3" style="border-radius:8px;"
+                                    placeholder="Optional: Future recommendations for transition or regular class placement..."><?= htmlspecialchars($itgp['recommendations'] ?? '') ?></textarea>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 pt-3 border-top d-flex align-items-center gap-3 flex-wrap">
+                            <button type="submit" name="action" value="save_draft" class="btn btn-outline-secondary px-4 fw-semibold">
+                                <i class="bi bi-floppy me-1"></i>Save Draft
+                            </button>
+                            <button type="submit" name="submit_for_review" value="1" class="btn btn-lg text-white px-5 fw-bold" style="background:#1e4072; border-radius:8px;"
+                                onclick="return confirm('Submit this ITGP draft to the SPED Teacher for review?\n\nYou will not be able to edit after submission.');">
+                                <i class="bi bi-send-fill me-2"></i>Submit for SPED Teacher Review
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <?php else: ?>
+            <!-- ══ VIEWING / WAITING STATE (read-only for non-active roles) ══ -->
+            <div class="card border-0 shadow-sm" style="border-radius:14px;">
+                <div class="card-body p-4">
+                    <?php
+                    $waitTitle = match($itgpStatus) {
+                        'draft'                => 'General Teacher is Working on the Draft',
+                        'pending_sned_review'  => 'Awaiting SPED Teacher Review',
+                        'ready_for_inspection' => 'Awaiting Master Teacher Inspection',
+                        'inspected'            => 'Awaiting SPED Teacher Finalization',
+                        default                => 'ITGP Not Yet Started',
+                    };
+                    $waitDesc = match($itgpStatus) {
+                        'draft'                => 'The General Teacher is currently drafting the ITGP. You can monitor progress here.',
+                        'pending_sned_review'  => 'The ITGP draft has been submitted. The SPED Teacher will add consult remarks.',
+                        'ready_for_inspection' => 'SPED Teacher remarks have been submitted. The Master Teacher II will inspect and sign.',
+                        'inspected'            => 'The Master Teacher has signed. The SPED Teacher will finalize and lock the record.',
+                        default                => 'A General Teacher must be assigned before the ITGP draft can begin.',
+                    };
+                    $waitIcon = match($itgpStatus) {
+                        'draft'                => 'bi-pencil-square text-warning',
+                        'pending_sned_review'  => 'bi-chat-dots-fill text-info',
+                        'ready_for_inspection' => 'bi-pen-fill text-primary',
+                        'inspected'            => 'bi-hourglass-split text-success',
+                        default                => 'bi-person-plus text-secondary',
+                    };
+                    ?>
+                    <div class="text-center py-3 mb-4">
+                        <i class="bi <?= $waitIcon ?> fs-1 d-block mb-2"></i>
+                        <h5 class="fw-semibold" style="color:#1e4072;"><?= $waitTitle ?></h5>
+                        <p class="text-muted small mb-0"><?= $waitDesc ?></p>
+                    </div>
+
+                    <?php if ($itgp && !empty($itgp['goal'])): ?>
+                        <?php include __DIR__ . '/partials/itgp_readonly_summary.php'; ?>
+                    <?php endif; ?>
+
+                    <?php if (!empty($itgp['sned_remarks'])): ?>
+                    <div class="card border-0 mt-3" style="border-radius:10px; border-left:4px solid #1e4072 !important; background:#f0f4ff;">
+                        <div class="card-body p-3">
+                            <h6 class="fw-bold mb-2" style="color:#1e4072; font-size:.88rem;"><i class="bi bi-chat-dots-fill me-2"></i>SPED Teacher Consult Remarks</h6>
+                            <p class="small mb-1"><?= nl2br(htmlspecialchars($itgp['sned_remarks'])) ?></p>
+                            <?php if (!empty($itgp['sned_reviewed_at'])): ?>
+                                <small class="text-muted">Reviewed: <?= date('M d, Y g:i A', strtotime($itgp['sned_reviewed_at'])) ?></small>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if (!empty($itgp['master_signature'])): ?>
+                    <div class="card border-0 mt-3 bg-light" style="border-radius:10px;">
+                        <div class="card-body p-3">
+                            <h6 class="fw-bold text-muted text-uppercase small mb-2"><i class="bi bi-pen-fill me-1"></i>Master Teacher Signature</h6>
+                            <?php if (!empty($itgp['master_teacher_recommendations'])): ?>
+                                <p class="small mb-2"><strong>Recommendations:</strong><br><?= nl2br(htmlspecialchars($itgp['master_teacher_recommendations'])) ?></p>
+                            <?php endif; ?>
+                            <img src="<?= htmlspecialchars($itgp['master_signature']) ?>" class="border rounded bg-white" style="max-width:280px; max-height:90px; object-fit:contain;" alt="Signature">
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                </div>
+            </div>
+            <?php endif; ?>
+
+        </div><!-- /right column -->
+    </div><!-- /row -->
+</div>
 </div>
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    // Scroll comments list to bottom
+    // Scroll discussion to bottom
     var commentsBox = document.getElementById("commentsBox");
-    if (commentsBox) {
-        commentsBox.scrollTop = commentsBox.scrollHeight;
-    }
+    if (commentsBox) commentsBox.scrollTop = commentsBox.scrollHeight;
 
-    // Dynamic row addition/removal for activities
-    var addBtn = document.getElementById("addActivityBtn");
+    // Activity rows
+    var addBtn    = document.getElementById("addActivityBtn");
     var tableBody = document.querySelector("#activitiesTable tbody");
-
     if (addBtn && tableBody) {
         addBtn.addEventListener("click", function () {
-            var rowCount = tableBody.querySelectorAll("tr").length;
-            var newRow = document.createElement("tr");
-            newRow.innerHTML = `
-                <td>
-                    <textarea name="activities[${rowCount}][competency_skill]" class="form-control form-control-sm border-0 shadow-none bg-transparent" placeholder="Competency" rows="2"></textarea>
-                </td>
-                <td>
-                    <textarea name="activities[${rowCount}][activities]" class="form-control form-control-sm border-0 shadow-none bg-transparent" placeholder="Activities" rows="2"></textarea>
-                </td>
-                <td>
-                    <input type="text" name="activities[${rowCount}][time_frame]" class="form-control form-control-sm border-0 shadow-none bg-transparent" placeholder="Time Frame">
-                </td>
-                <td>
-                    <input type="text" name="activities[${rowCount}][person_responsible]" class="form-control form-control-sm border-0 shadow-none bg-transparent" placeholder="Responsible">
-                </td>
-                <td>
-                    <textarea name="activities[${rowCount}][remarks]" class="form-control form-control-sm border-0 shadow-none bg-transparent" placeholder="Remarks" rows="2"></textarea>
-                </td>
-                <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-outline-danger border-0 remove-row-btn">
-                        <i class="bi bi-trash-fill"></i>
-                    </button>
-                </td>
+            var idx = tableBody.querySelectorAll("tr").length;
+            var tr  = document.createElement("tr");
+            tr.innerHTML = `
+                <td><textarea name="activities[${idx}][competency_skill]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Competency"></textarea></td>
+                <td><textarea name="activities[${idx}][activities]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Activities"></textarea></td>
+                <td><input type="text" name="activities[${idx}][time_frame]" class="form-control form-control-sm border-0 shadow-none" placeholder="Time Frame"></td>
+                <td><input type="text" name="activities[${idx}][person_responsible]" class="form-control form-control-sm border-0 shadow-none" placeholder="Person"></td>
+                <td><textarea name="activities[${idx}][remarks]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Remarks"></textarea></td>
+                <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger border-0 remove-row-btn"><i class="bi bi-trash-fill"></i></button></td>
             `;
-            tableBody.appendChild(newRow);
+            tableBody.appendChild(tr);
         });
-
-        // Event delegation for removing rows
         tableBody.addEventListener("click", function (e) {
-            var removeBtn = e.target.closest(".remove-row-btn");
-            if (removeBtn) {
-                var row = removeBtn.closest("tr");
-                if (tableBody.querySelectorAll("tr").length > 1) {
-                    row.remove();
-                    reindexRows();
-                } else {
-                    // Just clear values of the last row
-                    row.querySelectorAll("input, textarea").forEach(function (input) {
-                        input.value = "";
-                    });
-                }
+            var btn = e.target.closest(".remove-row-btn");
+            if (btn) {
+                var row = btn.closest("tr");
+                if (tableBody.querySelectorAll("tr").length > 1) row.remove();
+                else row.querySelectorAll("input,textarea").forEach(el => el.value = "");
             }
         });
     }
 
-    function reindexRows() {
-        tableBody.querySelectorAll("tr").forEach(function (row, idx) {
-            row.querySelectorAll("[name]").forEach(function (input) {
-                var name = input.getAttribute("name");
-                var updatedName = name.replace(/activities\[\d+\]/, "activities[" + idx + "]");
-                input.setAttribute("name", updatedName);
-            });
+    // ── SPED Teacher Remarks Handler ──
+    var sendRemarksBtn    = document.getElementById("sendRemarksBtn");
+    var forwardInspectBtn = document.getElementById("forwardInspectBtn");
+    function getRemarks() {
+        return (document.getElementById("snedRemarksText")?.value || "").trim();
+    }
+    if (sendRemarksBtn) {
+        sendRemarksBtn.addEventListener("click", function () {
+            var remarks = getRemarks();
+            if (!remarks) {
+                alert("Please write your consult remarks before sending them to the General Teacher.");
+                document.getElementById("snedRemarksText")?.focus();
+                return;
+            }
+            if (!confirm("Send these remarks to the General Teacher for revision?\n\nThey will revise and resubmit the draft.")) return;
+            document.getElementById("hiddenRemarksBack").value = remarks;
+            document.getElementById("sendBackForm").submit();
+        });
+    }
+    if (forwardInspectBtn) {
+        forwardInspectBtn.addEventListener("click", function () {
+            var remarks = getRemarks();
+            var msg = remarks
+                ? "Forward this ITGP to the Master Teacher for inspection with your consult remarks?"
+                : "No revisions needed — forward this ITGP directly to the Master Teacher for inspection?";
+            if (!confirm(msg)) return;
+            document.getElementById("hiddenRemarksForward").value = remarks;
+            document.getElementById("forwardInspectForm").submit();
         });
     }
 
-    // Finalize confirmation check
-    var itgpForm = document.getElementById("itgpForm");
-    var statusSelect = document.getElementById("status");
-    if (itgpForm && statusSelect) {
-        itgpForm.addEventListener("submit", function (e) {
-            if (statusSelect.value === "finalized") {
-                var confirmed = confirm("Finalize this ITGP? This marks the transition goal plan as ready and locks form fields.");
-                if (!confirmed) {
-                    e.preventDefault();
-                }
+    // Signature pad
+    var canvas = document.getElementById("signatureCanvas");
+    if (canvas) {
+        var c = canvas.getContext("2d");
+        var drawing = false;
+
+        function resize() {
+            var rect = canvas.getBoundingClientRect();
+            var imageData = c.getImageData(0, 0, canvas.width, canvas.height);
+            canvas.width  = rect.width;
+            canvas.height = 160;
+            c.putImageData(imageData, 0, 0);
+            c.strokeStyle = "#1e3a5f";
+            c.lineWidth   = 2;
+            c.lineCap     = "round";
+            c.lineJoin    = "round";
+        }
+        resize();
+        window.addEventListener("resize", resize);
+
+        function pos(e) {
+            var r = canvas.getBoundingClientRect();
+            return e.touches
+                ? { x: e.touches[0].clientX - r.left, y: e.touches[0].clientY - r.top }
+                : { x: e.clientX - r.left, y: e.clientY - r.top };
+        }
+
+        canvas.addEventListener("mousedown",  e => { drawing = true; c.beginPath(); var p=pos(e); c.moveTo(p.x, p.y); });
+        canvas.addEventListener("mousemove",  e => { if (!drawing) return; var p=pos(e); c.lineTo(p.x, p.y); c.stroke(); });
+        canvas.addEventListener("mouseup",    ()=> drawing = false);
+        canvas.addEventListener("mouseleave", ()=> drawing = false);
+        canvas.addEventListener("touchstart", e => { e.preventDefault(); drawing = true; c.beginPath(); var p=pos(e); c.moveTo(p.x, p.y); }, {passive:false});
+        canvas.addEventListener("touchmove",  e => { e.preventDefault(); if (!drawing) return; var p=pos(e); c.lineTo(p.x, p.y); c.stroke(); }, {passive:false});
+        canvas.addEventListener("touchend",   ()=> drawing = false);
+
+        document.getElementById("clearSigBtn")?.addEventListener("click", () => c.clearRect(0, 0, canvas.width, canvas.height));
+
+        document.getElementById("inspectForm")?.addEventListener("submit", function (e) {
+            var isEmpty = !c.getImageData(0, 0, canvas.width, canvas.height).data.some(v => v !== 0);
+            if (isEmpty) {
+                e.preventDefault();
+                document.getElementById("sigWarning").style.display = "block";
+                canvas.style.outline = "2px solid #dc3545";
+                return false;
             }
+            document.getElementById("masterSignatureInput").value = canvas.toDataURL("image/png");
         });
     }
 });

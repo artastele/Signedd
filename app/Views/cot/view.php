@@ -53,6 +53,15 @@ require_once __DIR__ . '/../layouts/header.php';
         </a>
     </div>
 
+    <?php
+    $nonNaCount = 0;
+    foreach ($ratingsRaw as $r) {
+        if ($r['rating'] !== null) {
+            $nonNaCount++;
+        }
+    }
+    ?>
+
     <!-- Finalized Hero Score Card -->
     <div class="card text-white border-0 shadow-sm mb-4" style="background-color: #1e4072;">
         <div class="card-body p-4 text-center">
@@ -61,7 +70,11 @@ require_once __DIR__ . '/../layouts/header.php';
                 <?= $observation['average_score'] !== null ? number_format($observation['average_score'], 2) : 'N/A' ?>
             </h1>
             <p class="mb-0 mt-2 text-white-50">
-                Finalized on <?= $observation['finalized_at'] ? date('F j, Y, g:i A', strtotime($observation['finalized_at'])) : 'N/A' ?>
+                <?php if ($observation['status'] === 'finalized'): ?>
+                    Finalized on <?= date('F j, Y, g:i A', strtotime($observation['finalized_at'])) ?> (based on <?= $nonNaCount ?> indicators)
+                <?php else: ?>
+                    Awaiting Sign-off (average computed upon acknowledgment)
+                <?php endif; ?>
             </p>
         </div>
     </div>
@@ -106,9 +119,19 @@ require_once __DIR__ . '/../layouts/header.php';
                         <div class="col-md-3 mt-3">
                             <label class="form-label text-muted small mb-1">Record Status</label>
                             <div>
-                                <span class="badge bg-success px-3 py-1">
-                                    <i class="bi bi-shield-check"></i> Digital Authenticated (Finalized)
-                                </span>
+                                <?php if ($observation['status'] === 'finalized'): ?>
+                                    <span class="badge bg-success px-3 py-1">
+                                        <i class="bi bi-shield-check"></i> Digitally Authenticated (Finalized)
+                                    </span>
+                                <?php elseif ($observation['status'] === 'pending_signoff'): ?>
+                                    <span class="badge bg-warning text-dark px-3 py-1">
+                                        <i class="bi bi-clock-history"></i> Pending Sign-off
+                                    </span>
+                                <?php else: ?>
+                                    <span class="badge bg-secondary px-3 py-1">
+                                        <i class="bi bi-pencil"></i> <?= ucwords($observation['status']) ?>
+                                    </span>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -140,7 +163,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <!-- Static Rating Buttons -->
                                 <div class="col-lg-5">
                                     <div class="rating-btn-container">
-                                        <?php foreach (['2', '3', '4', '5', '6', 'NO'] as $val): ?>
+                                        <?php foreach (['2', '3', '4', '5', '6', 'NO', 'N/A'] as $val): ?>
                                             <div class="rating-btn-static <?= $selectedRating === $val ? 'active' : '' ?>">
                                                 <?= $val ?>
                                             </div>
@@ -163,14 +186,50 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
             </div>
 
-            <div class="alert alert-info py-3 border-0 shadow-sm">
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-info-circle-fill fs-4 me-3"></i>
-                    <div>
-                        <strong>Digitally Authenticated Record:</strong> This observation report has been finalized by Master Teacher <strong><?= htmlspecialchars($observation['observer_name']) ?></strong> on <strong><?= date('Y-m-d H:i:s', strtotime($observation['finalized_at'])) ?></strong>. Per system security rules, this record is locked and cannot be edited. SPED teachers have no access to view observation ratings in this system.
+            <?php if ($observation['status'] === 'finalized'): ?>
+                <div class="alert alert-success py-3 border-0 shadow-sm">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-shield-check-fill fs-4 me-3 text-success"></i>
+                        <div>
+                            <strong>Digitally Authenticated Record:</strong> This observation report was finalized and has been digitally signed and acknowledged by SPED Teacher <strong><?= htmlspecialchars($observation['observed_teacher_name']) ?></strong> on <strong><?= date('Y-m-d H:i:s', strtotime($observation['teacher_signed_at'])) ?></strong>. Per system security rules, this record is locked and cannot be edited.
+                        </div>
                     </div>
                 </div>
-            </div>
+                <?php if (!empty($observation['teacher_signature_path'])): ?>
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="card-title mb-0"><i class="bi bi-vector-pen"></i> SPED Teacher Signature</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <img src="<?= $basePath ?>/<?= htmlspecialchars($observation['teacher_signature_path']) ?>"
+                             alt="SPED Teacher signature"
+                             style="max-height:120px;border:1px solid #dee2e6;border-radius:6px;padding:8px;background:#fff;">
+                        <div class="text-muted small mt-2">
+                            Signed by <?= htmlspecialchars($observation['observed_teacher_name']) ?>
+                            on <?= date('F j, Y g:i A', strtotime($observation['teacher_signed_at'])) ?>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+            <?php elseif ($observation['status'] === 'pending_signoff'): ?>
+                <div class="alert alert-warning py-3 border-0 shadow-sm">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-clock-history fs-4 me-3 text-warning"></i>
+                        <div>
+                            <strong>Pending Acknowledgment:</strong> This observation report has been finalized by Observer <strong><?= htmlspecialchars($observation['observer_name']) ?></strong> and is currently awaiting digital signature from SPED Teacher <strong><?= htmlspecialchars($observation['observed_teacher_name']) ?></strong>.
+                        </div>
+                    </div>
+                </div>
+            <?php else: ?>
+                <div class="alert alert-info py-3 border-0 shadow-sm">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-info-circle-fill fs-4 me-3 text-info"></i>
+                        <div>
+                            <strong>Draft Record:</strong> This observation is in draft status and is not yet finalized.
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
 
         </div>
     </div>

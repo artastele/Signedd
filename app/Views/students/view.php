@@ -20,6 +20,9 @@ require_once __DIR__ . '/../layouts/header.php';
             <i class="bi bi-arrow-left"></i> Back to Student Records
         </a>
         <div>
+            <a href="<?php echo $basePath; ?>/students/edit/<?php echo $student['id']; ?>" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-pencil"></i> Edit Student ID / LRN
+            </a>
             <a href="<?php echo $basePath; ?>/assessment/history/<?php echo $student['id']; ?>" class="btn btn-primary me-2">
                 <i class="bi bi-clock-history"></i> View Assessment History
             </a>
@@ -43,7 +46,8 @@ require_once __DIR__ . '/../layouts/header.php';
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6">
-                    <p><strong>LRN:</strong> <?php echo htmlspecialchars($student['lrn']); ?></p>
+                    <p><strong>Student ID:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_id'] ?? null)); ?></p>
+                    <p><strong>DepEd LRN:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?></p>
                     <p><strong>Full Name:</strong> <?php echo htmlspecialchars($student['student_name']); ?></p>
                     <p><strong>Birth Date:</strong> <?php echo date('F d, Y', strtotime($student['date_of_birth'])); ?></p>
                     <p><strong>Disability Type:</strong> <?php echo htmlspecialchars($student['disability_type'] ?? 'N/A'); ?></p>

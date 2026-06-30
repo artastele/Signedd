@@ -45,6 +45,7 @@ class ProgressReportController {
         unset($_SESSION['success'], $_SESSION['error']);
 
         $basePath = $this->basePath;
+        $role = $this->userRole;
         require_once __DIR__ . '/../Views/progress-reports/index.php';
     }
 
@@ -98,29 +99,16 @@ class ProgressReportController {
             header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '/attendance');
             exit;
         }
-        if ($activeTab !== 'report') {
+        $allowedTabs = ['report', 'indicators', 'transfer'];
+        if (!in_array($activeTab, $allowedTabs, true)) {
             $activeTab = 'report';
         }
         $canEdit = RoleMiddleware::hasPermission('progress_report.manage') && (!$progressReport || $progressReport['status'] !== 'finalized');
 
-        $activeDomains = $this->model->getActiveDomains();
-        
-        $p7Averages = $this->model->getProcess7DomainAverages($studentId);
-        $p7AvgMap = [];
-        foreach ($p7Averages as $p7) {
-            $p7AvgMap[$p7['domain']] = (float)$p7['avg_score'];
-        }
-
-        $gradeEntries = $this->model->getGradeEntries($studentId, $quarter);
-        $entriesMap = [];
-        foreach ($gradeEntries as $entry) {
-            $entriesMap[$entry['domain']][$entry['source']] = (float)$entry['score'];
-        }
-
         if ($activeTab === 'attendance') {
             $attendanceRecords = $this->model->getAttendanceRecords($studentId);
             $autoDates = $this->model->getAutoAttendanceFromLogs($studentId);
-        } elseif ($activeTab === 'report') {
+        } elseif ($activeTab === 'report' || $activeTab === 'transfer') {
             // Get F2F present dates and online dates for attendance aggregation
             $f2fStmt = $this->model->getAttendanceRecords($studentId);
             $f2fPresentDates = [];
@@ -163,12 +151,98 @@ class ProgressReportController {
             }
         }
 
+        $sf9Indicators = [];
+        $quarterlyRatingsMap = [];
+        $pdspRecordId = null;
+        if ($activeTab === 'indicators') {
+            $sf9Indicators = $this->model->getSf9Indicators();
+            $pdspRecordId = $this->model->getPdspRecordIdForStudent($studentId);
+            if ($pdspRecordId) {
+                $this->model->ensureQuarterlyRatingsSeeded($studentId, $pdspRecordId);
+                $quarterlyRatingsMap = $this->model->getQuarterlyRatingsMap($studentId, $pdspRecordId);
+            }
+        }
+
+        $canPrintReportCard = $this->userRole === 'admin'
+            || (in_array($this->userRole, ['principal', 'guidance'], true) && RoleMiddleware::hasPermission('report_card.view'))
+            || ($this->userRole === 'parent' && RoleMiddleware::hasPermission('report_card.view_own_child') && (int)($student['parent_id'] ?? 0) === $this->userId)
+            || ($this->userRole === 'sped_teacher' && RoleMiddleware::hasPermission('progress_report.manage'));
+
         $success = $_SESSION['success'] ?? null;
         $error = $_SESSION['error'] ?? null;
         unset($_SESSION['success'], $_SESSION['error']);
 
         $basePath = $this->basePath;
         $role = $this->userRole;
+
+        if ($this->userRole === 'parent') {
+            $pdspRecordId = $this->model->getPdspRecordIdForStudent($studentId);
+            $ratings = [];
+            if ($pdspRecordId) {
+                $ratings = $this->model->getQuarterlyRatings($studentId, $pdspRecordId);
+            }
+            $ratingsGrouped = [];
+            foreach ($ratings as $r) {
+                $dom = $r['domain'];
+                $ind = $r['indicator_text'];
+                $q = (int)$r['quarter'];
+                $val = $r['rating'];
+                if (!isset($ratingsGrouped[$dom])) {
+                    $ratingsGrouped[$dom] = [];
+                }
+                if (!isset($ratingsGrouped[$dom][$ind])) {
+                    $ratingsGrouped[$dom][$ind] = [1 => '—', 2 => '—', 3 => '—', 4 => '—'];
+                }
+                $ratingsGrouped[$dom][$ind][$q] = $val ?: '—';
+            }
+
+            $signatures = [];
+            $spedTeacherName = '—';
+            $activeIepId = (int)$iep['id'];
+            if ($activeIepId) {
+                $signatures = $this->model->getIepSignatories($activeIepId);
+                $spedTeacherName = $this->model->getDraftingSpedTeacherName((int)$iep['drafted_by']);
+            }
+
+            $reportRemarks = [];
+            if ($progressReport) {
+                $remarksRows = $this->model->getReportRemarks((int)$progressReport['id']);
+                foreach ($remarksRows as $row) {
+                    $qKey = $row['quarter'];
+                    $type = $row['remark_type'];
+                    $reportRemarks[$qKey][$type] = $row;
+                }
+            }
+
+            $principalName = $this->model->getActivePrincipalName() ?: 'DAISY LYN A. BUENAFE';
+
+            // Months layout
+            $monthsList = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'];
+            $monthsMapped = [];
+            $monthsMapIndex = [
+                'Jun' => 6, 'Jul' => 7, 'Aug' => 8, 'Sep' => 9, 'Oct' => 10, 'Nov' => 11,
+                'Dec' => 12, 'Jan' => 1, 'Feb' => 2, 'Mar' => 3, 'Apr' => 4, 'May' => 5
+            ];
+            foreach ($monthsList as $mName) {
+                $sDays = (int)($attendanceSummary['school_days'][$mName] ?? 0);
+                $pDays = (int)($presentCounts[$mName] ?? 0);
+                if ($pDays > $sDays && $sDays > 0) {
+                    $pDays = $sDays;
+                }
+                $aDays = max(0, $sDays - $pDays);
+                $monthsMapped[$monthsMapIndex[$mName]] = [
+                    'name' => $mName,
+                    'school_days' => $sDays,
+                    'present' => $pDays,
+                    'absent' => $aDays
+                ];
+            }
+            $months = $monthsMapped;
+
+            require_once __DIR__ . '/../Views/progress-reports/parent_view.php';
+            exit;
+        }
+
         require_once __DIR__ . '/../Views/progress-reports/show.php';
     }
 
@@ -194,63 +268,53 @@ class ProgressReportController {
             $this->model->updateStudentDetails($studentId, (int)$age);
         }
 
+        $existingReport = $this->model->getLatestProgressReportByIepId((int) $iep['id']);
+        
         $schoolDays = $_POST['school_days'] ?? [];
-        $attendanceData = [
-            'school_days' => $schoolDays
-        ];
-
-        $activeDomains = $this->model->getActiveDomains();
-        $quarter = $_POST['quarter'] ?? '1st Quarter';
-        
-        $gradeEntries = $this->model->getGradeEntries($studentId, $quarter);
-        $entriesMap = [];
-        foreach ($gradeEntries as $entry) {
-            $entriesMap[$entry['domain']][$entry['source']] = (float)$entry['score'];
-        }
-        
-        $p7Averages = $this->model->getProcess7DomainAverages($studentId);
-        $p7AvgMap = [];
-        foreach ($p7Averages as $p7) {
-            $p7AvgMap[$p7['domain']] = (float)$p7['avg_score'];
+        if (!empty($schoolDays)) {
+            $attendanceData = [
+                'school_days' => $schoolDays
+            ];
+        } else {
+            $attendanceData = $existingReport ? (json_decode($existingReport['attendance_summary'] ?? '{}', true) ?: []) : [];
         }
 
-        $ratings = [];
-        foreach ($activeDomains as $dom) {
-            $autoVal = $entriesMap[$dom]['auto'] ?? ($p7AvgMap[$dom] ?? null);
-            $manualVal = $entriesMap[$dom]['manual'] ?? null;
-            if ($autoVal !== null && $manualVal !== null) {
-                $combined = ($autoVal + $manualVal) / 2;
-            } elseif ($autoVal !== null) {
-                $combined = $autoVal;
-            } elseif ($manualVal !== null) {
-                $combined = $manualVal;
-            } else {
-                $combined = null;
-            }
-            
-            if ($combined !== null) {
-                if ($combined >= 85) $ratingCode = 'P';
-                elseif ($combined >= 70) $ratingCode = 'AP';
-                elseif ($combined >= 50) $ratingCode = 'D';
-                else $ratingCode = 'B';
-            } else {
-                $ratingCode = 'NO-NA';
-            }
-            $ratings[$dom] = $ratingCode;
+        $quarter = $_POST['quarter'] ?? ($existingReport['quarter'] ?? '1st Quarter');
+
+        // Handle transfer details
+        $transferDetails = [];
+        if ($existingReport && !empty($existingReport['transfer_details'])) {
+            $transferDetails = json_decode($existingReport['transfer_details'], true) ?: [];
+        }
+
+        if (isset($_POST['admitted_to'])) {
+            $transferDetails['admitted_to'] = trim($_POST['admitted_to']);
+        }
+        if (isset($_POST['eligible_for_admission_to'])) {
+            $transferDetails['eligible_for_admission_to'] = trim($_POST['eligible_for_admission_to']);
+        }
+        if (isset($_POST['cancellation_admitted_in'])) {
+            $transferDetails['cancellation_admitted_in'] = trim($_POST['cancellation_admitted_in']);
+        }
+        if (isset($_POST['cancellation_date'])) {
+            $transferDetails['cancellation_date'] = trim($_POST['cancellation_date']);
         }
 
         $this->model->upsertProgressReport((int) $iep['id'], $studentId, $this->userId, [
-            'school_year' => $_POST['school_year'] ?? '',
+            'school_year' => $_POST['school_year'] ?? ($existingReport['school_year'] ?? ''),
             'quarter' => $quarter,
             'attendance_summary' => json_encode($attendanceData),
-            'progress_summary' => trim($_POST['progress_summary'] ?? ''),
-            'teacher_remarks' => trim($_POST['teacher_remarks'] ?? ''),
-            'ratings' => $ratings,
-            'status' => $_POST['status'] ?? 'draft',
+            'progress_summary' => isset($_POST['progress_summary']) ? trim($_POST['progress_summary']) : ($existingReport['progress_summary'] ?? ''),
+            'teacher_remarks' => isset($_POST['teacher_remarks']) ? trim($_POST['teacher_remarks']) : ($existingReport['teacher_remarks'] ?? ''),
+            'ratings' => [],
+            'status' => $_POST['status'] ?? ($existingReport['status'] ?? 'draft'),
+            'transfer_details' => json_encode($transferDetails)
         ]);
 
+        $activeTab = $_POST['active_tab'] ?? 'report';
+
         $_SESSION['success'] = 'Progress report saved successfully.';
-        header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '?tab=report&quarter=' . urlencode($quarter));
+        header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '?tab=' . urlencode($activeTab) . '&quarter=' . urlencode($quarter));
         exit;
     }
 
@@ -271,6 +335,51 @@ class ProgressReportController {
 
         $_SESSION['success'] = 'Grades saved successfully.';
         header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '?tab=grades&quarter=' . urlencode($quarter));
+        exit;
+    }
+
+    public function saveQuarterlyRatings(int $studentId): void {
+        RoleMiddleware::check('progress_report.manage');
+
+        $student = $this->model->getStudent($studentId);
+        if (!$student) {
+            $_SESSION['error'] = 'Student not found.';
+            header('Location: ' . $this->basePath . '/progress-reports');
+            exit;
+        }
+
+        $iep = $this->model->getLatestIepForStudent($studentId);
+        if (!$iep) {
+            $_SESSION['error'] = 'No IEP record found for this student.';
+            header('Location: ' . $this->basePath . '/progress-reports');
+            exit;
+        }
+
+        $progressReport = $this->model->getLatestProgressReportByIepId((int) $iep['id']);
+        if ($progressReport && $progressReport['status'] === 'finalized') {
+            $_SESSION['error'] = 'This progress report is finalized and cannot be edited.';
+            header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '?tab=indicators');
+            exit;
+        }
+
+        $pdspRecordId = $this->model->getPdspRecordIdForStudent($studentId);
+        if (!$pdspRecordId) {
+            $_SESSION['error'] = 'No PDSP record found. Complete the IEP meeting and sign the PDSP first.';
+            header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '?tab=indicators');
+            exit;
+        }
+
+        $ratings = $_POST['ratings'] ?? [];
+        if (!is_array($ratings)) {
+            $ratings = [];
+        }
+
+        $this->model->ensureQuarterlyRatingsSeeded($studentId, $pdspRecordId);
+        $this->model->saveQuarterlyRatings($studentId, $pdspRecordId, $ratings);
+
+        $quarter = $_POST['quarter'] ?? '1st Quarter';
+        $_SESSION['success'] = 'SF9 indicator ratings saved successfully.';
+        header('Location: ' . $this->basePath . '/progress-reports/' . $studentId . '?tab=indicators&quarter=' . urlencode($quarter));
         exit;
     }
 
@@ -329,6 +438,22 @@ class ProgressReportController {
         if (!$report) {
             $_SESSION['error'] = 'Progress report not found.';
             header('Location: ' . $this->basePath . '/progress-reports');
+            exit;
+        }
+
+        // Hard gate: check parent signature in report_remarks table
+        $remarks = $this->model->getReportRemarks($reportId);
+        $hasParentSignature = false;
+        foreach ($remarks as $rem) {
+            if ($rem['remark_type'] === 'parent' && (!empty($rem['signature_data']) || !empty($rem['signature_name']))) {
+                $hasParentSignature = true;
+                break;
+            }
+        }
+
+        if (!$hasParentSignature) {
+            $_SESSION['error'] = 'Progress report cannot be finalized without parent/guardian signature.';
+            header('Location: ' . $this->basePath . '/progress-reports/' . $report['student_id'] . '?tab=report');
             exit;
         }
 

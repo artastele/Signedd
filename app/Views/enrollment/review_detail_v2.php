@@ -112,8 +112,8 @@ require_once __DIR__ . '/../layouts/header.php';
             
             <div class="form-row">
                 <div class="form-field full-width">
-                    <label class="form-label">Learner Reference Number (LRN)</label>
-                    <div class="form-value"><?php echo htmlspecialchars($enrollment['lrn'] ?: 'Not provided'); ?></div>
+                    <label class="form-label">DepEd LRN (optional — assigned by DepEd LIS)</label>
+                    <div class="form-value"><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($enrollment['lrn'] ?? null)); ?></div>
                 </div>
             </div>
 

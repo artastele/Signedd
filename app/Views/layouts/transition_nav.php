@@ -8,6 +8,12 @@
 $basePath = defined('BASE_PATH') ? BASE_PATH : '';
 $iepId = (int)$iep['id'];
 
+if (!isset($transitionNavStudentCode)) {
+    require_once __DIR__ . '/../../Models/StudentModel.php';
+    $transitionNavRec = (new StudentModel())->findById((int)($iep['student_id'] ?? 0));
+    $transitionNavStudentCode = $transitionNavRec['student_id'] ?? null;
+}
+
 // Determine status of each step for gating display
 $p10Finalized = (!empty($workflow['readiness']) && $workflow['readiness']['status'] === 'finalized');
 $p11Finalized = (!empty($workflow['itp']) && $workflow['itp']['status'] === 'finalized');
@@ -17,7 +23,7 @@ $p13Finalized = (!empty($workflow['placement']) && in_array($workflow['placement
 $steps = [
     10 => [
         'label' => 'Transition Readiness',
-        'sublabel' => 'Process 10',
+        'sublabel' => 'Part 4',
         'url' => "$basePath/iep/$iepId/transition-readiness",
         'is_accessible' => true, // Always accessible once IEP is signed
         'is_completed' => $p10Finalized,
@@ -25,7 +31,7 @@ $steps = [
     ],
     11 => [
         'label' => 'Individual Transition Plan',
-        'sublabel' => 'Process 11 (ITP)',
+        'sublabel' => 'Part 5 (ITP)',
         'url' => "$basePath/iep/$iepId/individual-transition-plan",
         'is_accessible' => $p10Finalized,
         'is_completed' => $p11Finalized,
@@ -33,7 +39,7 @@ $steps = [
     ],
     12 => [
         'label' => 'Inclusive IEP & ITGP',
-        'sublabel' => 'Process 12',
+        'sublabel' => 'Part 6',
         'url' => "$basePath/iep/$iepId/inclusive-iep-itgp",
         'is_accessible' => $p10Finalized && $p11Finalized,
         'is_completed' => $p12Finalized,
@@ -41,7 +47,7 @@ $steps = [
     ],
     13 => [
         'label' => 'Class Placement Notice',
-        'sublabel' => 'Process 13',
+        'sublabel' => 'Part 7',
         'url' => "$basePath/iep/$iepId/placement-notice",
         'is_accessible' => $p10Finalized && $p11Finalized && $p12Finalized,
         'is_completed' => $p13Finalized,
@@ -60,7 +66,7 @@ $steps = [
                 </div>
                 <div class="ms-3">
                     <h5 class="mb-0 font-weight-bold text-dark"><?= htmlspecialchars($iep['student_name'] ?? 'Learner') ?></h5>
-                    <span class="text-muted small">Active IEP School Year: <strong><?= htmlspecialchars($iep['school_year'] ?? 'N/A') ?></strong> | LRN: <?= htmlspecialchars($iep['lrn'] ?? 'N/A') ?></span>
+                    <span class="text-muted small">Active IEP School Year: <strong><?= htmlspecialchars($iep['school_year'] ?? 'N/A') ?></strong> | Student ID: <?= htmlspecialchars(StudentDisplayHelper::formatStudentId($transitionNavStudentCode ?? null)) ?> | DepEd LRN: <?= htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($iep['lrn'] ?? null)) ?></span>
                 </div>
             </div>
             <div class="ms-md-auto d-flex align-items-center gap-2">

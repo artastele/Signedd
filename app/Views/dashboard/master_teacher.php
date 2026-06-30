@@ -50,6 +50,19 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
             </div>
         </div>
+
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="bi bi-journal-check text-success" style="font-size: 3rem;"></i>
+                    <h5 class="card-title mt-3">ITGP Inspection</h5>
+                    <p class="text-muted small">Review Inclusive IEP & ITGP drafts that are ready for Master Teacher inspection.</p>
+                    <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/itgp/inspection-queue" class="btn btn-primary" style="background-color: #1e4072; border-color: #1e4072;">
+                        <i class="bi bi-eye"></i> Review ITGPs
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

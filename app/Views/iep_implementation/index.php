@@ -97,8 +97,20 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
             </div>
         <?php else: ?>
+            <?php
+            require_once __DIR__ . '/../../Models/StudentModel.php';
+            $implIndexStudentModel = new StudentModel();
+            $implIndexCodeCache = [];
+            ?>
             <div class="row g-3">
                 <?php foreach ($students as $s): ?>
+                    <?php
+                    $implFk = (int)($s['student_id'] ?? $s['id'] ?? 0);
+                    if ($implFk && !isset($implIndexCodeCache[$implFk])) {
+                        $implRec = $implIndexStudentModel->findById($implFk);
+                        $implIndexCodeCache[$implFk] = $implRec['student_id'] ?? null;
+                    }
+                    ?>
                     <div class="col-lg-4 col-md-6">
                         <div class="card h-100" style="border-left:4px solid #1e4072;">
                             <div class="card-body">
@@ -107,7 +119,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                         <h6 class="fw-bold mb-0" style="color:#1e4072;">
                                             <?php echo htmlspecialchars($s['student_name']); ?>
                                         </h6>
-                                        <small class="text-muted">LRN: <?php echo htmlspecialchars($s['lrn']); ?></small>
+                                        <small class="text-muted">Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($implIndexCodeCache[$implFk] ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($s['lrn'] ?? null)); ?></small>
                                     </div>
                                     <span class="badge" style="background:#3b6d11;font-size:0.7rem;">
                                         <i class="ti ti-circle-check me-1"></i>Signed

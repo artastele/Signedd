@@ -71,12 +71,14 @@ class AuthController {
             exit;
         }
 
-        // Check if input is LRN (12 digits) and convert to email
+        // Check if input is Student ID (YYYYNNNN) or legacy LRN (12 digits)
         $email = $emailOrLrn;
-        if (preg_match('/^\d{12}$/', $emailOrLrn)) {
-            // LRN format detected - convert to learner email
+        if (preg_match('/^\d{8}$/', $emailOrLrn)) {
             $email = 'learner_' . $emailOrLrn . '@spedlms.local';
-            error_log("LRN login detected: $emailOrLrn -> $email");
+            error_log("Student ID login detected: $emailOrLrn -> $email");
+        } elseif (preg_match('/^\d{12}$/', $emailOrLrn)) {
+            $email = 'learner_' . $emailOrLrn . '@spedlms.local';
+            error_log("Legacy LRN login detected: $emailOrLrn -> $email");
         }
 
         // Check rate limiting

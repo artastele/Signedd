@@ -46,7 +46,12 @@ $basePath = BASE_PATH;
                     <span class="font-weight-bold text-dark d-block">Learner Information</span>
                     <span class="text-muted small">
                         <strong>Student:</strong> <?= htmlspecialchars($iep['student_name'] ?? 'N/A') ?><br>
-                        <strong>LRN:</strong> <?= htmlspecialchars($iep['lrn'] ?? 'N/A') ?>
+                        <?php
+                        require_once __DIR__ . '/../../Models/StudentModel.php';
+                        $itpMemberRec = (new StudentModel())->findById((int)($iep['student_id'] ?? 0));
+                        ?>
+                        <strong>Student ID:</strong> <?= htmlspecialchars(StudentDisplayHelper::formatStudentId($itpMemberRec['student_id'] ?? null)) ?><br>
+                        <strong>DepEd LRN:</strong> <?= htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($iep['lrn'] ?? null)) ?>
                     </span>
                 </div>
 

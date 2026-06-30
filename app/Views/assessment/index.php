@@ -70,7 +70,7 @@ require __DIR__ . '/../layouts/topbar.php';
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <input type="text" id="searchInput" class="form-control" placeholder="Search by student name or LRN...">
+                        <input type="text" id="searchInput" class="form-control" placeholder="Search by student name, Student ID, or DepEd LRN...">
                     </div>
                     <div class="col-md-3">
                         <select id="filterStatus" class="form-control">
@@ -98,7 +98,8 @@ require __DIR__ . '/../layouts/topbar.php';
                     <thead style="background-color: #f5f5f5;">
                         <tr>
                             <th>Student Name</th>
-                            <th>LRN</th>
+                            <th>Student ID</th>
+                            <th>DepEd LRN</th>
                             <th>Versions</th>
                             <th>Latest Status</th>
                             <th>Last Updated</th>
@@ -108,7 +109,7 @@ require __DIR__ . '/../layouts/topbar.php';
                     <tbody>
                         <?php if (empty($allAssessments)): ?>
                             <tr>
-                                <td colspan="6" class="text-center py-4 text-muted">
+                                <td colspan="7" class="text-center py-4 text-muted">
                                     <i class="fas fa-inbox fa-3x mb-3"></i>
                                     <p>No assessments found</p>
                                     <a href="<?php echo BASE_PATH; ?>/assessment/conduct" class="btn btn-primary" style="background-color: #a01422; border-color: #a01422;">
@@ -118,15 +119,23 @@ require __DIR__ . '/../layouts/topbar.php';
                             </tr>
                         <?php else: ?>
                             <?php
+                            require_once __DIR__ . '/../../Models/StudentModel.php';
+                            $studentModelForCodes = new StudentModel();
+                            $studentCodeCache = [];
                             // Group assessments by student
                             $byStudent = [];
                             foreach ($allAssessments as $a) {
                                 $sid = $a['student_id'];
+                                if (!isset($studentCodeCache[$sid])) {
+                                    $rec = $studentModelForCodes->findById($sid);
+                                    $studentCodeCache[$sid] = $rec['student_id'] ?? null;
+                                }
                                 if (!isset($byStudent[$sid])) {
                                     $byStudent[$sid] = [
                                         'student_name' => $a['student_name'],
                                         'lrn'          => $a['lrn'],
-                                        'student_id'   => $sid,
+                                        'student_code' => $studentCodeCache[$sid],
+                                        'record_id'    => $sid,
                                         'versions'     => []
                                     ];
                                 }
@@ -139,11 +148,12 @@ require __DIR__ . '/../layouts/topbar.php';
                             ?>
                             <tr class="assessment-row"
                                 data-status="<?php echo htmlspecialchars($latest['status']); ?>"
-                                data-search="<?php echo strtolower($student['student_name'] . ' ' . $student['lrn']); ?>">
+                                data-search="<?php echo strtolower($student['student_name'] . ' ' . ($student['student_code'] ?? '') . ' ' . ($student['lrn'] ?? '')); ?>">
                                 <td>
                                     <strong><?php echo htmlspecialchars($student['student_name']); ?></strong>
                                 </td>
-                                <td><code><?php echo htmlspecialchars($student['lrn']); ?></code></td>
+                                <td><code><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_code'] ?? null)); ?></code></td>
+                                <td><small><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?></small></td>
                                 <td>
                                     <span class="badge" style="background:#1e4072;"><?php echo $vCount; ?> version<?php echo $vCount > 1 ? 's' : ''; ?></span>
                                 </td>

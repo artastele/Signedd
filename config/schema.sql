@@ -1805,9 +1805,100 @@ CREATE TABLE IF NOT EXISTS `activity_attempt_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE `lms_submissions`
-  ADD COLUMN IF NOT EXISTS `flashcard_results` JSON NULL AFTER `auto_score`;
+  ADD COLUMN `flashcard_results` JSON NULL AFTER `auto_score`;
 
 INSERT IGNORE INTO db_version (version) VALUES (55);
 
 -- END MIGRATION: v55
 
+-- ============================================
+-- MIGRATION: v57 - Classroom Observation Tool (COT) Updates
+-- ============================================
+
+ALTER TABLE `classroom_observations` 
+  MODIFY COLUMN `status` ENUM('scheduled', 'in_progress', 'pending_signoff', 'finalized') NOT NULL DEFAULT 'scheduled',
+  ADD COLUMN `teacher_signed_at` DATETIME NULL AFTER `finalized_at`;
+
+ALTER TABLE `observation_ratings` 
+  MODIFY COLUMN `rating` VARCHAR(5) NULL;
+
+INSERT IGNORE INTO db_version (version) VALUES (57);
+
+-- END MIGRATION: v57
+
+-- ============================================
+-- MIGRATION: v58 - COT teacher signature image
+-- ============================================
+
+ALTER TABLE classroom_observations
+  ADD COLUMN teacher_signature_path VARCHAR(500) NULL AFTER teacher_signed_at;
+
+INSERT IGNORE INTO db_version (version) VALUES (58);
+
+-- END MIGRATION: v58
+
+-- ============================================
+-- MIGRATION: v59 - SF9 student quarterly ratings
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS student_quarterly_ratings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  student_id INT NOT NULL,
+  pdsp_record_id INT NOT NULL,
+  domain ENUM(
+    'Daily Living Skills',
+    'Socio-Emotional',
+    'Language Development',
+    'Psychomotor',
+    'Cognitive',
+    'Aesthetic/Creative',
+    'Behavioral Development',
+    'Orientation and Mobility'
+  ) NOT NULL,
+  indicator_text TEXT NOT NULL,
+  quarter TINYINT NOT NULL COMMENT '1, 2, 3, or 4',
+  rating ENUM('P','AP','D','B','NA') NULL DEFAULT NULL,
+  observation TEXT NULL,
+  source ENUM('digital','f2f','manual') NOT NULL DEFAULT 'manual',
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES student_records(id),
+  FOREIGN KEY (pdsp_record_id) REFERENCES pdsp_records(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (59);
+
+-- END MIGRATION: v59
+
+-- ============================================
+-- MIGRATION: v60 - IEP steps target PDSP indicator text
+-- ============================================
+
+ALTER TABLE iep_steps
+  ADD COLUMN IF NOT EXISTS pdsp_indicator_text TEXT NULL DEFAULT NULL
+  COMMENT 'Linked PDSP skill indicator this step targets';
+
+INSERT IGNORE INTO db_version (version) VALUES (60);
+
+-- END MIGRATION: v60
+
+-- ============================================
+-- MIGRATION: v61 - LMS activities F2F flag
+-- ============================================
+
+ALTER TABLE lms_activities
+  ADD COLUMN IF NOT EXISTS is_f2f TINYINT(1) NOT NULL DEFAULT 0
+  COMMENT 'Boolean flag for Face-to-Face / Direct Observation activity';
+
+INSERT IGNORE INTO db_version (version) VALUES (61);
+
+-- END MIGRATION: v61
+
+
+-- MIGRATION: v62 - Unique constraint on student_quarterly_ratings to prevent double-seeding
+ALTER TABLE student_quarterly_ratings
+    ADD CONSTRAINT IF NOT EXISTS uq_sqr_student_indicator_quarter
+    UNIQUE (student_id, pdsp_record_id, indicator_text(150), quarter);
+
+INSERT IGNORE INTO db_version (version) VALUES (62);
+
+-- END MIGRATION: v62

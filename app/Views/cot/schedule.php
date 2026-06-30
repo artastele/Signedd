@@ -41,10 +41,45 @@ require_once __DIR__ . '/../layouts/header.php';
                         </div>
 
                         <!-- Subject & Grade Level -->
-                        <div class="mb-3">
-                            <label for="subject_grade_level" class="form-label fw-semibold">Subject &amp; Grade Level Taught</label>
-                            <input type="text" class="form-control" id="subject_grade_level" name="subject_grade_level" 
-                                   placeholder="e.g. Mathematics - Grade 3" required>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="subject_taught" class="form-label fw-semibold">Subject Taught</label>
+                                <select class="form-select" id="subject_taught" name="subject_taught" required>
+                                    <option value="" disabled selected>-- Select Subject --</option>
+                                    <option value="Mathematics">Mathematics</option>
+                                    <option value="English">English</option>
+                                    <option value="Filipino">Filipino</option>
+                                    <option value="Science">Science</option>
+                                    <option value="Araling Panlipunan">Araling Panlipunan</option>
+                                    <option value="Edukasyon sa Pagpapakatao (EsP)">Edukasyon sa Pagpapakatao (EsP)</option>
+                                    <option value="MAPEH">MAPEH</option>
+                                    <option value="Mother Tongue">Mother Tongue</option>
+                                    <option value="Reading">Reading</option>
+                                    <option value="Life Skills">Life Skills</option>
+                                    <option value="Communication Skills">Communication Skills</option>
+                                    <option value="General SPED Instruction">General SPED Instruction</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="grade_level_taught" class="form-label fw-semibold">Grade Level Taught</label>
+                                <select class="form-select" id="grade_level_taught" name="grade_level_taught" required>
+                                    <option value="" disabled selected>-- Select Grade Level --</option>
+                                    <option value="Kinder">Kinder</option>
+                                    <option value="Grade 1">Grade 1</option>
+                                    <option value="Grade 2">Grade 2</option>
+                                    <option value="Grade 3">Grade 3</option>
+                                    <option value="Grade 4">Grade 4</option>
+                                    <option value="Grade 5">Grade 5</option>
+                                    <option value="Grade 6">Grade 6</option>
+                                    <option value="Grade 7">Grade 7</option>
+                                    <option value="Grade 8">Grade 8</option>
+                                    <option value="Grade 9">Grade 9</option>
+                                    <option value="Grade 10">Grade 10</option>
+                                    <option value="Grade 11">Grade 11</option>
+                                    <option value="Grade 12">Grade 12</option>
+                                    <option value="SPED Program">SPED Program</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div class="row">

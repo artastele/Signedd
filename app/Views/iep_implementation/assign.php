@@ -49,6 +49,11 @@ require_once __DIR__ . '/../layouts/header.php';
                             </a>
                         </div>
                     <?php else: ?>
+                        <?php
+                        require_once __DIR__ . '/../../Models/StudentModel.php';
+                        $assignStudentModel = new StudentModel();
+                        $assignCodeCache = [];
+                        ?>
                         <form method="POST" action="<?php echo $basePath; ?>/iep/implementation/assign">
                             <!-- Student Selection -->
                             <div class="mb-4">
@@ -58,10 +63,17 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <select name="student_id" class="form-select" required>
                                     <option value="">-- Choose Student --</option>
                                     <?php foreach ($students as $student): ?>
+                                        <?php
+                                        $assignFk = (int)($student['student_id'] ?? 0);
+                                        if ($assignFk && !isset($assignCodeCache[$assignFk])) {
+                                            $assignRec = $assignStudentModel->findById($assignFk);
+                                            $assignCodeCache[$assignFk] = $assignRec['student_id'] ?? null;
+                                        }
+                                        ?>
                                         <option value="<?php echo $student['student_id']; ?>" 
                                                 data-iep-id="<?php echo $student['iep_p3_id']; ?>">
                                             <?php echo htmlspecialchars($student['student_name']); ?> 
-                                            (LRN: <?php echo htmlspecialchars($student['lrn']); ?>)
+                                            (Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($assignCodeCache[$assignFk] ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?>)
                                         </option>
                                     <?php endforeach; ?>
                                 </select>

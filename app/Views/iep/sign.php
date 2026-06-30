@@ -16,7 +16,8 @@ require_once __DIR__ . '/../layouts/header.php';
         <h1 style="color:#1e4072;"><i class="bi bi-pen me-2"></i>Sign IEP</h1>
         <p class="text-muted">
             <?php echo htmlspecialchars($iep['student_name']); ?> &bull;
-            LRN: <?php echo htmlspecialchars($iep['lrn']); ?> &bull;
+            Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($studentData['student_id'] ?? null)); ?> &bull;
+            DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($studentData['lrn'] ?? null)); ?> &bull;
             <?php echo htmlspecialchars($iep['school_year']); ?>
         </p>
     </div>
@@ -29,7 +30,8 @@ require_once __DIR__ . '/../layouts/header.php';
         <div class="card-body">
             <div class="row g-2">
                 <div class="col-md-3"><strong>Student:</strong> <?php echo htmlspecialchars($iep['student_name']); ?></div>
-                <div class="col-md-3"><strong>LRN:</strong> <?php echo htmlspecialchars($iep['lrn']); ?></div>
+                <div class="col-md-3"><strong>Student ID:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($studentData['student_id'] ?? null)); ?></div>
+                <div class="col-md-3"><strong>DepEd LRN:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($studentData['lrn'] ?? null)); ?></div>
                 <div class="col-md-3"><strong>School Year:</strong> <?php echo htmlspecialchars($iep['school_year']); ?></div>
                 <div class="col-md-3"><strong>Grade Level:</strong> <?php echo htmlspecialchars($studentData['grade_level'] ?? ''); ?></div>
             </div>

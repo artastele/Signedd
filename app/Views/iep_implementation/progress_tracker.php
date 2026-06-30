@@ -29,9 +29,19 @@ require_once __DIR__ . '/../layouts/sidebar.php';
                 </div>
             </div>
         <?php else: ?>
+            <?php
+            require_once __DIR__ . '/../../Models/StudentModel.php';
+            $progressTrackerStudentModel = new StudentModel();
+            $progressTrackerCodeCache = [];
+            ?>
             <div class="row g-2">
                 <?php foreach ($learners as $learner): ?>
                     <?php 
+                        $trackerFk = (int)($learner['student_id'] ?? 0);
+                        if ($trackerFk && !isset($progressTrackerCodeCache[$trackerFk])) {
+                            $trackerRec = $progressTrackerStudentModel->findById($trackerFk);
+                            $progressTrackerCodeCache[$trackerFk] = $trackerRec['student_id'] ?? null;
+                        }
                         $totalXp = (int)($learner['total_xp'] ?? 0);
                         $totalStars = (int)($learner['total_stars'] ?? 0);
                         $publishedPlans = (int)($learner['published_plans'] ?? 0);
@@ -53,7 +63,7 @@ require_once __DIR__ . '/../layouts/sidebar.php';
                                     </div>
                                     <div>
                                         <h6 class="mb-0 fw-bold" style="color:#1e4072;"><?php echo htmlspecialchars($learner['student_name']); ?></h6>
-                                        <div class="small text-muted">LRN: <?php echo htmlspecialchars($learner['lrn']); ?></div>
+                                        <div class="small text-muted">Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($progressTrackerCodeCache[$trackerFk] ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($learner['lrn'] ?? null)); ?></div>
                                     </div>
                                 </div>
                                 

@@ -40,7 +40,8 @@ require_once __DIR__ . '/../layouts/header.php';
             </h1>
             <p class="mb-1 text-muted">
                 <?php echo htmlspecialchars($iep['student_name']); ?>
-                &nbsp;&bull;&nbsp; LRN: <strong><?php echo htmlspecialchars($iep['lrn']); ?></strong>
+                &nbsp;&bull;&nbsp; Student ID: <strong><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($studentData['student_id'] ?? null)); ?></strong>
+                &nbsp;&bull;&nbsp; DepEd LRN: <strong><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($studentData['lrn'] ?? null)); ?></strong>
             </p>
             <span class="badge" style="background:#1e4072;font-size:.85rem;">
                 <?php echo htmlspecialchars($iep['school_year']); ?>
@@ -105,9 +106,15 @@ require_once __DIR__ . '/../layouts/header.php';
                            <?php echo $readOnly ? 'readonly' : ''; ?>>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label fw-semibold">LRN</label>
+                    <label class="form-label fw-semibold">Student ID</label>
+                    <input type="text" class="form-control" id="f_student_id"
+                           value="<?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($studentData['student_id'] ?? null)); ?>"
+                           readonly>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">DepEd LRN (optional)</label>
                     <input type="text" class="form-control" id="f_lrn"
-                           value="<?php echo htmlspecialchars($studentData['lrn'] ?? ''); ?>"
+                           value="<?php echo htmlspecialchars(StudentDisplayHelper::lrnFieldValue($studentData['lrn'] ?? null)); ?>"
                            <?php echo $readOnly ? 'readonly' : ''; ?>>
                 </div>
                 <div class="col-md-3">

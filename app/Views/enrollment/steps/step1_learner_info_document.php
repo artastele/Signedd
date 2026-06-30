@@ -15,14 +15,14 @@
             PART I: LEARNER INFORMATION (Page 1 of 7)
         </div>
 
-        <!-- Learner Reference Number -->
+        <!-- DepEd LRN (optional) -->
         <div class="form-row">
             <div class="form-field half-width">
-                <label class="form-label">Learner Reference Number (LRN)</label>
+                <label class="form-label">DepEd LRN (optional — assigned by DepEd LIS)</label>
                 <input type="text" class="form-control" id="lrn" name="lrn" 
-                       value="<?php echo htmlspecialchars(getFormValue('lrn')); ?>"
+                       value="<?php echo htmlspecialchars(StudentDisplayHelper::lrnFieldValue(getFormValue('lrn'))); ?>"
                        placeholder="12-digit LRN" maxlength="12">
-                <div class="form-text">Leave blank if not yet assigned</div>
+                <div class="form-text">Leave blank if not yet assigned by DepEd</div>
             </div>
         </div>
 

@@ -79,6 +79,7 @@ require_once __DIR__ . '/../layouts/header.php';
                         Quickly populate this year's indicator set with the 9 standard competency indicators from the PMES rating sheet.
                     </p>
                     <form method="post" action="<?= $basePath ?>/cot/indicators/load-defaults">
+                        <input type="hidden" name="school_year" value="<?= htmlspecialchars($schoolYear) ?>">
                         <button type="submit" class="btn btn-danger w-100" style="background-color: #a01422; border-color: #a01422;">
                             Load Default Indicators
                         </button>

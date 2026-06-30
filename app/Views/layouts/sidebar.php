@@ -20,12 +20,31 @@ function isIEPProcedureActive() {
         '/iep/p3/', 
         '/iep/documents', 
         '/iep/',
+    ];
+    // Exclude transition paths to prevent both menus from opening
+    foreach (['/transition-readiness', '/individual-transition-plan', '/inclusive-iep-itgp', '/placement-notice'] as $exclude) {
+        if (strpos($currentPath, $basePath . $exclude) !== false) {
+            return false;
+        }
+    }
+    foreach ($iepPaths as $path) {
+        if (strpos($currentPath, $basePath . $path) !== false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Check if any ITP Procedure link is active
+function isITPProcedureActive() {
+    global $currentPath, $basePath;
+    $itpPaths = [
         '/transition-readiness',
         '/individual-transition-plan',
         '/inclusive-iep-itgp',
         '/placement-notice'
     ];
-    foreach ($iepPaths as $path) {
+    foreach ($itpPaths as $path) {
         if (strpos($currentPath, $basePath . $path) !== false) {
             return true;
         }
@@ -100,6 +119,10 @@ if ($role === 'learner') {
                 <i class="bi bi-calendar-check"></i>
                 <span>IEP Meetings</span>
             </a>
+            <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
+                <i class="bi bi-file-earmark-bar-graph"></i>
+                <span>Progress Reports</span>
+            </a>
             <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/meetings') ? 'active' : ''; ?>">
                 <i class="bi bi-file-earmark-text"></i>
                 <span>My Child's IEP</span>
@@ -156,14 +179,71 @@ if ($role === 'learner') {
                         <i class="bi bi-3-circle"></i>
                         <span>Part 3: Generate IEP</span>
                     </a>
-                    <?php
-                    $currentIepId = null;
-                    if (preg_match('#/iep/(\d+)#', $currentPath, $matches)) {
-                        $currentIepId = (int)$matches[1];
+                </div>
+            </div>
+
+            <!-- ITP Procedure (Collapsible) -->
+            <?php
+            $currentIepId = null;
+
+            // 1. Check URL for IEP ID
+            if (preg_match('#/iep/(\d+)#', $currentPath, $matches)) {
+                $currentIepId = (int)$matches[1];
+                $_SESSION['sidebar_iep_id'] = $currentIepId;
+            }
+            // 2. Fallback: session
+            elseif (!empty($_SESSION['sidebar_iep_id'])) {
+                $currentIepId = (int)$_SESSION['sidebar_iep_id'];
+            }
+
+            // 3. Fallback: DB query — find the most recently active IEP for this user
+            if (!$currentIepId && !empty($_SESSION['user_id'])) {
+                try {
+                    $sidebarDb = Database::getInstance()->getConnection();
+                    $sidebarUserId = (int)$_SESSION['user_id'];
+                    $sidebarRole   = $_SESSION['role'] ?? '';
+
+                    if (in_array($sidebarRole, ['sped_teacher', 'admin', 'master_teacher', 'principal'], true)) {
+                        // SPED / admin: any IEP in signing/locked/transition state
+                        $sidebarStmt = $sidebarDb->prepare(
+                            "SELECT id FROM iep_records WHERE status IN ('signing','signed','locked')
+                             ORDER BY updated_at DESC LIMIT 1"
+                        );
+                        $sidebarStmt->execute();
+                    } elseif ($sidebarRole === 'general_teacher') {
+                        // General teacher: IEP where they are assigned via general_teacher_assignments
+                        $sidebarStmt = $sidebarDb->prepare(
+                            "SELECT ir.id FROM iep_records ir
+                             JOIN general_teacher_assignments gta ON gta.student_id = ir.student_id
+                             WHERE gta.general_teacher_id = :uid AND ir.status IN ('signing','signed','locked')
+                             ORDER BY ir.updated_at DESC LIMIT 1"
+                        );
+                        $sidebarStmt->execute(['uid' => $sidebarUserId]);
+                    } else {
+                        $sidebarStmt = null;
                     }
-                    if ($currentIepId):
-                    ?>
-                        <div class="border-top border-secondary opacity-25 my-2"></div>
+
+                    if ($sidebarStmt) {
+                        $sidebarRow = $sidebarStmt->fetch(PDO::FETCH_ASSOC);
+                        if ($sidebarRow) {
+                            $currentIepId = (int)$sidebarRow['id'];
+                            $_SESSION['sidebar_iep_id'] = $currentIepId;
+                        }
+                    }
+                } catch (Exception $e) {
+                    // silently ignore DB errors in nav
+                }
+            }
+
+            if ($currentIepId):
+            ?>
+                <div class="sidebar-section">
+                    <a href="#" class="sidebar-section-toggle <?php echo isITPProcedureActive() ? 'active' : ''; ?>" data-bs-toggle="collapse" data-bs-target="#itpProcedureMenu" aria-expanded="<?php echo isITPProcedureActive() ? 'true' : 'false'; ?>">
+                        <i class="bi bi-arrow-left-right"></i>
+                        <span>ITP Procedure</span>
+                        <i class="bi bi-chevron-down toggle-icon"></i>
+                    </a>
+                    <div class="collapse <?php echo isITPProcedureActive() ? 'show' : ''; ?>" id="itpProcedureMenu">
                         <a href="<?php echo $basePath; ?>/iep/<?php echo $currentIepId; ?>/transition-readiness" class="sidebar-submenu-item <?php echo isActive('/iep/' . $currentIepId . '/transition-readiness'); ?>">
                             <i class="bi bi-4-circle"></i>
                             <span>Part 4: Transition Readiness</span>
@@ -180,9 +260,9 @@ if ($role === 'learner') {
                             <i class="bi bi-7-circle"></i>
                             <span>Part 7: Placement Notice</span>
                         </a>
-                    <?php endif; ?>
+                    </div>
                 </div>
-            </div>
+            <?php endif; ?>
 
             <a href="<?php echo $basePath; ?>/iep/implementation" class="<?php echo isActive('/iep/implementation'); ?>">
                 <i class="bi bi-book"></i>
@@ -193,12 +273,16 @@ if ($role === 'learner') {
                 <span>Progress Tracker</span>
             </a>
             <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
-                <i class="bi bi-bar-chart-line"></i>
-                <span>Grades</span>
+                <i class="bi bi-file-earmark-bar-graph"></i>
+                <span>Progress Reports</span>
             </a>
             <a href="<?php echo $basePath; ?>/attendance-log" class="<?php echo isActive('/attendance-log'); ?>">
                 <i class="bi bi-calendar-check"></i>
                 <span>Attendance Log</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/cot/observations" class="<?php echo isActive('/cot/observations'); ?>">
+                <i class="bi bi-eye"></i>
+                <span>My COT</span>
             </a>
             <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/implementation') && !isActive('/iep/meetings') ? 'active' : ''; ?>">
                 <i class="bi bi-folder2-open"></i>
@@ -241,6 +325,10 @@ if ($role === 'learner') {
                 <i class="bi bi-file-earmark-medical"></i>
                 <span>IEP Documents</span>
             </a>
+            <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
+                <i class="bi bi-file-earmark-bar-graph"></i>
+                <span>Progress Reports</span>
+            </a>
 
         <?php elseif ($role === 'principal'): ?>
             <a href="<?php echo $basePath; ?>/iep/availability" class="<?php echo isActive('/iep/availability'); ?>">
@@ -254,6 +342,10 @@ if ($role === 'learner') {
             <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/meetings') && !isActive('/iep/availability') ? 'active' : ''; ?>">
                 <i class="bi bi-file-earmark-medical"></i>
                 <span>IEP Documents</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
+                <i class="bi bi-file-earmark-bar-graph"></i>
+                <span>Progress Reports</span>
             </a>
             <a href="<?php echo $basePath; ?>/principal/staff-requests" class="<?php echo isActive('/principal/staff-requests'); ?>">
                 <i class="bi bi-person-check"></i>
@@ -275,6 +367,10 @@ if ($role === 'learner') {
             </a>
 
         <?php elseif ($role === 'admin'): ?>
+            <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
+                <i class="bi bi-file-earmark-bar-graph"></i>
+                <span>Progress Reports</span>
+            </a>
             <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/implementation') ? 'active' : ''; ?>">
                 <i class="bi bi-folder2-open"></i>
                 <span>IEP Records</span>

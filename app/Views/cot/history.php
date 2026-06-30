@@ -48,6 +48,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
 
                 <!-- Observed Teacher -->
+                <?php if ($role !== 'sped_teacher'): ?>
                 <div class="col-md-3">
                     <label for="observed_teacher_id" class="form-label small text-muted">Observed Teacher</label>
                     <select class="form-select" id="observed_teacher_id" name="observed_teacher_id">
@@ -59,6 +60,7 @@ require_once __DIR__ . '/../layouts/header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <?php endif; ?>
 
                 <!-- Actions -->
                 <div class="col-md-3 d-flex gap-2">
@@ -121,6 +123,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                             <span class="badge bg-info-subtle text-info-emphasis px-2.5 py-1">Scheduled</span>
                                         <?php elseif ($obs['status'] === 'in_progress'): ?>
                                             <span class="badge bg-warning-subtle text-warning-emphasis px-2.5 py-1">In Progress</span>
+                                        <?php elseif ($obs['status'] === 'pending_signoff'): ?>
+                                            <span class="badge bg-warning text-dark px-2.5 py-1">Pending Sign-off</span>
                                         <?php elseif ($obs['status'] === 'finalized'): ?>
                                             <span class="badge bg-success-subtle text-success-emphasis px-2.5 py-1">Finalized</span>
                                         <?php endif; ?>
@@ -133,7 +137,24 @@ require_once __DIR__ . '/../layouts/header.php';
                                         <?php endif; ?>
                                     </td>
                                     <td class="pe-4 text-end">
-                                        <?php if ($obs['status'] !== 'finalized'): ?>
+                                        <?php if ($obs['status'] === 'finalized'): ?>
+                                            <a href="<?= $basePath ?>/cot/observations/<?= $obs['id'] ?>/view" 
+                                               class="btn btn-sm btn-outline-secondary px-3">
+                                                <i class="bi bi-eye"></i> View Result
+                                            </a>
+                                        <?php elseif ($obs['status'] === 'pending_signoff'): ?>
+                                            <?php if ($role === 'sped_teacher' && $obs['observed_teacher_id'] === $userId): ?>
+                                                <a href="<?= $basePath ?>/cot/observations/<?= $obs['id'] ?>/sign-off" 
+                                                   class="btn btn-sm text-white px-3 fw-semibold" style="background-color: #a01422;">
+                                                    <i class="bi bi-pencil-square"></i> Review &amp; Sign
+                                                </a>
+                                            <?php else: ?>
+                                                <a href="<?= $basePath ?>/cot/observations/<?= $obs['id'] ?>/view" 
+                                                   class="btn btn-sm btn-outline-secondary px-3">
+                                                    <i class="bi bi-eye"></i> View Pending
+                                                </a>
+                                            <?php endif; ?>
+                                        <?php else: /* scheduled or in_progress */ ?>
                                             <?php if ($role === 'master_teacher' && $obs['observer_id'] === $userId): ?>
                                                 <a href="<?= $basePath ?>/cot/observations/<?= $obs['id'] ?>/rate" 
                                                    class="btn btn-sm text-white px-3 fw-semibold" style="background-color: #a01422;">
@@ -142,11 +163,6 @@ require_once __DIR__ . '/../layouts/header.php';
                                             <?php else: ?>
                                                 <span class="text-muted small">Incomplete</span>
                                             <?php endif; ?>
-                                        <?php else: ?>
-                                            <a href="<?= $basePath ?>/cot/observations/<?= $obs['id'] ?>/view" 
-                                               class="btn btn-sm btn-outline-secondary px-3">
-                                                <i class="bi bi-eye"></i> View Result
-                                            </a>
                                         <?php endif; ?>
                                     </td>
                                 </tr>

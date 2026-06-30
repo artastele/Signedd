@@ -10,25 +10,6 @@ require_once __DIR__ . '/../layouts/header.php';
 $isTeacher = ($role === 'sped_teacher');
 $isParent = ($role === 'parent');
 $isPrincipal = ($role === 'principal');
-
-// Helper to translate rating percentages to codes
-function getRatingCode(?float $score): string {
-    if ($score === null) return 'NO-NA';
-    if ($score >= 85) return 'P';
-    if ($score >= 70) return 'AP';
-    if ($score >= 50) return 'D';
-    return 'B';
-}
-
-function getRatingDescription(string $code): string {
-    switch ($code) {
-        case 'P': return 'Proficient (Always manifests)';
-        case 'AP': return 'Approaching Proficiency (Most of the time)';
-        case 'D': return 'Developing (Sometimes manifests)';
-        case 'B': return 'Beginning (Rarely manifests)';
-        default: return 'Not Observed / Not Applicable';
-    }
-}
 ?>
 
 <div class="main-content">
@@ -80,7 +61,8 @@ function getRatingDescription(string $code): string {
                     <div class="col">
                         <h3 class="fw-bold mb-1"><?php echo htmlspecialchars($student['student_name']); ?></h3>
                         <div class="d-flex flex-wrap gap-3 small opacity-90">
-                            <span><strong>LRN:</strong> <?php echo htmlspecialchars($student['lrn']); ?></span>
+                            <span><strong>Student ID:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_id'] ?? null)); ?></span>
+                            <span><strong>DepEd LRN:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?></span>
                             <span><strong>Sex:</strong> <?php echo htmlspecialchars($student['sex'] ?? 'N/A'); ?></span>
                             <span><strong>Age:</strong> <?php echo htmlspecialchars($student['age'] ?? 'N/A'); ?> yrs old</span>
                             <span><strong>Birthday:</strong> <?php echo $student['date_of_birth'] ? date('F d, Y', strtotime($student['date_of_birth'])) : 'N/A'; ?></span>
@@ -102,13 +84,24 @@ function getRatingDescription(string $code): string {
             <div class="card-body p-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2">
                     <span class="fw-semibold text-secondary">Active Quarter:</span>
-                    <div class="btn-group" role="group">
-                        <?php foreach (['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'] as $q): ?>
-                            <a href="?quarter=<?php echo urlencode($q); ?>" class="btn btn-sm <?php echo $quarter === $q ? 'btn-primary' : 'btn-outline-secondary'; ?>" style="<?php echo $quarter === $q ? 'background-color:#1e4072; border-color:#1e4072;' : ''; ?>">
-                                <?php echo $q; ?>
-                            </a>
-                        <?php endforeach; ?>
-                    </div>
+                    <?php if ($activeTab === 'indicators'): ?>
+                        <select class="form-select form-select-sm" style="width:auto; min-width:160px;"
+                                onchange="window.location.href='?tab=indicators&quarter=' + encodeURIComponent(this.value)">
+                            <?php foreach (['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'] as $q): ?>
+                                <option value="<?php echo htmlspecialchars($q); ?>" <?php echo $quarter === $q ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($q); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    <?php else: ?>
+                        <div class="btn-group" role="group">
+                            <?php foreach (['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'] as $q): ?>
+                                <a href="?tab=<?php echo urlencode($activeTab); ?>&quarter=<?php echo urlencode($q); ?>" class="btn btn-sm <?php echo $quarter === $q ? 'btn-primary' : 'btn-outline-secondary'; ?>" style="<?php echo $quarter === $q ? 'background-color:#1e4072; border-color:#1e4072;' : ''; ?>">
+                                    <?php echo $q; ?>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 <div>
                     <span class="text-muted small">Academic Year: <strong><?php echo htmlspecialchars($student['school_year'] ?? 'Current'); ?></strong></span>
@@ -116,25 +109,53 @@ function getRatingDescription(string $code): string {
             </div>
         </div>
 
+        <!-- Page Tabs -->
+        <?php
+        $tabBase = $basePath . '/progress-reports/' . (int)$student['id'] . '?quarter=' . urlencode($quarter);
+        ?>
+        <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <a class="nav-link <?php echo $activeTab === 'report' ? 'active fw-bold' : ''; ?>" href="<?php echo $tabBase; ?>&tab=report" style="<?php echo $activeTab === 'report' ? 'color:#1e4072;' : ''; ?>">
+                    <i class="bi bi-file-earmark-text me-1"></i> Report Card
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?php echo $activeTab === 'indicators' ? 'active fw-bold' : ''; ?>" href="<?php echo $tabBase; ?>&tab=indicators" style="<?php echo $activeTab === 'indicators' ? 'color:#1e4072;' : ''; ?>">
+                    <i class="bi bi-list-check me-1"></i> SF9 Indicators
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?php echo $activeTab === 'transfer' ? 'active fw-bold' : ''; ?>" href="<?php echo $tabBase; ?>&tab=transfer" style="<?php echo $activeTab === 'transfer' ? 'color:#1e4072;' : ''; ?>">
+                    <i class="bi bi-arrow-right-square me-1"></i> Transfer & Cancellation
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="<?php echo $basePath; ?>/progress-reports/<?php echo (int)$student['id']; ?>/attendance">
+                    <i class="bi bi-calendar-check me-1"></i> Attendance Sheet
+                </a>
+            </li>
+        </ul>
+
         <!-- Tab Content Areas -->
         <?php if ($activeTab === 'report'): ?>
             <!-- SF9 REPORT CARD TAB -->
             <div class="card border-0 shadow-sm p-4 bg-white">
                 <!-- DepEd SF9 Heading Form Header -->
-                <div class="text-center mb-4">
-                    <h5 class="fw-bold mb-0" style="color: #a01422;">Republic of the Philippines</h5>
-                    <h5 class="fw-bold mb-0" style="color: #1e4072;">DEPARTMENT OF EDUCATION</h5>
-                    <h6 class="text-muted">REGION IV-A CALABARZON</h6>
-                    <h4 class="fw-bold mt-3 text-uppercase" style="color: #1e4072; letter-spacing: 1px;">SF9 NON-GRADED PROGRESS REPORT CARD</h4>
+                <div class="text-center mb-4 border-bottom pb-3">
+                    <h5 class="fw-bold mb-0 text-danger" style="font-size: 10pt;">Republic of the Philippines</h5>
+                    <h5 class="fw-bold mb-0 text-primary" style="font-size: 10pt;">DEPARTMENT OF EDUCATION</h5>
+                    <h6 class="text-muted small">Region XI - Davao City Division - Piedad District</h6>
+                    <h4 class="fw-bold mt-2 text-uppercase" style="color: #1e4072; letter-spacing: 1px; font-size: 14pt;">PIEDAD CENTRAL ELEMENTARY SCHOOL</h4>
+                    <h5 class="fw-bold mt-2 text-uppercase text-secondary" style="font-size: 11pt; letter-spacing: 0.5px;">Learner's Progress Report Card (SF9)</h5>
                 </div>
-
-                <hr class="border-secondary opacity-25">
 
                 <!-- Editable / Auto-filled Header Fields Form -->
                 <form method="POST" action="<?php echo $basePath; ?>/progress-reports/<?php echo (int)$student['id']; ?>">
                     <input type="hidden" name="quarter" value="<?php echo htmlspecialchars($quarter); ?>">
                     <input type="hidden" name="school_year" value="<?php echo htmlspecialchars($student['school_year'] ?? ''); ?>">
+                    <input type="hidden" name="active_tab" value="report">
 
+                    <!-- Student Info Grid -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label small fw-bold text-secondary">Name of Learner</label>
@@ -153,26 +174,31 @@ function getRatingDescription(string $code): string {
                             <input class="form-control bg-light" value="<?php echo htmlspecialchars($student['sex'] ?? ''); ?>" readonly>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label small fw-bold text-secondary">LRN</label>
-                            <input class="form-control bg-light" value="<?php echo htmlspecialchars($student['lrn']); ?>" readonly>
+                            <label class="form-label small fw-bold text-secondary">Student ID</label>
+                            <input class="form-control bg-light" value="<?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_id'] ?? null)); ?>" readonly>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-secondary">DepEd LRN</label>
+                            <input class="form-control bg-light" value="<?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?>" readonly>
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label small fw-bold text-secondary">Type of Learner (e.g. ASD, ADHD, ID)</label>
                             <input type="text" name="type_of_learner" class="form-control" value="<?php echo htmlspecialchars($progressReport['type_of_learner'] ?? ''); ?>" placeholder="Specify student category..." <?php echo $canEdit ? '' : 'readonly'; ?>>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-5">
                             <label class="form-label small fw-bold text-secondary">Assessment Type</label>
                             <select name="assessment_type" class="form-select" <?php echo $canEdit ? '' : 'disabled'; ?>>
-                                <option value="With Assessment" <?php echo ($progressReport['assessment_type'] ?? '') === 'With Assessment' ? 'selected' : ''; ?>>With Assessment</option>
-                                <option value="Without Assessment" <?php echo ($progressReport['assessment_type'] ?? '') === 'Without Assessment' ? 'selected' : ''; ?>>Without Assessment</option>
+                                <option value="With Assessment" <?php echo ($progressReport['assessment_type'] ?? 'With Assessment') === 'With Assessment' ? 'selected' : ''; ?>>With Assessment (with IEP)</option>
+                                <option value="Without Assessment" <?php echo ($progressReport['assessment_type'] ?? '') === 'Without Assessment' ? 'selected' : ''; ?>>Without Assessment (without IEP)</option>
                             </select>
                         </div>
                     </div>
 
-                    <div class="row g-4">
-                        <!-- Left Panel: Attendance Record -->
-                        <div class="col-lg-5">
-                            <h5 class="fw-bold mb-3" style="color: #1e4072;"><i class="bi bi-clock-history me-1"></i> Attendance Record</h5>
+                    <!-- Attendance Record Section & Remarks (Side-by-Side) -->
+                    <div class="row g-4 mb-4 align-items-start">
+                        <!-- Left Column: Attendance Record -->
+                        <div class="col-lg-6 col-md-12">
+                            <h5 class="fw-bold mb-3 text-center" style="color: #1e4072;"><i class="bi bi-clock-history me-1"></i> Attendance Record</h5>
                             <div class="table-responsive">
                                 <table class="table table-bordered table-sm align-middle text-center small">
                                     <thead class="table-light">
@@ -228,91 +254,82 @@ function getRatingDescription(string $code): string {
                             </div>
                         </div>
 
-                        <!-- Right Panel: Grading Domains Table & Rating Legend -->
-                        <div class="col-lg-7">
-                            <h5 class="fw-bold mb-3" style="color: #1e4072;"><i class="bi bi-award me-1"></i> Quarterly Domain Ratings</h5>
-                            <div class="table-responsive mb-4">
-                                <table class="table table-bordered align-middle text-center small">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th class="text-start">Learning Domain / Development Goal</th>
-                                            <th style="width: 120px;">Active Rating</th>
-                                            <th style="width: 120px;">Description</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($activeDomains as $dom): 
-                                            // If saved rating exists, use it
-                                            $ratingsArr = [];
-                                            if (!empty($progressReport['ratings'])) {
-                                                $ratingsArr = json_decode($progressReport['ratings'], true) ?: [];
-                                            }
-                                            $activeRating = $ratingsArr[$dom] ?? null;
-
-                                            // Fallback to calculation if draft
-                                            if (!$activeRating) {
-                                                $autoVal = $entriesMap[$dom]['auto'] ?? ($p7AvgMap[$dom] ?? null);
-                                                $manualVal = $entriesMap[$dom]['manual'] ?? null;
-                                                if ($autoVal !== null && $manualVal !== null) {
-                                                    $combined = ($autoVal + $manualVal) / 2;
-                                                } elseif ($autoVal !== null) {
-                                                    $combined = $autoVal;
-                                                } elseif ($manualVal !== null) {
-                                                    $combined = $manualVal;
-                                                } else {
-                                                    $combined = null;
-                                                }
-                                                $activeRating = getRatingCode($combined);
-                                            }
-                                        ?>
-                                            <tr>
-                                                <td class="text-start fw-semibold"><?php echo htmlspecialchars($dom); ?></td>
-                                                <td>
-                                                    <span class="badge px-3 py-1.5 fs-6 <?php 
-                                                        echo $activeRating === 'P' ? 'bg-success' : 
-                                                            ($activeRating === 'AP' ? 'bg-primary' : 
-                                                            ($activeRating === 'D' ? 'bg-warning text-dark' : 
-                                                            ($activeRating === 'B' ? 'bg-danger' : 'bg-secondary'))); 
-                                                    ?>">
-                                                        <?php echo $activeRating; ?>
-                                                    </span>
-                                                </td>
-                                                <td class="text-muted small"><?php echo getRatingDescription($activeRating); ?></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
+                        <!-- Right Column: Front Cover Preview (Signatures/Letters) -->
+                        <div class="col-lg-6 col-md-12">
+                            <?php
+                            $db = Database::getInstance()->getConnection();
+                            
+                            // Decode transfer details
+                            $transferDetails = [];
+                            if ($progressReport && !empty($progressReport['transfer_details'])) {
+                                $transferDetails = json_decode($progressReport['transfer_details'], true) ?: [];
+                            }
+                            $admittedTo = $transferDetails['admitted_to'] ?? 'NON-GRADED';
+                            $eligibleForAdmissionTo = $transferDetails['eligible_for_admission_to'] ?? 'NON-GRADED';
+                            $cancellationAdmittedIn = $transferDetails['cancellation_admitted_in'] ?? '';
+                            $cancellationDate = $transferDetails['cancellation_date'] ?? '';
+                            ?>
+                            
+                            <!-- Parents Letter Card -->
+                            <div class="card mb-3 border shadow-sm" style="font-family: Arial, sans-serif; font-size: 11pt; color: #000; background: #fff;">
+                                <div class="card-body p-3">
+                                    <p class="fw-bold mb-2">Dear Parents/Guardian,</p>
+                                    <p class="mb-2 text-justify" style="text-indent: 2em; line-height: 1.3;">
+                                        This report card is designed to show your child's progress in the different learning areas of development and character formation.
+                                    </p>
+                                    <p class="mb-0 text-justify" style="text-indent: 2em; line-height: 1.3;">
+                                        The school welcomes you to confer with the teacher / principal so that we may best understand your child's special educational needs.
+                                    </p>
+                                </div>
                             </div>
 
-                            <!-- Rating Legend Panel -->
-                            <div class="card bg-light border-0">
+                            <!-- Certificate to Transfer -->
+                            <div class="card mb-3 border shadow-sm" style="font-family: Arial, sans-serif; font-size: 11pt; color: #000; background: #fff;">
                                 <div class="card-body p-3">
-                                    <h6 class="fw-bold mb-2"><i class="bi bi-info-circle me-1"></i> Guide for Rating (Legend)</h6>
-                                    <div class="row g-2 small">
-                                        <div class="col-sm-6"><strong>P</strong> - Proficient (Always manifests skills)</div>
-                                        <div class="col-sm-6"><strong>AP</strong> - Approaching Proficiency (Most of the time)</div>
-                                        <div class="col-sm-6"><strong>D</strong> - Developing (Sometimes manifests skills)</div>
-                                        <div class="col-sm-6"><strong>B</strong> - Beginning (Rarely manifests skills)</div>
-                                        <div class="col-sm-12 border-top pt-1 mt-1"><strong>NO/NA</strong> - Not Observed / Not Applicable (No manifestation at all)</div>
+                                    <div class="fw-bold text-uppercase text-center text-decoration-underline mb-3" style="font-size: 12.5pt;">Certificate to Transfer</div>
+                                    <div class="mb-2">
+                                        <span class="fw-bold">Admitted to:</span>
+                                        <span class="border-bottom d-inline-block text-center px-2" style="min-width: 150px; border-color: #000 !important;"><?php echo htmlspecialchars($admittedTo); ?></span>
+                                    </div>
+                                    <div class="mb-0">
+                                        <span class="fw-bold">Eligible for Admission to:</span>
+                                        <span class="border-bottom d-inline-block text-center px-2" style="min-width: 150px; border-color: #000 !important;"><?php echo htmlspecialchars($eligibleForAdmissionTo); ?></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Cancellation of Eligibility to Transfer -->
+                            <div class="card border shadow-sm" style="font-family: Arial, sans-serif; font-size: 11pt; color: #000; background: #fff;">
+                                <div class="card-body p-3">
+                                    <div class="fw-bold text-uppercase text-center text-decoration-underline mb-3" style="font-size: 12.5pt;">Cancellation of Eligibility to Transfer</div>
+                                    <div class="row mb-0">
+                                        <div class="col-6">
+                                            <span class="fw-bold">Admitted in:</span>
+                                            <span class="border-bottom d-inline-block px-2 text-center" style="min-width: 100px; border-color: #000 !important;"><?php echo htmlspecialchars($cancellationAdmittedIn ?: '—'); ?></span>
+                                        </div>
+                                        <div class="col-6">
+                                            <span class="fw-bold">Date:</span>
+                                            <span class="border-bottom d-inline-block px-2 text-center" style="min-width: 100px; border-color: #000 !important;"><?php echo htmlspecialchars($cancellationDate ? date('F j, Y', strtotime($cancellationDate)) : '—'); ?></span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Main Remarks & Progress Narrative -->
-                    <div class="row g-3 mt-3">
+                    <!-- Main Remarks & Progress Narrative (Spread out side-by-side at the bottom) -->
+                    <div class="row g-3 mt-4 border-top pt-4">
                         <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary">General Progress Summary Narrative</label>
-                            <textarea name="progress_summary" class="form-control" rows="3" placeholder="Describe the learner's overall achievements and highlights..." <?php echo $canEdit ? '' : 'readonly'; ?>><?php echo htmlspecialchars($progressReport['progress_summary'] ?? ''); ?></textarea>
+                            <label class="form-label fw-bold text-secondary">General Progress Summary Narrative</label>
+                            <textarea name="progress_summary" class="form-control" rows="4" placeholder="Describe the learner's overall achievements and highlights..." <?php echo $canEdit ? '' : 'readonly'; ?>><?php echo htmlspecialchars($progressReport['progress_summary'] ?? ''); ?></textarea>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-bold text-secondary">Teacher's Remark</label>
-                            <textarea name="teacher_remarks" class="form-control" rows="3" placeholder="Add recommendations or support required..." <?php echo $canEdit ? '' : 'readonly'; ?>><?php echo htmlspecialchars($progressReport['teacher_remarks'] ?? ''); ?></textarea>
+                            <label class="form-label fw-bold text-secondary">Teacher's Remark</label>
+                            <textarea name="teacher_remarks" class="form-control" rows="4" placeholder="Add recommendations or support required..." <?php echo $canEdit ? '' : 'readonly'; ?>><?php echo htmlspecialchars($progressReport['teacher_remarks'] ?? ''); ?></textarea>
                         </div>
                     </div>
 
-                    <!-- Save / Update Button (Only for Teacher in draft mode) -->
+                    <!-- Save / Update Button -->
                     <div class="mt-4 text-end">
                         <?php if ($canEdit): ?>
                             <button type="submit" class="btn btn-primary px-4">
@@ -339,10 +356,7 @@ function getRatingDescription(string $code): string {
                                     <div class="card border-0 bg-light">
                                         <div class="card-body p-3">
                                             <h6 class="fw-bold mb-2 text-primary">Teacher's Section</h6>
-                                            <div class="mb-3">
-                                                <label class="form-label small">Quarter Remarks</label>
-                                                <textarea name="teacher_remark" class="form-control form-control-sm" rows="3" <?php echo ($isTeacher && $canEdit) ? '' : 'readonly'; ?>><?php echo htmlspecialchars($remarksMap[$quarter]['teacher']['text'] ?? ''); ?></textarea>
-                                            </div>
+                                            <input type="hidden" name="teacher_remark" value="<?php echo htmlspecialchars($remarksMap[$quarter]['teacher']['text'] ?? ''); ?>">
                                             <div>
                                                 <label class="form-label small">Teacher Signature Name</label>
                                                 <input type="text" name="teacher_signature" class="form-control form-control-sm" value="<?php echo htmlspecialchars($remarksMap[$quarter]['teacher']['signature'] ?? ''); ?>" <?php echo ($isTeacher && $canEdit) ? '' : 'readonly'; ?>>
@@ -415,28 +429,57 @@ function getRatingDescription(string $code): string {
                 <?php if ($progressReport): ?>
                     <div class="mt-5 pt-4 border-top">
                         <h5 class="fw-bold mb-3" style="color: #a01422;"><i class="bi bi-lock-fill me-1"></i> Finalize Progress Report</h5>
+
+                        <?php if (!empty($canPrintReportCard)): ?>
+                            <div class="mb-4">
+                                <p class="text-muted small mb-2">
+                                    After completing all inputs above (grades, attendance, remarks), print the official SF9 layout, have it signed, then optionally upload the signed copy before finalizing.
+                                </p>
+                                <a href="<?php echo $basePath; ?>/iep/print/report-card/<?php echo (int)$student['id']; ?>" target="_blank" rel="noopener" class="btn btn-outline-primary">
+                                    <i class="bi bi-printer me-1"></i> Print SF9 Report Card
+                                </a>
+                            </div>
+                        <?php endif; ?>
                         
                         <?php if ($progressReport['status'] !== 'finalized'): ?>
                             <div class="alert alert-warning py-3">
                                 <h6 class="fw-bold"><i class="bi bi-exclamation-triangle-fill me-1"></i> Warning</h6>
-                                Finalizing this report card will lock all numerical scores, attendance counts, and remarks. 
+                                Finalizing this report card will lock attendance counts, remarks, and SF9 indicator ratings. 
                                 Make sure to double check all inputs before finalization.
                             </div>
                             
                             <?php if ($isTeacher): ?>
-                                <form method="POST" action="<?php echo $basePath; ?>/progress-reports/<?php echo (int)$progressReport['id']; ?>/finalize" enctype="multipart/form-data">
-                                    <div class="row g-3 align-items-end">
-                                        <div class="col-md-6">
-                                            <label class="form-label small fw-bold">Upload Signed Document (Optional - PDF or Image)</label>
-                                            <input type="file" name="signed_document" class="form-control" accept=".pdf,image/*">
+                                <?php
+                                $hasParentSignature = false;
+                                if (!empty($remarksMap)) {
+                                    foreach ($remarksMap as $q => $types) {
+                                        if (isset($types['parent']) && (!empty($types['parent']['signature']) || !empty($types['parent']['signature_data']))) {
+                                            $hasParentSignature = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                ?>
+                                <?php if ($hasParentSignature): ?>
+                                    <form method="POST" action="<?php echo $basePath; ?>/progress-reports/<?php echo (int)$progressReport['id']; ?>/finalize" enctype="multipart/form-data">
+                                        <div class="row g-3 align-items-end">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-bold">Upload Signed Document (Optional - PDF or Image)</label>
+                                                <input type="file" name="signed_document" class="form-control" accept=".pdf,image/*">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <button type="submit" class="btn btn-success w-100" onclick="return confirm('Are you sure you want to finalize this progress report? This action cannot be undone.');">
+                                                    <i class="bi bi-check-circle-fill me-1"></i> Lock & Finalize Report Card
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div class="col-md-6">
-                                            <button type="submit" class="btn btn-success w-100" onclick="return confirm('Are you sure you want to finalize this progress report? This action cannot be undone.');">
-                                                <i class="bi bi-check-circle-fill me-1"></i> Lock & Finalize Report Card
-                                            </button>
-                                        </div>
+                                    </form>
+                                <?php else: ?>
+                                    <div class="alert alert-danger py-3 mb-0">
+                                        <h6 class="fw-bold"><i class="bi bi-x-circle-fill me-1"></i> Finalization Blocked</h6>
+                                        This progress report cannot be finalized because the parent/guardian has not signed it yet. The parent must log in to review the report card and sign using their designated signature pad first.
                                     </div>
-                                </form>
+                                <?php endif; ?>
                             <?php else: ?>
                                 <div class="text-muted small">Only the assigned SPED teacher can finalize the progress report.</div>
                             <?php endif; ?>
@@ -456,95 +499,85 @@ function getRatingDescription(string $code): string {
                             </div>
                         <?php endif; ?>
                     </div>
+                <?php else: ?>
+                    <div class="mt-5 pt-4 border-top">
+                        <div class="alert alert-info py-3 mb-0">
+                            <h6 class="fw-bold mb-1"><i class="bi bi-info-circle me-1"></i> Print &amp; Finalize</h6>
+                            <p class="mb-0 small">Complete and save the report card settings above first. The print and finalize options will appear here after saving.</p>
+                        </div>
+                    </div>
                 <?php endif; ?>
             </div>
-
-        <?php elseif ($activeTab === 'grades'): ?>
-            <!-- GRADES CONFIGURATION TAB -->
+        <?php elseif ($activeTab === 'transfer'): ?>
+            <!-- TRANSFER & CANCELLATION TAB -->
             <div class="card border-0 shadow-sm p-4 bg-white">
-                <h4 class="fw-bold mb-3" style="color: #1e4072;"><i class="bi bi-percent me-1"></i> Configure Ratings & F2F Scores</h4>
-                <p class="text-muted small">
-                    Auto-computed grades are calculated from graded LMS online activities. 
-                    You can input manual Face-to-Face class scores to average with the auto score.
-                </p>
+                <div class="text-center mb-4 border-bottom pb-3">
+                    <h4 class="fw-bold mt-2 text-uppercase" style="color: #1e4072; letter-spacing: 1px; font-size: 14pt;">Transfer & Cancellation Details</h4>
+                    <p class="text-muted small">Configure the Certificate to Transfer and Cancellation of Eligibility to Transfer section on the official SF9 report card.</p>
+                </div>
 
-                <form method="POST" action="<?php echo $basePath; ?>/progress-reports/<?php echo (int)$student['id']; ?>/grades">
+                <?php
+                // Decode the current transfer details
+                $transferDetails = [];
+                if ($progressReport && !empty($progressReport['transfer_details'])) {
+                    $transferDetails = json_decode($progressReport['transfer_details'], true) ?: [];
+                }
+                $admittedTo = $transferDetails['admitted_to'] ?? 'NON-GRADED';
+                $eligibleForAdmissionTo = $transferDetails['eligible_for_admission_to'] ?? 'NON-GRADED';
+                $cancellationAdmittedIn = $transferDetails['cancellation_admitted_in'] ?? '';
+                $cancellationDate = $transferDetails['cancellation_date'] ?? '';
+                ?>
+
+                <form method="POST" action="<?php echo $basePath; ?>/progress-reports/<?php echo (int)$student['id']; ?>">
                     <input type="hidden" name="quarter" value="<?php echo htmlspecialchars($quarter); ?>">
+                    <input type="hidden" name="school_year" value="<?php echo htmlspecialchars($student['school_year'] ?? ''); ?>">
+                    <input type="hidden" name="active_tab" value="transfer">
+                    
+                    <div class="row g-4">
+                        <!-- Left Column: Certificate to Transfer -->
+                        <div class="col-md-6 border-end pe-md-4">
+                            <h5 class="fw-bold mb-3" style="color: #1e4072;"><i class="bi bi-file-earmark-arrow-right me-1"></i> Certificate to Transfer</h5>
+                            
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-secondary">Admitted to</label>
+                                <input type="text" name="admitted_to" class="form-control" value="<?php echo htmlspecialchars($admittedTo); ?>" placeholder="e.g. NON-GRADED or Grade 1" <?php echo $canEdit ? '' : 'readonly'; ?>>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-secondary">Eligible for Admission to</label>
+                                <input type="text" name="eligible_for_admission_to" class="form-control" value="<?php echo htmlspecialchars($eligibleForAdmissionTo); ?>" placeholder="e.g. NON-GRADED or Grade 1" <?php echo $canEdit ? '' : 'readonly'; ?>>
+                            </div>
+                        </div>
 
-                    <div class="table-responsive mb-4">
-                        <table class="table table-bordered align-middle text-center">
-                            <thead class="table-light">
-                                <tr>
-                                    <th class="text-start">Learning Domain</th>
-                                    <th>Online Activity Average (LMS)</th>
-                                    <th>Face-to-Face Class Score (Manual)</th>
-                                    <th>Combined Score</th>
-                                    <th>Final Rating</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($activeDomains as $dom): 
-                                    $autoVal = $entriesMap[$dom]['auto'] ?? ($p7AvgMap[$dom] ?? null);
-                                    $manualVal = $entriesMap[$dom]['manual'] ?? null;
-                                ?>
-                                    <tr>
-                                        <td class="text-start fw-semibold"><?php echo htmlspecialchars($dom); ?></td>
-                                        <td>
-                                            <?php if ($autoVal !== null): ?>
-                                                <span class="fw-bold"><?php echo number_format($autoVal, 1); ?>%</span>
-                                                <input type="hidden" name="domains[<?php echo htmlspecialchars($dom); ?>][auto]" value="<?php echo $autoVal; ?>">
-                                            <?php else: ?>
-                                                <span class="text-muted">No online logs</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <?php if ($canEdit): ?>
-                                                <input type="number" step="0.01" min="0" max="100" name="domains[<?php echo htmlspecialchars($dom); ?>][manual]" class="form-control text-center py-1 mx-auto" style="max-width: 120px;" value="<?php echo $manualVal !== null ? number_format($manualVal, 2) : ''; ?>">
-                                            <?php else: ?>
-                                                <span class="fw-bold"><?php echo $manualVal !== null ? number_format($manualVal, 1) . '%' : 'N/A'; ?></span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <span class="fw-bold text-primary" id="combined-<?php echo strtolower(str_replace(' ', '-', $dom)); ?>">
-                                                <?php 
-                                                if ($autoVal !== null && $manualVal !== null) {
-                                                    echo number_format(($autoVal + $manualVal) / 2, 1) . '%';
-                                                } elseif ($autoVal !== null) {
-                                                    echo number_format($autoVal, 1) . '%';
-                                                } elseif ($manualVal !== null) {
-                                                    echo number_format($manualVal, 1) . '%';
-                                                } else {
-                                                    echo 'N/A';
-                                                }
-                                                ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span class="badge px-3 py-1.5 fs-6" id="rating-<?php echo strtolower(str_replace(' ', '-', $dom)); ?>">
-                                                <?php 
-                                                $combined = null;
-                                                if ($autoVal !== null && $manualVal !== null) $combined = ($autoVal + $manualVal) / 2;
-                                                elseif ($autoVal !== null) $combined = $autoVal;
-                                                elseif ($manualVal !== null) $combined = $manualVal;
-                                                echo getRatingCode($combined);
-                                                ?>
-                                            </span>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                        <!-- Right Column: Cancellation of Eligibility -->
+                        <div class="col-md-6 ps-md-4">
+                            <h5 class="fw-bold mb-3" style="color: #1e4072;"><i class="bi-x-square me-1"></i> Cancellation of Eligibility to Transfer</h5>
+                            
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-secondary">Admitted in (School Name)</label>
+                                <input type="text" name="cancellation_admitted_in" class="form-control" value="<?php echo htmlspecialchars($cancellationAdmittedIn); ?>" placeholder="e.g. PIEDAD CENTRAL ELEMENTARY SCHOOL" <?php echo $canEdit ? '' : 'readonly'; ?>>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-secondary">Date</label>
+                                <input type="date" name="cancellation_date" class="form-control" value="<?php echo htmlspecialchars($cancellationDate); ?>" <?php echo $canEdit ? '' : 'readonly'; ?>>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="text-end">
+                    <!-- Save Button -->
+                    <div class="mt-4 text-end border-top pt-3">
                         <?php if ($canEdit): ?>
                             <button type="submit" class="btn btn-primary px-4">
-                                <i class="bi bi-save me-1"></i> Save Numerical Scores
+                                <i class="bi bi-save me-1"></i> Save Transfer Details
                             </button>
                         <?php endif; ?>
                     </div>
                 </form>
             </div>
+
+        <?php elseif ($activeTab === 'indicators'): ?>
+            <?php require __DIR__ . '/_tab_indicators.php'; ?>
 
         <?php endif; ?>
     </div>

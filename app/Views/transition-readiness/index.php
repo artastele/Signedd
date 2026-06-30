@@ -18,7 +18,7 @@ $isFinalized = (!empty($readiness['status']) && $readiness['status'] === 'finali
                 <h1 class="mb-1" style="color:#1e4072; font-weight:700;">
                     <i class="bi bi-clipboard2-check me-2"></i>Transition Readiness
                 </h1>
-                <p class="text-muted mb-0">Process 10 — Preparedness & Goal Evaluations</p>
+                <p class="text-muted mb-0">Part 4 — Preparedness & Goal Evaluations</p>
             </div>
             <div>
                 <a href="<?= $basePath ?>/iep" class="btn btn-outline-secondary">
@@ -119,8 +119,13 @@ $isFinalized = (!empty($readiness['status']) && $readiness['status'] === 'finali
                                             <span class="text-muted">Status:</span>
                                             <span class="badge bg-success">Finalized</span>
                                         </div>
-                                        <div class="mt-2 text-muted-hover text-wrap" style="font-size:0.85rem; line-height: 1.4;">
+                                        <div class="mt-2 text-muted-hover text-wrap" style="font-size:0.85rem; line-height: 1.4; border-bottom: 1px solid #dee2e6; padding-bottom: 8px;">
                                             <strong>Remarks:</strong> <?= htmlspecialchars($progressReport['teacher_remarks'] ?? 'No remarks provided.') ?>
+                                        </div>
+                                        <div class="mt-3 text-center">
+                                            <a href="<?= $basePath ?>/iep/print/report-card/<?= intval($iep['student_id']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger w-100" style="font-weight: 600; border-radius: 6px;">
+                                                <i class="bi bi-file-earmark-pdf me-1"></i> View SF9 Report Card
+                                            </a>
                                         </div>
                                     </div>
                                 </div>
@@ -181,19 +186,7 @@ $isFinalized = (!empty($readiness['status']) && $readiness['status'] === 'finali
                             </select>
                         </div>
 
-                        <div class="col-12">
-                            <label for="evidence_summary" class="form-label small font-weight-bold text-muted text-uppercase">Evidence Summary</label>
-                            <textarea id="evidence_summary" name="evidence_summary" class="form-control border-2" style="border-radius: 8px;" rows="4" 
-                                      placeholder="Synthesize the evidence from the LMS, grades, progress reports, and classroom observations..." 
-                                      <?= $isFinalized ? 'readonly' : '' ?>><?= htmlspecialchars($readiness['evidence_summary'] ?? '') ?></textarea>
-                        </div>
 
-                        <div class="col-12">
-                            <label for="teacher_recommendation" class="form-label small font-weight-bold text-muted text-uppercase">Teacher Recommendation Details</label>
-                            <textarea id="teacher_recommendation" name="teacher_recommendation" class="form-control border-2" style="border-radius: 8px;" rows="3" 
-                                      placeholder="Provide the teacher's formal recommendation for functional transition path..." 
-                                      <?= $isFinalized ? 'readonly' : '' ?>><?= htmlspecialchars($readiness['teacher_recommendation'] ?? '') ?></textarea>
-                        </div>
 
                         <div class="col-12">
                             <label for="overall_remarks" class="form-label small font-weight-bold text-muted text-uppercase">Overall Remarks / Notes</label>

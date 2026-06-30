@@ -125,14 +125,14 @@ require_once __DIR__ . '/../layouts/header.php';
                             <i class="bi bi-search"></i> Find Returning Student
                         </a>
                         <small class="text-muted d-block mt-2">
-                            Search by LRN or name to auto-fill data
+                            Search by DepEd LRN or name to auto-fill data
                         </small>
                     <?php else: ?>
                         <a href="<?php echo $basePath; ?>/enrollment/returning-lookup" class="btn btn-success w-100">
                             <i class="bi bi-search"></i> Find Returning Student
                         </a>
                         <small class="text-muted d-block mt-2">
-                            Search by LRN or name to auto-fill data
+                            Search by DepEd LRN or name to auto-fill data
                         </small>
                     <?php endif; ?>
                 </div>

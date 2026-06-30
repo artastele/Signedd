@@ -6,14 +6,14 @@
                 <i class="bi bi-person-fill"></i> Step 1: Learner Information
             </h4>
             
-            <!-- Learner Reference Number -->
+            <!-- DepEd LRN (optional) -->
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="lrn" class="form-label">Learner Reference Number (LRN)</label>
+                    <label for="lrn" class="form-label">DepEd LRN (optional — assigned by DepEd LIS)</label>
                     <input type="text" class="form-control" id="lrn" name="lrn" 
-                           value="<?php echo htmlspecialchars(getFormValue('lrn')); ?>"
+                           value="<?php echo htmlspecialchars(StudentDisplayHelper::lrnFieldValue(getFormValue('lrn'))); ?>"
                            placeholder="12-digit LRN" maxlength="12">
-                    <div class="form-text">Leave blank if not yet assigned</div>
+                    <div class="form-text">Leave blank if not yet assigned by DepEd</div>
                 </div>
             </div>
 

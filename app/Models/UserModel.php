@@ -170,6 +170,9 @@ class UserModel {
     public function generateOTP($userId) {
         $otp = str_pad(rand(100000, 999999), 6, '0', STR_PAD_LEFT);
         $expires = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+        
+        // Log OTP to error_log for easy developer retrieval in local testing
+        error_log("OTP generated for User ID $userId: $otp");
 
         $stmt = $this->db->prepare("
             UPDATE users

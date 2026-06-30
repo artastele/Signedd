@@ -26,7 +26,7 @@ class ITPController {
         $this->model = new TransitionWorkflowModel();
     }
 
-    public function index(string $iepId): void {
+    public function index(string $iepId = ''): void {
         $iepId = (int) $iepId;
         $ctx = $this->model->getIepContext($iepId);
         $workflow = $this->model->getWorkflow($iepId);
@@ -48,7 +48,16 @@ class ITPController {
 
         // RBAC check
         if ($itp && $itp['status'] === 'finalized') {
-            RoleMiddleware::check('itp.view');
+            if ($this->userRole === 'parent' && RoleMiddleware::hasPermission('itp.view_own_child')) {
+                $studentParentId = $this->model->getParentIdForStudent((int)$ctx['student_id']);
+                if ((int)$studentParentId === $this->userId) {
+                    // Linked parent can view their child's finalized ITP
+                } else {
+                    RoleMiddleware::check('itp.view');
+                }
+            } else {
+                RoleMiddleware::check('itp.view');
+            }
         } else {
             if (!in_array($this->userRole, ['sped_teacher', 'master_teacher', 'admin'], true)) {
                 $_SESSION['error'] = 'You do not have permission to view or edit this ITP draft.';
@@ -81,9 +90,9 @@ class ITPController {
                 $canSignAsParent = ($isAssignedParent || $isLinkedParent);
             }
 
-            // Find incomplete transition team members
+            // Find incomplete transition team members (only those actually assigned to a user)
             foreach ($teamMembers as $m) {
-                if ($m['status'] === 'pending') {
+                if ($m['assigned_user_id'] !== null && $m['status'] === 'pending') {
                     $incompleteMembers[] = $m;
                 }
             }
@@ -183,8 +192,9 @@ class ITPController {
 
         $learnerInfo = [
             'student_name' => trim($_POST['student_name'] ?? ''),
+            'student_id' => trim($_POST['student_id'] ?? ($ctx['student_id_code'] ?? '')),
             'date_of_birth' => trim($_POST['date_of_birth'] ?? ''),
-            'lrn' => trim($_POST['lrn'] ?? ''),
+            'lrn' => trim($_POST['lrn'] ?? '') ?: null,
             'father_name' => trim($_POST['father_name'] ?? ''),
             'mother_name' => trim($_POST['mother_name'] ?? ''),
             'level_of_education' => trim($_POST['level_of_education'] ?? ''),
@@ -274,25 +284,43 @@ class ITPController {
                     // Create system notification
                     require_once __DIR__ . '/../Models/NotificationModel.php';
                     $notifModel = new NotificationModel();
-                    $notifTitle = 'Transition Team Assignment';
-                    $notifMsg = "You have been added to {$ctx['student_name']}'s Transition Team as " . ucwords(str_replace('_', ' ', $role)) . ". Please fill in your information.";
-                    $notifModel->create($assignedUserId, 'iep', $notifTitle, $notifMsg, ['itp_member_id' => $memberId]);
+                    
+                    if ($role === 'parent_guardian' || $role === 'learner') {
+                        $notifTitle = 'Transition Team Member';
+                        $notifMsg = "You have been added to {$ctx['student_name']}'s Transition Team as " . ucwords(str_replace('_', ' ', $role)) . ".";
+                        $notifModel->create($assignedUserId, 'iep', $notifTitle, $notifMsg, ['iep_id' => $iepId]);
 
-                    // Send email
-                    require_once __DIR__ . '/../Helpers/MailHelper.php';
-                    $appUrl = getenv('APP_URL') ?: 'http://localhost';
-                    $link = $appUrl . $this->basePath . '/itp-team/edit/' . $memberId;
-                    $subject = 'Transition Team Invitation - SPED LMS';
-                    $htmlBody = "
-                        <h2>Transition Team Invitation</h2>
-                        <p>Hello <strong>{$user['name']}</strong>,</p>
-                        <p>You have been assigned to the role of <strong>" . ucwords(str_replace('_', ' ', $role)) . "</strong> on the Transition Team for student <strong>{$ctx['student_name']}</strong>.</p>
-                        <p>Please log in and update your name, contact details, and status for this Individual Transition Plan (ITP) record using the link below:</p>
-                        <p><a href='{$link}' style='background:#a01422;color:white;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;'>Fill Team Member Information</a></p>
-                        <p>If the button doesn't work, copy and paste this URL into your browser:</p>
-                        <p>{$link}</p>
-                    ";
-                    MailHelper::sendNotification($user['email'], $user['name'], $subject, $htmlBody);
+                        // Send simple welcome email
+                        require_once __DIR__ . '/../Helpers/MailHelper.php';
+                        $subject = 'Transition Team Assignment - SPED LMS';
+                        $htmlBody = "
+                            <h2>Transition Team Assignment</h2>
+                            <p>Hello <strong>{$user['name']}</strong>,</p>
+                            <p>You have been assigned to the role of <strong>" . ucwords(str_replace('_', ' ', $role)) . "</strong> on the Transition Team for student <strong>{$ctx['student_name']}</strong>.</p>
+                            <p>No further action is required from you for this step as your information has been automatically linked.</p>
+                        ";
+                        MailHelper::sendNotification($user['email'], $user['name'], $subject, $htmlBody);
+                    } else {
+                        $notifTitle = 'Transition Team Assignment';
+                        $notifMsg = "You have been added to {$ctx['student_name']}'s Transition Team as " . ucwords(str_replace('_', ' ', $role)) . ". Please fill in your information.";
+                        $notifModel->create($assignedUserId, 'iep', $notifTitle, $notifMsg, ['itp_member_id' => $memberId]);
+
+                        // Send email
+                        require_once __DIR__ . '/../Helpers/MailHelper.php';
+                        $appUrl = getenv('APP_URL') ?: 'http://localhost';
+                        $link = $appUrl . $this->basePath . '/itp-team/edit/' . $memberId;
+                        $subject = 'Transition Team Invitation - SPED LMS';
+                        $htmlBody = "
+                            <h2>Transition Team Invitation</h2>
+                            <p>Hello <strong>{$user['name']}</strong>,</p>
+                            <p>You have been assigned to the role of <strong>" . ucwords(str_replace('_', ' ', $role)) . "</strong> on the Transition Team for student <strong>{$ctx['student_name']}</strong>.</p>
+                            <p>Please log in and update your name, contact details, and status for this Individual Transition Plan (ITP) record using the link below:</p>
+                            <p><a href='{$link}' style='background:#a01422;color:white;padding:10px 20px;text-decoration:none;border-radius:4px;display:inline-block;'>Fill Team Member Information</a></p>
+                            <p>If the button doesn't work, copy and paste this URL into your browser:</p>
+                            <p>{$link}</p>
+                        ";
+                        MailHelper::sendNotification($user['email'], $user['name'], $subject, $htmlBody);
+                    }
                 }
             }
         }
@@ -686,13 +714,7 @@ class ITPController {
             exit;
         }
 
-        // Hard gate: check parent signature
-        $parentSignature = $this->model->getParentSignature((int)$itp['id']);
-        if (!$parentSignature) {
-            $_SESSION['error'] = 'Parent/Guardian signature is required before finalization.';
-            header('Location: ' . $this->basePath . '/iep/' . $iepId . '/individual-transition-plan');
-            exit;
-        }
+        // Parent signature is optional/non-blocking for finalization
 
         // Finalize
         $this->model->finalizeItp((int)$itp['id']);

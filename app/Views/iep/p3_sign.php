@@ -29,6 +29,9 @@ $currentRole = $_SESSION['role'] ?? '';
 $mySignerRole = in_array($currentRole, array_keys($requiredSigners)) ? $currentRole : null;
 $alreadySigned = $mySignerRole && !empty($sigMap[$mySignerRole]['signature_data']);
 $isComplete = ($p3Data['status'] ?? '') === 'signed_approved';
+require_once __DIR__ . '/../../Models/StudentModel.php';
+$p3SignStudentRec = (new StudentModel())->findById((int)($p3Data['student_id'] ?? 0));
+$p3SignStudentCode = $p3SignStudentRec['student_id'] ?? null;
 ?>
 
 <div class="main-content">
@@ -56,7 +59,8 @@ $isComplete = ($p3Data['status'] ?? '') === 'signed_approved';
                 <div class="col-md-4">
                     <small class="text-muted d-block">Student</small>
                     <strong><?php echo htmlspecialchars($p3Data['student_name'] ?? 'N/A'); ?></strong>
-                    <small class="text-muted d-block">LRN: <?php echo htmlspecialchars($p3Data['lrn'] ?? 'N/A'); ?></small>
+                    <small class="text-muted d-block">Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($p3SignStudentCode)); ?></small>
+                    <small class="text-muted d-block">DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($p3Data['lrn'] ?? null)); ?></small>
                 </div>
                 <div class="col-md-4">
                     <small class="text-muted d-block">Created</small>
@@ -86,7 +90,8 @@ $isComplete = ($p3Data['status'] ?? '') === 'signed_approved';
             $sections = [
                 'Section 1: Student Information' => [
                     'Student Name'   => $iepData['student_name'] ?? null,
-                    'LRN'            => $iepData['lrn'] ?? null,
+                    'Student ID'     => $iepData['student_id'] ?? null,
+                    'DepEd LRN'      => $iepData['lrn'] ?? null,
                     'Grade Level'    => $iepData['grade_level'] ?? null,
                     'School Year'    => $iepData['school_year'] ?? null,
                 ],

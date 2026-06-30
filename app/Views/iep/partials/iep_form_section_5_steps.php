@@ -45,8 +45,20 @@ $wsUrl = $basePath . '/iep/implementation/workspace/' . (int) $iep['id'];
                             <td>
                                 <?php if ($readOnly): ?>
                                     <div><?= nl2br(htmlspecialchars($objective)) ?></div>
+                                    <?php if (!empty($st['pdsp_indicator_text'])): ?>
+                                        <div class="mt-1"><span class="badge bg-secondary" style="font-size:0.75rem;">Targeted PDSP Skill: <?= htmlspecialchars($st['pdsp_indicator_text']) ?></span></div>
+                                    <?php endif; ?>
                                 <?php else: ?>
                                     <textarea class="form-control form-control-sm step-objective" rows="2" name="step_objective[]" placeholder="Enabling objective"><?= htmlspecialchars($objective) ?></textarea>
+                                    <div class="mt-2">
+                                        <label class="small text-muted mb-1 d-block" style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Targeted PDSP Skill (Optional)</label>
+                                        <select class="form-select form-select-sm step-pdsp-indicator" style="font-size:0.8rem;">
+                                            <option value="">-- No linked skill --</option>
+                                            <?php foreach ($availableIndicators ?? [] as $ind): ?>
+                                                <option value="<?= htmlspecialchars($ind) ?>" <?= ($st['pdsp_indicator_text'] ?? '') === $ind ? 'selected' : '' ?>><?= htmlspecialchars($ind) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
                                 <?php endif; ?>
                             </td>
                             <td>
@@ -249,9 +261,16 @@ $wsUrl = $basePath . '/iep/implementation/workspace/' . (int) $iep['id'];
     </div>
 </div>
 
+<?php
+$optionsHtml = '<option value="">-- No linked skill --</option>';
+foreach ($availableIndicators ?? [] as $ind) {
+    $optionsHtml .= '<option value="' . htmlspecialchars($ind, ENT_QUOTES) . '">' . htmlspecialchars($ind, ENT_QUOTES) . '</option>';
+}
+?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 (function(){
+    var availableIndicatorsOptionsHtml = <?= json_encode($optionsHtml) ?>;
     if (typeof bootstrap === 'undefined') {
         console.error('IEP Section 5: Bootstrap JS not loaded; step buttons will not work.');
         return;
@@ -357,7 +376,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         return '';
                     }
                     return ta.value || '';
-                })()
+                })(),
+                pdsp_indicator_text: tr.querySelector('.step-pdsp-indicator') ? tr.querySelector('.step-pdsp-indicator').value : ''
             });
         });
         return out;
@@ -498,7 +518,13 @@ document.addEventListener('DOMContentLoaded', function () {
             tr.style.backgroundColor = (tbody.querySelectorAll('tr').length % 2 === 0) ? '#f9f9f9' : '#fff';
             tr.innerHTML =
                 '<td class="text-center step-num-cell"></td>'+
-                '<td><textarea class="form-control form-control-sm step-objective" rows="2" name="step_objective[]" placeholder="Enabling objective"></textarea></td>'+
+                '<td><textarea class="form-control form-control-sm step-objective" rows="2" name="step_objective[]" placeholder="Enabling objective"></textarea>'+
+                '<div class="mt-2">'+
+                '  <label class="small text-muted mb-1 d-block" style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Targeted PDSP Skill (Optional)</label>'+
+                '  <select class="form-select form-select-sm step-pdsp-indicator" style="font-size:0.8rem;">'+
+                availableIndicatorsOptionsHtml+
+                '  </select>'+
+                '</div></td>'+
                 '<td><div class="small text-muted mb-1 p-2 rounded" style="background:#f9f9f9;border-left:3px solid #1e4072;">Available after implementation begins</div>'+
                 '<textarea class="form-control form-control-sm step-observation d-none" rows="1" readonly aria-hidden="true"></textarea></td>'+
                 '<td class="small"><ul class="list-unstyled mb-1 lp-list"></ul>'+

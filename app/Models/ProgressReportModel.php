@@ -38,7 +38,8 @@ class ProgressReportModel {
 
             "ALTER TABLE progress_reports 
                 ADD COLUMN IF NOT EXISTS document_path VARCHAR(255) NULL AFTER status,
-                ADD COLUMN IF NOT EXISTS finalized_at DATETIME NULL AFTER document_path",
+                ADD COLUMN IF NOT EXISTS finalized_at DATETIME NULL AFTER document_path,
+                ADD COLUMN IF NOT EXISTS transfer_details TEXT NULL AFTER finalized_at",
 
             "CREATE TABLE IF NOT EXISTS grade_entries (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -197,6 +198,7 @@ class ProgressReportModel {
             'teacher_remarks' => $data['teacher_remarks'] ?? null,
             'ratings' => json_encode($data['ratings'] ?? []),
             'status' => $data['status'] ?? 'draft',
+            'transfer_details' => $data['transfer_details'] ?? null,
         ];
 
         if ($existing) {
@@ -212,6 +214,7 @@ class ProgressReportModel {
                     teacher_remarks = :teacher_remarks,
                     ratings = :ratings,
                     status = :status,
+                    transfer_details = :transfer_details,
                     updated_at = NOW()
                  WHERE id = :id"
             );
@@ -221,9 +224,9 @@ class ProgressReportModel {
 
         $stmt = $this->db->prepare(
             "INSERT INTO progress_reports
-                (student_id, iep_record_id, created_by, school_year, quarter, attendance_summary, progress_summary, teacher_remarks, ratings, status)
+                (student_id, iep_record_id, created_by, school_year, quarter, attendance_summary, progress_summary, teacher_remarks, ratings, status, transfer_details)
              VALUES
-                (:student_id, :iep_record_id, :created_by, :school_year, :quarter, :attendance_summary, :progress_summary, :teacher_remarks, :ratings, :status)"
+                (:student_id, :iep_record_id, :created_by, :school_year, :quarter, :attendance_summary, :progress_summary, :teacher_remarks, :ratings, :status, :transfer_details)"
         );
         $stmt->execute($payload);
         return (int) $this->db->lastInsertId();
@@ -443,7 +446,50 @@ class ProgressReportModel {
             ORDER BY lp.pdsp_domain ASC
         ");
         $stmt->execute(['student_id' => $studentId, 'student_id2' => $studentId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $activeDomains = $this->getActiveDomains();
+        $mapped = [];
+        foreach ($rows as $row) {
+            $mappedDomain = $this->mapDbDomainToDisplay($row['domain'], $activeDomains);
+            $mapped[] = [
+                'domain' => $mappedDomain,
+                'avg_score' => $row['avg_score']
+            ];
+        }
+        return $mapped;
+    }
+
+    private function mapDbDomainToDisplay(string $dbDomain, array $activeDomains): string {
+        $normDb = preg_replace('/[^a-z]/', '', strtolower($dbDomain));
+        
+        foreach ($activeDomains as $actDom) {
+            $normAct = preg_replace('/[^a-z]/', '', strtolower($actDom));
+            if ($normDb === 'perceptuocognitive' && $normAct === 'academic') {
+                return $actDom;
+            }
+            if ($normDb === 'psychosocial' && $normAct === 'behavior') {
+                return $actDom;
+            }
+            if ($normDb === 'socioemotional' && $normAct === 'socialemotional') {
+                return $actDom;
+            }
+            if ($normDb === 'communicationlanguage' && $normAct === 'communication') {
+                return $actDom;
+            }
+            if ($normDb === $normAct) {
+                return $actDom;
+            }
+        }
+        
+        if ($normDb === 'perceptuocognitive') return 'Perceptuo-Cognitive';
+        if ($normDb === 'psychosocial') return 'Psychosocial';
+        if ($normDb === 'socioemotional') return 'Socio-Emotional';
+        if ($normDb === 'psychomotor') return 'Psychomotor';
+        if ($normDb === 'dailylivingskills') return 'Daily Living Skills';
+        if ($normDb === 'communicationlanguage') return 'Communication and Language';
+        
+        return $dbDomain;
     }
 
     public function getActiveDomains(): array {
@@ -532,6 +578,7 @@ class ProgressReportModel {
         $header = null;
         $dayIndexes = [];
         $lrnIndex = null;
+        $studentIdIndex = null;
         $nameIndex = null;
         $targetRow = null;
 
@@ -545,6 +592,9 @@ class ProgressReportModel {
 
                 foreach ($candidate as $idx => $label) {
                     $normalized = strtolower(trim($label));
+                    if ($studentIdIndex === null && (strpos($normalized, 'student id') !== false || $normalized === 'student_id')) {
+                        $studentIdIndex = $idx;
+                    }
                     if ($lrnIndex === null && strpos($normalized, 'lrn') !== false) {
                         $lrnIndex = $idx;
                     }
@@ -562,12 +612,14 @@ class ProgressReportModel {
                 continue;
             }
 
+            $rowStudentId = $studentIdIndex !== null ? trim((string)($row[$studentIdIndex] ?? '')) : '';
             $rowLrn = $lrnIndex !== null ? trim((string)($row[$lrnIndex] ?? '')) : '';
             $rowName = $nameIndex !== null ? trim((string)($row[$nameIndex] ?? '')) : '';
-            $matchesLrn = $rowLrn !== '' && $rowLrn === (string)$student['lrn'];
+            $matchesStudentId = $rowStudentId !== '' && $rowStudentId === (string)($student['student_id'] ?? '');
+            $matchesLrn = $rowLrn !== '' && !empty($student['lrn']) && $rowLrn === (string)$student['lrn'];
             $matchesName = $rowName !== '' && strcasecmp($rowName, (string)$student['student_name']) === 0;
 
-            if ($matchesLrn || $matchesName || ($lrnIndex === null && $nameIndex === null && $targetRow === null)) {
+            if ($matchesStudentId || $matchesLrn || $matchesName || ($studentIdIndex === null && $lrnIndex === null && $nameIndex === null && $targetRow === null)) {
                 $targetRow = $row;
                 break;
             }
@@ -578,7 +630,7 @@ class ProgressReportModel {
             return ['imported' => 0, 'skipped' => 0, 'errors' => ['Could not find SF2 day columns in the CSV header. Use columns named 1 through 31 or Day 1 through Day 31.']];
         }
         if ($targetRow === null) {
-            return ['imported' => 0, 'skipped' => 0, 'errors' => ['No row matched this learner by LRN or learner name.']];
+            return ['imported' => 0, 'skipped' => 0, 'errors' => ['No row matched this learner by Student ID, DepEd LRN, or learner name.']];
         }
 
         $imported = 0;
@@ -654,5 +706,178 @@ class ProgressReportModel {
             WHERE sr.id = :student_id
         ");
         return $stmt->execute(['age' => $age, 'student_id' => $studentId]);
+    }
+
+    public function getPdspRecordIdForStudent(int $studentId): ?int {
+        $stmt = $this->db->prepare(
+            "SELECT id FROM pdsp_records WHERE student_id = :sid AND status IN ('signed', 'complete') LIMIT 1"
+        );
+        $stmt->execute(['sid' => $studentId]);
+        $id = $stmt->fetchColumn();
+        if ($id) {
+            return (int) $id;
+        }
+
+        $stmt = $this->db->prepare("SELECT id FROM pdsp_records WHERE student_id = :sid LIMIT 1");
+        $stmt->execute(['sid' => $studentId]);
+        $id = $stmt->fetchColumn();
+        return $id ? (int) $id : null;
+    }
+
+    public function getSf9Indicators(): array {
+        $path = dirname(__DIR__, 2) . '/config/sf9_indicators.php';
+        if (!file_exists($path)) {
+            return [];
+        }
+        return require $path;
+    }
+
+    public function ensureQuarterlyRatingsSeeded(int $studentId, int $pdspRecordId): void {
+        $sf9Indicators = $this->getSf9Indicators();
+        if (empty($sf9Indicators)) {
+            return;
+        }
+
+        $ins = $this->db->prepare("
+            INSERT INTO student_quarterly_ratings
+                (student_id, pdsp_record_id, domain, indicator_text, quarter, rating, source)
+            SELECT :student_id, :pdsp_id, :domain, :indicator_text, :quarter, NULL, 'manual'
+            WHERE NOT EXISTS (
+                SELECT 1 FROM student_quarterly_ratings
+                WHERE student_id = :student_id2
+                  AND pdsp_record_id = :pdsp_id2
+                  AND indicator_text = :indicator_text2
+                  AND quarter = :quarter2
+            )
+        ");
+
+        foreach ($sf9Indicators as $domain => $indicators) {
+            foreach ($indicators as $indicatorText) {
+                $indicatorText = trim($indicatorText);
+                if ($indicatorText === '') {
+                    continue;
+                }
+                for ($q = 1; $q <= 4; $q++) {
+                    $ins->execute([
+                        'student_id'      => $studentId,
+                        'pdsp_id'         => $pdspRecordId,
+                        'domain'          => $domain,
+                        'indicator_text'  => $indicatorText,
+                        'quarter'         => $q,
+                        'student_id2'     => $studentId,
+                        'pdsp_id2'        => $pdspRecordId,
+                        'indicator_text2' => $indicatorText,
+                        'quarter2'        => $q,
+                    ]);
+                }
+            }
+        }
+    }
+
+    public function getQuarterlyRatingsMap(int $studentId, ?int $pdspRecordId): array {
+        if (!$pdspRecordId) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT indicator_text, quarter, rating
+            FROM student_quarterly_ratings
+            WHERE student_id = :sid AND pdsp_record_id = :pid
+        ");
+        $stmt->execute(['sid' => $studentId, 'pid' => $pdspRecordId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $map = [];
+        foreach ($rows as $row) {
+            $ind = $row['indicator_text'];
+            $q = (int) $row['quarter'];
+            if (!isset($map[$ind])) {
+                $map[$ind] = [1 => null, 2 => null, 3 => null, 4 => null];
+            }
+            $map[$ind][$q] = $row['rating'];
+        }
+        return $map;
+    }
+
+    public function saveQuarterlyRatings(int $studentId, int $pdspRecordId, array $ratingsByDomain): bool {
+        $allowed = ['P', 'AP', 'D', 'B', 'NA', ''];
+
+        $upsert = $this->db->prepare("
+            INSERT INTO student_quarterly_ratings
+                (student_id, pdsp_record_id, domain, indicator_text, quarter, rating, source)
+            VALUES (:sid, :pid, :domain, :ind, :q, :rating, 'manual')
+            ON DUPLICATE KEY UPDATE
+                rating = VALUES(rating),
+                source = 'manual',
+                updated_at = NOW()
+        ");
+
+        foreach ($ratingsByDomain as $domain => $indicators) {
+            if (!is_array($indicators)) {
+                continue;
+            }
+            foreach ($indicators as $indicatorText => $quarters) {
+                if (!is_array($quarters)) {
+                    continue;
+                }
+                $indicatorText = trim((string) $indicatorText);
+                if ($indicatorText === '') {
+                    continue;
+                }
+                foreach ($quarters as $q => $rating) {
+                    $qNum = (int) $q;
+                    if ($qNum < 1 || $qNum > 4) {
+                        continue;
+                    }
+                    $rating = strtoupper(trim((string) $rating));
+                    if (!in_array($rating, $allowed, true)) {
+                        continue;
+                    }
+                    $upsert->execute([
+                        'sid'    => $studentId,
+                        'pid'    => $pdspRecordId,
+                        'domain' => $domain,
+                        'ind'    => $indicatorText,
+                        'q'      => $qNum,
+                        'rating' => $rating === '' ? null : $rating,
+                    ]);
+                }
+            }
+        }
+
+        return true;
+    }
+
+    public function getQuarterlyRatings(int $studentId, int $pdspRecordId): array {
+        $stmt = $this->db->prepare("
+            SELECT domain, indicator_text, quarter, rating, observation 
+            FROM student_quarterly_ratings 
+            WHERE student_id = :sid AND pdsp_record_id = :pid
+            ORDER BY domain ASC, id ASC
+        ");
+        $stmt->execute(['sid' => $studentId, 'pid' => $pdspRecordId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getIepSignatories(int $iepId): array {
+        $stmt = $this->db->prepare("
+            SELECT signatory_role, signatory_name, signature_image_path, signed_at 
+            FROM iep_signatories 
+            WHERE iep_id = :iep_id
+        ");
+        $stmt->execute(['iep_id' => $iepId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getDraftingSpedTeacherName(int $userId): string {
+        $stmt = $this->db->prepare("SELECT name FROM users WHERE id = :uid LIMIT 1");
+        $stmt->execute(['uid' => $userId]);
+        return $stmt->fetchColumn() ?: '—';
+    }
+
+    public function getActivePrincipalName(): string {
+        $stmt = $this->db->prepare("SELECT name FROM users WHERE role = 'principal' AND status = 'active' ORDER BY id ASC LIMIT 1");
+        $stmt->execute();
+        return $stmt->fetchColumn() ?: 'DAISY LYN A. BUENAFE';
     }
 }

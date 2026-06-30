@@ -41,7 +41,7 @@ $statusClasses = [
                     <i class="bi bi-table me-2"></i>SF2 Attendance Sheet
                 </h2>
                 <div class="text-muted mt-1">
-                    <?php echo htmlspecialchars($student['student_name']); ?> | LRN: <?php echo htmlspecialchars($student['lrn']); ?> | IEP ID: <?php echo (int)$iep['id']; ?>
+                    <?php echo htmlspecialchars($student['student_name']); ?> | Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_id'] ?? null)); ?> | DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?> | IEP ID: <?php echo (int)$iep['id']; ?>
                 </div>
             </div>
             <div class="d-flex gap-2 flex-wrap">
@@ -196,7 +196,7 @@ $statusClasses = [
                             <tr>
                                 <td class="text-start">
                                     <div class="fw-semibold"><?php echo htmlspecialchars($student['student_name']); ?></div>
-                                    <div class="text-muted small"><?php echo htmlspecialchars($student['lrn']); ?></div>
+                                    <div class="text-muted small">Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_id'] ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?></div>
                                 </td>
                                 <?php for ($day = 1; $day <= 31; $day++): ?>
                                     <?php $record = $recordsByDay[$day] ?? null; ?>

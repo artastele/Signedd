@@ -37,8 +37,11 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
     <?php if (!empty($_SESSION['error'])): ?>
     <div class="alert alert-danger"><?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?></div>
     <?php endif; ?>
-
-    <!-- Filters -->
+    <?php
+    require_once __DIR__ . '/../../Models/StudentModel.php';
+    $iepListStudentModel = new StudentModel();
+    $iepListStudentCodeCache = [];
+    ?>
     <form method="GET" class="row g-2 mb-4">
         <div class="col-auto">
             <select name="school_year" class="form-select form-select-sm" style="min-width:140px;">
@@ -83,7 +86,9 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
             <div class="text-center py-5 text-muted">
                 <i class="bi bi-inbox" style="font-size:2.5rem;"></i>
                 <p class="mt-2">No IEPs found.</p>
-                <?php if (in_array($role, ['sped_teacher','admin'])): ?>
+                <?php if ($role === 'parent'): ?>
+                <p class="text-muted small">Once the SPED teacher drafts and submits your child's IEP for signing, it will appear here for you to review and sign.</p>
+                <?php elseif (in_array($role, ['sped_teacher','admin'])): ?>
                 <p class="text-muted small">Students with a signed PDSP will appear in the "New IEP" dropdown above.</p>
                 <?php endif; ?>
             </div>
@@ -103,10 +108,17 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                     </thead>
                     <tbody>
                     <?php foreach ($ieps as $iep): ?>
+                    <?php
+                    $iepFk = (int)($iep['student_id'] ?? 0);
+                    if ($iepFk && !isset($iepListStudentCodeCache[$iepFk])) {
+                        $iepRec = $iepListStudentModel->findById($iepFk);
+                        $iepListStudentCodeCache[$iepFk] = $iepRec['student_id'] ?? null;
+                    }
+                    ?>
                     <tr>
                         <td>
                             <strong><?php echo htmlspecialchars($iep['student_name']); ?></strong><br>
-                            <small class="text-muted">LRN: <?php echo htmlspecialchars($iep['lrn']); ?></small>
+                            <small class="text-muted">Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($iepListStudentCodeCache[$iepFk] ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($iep['lrn'] ?? null)); ?></small>
                         </td>
                         <td><?php echo htmlspecialchars($iep['school_year']); ?></td>
                         <td>
@@ -197,9 +209,13 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                 <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="newIepEligibleReload">Reload list</button>
                 <div id="newIepEligibleList" class="list-group">
                     <?php foreach ($eligibleStudents ?? [] as $s): ?>
+                    <?php
+                    $eligibleRec = $iepListStudentModel->findById((int)($s['id'] ?? 0));
+                    $eligibleStudentCode = $eligibleRec['student_id'] ?? null;
+                    ?>
                     <a class="list-group-item list-group-item-action" href="<?php echo $basePath; ?>/iep/create?student_id=<?php echo (int)$s['id']; ?>">
                         <strong><?php echo htmlspecialchars($s['student_name']); ?></strong>
-                        <span class="text-muted small d-block">LRN <?php echo htmlspecialchars($s['lrn']); ?></span>
+                        <span class="text-muted small d-block">Student ID <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($eligibleStudentCode)); ?> · DepEd LRN <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($s['lrn'] ?? null)); ?></span>
                     </a>
                     <?php endforeach; ?>
                 </div>
@@ -221,7 +237,7 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
             var a = document.createElement('a');
             a.className = 'list-group-item list-group-item-action';
             a.href = basePath + '/iep/create?student_id=' + encodeURIComponent(s.id);
-            a.innerHTML = '<strong>' + (s.student_name || '') + '</strong><span class="text-muted small d-block">LRN ' + (s.lrn || '') + '</span>';
+            a.innerHTML = '<strong>' + (s.student_name || '') + '</strong><span class="text-muted small d-block">Student ID ' + (s.student_id || '—') + ' · DepEd LRN ' + (s.lrn || 'Not yet assigned') + '</span>';
             listEl.appendChild(a);
         });
         if (emptyEl) emptyEl.style.display = (students && students.length) ? 'none' : 'block';

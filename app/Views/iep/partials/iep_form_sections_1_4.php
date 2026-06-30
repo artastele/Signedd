@@ -26,6 +26,7 @@ if (!empty($dob)) {
 
 $hLearnerName = $iep['header_learner_name'] ?? $fullNameDefault;
 $hAge         = $iep['header_learner_age'] ?? $ageDefault;
+$hStudentId   = $iep['header_student_id'] ?? ($studentData['student_id'] ?? '');
 $hLrn         = $iep['header_lrn'] ?? ($studentData['lrn'] ?? '');
 $hSection     = $iep['header_section'] ?? '';
 $hTeacher     = $iep['header_teacher_name'] ?? ($iep['drafted_by_name'] ?? '');
@@ -55,9 +56,8 @@ $depedStandardDomains = [
             </h1>
             <p class="text-muted mb-2">
                 <strong style="color:#2c2c2c;"><?= htmlspecialchars((string) $hLearnerName) ?></strong>
-                <?php if ($hLrn !== '' && $hLrn !== null): ?>
-                    <span class="text-muted">&nbsp;·&nbsp;LRN <?= htmlspecialchars((string) $hLrn) ?></span>
-                <?php endif; ?>
+                <span class="text-muted">&nbsp;·&nbsp;Student ID <?= htmlspecialchars(StudentDisplayHelper::formatStudentId($hStudentId ?: null)) ?></span>
+                <span class="text-muted">&nbsp;·&nbsp;DepEd LRN <?= htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($hLrn ?: null)) ?></span>
             </p>
             <span class="badge me-1 rounded-pill" style="background:#1e4072;color:#fff;"><?= htmlspecialchars((string) ($iep['school_year'] ?? '')) ?></span>
             <?php
@@ -106,7 +106,8 @@ $depedStandardDomains = [
             <div class="row g-2">
                 <div class="col-md-6"><span class="text-muted">Learner</span><div><?= htmlspecialchars((string) $hLearnerName) ?></div></div>
                 <div class="col-md-3"><span class="text-muted">Age</span><div><?= htmlspecialchars((string) $hAge) ?></div></div>
-                <div class="col-md-3"><span class="text-muted">LRN</span><div><?= htmlspecialchars((string) $hLrn) ?></div></div>
+                <div class="col-md-3"><span class="text-muted">Student ID</span><div><?= htmlspecialchars(StudentDisplayHelper::formatStudentId($hStudentId ?: null)) ?></div></div>
+                <div class="col-md-3"><span class="text-muted">DepEd LRN</span><div><?= htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($hLrn ?: null)) ?></div></div>
                 <div class="col-md-4"><span class="text-muted">Section</span><div><?= htmlspecialchars((string) $hSection) ?></div></div>
                 <div class="col-md-4"><span class="text-muted">Teacher</span><div><?= htmlspecialchars((string) $hTeacher) ?></div></div>
                 <div class="col-md-4"><span class="text-muted">School</span><div><?= htmlspecialchars((string) $hSchool) ?></div></div>
@@ -159,9 +160,14 @@ $depedStandardDomains = [
                                value="<?= htmlspecialchars((string) $hAge) ?>">
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label small fw-semibold" style="color:#1e4072;">LRN</label>
+                        <label class="form-label small fw-semibold" style="color:#1e4072;">Student ID</label>
+                        <input type="text" class="form-control" name="header_student_id"
+                               value="<?= htmlspecialchars(StudentDisplayHelper::formatStudentId($hStudentId ?: null)) ?>" readonly>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold" style="color:#1e4072;">DepEd LRN (optional — assigned by DepEd LIS)</label>
                         <input type="text" class="form-control" name="header_lrn"
-                               value="<?= htmlspecialchars((string) $hLrn) ?>">
+                               value="<?= htmlspecialchars(StudentDisplayHelper::lrnFieldValue($hLrn ?: null)) ?>">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold" style="color:#1e4072;">Section</label>

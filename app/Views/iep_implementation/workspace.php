@@ -356,6 +356,12 @@ require_once __DIR__ . '/../layouts/header.php';
                             <input type="number" class="form-control form-control-sm" id="builderMaxScore"
                                    min="0" value="10" placeholder="10">
                         </div>
+                        <div class="col-md-4 d-flex align-items-end mb-1">
+                            <div class="form-check form-switch mb-1">
+                                <input class="form-check-input" type="checkbox" id="builderIsF2F" onchange="toggleF2FFields()">
+                                <label class="form-check-label small fw-semibold" for="builderIsF2F">Face-to-Face / Direct Observation</label>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Type-specific builder area -->
@@ -417,10 +423,13 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <span class="badge" style="background:<?php echo $actColor; ?>;font-size:0.7rem;">
                                         <?php echo htmlspecialchars($actTypeLabel); ?>
                                     </span>
+                                    <?php if (!empty($act['is_f2f'])): ?>
+                                        <span class="badge bg-success ms-1" style="font-size:0.7rem;">F2F</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="text-muted"><?php echo htmlspecialchars($act['lesson_plan_title'] ?? '—'); ?></td>
                                 <td class="text-muted"><?php echo $act['due_date'] ? htmlspecialchars($act['due_date']) : '—'; ?></td>
-                                <td><?php echo (int)($act['max_score'] ?? 0); ?></td>
+                                <td><?php echo !empty($act['is_f2f']) ? '—' : (int)($act['max_score'] ?? 0); ?></td>
                                 <td>
                                     <div class="d-flex gap-1 flex-wrap">
                                         <button class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;"
@@ -1679,6 +1688,13 @@ function selectActivityType(type) {
 
     // Render type-specific builder
     renderBuilderTypeArea(type);
+
+    // Sync Face-to-Face fields
+    if (document.getElementById('builderIsF2F')) {
+        document.getElementById('builderIsF2F').checked = false;
+        toggleF2FFields();
+    }
+
     if (type === 'multiple_choice') addMCQuestion();
     if (type === 'true_false') addTFStatement();
     if (type === 'fill_in_blanks') addFibQuestion();
@@ -1691,6 +1707,33 @@ function selectActivityType(type) {
     const builder = document.getElementById('activityBuilder');
     builder.style.display = 'block';
     builder.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function toggleF2FFields() {
+    const isF2F = document.getElementById('builderIsF2F') && document.getElementById('builderIsF2F').checked;
+    const maxScoreWrap = document.getElementById('builderMaxScoreWrap');
+    const typeArea = document.getElementById('builderTypeArea');
+    
+    let f2fNote = document.getElementById('builderF2FNote');
+    if (!f2fNote) {
+        f2fNote = document.createElement('div');
+        f2fNote.id = 'builderF2FNote';
+        f2fNote.className = 'alert alert-info py-2 px-3 small mb-3';
+        f2fNote.innerHTML = '<i class="ti ti-info-circle me-1"></i> <strong>Face-to-Face Mode:</strong> Teacher will rate this activity manually during or after the classroom session.';
+        typeArea.parentNode.insertBefore(f2fNote, typeArea);
+    }
+    
+    if (isF2F) {
+        if (maxScoreWrap) maxScoreWrap.style.display = 'none';
+        typeArea.style.display = 'none';
+        f2fNote.style.display = 'block';
+    } else {
+        if (maxScoreWrap) {
+            maxScoreWrap.style.display = selectedActivityType === 'flashcards' ? 'none' : '';
+        }
+        typeArea.style.display = 'block';
+        f2fNote.style.display = 'none';
+    }
 }
 
 function closeActivityBuilder() {
@@ -2565,7 +2608,8 @@ async function saveActivity() {
     const title        = document.getElementById('builderTitle').value.trim();
     const instructions = document.getElementById('builderInstructions').value.trim();
     const dueDate      = document.getElementById('builderDueDate').value || null;
-    const maxScore     = selectedActivityType !== 'flashcards'
+    const isF2F        = document.getElementById('builderIsF2F') && document.getElementById('builderIsF2F').checked ? 1 : 0;
+    const maxScore     = (!isF2F && selectedActivityType !== 'flashcards')
                          ? parseInt(document.getElementById('builderMaxScore')?.value || '0')
                          : 0;
 
@@ -2579,11 +2623,14 @@ async function saveActivity() {
         Swal.fire({ icon: 'warning', title: 'Select an activity type', confirmButtonColor: '#a01422' }); return;
     }
 
-    const activityData = collectActivityData();
-    const validationMessage = validateActivityData(selectedActivityType, activityData);
-    if (validationMessage) {
-        Swal.fire({ icon: 'warning', title: 'Check activity details', text: validationMessage, confirmButtonColor: '#a01422' });
-        return;
+    let activityData = [];
+    if (!isF2F) {
+        activityData = collectActivityData();
+        const validationMessage = validateActivityData(selectedActivityType, activityData);
+        if (validationMessage) {
+            Swal.fire({ icon: 'warning', title: 'Check activity details', text: validationMessage, confirmButtonColor: '#a01422' });
+            return;
+        }
     }
 
     showLoading('Saving activity…');
@@ -2599,6 +2646,7 @@ async function saveActivity() {
             formData.append('activity_type', selectedActivityType);
             formData.append('activity_data', JSON.stringify(activityData));
             formData.append('max_score', maxScore);
+            formData.append('is_f2f', isF2F);
             if (dueDate) formData.append('due_date', dueDate);
             if (file) {
                 formData.append('image_file', file);
@@ -2613,6 +2661,7 @@ async function saveActivity() {
                 activity_data: activityData,
                 max_score:     maxScore,
                 due_date:      dueDate,
+                is_f2f:        isF2F,
             });
         }
 
@@ -2626,6 +2675,7 @@ async function saveActivity() {
                 lesson_plan_id:   parseInt(lpId),
                 due_date:         dueDate,
                 max_score:        maxScore,
+                is_f2f:           isF2F,
             });
             closeActivityBuilder();
             showToast('success', 'Activity saved!');
@@ -2665,10 +2715,13 @@ function appendActivityRow(act) {
     tr.id = 'actRow_' + act.id;
     tr.innerHTML = `
         <td class="fw-semibold">${escHtml(act.title)}</td>
-        <td><span class="badge" style="background:${color};font-size:0.7rem;">${escHtml(typeLabel)}</span></td>
+        <td>
+            <span class="badge" style="background:${color};font-size:0.7rem;">${escHtml(typeLabel)}</span>
+            ${act.is_f2f ? '<span class="badge bg-success ms-1" style="font-size:0.7rem;">F2F</span>' : ''}
+        </td>
         <td class="text-muted">${escHtml(lpTitle)}</td>
         <td class="text-muted">${act.due_date ? escHtml(act.due_date) : '—'}</td>
-        <td>${act.max_score || 0}</td>
+        <td>${act.is_f2f ? '—' : (act.max_score || 0)}</td>
         <td>
             <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem;"
                     onclick="confirmDeleteActivity(${act.id}, '${escAttr(act.title)}')">

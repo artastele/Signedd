@@ -189,7 +189,16 @@ require_once __DIR__ . '/../layouts/header.php';
                         <tr>
                             <td>
                                 <strong><?php echo htmlspecialchars($learner['student_name']); ?></strong><br>
-                                <small class="text-muted">LRN: <?php echo htmlspecialchars($learner['lrn']); ?></small>
+                                <small class="text-muted">Student ID: <?php
+                                    $learnerFk = (int)($learner['student_id'] ?? 0);
+                                    static $teacherDashCodeCache = [];
+                                    if ($learnerFk && !isset($teacherDashCodeCache[$learnerFk])) {
+                                        require_once __DIR__ . '/../../Models/StudentModel.php';
+                                        $learnerRec = (new StudentModel())->findById($learnerFk);
+                                        $teacherDashCodeCache[$learnerFk] = $learnerRec['student_id'] ?? null;
+                                    }
+                                    echo htmlspecialchars(StudentDisplayHelper::formatStudentId($teacherDashCodeCache[$learnerFk] ?? null));
+                                ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($learner['lrn'] ?? null)); ?></small>
                             </td>
                             <td style="width: 25%;">
                                 <div class="d-flex justify-content-between mb-1">

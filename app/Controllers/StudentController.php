@@ -1,10 +1,11 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Student Records Management
-// Last modified: 2026-05-06
+// Last modified: 2026-06-28
 // Part of: SPED LMS — Student Records
 
 require_once __DIR__ . '/../Models/StudentModel.php';
 require_once __DIR__ . '/../Models/EnrollmentModel.php';
+require_once __DIR__ . '/../Helpers/CSRFHelper.php';
 
 class StudentController {
     private $studentModel;
@@ -17,48 +18,34 @@ class StudentController {
         $this->basePath = defined('BASE_PATH') ? BASE_PATH : '';
     }
 
-    /**
-     * List all students
-     */
-    public function index() {
-        // Check if user is staff (not parent or user)
-        if (!isset($_SESSION['user_id']) || in_array($_SESSION['role'], ['parent', 'user'])) {
+    private function requireStaff(): void {
+        if (!isset($_SESSION['user_id']) || in_array($_SESSION['role'], ['parent', 'user', 'learner'])) {
             $_SESSION['error'] = 'Access denied. Staff only.';
             header('Location: ' . $this->basePath . '/dashboard');
             exit;
         }
+    }
 
-        // Get all student records
+    public function index() {
+        $this->requireStaff();
         $students = $this->studentModel->getAllStudents();
-
         $basePath = $this->basePath;
         require_once __DIR__ . '/../Views/students/index.php';
     }
 
-    /**
-     * View single student record with all enrollments and documents
-     */
     public function view($studentId) {
-        // Check if user is staff
-        if (!isset($_SESSION['user_id']) || in_array($_SESSION['role'], ['parent', 'user'])) {
-            $_SESSION['error'] = 'Access denied. Staff only.';
-            header('Location: ' . $this->basePath . '/dashboard');
-            exit;
-        }
+        $this->requireStaff();
 
-        // Get student record
         $student = $this->studentModel->findById($studentId);
-        
+
         if (!$student) {
             $_SESSION['error'] = 'Student not found';
             header('Location: ' . $this->basePath . '/students');
             exit;
         }
 
-        // Get all enrollments for this student (by LRN)
-        $enrollments = $this->studentModel->getEnrollmentsByLRN($student['lrn']);
+        $enrollments = $this->studentModel->getEnrollmentsByStudentRecordId($studentId);
 
-        // Get all documents from all enrollments
         $allDocuments = [];
         foreach ($enrollments as $enrollment) {
             $docs = $this->enrollmentModel->getDocuments($enrollment['id']);
@@ -71,5 +58,57 @@ class StudentController {
 
         $basePath = $this->basePath;
         require_once __DIR__ . '/../Views/students/view.php';
+    }
+
+    public function edit($studentId) {
+        $this->requireStaff();
+
+        $student = $this->studentModel->findById($studentId);
+
+        if (!$student) {
+            $_SESSION['error'] = 'Student not found';
+            header('Location: ' . $this->basePath . '/students');
+            exit;
+        }
+
+        $basePath = $this->basePath;
+        require_once __DIR__ . '/../Views/students/edit.php';
+    }
+
+    public function update($studentId) {
+        $this->requireStaff();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . $this->basePath . '/students/edit/' . (int)$studentId);
+            exit;
+        }
+
+        try {
+            CSRFHelper::verify();
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Security validation failed.';
+            header('Location: ' . $this->basePath . '/students/edit/' . (int)$studentId);
+            exit;
+        }
+
+        $student = $this->studentModel->findById($studentId);
+        if (!$student) {
+            $_SESSION['error'] = 'Student not found';
+            header('Location: ' . $this->basePath . '/students');
+            exit;
+        }
+
+        $lrn = trim($_POST['lrn'] ?? '');
+        $lrn = $lrn !== '' ? $lrn : null;
+
+        try {
+            $this->studentModel->update($studentId, ['lrn' => $lrn]);
+            $_SESSION['success'] = 'Student profile updated.';
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Failed to update student profile.';
+        }
+
+        header('Location: ' . $this->basePath . '/students/view/' . (int)$studentId);
+        exit;
     }
 }

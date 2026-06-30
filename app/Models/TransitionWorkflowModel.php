@@ -11,6 +11,10 @@ class TransitionWorkflowModel {
         $this->ensureTables();
     }
 
+    public function getDb(): PDO {
+        return $this->db;
+    }
+
     private function ensureTables(): void {
         $tables = [
             "CREATE TABLE IF NOT EXISTS progress_reports (
@@ -154,7 +158,15 @@ class TransitionWorkflowModel {
                 entry_point VARCHAR(255) NULL,
                 learning_packages TEXT NULL,
                 recommendations TEXT NULL,
-                status ENUM('draft','finalized') NOT NULL DEFAULT 'draft',
+                sned_remarks TEXT NULL,
+                sned_reviewed_at DATETIME NULL,
+                sned_reviewed_by INT NULL,
+                gen_teacher_revised TINYINT(1) NOT NULL DEFAULT 0,
+                master_teacher_recommendations TEXT NULL,
+                master_teacher_id INT NULL,
+                master_signature LONGTEXT NULL,
+                inspected_at DATETIME NULL,
+                status ENUM('draft','pending_sned_review','ready_for_inspection','inspected','finalized') NOT NULL DEFAULT 'draft',
                 finalized_at DATETIME NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1104,12 +1116,16 @@ class TransitionWorkflowModel {
         if ($assignedUserId !== null) {
             $user = $this->getUser($assignedUserId);
             if ($user) {
+                $status = ($role === 'parent_guardian' || $role === 'learner') ? 'filled' : 'pending';
+                $dateStarted = ($role === 'parent_guardian' || $role === 'learner') ? date('Y-m-d') : null;
+
                 $stmt = $this->db->prepare("
                     UPDATE itp_team_members 
                     SET assigned_user_id = :assigned_user_id,
                         name = :name,
                         contact_details = :contact_details,
-                        status = 'pending',
+                        date_started = :date_started,
+                        status = :status,
                         updated_at = NOW()
                     WHERE itp_id = :itp_id AND role = :role
                 ");
@@ -1117,6 +1133,8 @@ class TransitionWorkflowModel {
                     'assigned_user_id' => $assignedUserId,
                     'name' => $user['name'],
                     'contact_details' => $user['email'],
+                    'date_started' => $dateStarted,
+                    'status' => $status,
                     'itp_id' => $itpId,
                     'role' => $role
                 ]);
@@ -1315,6 +1333,23 @@ class TransitionWorkflowModel {
         return $row ?: null;
     }
 
+    public function getItgpInspectionQueue(): array {
+        $stmt = $this->db->query(
+            "SELECT itgp.id AS itgp_id, itgp.student_id, itgp.itp_id, itgp.general_teacher_id, itgp.master_teacher_id,
+                    itgp.status, itgp.created_at, itgp.updated_at,
+                    sr.student_name, sr.lrn,
+                    ir.id AS iep_id, ir.school_year,
+                    u.name AS general_teacher_name
+             FROM itgp_records itgp
+             JOIN student_records sr ON sr.id = itgp.student_id
+             JOIN iep_records ir ON ir.student_id = sr.id
+             LEFT JOIN users u ON u.id = itgp.general_teacher_id
+             WHERE itgp.status = 'ready_for_inspection'
+             ORDER BY itgp.updated_at DESC"
+        );
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function getItgpById(int $id): ?array {
         $stmt = $this->db->prepare("SELECT * FROM itgp_records WHERE id = :id LIMIT 1");
         $stmt->execute(['id' => $id]);
@@ -1381,6 +1416,10 @@ class TransitionWorkflowModel {
             if ($data['status'] === 'finalized') {
                 $finalizedAtClause = ", finalized_at = NOW()";
             }
+            $genRevisedClause = "";
+            if ($data['status'] === 'pending_sned_review' && !empty($existing['sned_remarks'])) {
+                $genRevisedClause = ", gen_teacher_revised = 1";
+            }
             $stmt = $this->db->prepare("
                 UPDATE itgp_records SET
                     goal = :goal,
@@ -1389,6 +1428,7 @@ class TransitionWorkflowModel {
                     recommendations = :recommendations,
                     status = :status
                     $finalizedAtClause
+                    $genRevisedClause
                 WHERE id = :id
             ");
             $stmt->execute([
@@ -1440,6 +1480,45 @@ class TransitionWorkflowModel {
         }
 
         return $itgpId;
+    }
+
+    public function addItgpSnedRemarks(int $itgpId, int $userId, string $remarks): bool {
+        $stmt = $this->db->prepare("
+            UPDATE itgp_records
+            SET sned_remarks = :remarks,
+                sned_reviewed_by = :user_id,
+                sned_reviewed_at = NOW(),
+                status = 'ready_for_inspection'
+            WHERE id = :id
+        ");
+        return $stmt->execute(['remarks' => $remarks, 'user_id' => $userId, 'id' => $itgpId]);
+    }
+
+    public function inspectItgp(int $itgpId, int $masterTeacherId, string $recommendations, string $signature): bool {
+        $stmt = $this->db->prepare("
+            UPDATE itgp_records
+            SET master_teacher_id = :master_teacher_id,
+                master_teacher_recommendations = :recommendations,
+                master_signature = :signature,
+                inspected_at = NOW(),
+                status = 'inspected'
+            WHERE id = :id
+        ");
+        return $stmt->execute([
+            'master_teacher_id' => $masterTeacherId,
+            'recommendations'   => $recommendations,
+            'signature'         => $signature,
+            'id'                => $itgpId,
+        ]);
+    }
+
+    public function finalizeItgp(int $itgpId, int $spedTeacherId): bool {
+        $stmt = $this->db->prepare("
+            UPDATE itgp_records
+            SET status = 'finalized', finalized_at = NOW()
+            WHERE id = :id
+        ");
+        return $stmt->execute(['id' => $itgpId]);
     }
 
     public function getItgpComments(int $itgpId): array {

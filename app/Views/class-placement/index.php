@@ -8,6 +8,10 @@ $isMainstreamed = ($iep['status'] === 'mainstreamed');
 $hasAssignment = !empty($workflow['assignment']);
 $isAssignedTeacher = ($hasAssignment && (int)$workflow['assignment']['general_teacher_id'] === (int)$_SESSION['user_id']);
 $canReview = (!$isMainstreamed && ($role === 'general_teacher' && $isAssignedTeacher) || $role === 'admin');
+require_once __DIR__ . '/../../Models/StudentModel.php';
+$classPlacementRec = (new StudentModel())->findById((int)($iep['student_id'] ?? 0));
+$classPlacementStudentCode = $classPlacementRec['student_id'] ?? null;
+$activeStep = 13;
 ?>
 <body data-logged-in="true">
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
@@ -21,7 +25,7 @@ $canReview = (!$isMainstreamed && ($role === 'general_teacher' && $isAssignedTea
                 <h1 class="mb-1" style="color:#1e4072; font-weight:700;">
                     <i class="bi bi-box-arrow-up-right me-2"></i>Regular Class Placement Review
                 </h1>
-                <p class="text-muted mb-0">Process 13 — Transition & Mainstream Decision</p>
+                <p class="text-muted mb-0">Part 7 — Transition & Mainstream Decision</p>
             </div>
             <div>
                 <a href="<?= $basePath ?>/iep" class="btn btn-outline-secondary">
@@ -44,6 +48,9 @@ $canReview = (!$isMainstreamed && ($role === 'general_teacher' && $isAssignedTea
             </div>
         <?php endif; ?>
 
+        <!-- Wizard Navigation -->
+        <?php require_once __DIR__ . '/../layouts/transition_nav.php'; ?>
+
         <?php if ($isMainstreamed || ($iep['status'] ?? '') === 'mainstreamed'): ?>
             <div class="alert alert-success py-3 mb-4 d-flex align-items-center shadow-sm" style="border-left: 5px solid #3b6d11; background-color: #f4faf0;">
                 <i class="bi bi-check-circle-fill me-3 fs-3 text-success"></i>
@@ -63,7 +70,7 @@ $canReview = (!$isMainstreamed && ($role === 'general_teacher' && $isAssignedTea
                     </div>
                     <div>
                         <h4 class="mb-1 font-weight-bold" style="color: #1e4072;"><?= htmlspecialchars($iep['student_name']) ?></h4>
-                        <span class="text-muted small">LRN: <strong><?= htmlspecialchars($iep['lrn']) ?></strong></span>
+                        <span class="text-muted small">Student ID: <strong><?= htmlspecialchars(StudentDisplayHelper::formatStudentId($classPlacementStudentCode)) ?></strong> · DepEd LRN: <strong><?= htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($iep['lrn'] ?? null)) ?></strong></span>
                         <span class="mx-2 text-muted">|</span>
                         <span class="text-muted small">Grade Level: <strong><?= htmlspecialchars($iep['grade_level_to_enroll'] ?? 'N/A') ?></strong></span>
                         <span class="mx-2 text-muted">|</span>
