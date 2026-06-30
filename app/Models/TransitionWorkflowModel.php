@@ -492,10 +492,19 @@ class TransitionWorkflowModel {
         ");
         $progressStmt->execute(['sid' => $studentId]);
 
+        $ratingsStmt = $this->db->prepare("
+            SELECT rating, COUNT(*) AS cnt
+            FROM student_quarterly_ratings
+            WHERE student_id = :sid AND rating IS NOT NULL AND rating != '' AND rating != 'NA'
+            GROUP BY rating
+        ");
+        $ratingsStmt->execute(['sid' => $studentId]);
+
         return [
             'submissions' => $subStmt->fetchAll(PDO::FETCH_ASSOC),
             'iep_steps' => $goalStmt->fetchAll(PDO::FETCH_ASSOC),
             'progress_summary' => $progressStmt->fetch(PDO::FETCH_ASSOC) ?: ['submissions' => 0, 'avg_score' => null],
+            'sf9_ratings' => $ratingsStmt->fetchAll(PDO::FETCH_ASSOC),
         ];
     }
 
@@ -685,7 +694,72 @@ class TransitionWorkflowModel {
             );
             $stmt->execute(['iep' => $iepId]);
         }
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Fetch student_id
+        $studentId = 0;
+        $st = $this->db->prepare("SELECT student_id FROM iep_records WHERE id = :iep");
+        $st->execute(['iep' => $iepId]);
+        $sRow = $st->fetch(PDO::FETCH_ASSOC);
+        if ($sRow) {
+            $studentId = (int)$sRow['student_id'];
+        }
+
+        // Fetch all ratings for this student to group by domain
+        $ratingsByDomain = [];
+        if ($studentId > 0) {
+            $ratStmt = $this->db->prepare("
+                SELECT domain, rating
+                FROM student_quarterly_ratings
+                WHERE student_id = :sid AND rating IS NOT NULL AND rating != '' AND rating != 'NA'
+            ");
+            $ratStmt->execute(['sid' => $studentId]);
+            foreach ($ratStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $dom = trim($r['domain']);
+                $ratingsByDomain[$dom][] = strtoupper(trim($r['rating']));
+            }
+        }
+
+        $calcSuggestedStatus = function(string $domain) use ($ratingsByDomain) {
+            $dom = trim($domain);
+            if (!isset($ratingsByDomain[$dom])) {
+                return 'partial';
+            }
+            $list = $ratingsByDomain[$dom];
+            $prof = 0;
+            $total = 0;
+            foreach ($list as $rating) {
+                if ($rating === 'P' || $rating === 'AP') {
+                    $prof++;
+                }
+                if (in_array($rating, ['P', 'AP', 'D', 'B'])) {
+                    $total++;
+                }
+            }
+            if ($total === 0) {
+                return 'partial';
+            }
+            $rate = ($prof / $total) * 100;
+            if ($rate >= 75) {
+                return 'ready';
+            }
+            if ($rate >= 30) {
+                return 'partial';
+            }
+            return 'not_ready';
+        };
+
+        $results = [];
+        foreach ($rows as $row) {
+            $computed = $calcSuggestedStatus($row['pdsp_domain']);
+            $row['suggested_status'] = $computed;
+            // If the goal doesn't have an override saved, default final_status to the computed suggested_status
+            if (empty($row['status_overridden'])) {
+                $row['final_status'] = $computed;
+            }
+            $results[] = $row;
+        }
+        return $results;
     }
 
     public function saveReadinessGoals(int $readinessId, array $goals): void {
@@ -744,16 +818,35 @@ class TransitionWorkflowModel {
     }
 
     public function suggestReadiness(array $evidence): string {
-        $summary = $evidence['progress_summary'] ?? [];
-        $submissions = (int)($summary['submissions'] ?? 0);
-        $avg = $summary['avg_score'] !== null ? (float)$summary['avg_score'] : null;
-        if ($submissions >= 5 && $avg !== null && $avg >= 75) {
+        $ratings = $evidence['sf9_ratings'] ?? [];
+        
+        $proficientCount = 0;
+        $totalCount = 0;
+        
+        foreach ($ratings as $r) {
+            $cnt = (int)$r['cnt'];
+            $rating = strtoupper(trim($r['rating']));
+            if ($rating === 'P' || $rating === 'AP') {
+                $proficientCount += $cnt;
+            }
+            if (in_array($rating, ['P', 'AP', 'D', 'B'])) {
+                $totalCount += $cnt;
+            }
+        }
+        
+        if ($totalCount === 0) {
+            return 'Not Yet Ready';
+        }
+        
+        $rate = ($proficientCount / $totalCount) * 100;
+        
+        if ($rate >= 75) {
             return 'Ready for Inclusion';
         }
-        if ($submissions >= 3) {
+        if ($rate >= 50) {
             return 'Needs More Support';
         }
-        if ($submissions > 0) {
+        if ($rate > 0) {
             return 'For Re-evaluation';
         }
         return 'Not Yet Ready';

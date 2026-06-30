@@ -22,6 +22,20 @@ class ProgressReportModel {
             }
         } catch (Throwable $e) {}
 
+        // Helper function to add columns safely (for MySQL compatibility)
+        $addColumnSafe = function (string $table, string $column, string $definition, string $after = '') {
+            try {
+                $stmt = $this->db->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?");
+                $stmt->execute([$table, $column]);
+                if ((int)$stmt->fetchColumn() === 0) {
+                    $afterClause = $after ? " AFTER $after" : '';
+                    $this->db->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition$afterClause");
+                }
+            } catch (Throwable $e) {
+                error_log("Failed to add column $column to $table: " . $e->getMessage());
+            }
+        };
+
         $statements = [
             "CREATE TABLE IF NOT EXISTS attendance_records (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -35,11 +49,6 @@ class ProgressReportModel {
                 FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE CASCADE,
                 UNIQUE KEY unique_student_date_src (student_id, date, source)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-
-            "ALTER TABLE progress_reports 
-                ADD COLUMN IF NOT EXISTS document_path VARCHAR(255) NULL AFTER status,
-                ADD COLUMN IF NOT EXISTS finalized_at DATETIME NULL AFTER document_path,
-                ADD COLUMN IF NOT EXISTS transfer_details TEXT NULL AFTER finalized_at",
 
             "CREATE TABLE IF NOT EXISTS grade_entries (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -77,17 +86,19 @@ class ProgressReportModel {
             }
         }
 
+        // Add columns to progress_reports safely
+        $addColumnSafe('progress_reports', 'document_path', 'VARCHAR(255) NULL', 'status');
+        $addColumnSafe('progress_reports', 'finalized_at', 'DATETIME NULL', 'document_path');
+        $addColumnSafe('progress_reports', 'transfer_details', 'TEXT NULL', 'finalized_at');
+
         try {
             $this->db->exec("ALTER TABLE attendance_records MODIFY status ENUM('present', 'absent', 'tardy', 'excused') NOT NULL DEFAULT 'present'");
         } catch (Throwable $e) {
             error_log('ProgressReportModel::ensureTables attendance status migration error: ' . $e->getMessage());
         }
 
-        try {
-            $this->db->exec("ALTER TABLE report_remarks ADD COLUMN IF NOT EXISTS signature_data MEDIUMTEXT NULL AFTER signature_name");
-        } catch (Throwable $e) {
-            error_log('ProgressReportModel::ensureTables signature_data migration error: ' . $e->getMessage());
-        }
+        // Add columns to report_remarks safely
+        $addColumnSafe('report_remarks', 'signature_data', 'MEDIUMTEXT NULL', 'signature_name');
     }
 
     public function getProgressReports(): array {

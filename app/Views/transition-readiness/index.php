@@ -165,6 +165,10 @@ $isFinalized = (!empty($readiness['status']) && $readiness['status'] === 'finali
                     <h5 class="mb-0 font-weight-bold"><i class="bi bi-stars me-2"></i>Readiness Summary & Evaluation</h5>
                 </div>
                 <div class="card-body p-4 bg-white">
+                    <p class="text-muted small mb-4">
+                        The system suggests overall readiness based on the finalized SF9 Progress Report indicators.
+                        Current SF9 Suggestion: <strong><?= htmlspecialchars($suggestedReadinessResult) ?></strong> (Performance: <strong><?= htmlspecialchars(ucfirst(str_replace('_', ' ', $suggestedOverallStatus))) ?></strong>).
+                    </p>
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label for="readiness_result" class="form-label small font-weight-bold text-muted text-uppercase">Overall Readiness Recommendation</label>
@@ -243,7 +247,7 @@ $isFinalized = (!empty($readiness['status']) && $readiness['status'] === 'finali
 
                                     <div class="row g-3 mb-3">
                                         <div class="col-md-6">
-                                            <label for="suggested_status_<?= $stepId ?>" class="form-label small font-weight-bold text-muted text-uppercase">Suggested Status (Based on LMS/Observation)</label>
+                                            <label for="suggested_status_<?= $stepId ?>" class="form-label small font-weight-bold text-muted text-uppercase">Suggested Status (Based on SF9 Ratings)</label>
                                             <select id="suggested_status_<?= $stepId ?>" name="goals[<?= $stepId ?>][suggested_status]" class="form-select border-2" style="border-radius: 8px;" <?= $isFinalized ? 'disabled' : 'required' ?>>
                                                 <option value="ready"<?= $goal['suggested_status'] === 'ready' ? ' selected' : '' ?>>Ready</option>
                                                 <option value="partial"<?= $goal['suggested_status'] === 'partial' ? ' selected' : '' ?>>Partial</option>
@@ -308,5 +312,83 @@ $isFinalized = (!empty($readiness['status']) && $readiness['status'] === 'finali
         </form>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const isFinalized = <?= $isFinalized ? 'true' : 'false' ?>;
+    if (isFinalized) return;
+
+    // Overall controls
+    const overrideCheckbox = document.getElementById('overall_status_overridden');
+    const selectResult = document.getElementById('readiness_result');
+    const selectStatus = document.getElementById('overall_status');
+    const suggestedReadiness = "<?= htmlspecialchars($suggestedReadinessResult) ?>";
+    const suggestedOverallStatus = "<?= htmlspecialchars($suggestedOverallStatus) ?>";
+
+    function updateOverallState() {
+        if (!overrideCheckbox.checked) {
+            selectResult.value = suggestedReadiness;
+            selectStatus.value = suggestedOverallStatus;
+            selectResult.disabled = true;
+            selectStatus.disabled = true;
+        } else {
+            selectResult.disabled = false;
+            selectStatus.disabled = false;
+        }
+    }
+
+    if (overrideCheckbox) {
+        overrideCheckbox.addEventListener('change', updateOverallState);
+        updateOverallState();
+    }
+
+    // Goal-specific controls
+    const goalOverrides = document.querySelectorAll('input[id^="goal_override_"]');
+    goalOverrides.forEach(function(chk) {
+        const stepId = chk.id.replace('goal_override_', '');
+        const selectSuggested = document.getElementById('suggested_status_' + stepId);
+        const selectFinal = document.getElementById('final_status_' + stepId);
+
+        // Suggested status should always be disabled (it's the read-only system recommendation)
+        if (selectSuggested) {
+            selectSuggested.disabled = true;
+        }
+
+        function updateGoalState() {
+            if (!chk.checked) {
+                if (selectSuggested && selectFinal) {
+                    selectFinal.value = selectSuggested.value;
+                }
+                if (selectFinal) {
+                    selectFinal.disabled = true;
+                }
+            } else {
+                if (selectFinal) {
+                    selectFinal.disabled = false;
+                }
+            }
+        }
+
+        chk.addEventListener('change', updateGoalState);
+        updateGoalState();
+    });
+
+    // Before form submit, temporarily enable the disabled select elements so their values are sent to the server
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function() {
+            if (selectResult) selectResult.disabled = false;
+            if (selectStatus) selectStatus.disabled = false;
+            
+            document.querySelectorAll('select[id^="suggested_status_"]').forEach(function(sel) {
+                sel.disabled = false;
+            });
+            document.querySelectorAll('select[id^="final_status_"]').forEach(function(sel) {
+                sel.disabled = false;
+            });
+        });
+    }
+});
+</script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

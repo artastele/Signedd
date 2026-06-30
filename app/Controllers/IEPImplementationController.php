@@ -1350,9 +1350,11 @@ class IEPImplementationController {
             exit;
         } else {
             // DIGITAL PATH
-            require_once __DIR__ . '/../Models/LessonPlanModel.php';
-            $activity['activity_data'] = json_decode($activity['activity_data'] ?? '{}', true) ?? [];
-            $maxScore = LessonPlanModel::displayMaxScoreForActivity($activity);
+            if (is_string($activity['activity_data'])) {
+                require_once __DIR__ . '/../Models/LessonPlanModel.php';
+                $activity['activity_data'] = json_decode($activity['activity_data'] ?? '{}', true) ?? [];
+                $maxScore = LessonPlanModel::displayMaxScoreForActivity($activity);
+            }
 
             $stmt = $db->prepare('SELECT id, auto_score FROM lms_submissions WHERE activity_id = :a AND student_id = :s LIMIT 1');
             $stmt->execute(['a' => $activityId, 's' => $studentId]);

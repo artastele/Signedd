@@ -54,16 +54,21 @@ class TransitionReadinessController {
         $iep = $ctx;
         $readiness = $workflow['readiness'] ?? null;
 
-        if (!$readiness) {
-            $evidence = $this->model->getEvidence((int)$ctx['student_id'], $iepId);
-            $suggestedReadinessResult = $this->model->suggestReadiness($evidence);
+        $evidence = $this->model->getEvidence((int)$ctx['student_id'], $iepId);
+        $suggestedReadinessResult = $this->model->suggestReadiness($evidence);
+        $suggestedOverallStatus = match($suggestedReadinessResult) {
+            'Ready for Inclusion' => 'ready',
+            'Needs More Support', 'For Re-evaluation' => 'partial',
+            default => 'not_ready'
+        };
 
+        if (!$readiness) {
             $readinessData = [
                 'readiness_result' => $suggestedReadinessResult,
                 'evidence_summary' => '',
                 'teacher_recommendation' => '',
                 'status' => 'draft',
-                'overall_status' => 'partial',
+                'overall_status' => $suggestedOverallStatus,
                 'overall_status_overridden' => 0,
                 'overall_remarks' => '',
             ];
@@ -85,7 +90,7 @@ class TransitionReadinessController {
                     'goal_text' => $goal['goal_text'] ?? '',
                     'pdsp_domain' => $goal['pdsp_domain'] ?? '',
                     'suggested_status' => $goal['suggested_status'] ?? 'partial',
-                    'final_status' => $goal['final_status'] ?? 'partial',
+                    'final_status' => $goal['suggested_status'] ?? 'partial',
                     'status_overridden' => 0,
                     'remarks' => '',
                 ];
@@ -124,13 +129,25 @@ class TransitionReadinessController {
             exit;
         }
 
+        $evidence = $this->model->getEvidence((int)$ctx['student_id'], $iepId);
+        $suggestedReadinessResult = $this->model->suggestReadiness($evidence);
+        $suggestedOverallStatus = match($suggestedReadinessResult) {
+            'Ready for Inclusion' => 'ready',
+            'Needs More Support', 'For Re-evaluation' => 'partial',
+            default => 'not_ready'
+        };
+
+        $overallStatusOverridden = !empty($_POST['overall_status_overridden']);
+        $readinessResult = $overallStatusOverridden ? ($_POST['readiness_result'] ?? 'For Re-evaluation') : $suggestedReadinessResult;
+        $overallStatus = $overallStatusOverridden ? ($_POST['overall_status'] ?? 'partial') : $suggestedOverallStatus;
+
         $readinessData = [
-            'readiness_result' => $_POST['readiness_result'] ?? 'For Re-evaluation',
+            'readiness_result' => $readinessResult,
             'evidence_summary' => trim($_POST['evidence_summary'] ?? ''),
             'teacher_recommendation' => trim($_POST['teacher_recommendation'] ?? ''),
             'status' => $_POST['status'] ?? 'draft',
-            'overall_status' => $_POST['overall_status'] ?? 'partial',
-            'overall_status_overridden' => !empty($_POST['overall_status_overridden']),
+            'overall_status' => $overallStatus,
+            'overall_status_overridden' => $overallStatusOverridden ? 1 : 0,
             'overall_remarks' => trim($_POST['overall_remarks'] ?? ''),
         ];
 
@@ -145,13 +162,17 @@ class TransitionReadinessController {
 
         $goalInputs = [];
         foreach ($_POST['goals'] ?? [] as $stepId => $goalData) {
+            $goalOverride = !empty($goalData['status_overridden']);
+            $suggested = $goalData['suggested_status'] ?? 'partial';
+            $final = $goalOverride ? ($goalData['final_status'] ?? 'partial') : $suggested;
+
             $goalInputs[] = [
                 'iep_step_id' => $stepId,
                 'goal_text' => $goalData['goal_text'] ?? '',
                 'pdsp_domain' => $goalData['pdsp_domain'] ?? '',
-                'suggested_status' => $goalData['suggested_status'] ?? 'partial',
-                'final_status' => $goalData['final_status'] ?? 'partial',
-                'status_overridden' => !empty($goalData['status_overridden']),
+                'suggested_status' => $suggested,
+                'final_status' => $final,
+                'status_overridden' => $goalOverride ? 1 : 0,
                 'remarks' => $goalData['remarks'] ?? '',
             ];
         }

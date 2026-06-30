@@ -7,6 +7,8 @@ require_once __DIR__ . '/../layouts/header.php';
 $role = $_SESSION['role'];
 $basePath = BASE_PATH;
 $isFinalized = ($itp && $itp['status'] === 'finalized');
+$isReadinessNotReady = ($readiness && ($readiness['status'] ?? '') === 'finalized' && ($readiness['readiness_result'] ?? '') !== 'Ready for Inclusion');
+$isReadOnly = ($isFinalized || $isReadinessNotReady);
 $activeStep = 11;
 ?>
 <body data-logged-in="true">
@@ -46,6 +48,19 @@ $activeStep = 11;
         <!-- Wizard Navigation -->
         <?php require_once __DIR__ . '/../layouts/transition_nav.php'; ?>
 
+        <?php if ($readiness && ($readiness['status'] ?? '') === 'finalized' && ($readiness['readiness_result'] ?? '') !== 'Ready for Inclusion'): ?>
+            <div class="alert alert-warning py-3 mb-4 d-flex align-items-start gap-3 shadow-xs" style="border-left: 5px solid #ffc107; background-color: #fffbeb;">
+                <i class="bi bi-exclamation-triangle-fill text-warning fs-3 mt-1 flex-shrink-0"></i>
+                <div>
+                    <h5 class="alert-heading text-warning-emphasis mb-1 font-weight-bold">Learner Re-Evaluation / Support Needed</h5>
+                    <p class="mb-0 small text-muted">
+                        Based on the finalized transition readiness evaluation, this learner is evaluated as <strong><?= htmlspecialchars($readiness['readiness_result']) ?></strong>.
+                        They are <strong>not yet ready</strong> to transition. Please proceed with caution and ensure additional learning and support accommodations are carefully documented in this plan.
+                    </p>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <?php if ($isFinalized): ?>
             <div class="alert alert-info py-3 mb-4" style="border-left: 5px solid #1e4072; background-color: #eef4fc;">
                 <h5 class="alert-heading text-primary-emphasis mb-1"><i class="bi bi-lock-fill me-2"></i>Finalized and Locked</h5>
@@ -69,12 +84,12 @@ $activeStep = 11;
                         <div class="col-md-6 col-lg-4">
                             <label for="student_name" class="form-label small font-weight-bold text-muted text-uppercase">Learner's Name</label>
                             <input type="text" id="student_name" name="student_name" class="form-control form-control-lg border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars($personalInfo['student_name'] ?? '') ?>" <?= $isFinalized ? 'readonly' : 'required' ?>>
+                                   value="<?= htmlspecialchars($personalInfo['student_name'] ?? '') ?>" <?= $isReadOnly ? 'readonly' : 'required' ?>>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <label for="date_of_birth" class="form-label small font-weight-bold text-muted text-uppercase">Date of Birth</label>
                             <input type="date" id="date_of_birth" name="date_of_birth" class="form-control form-control-lg border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars($personalInfo['date_of_birth'] ?? '') ?>" <?= $isFinalized ? 'readonly' : 'required' ?>>
+                                   value="<?= htmlspecialchars($personalInfo['date_of_birth'] ?? '') ?>" <?= $isReadOnly ? 'readonly' : 'required' ?>>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <label for="student_id_display" class="form-label small font-weight-bold text-muted text-uppercase">Student ID</label>
@@ -84,55 +99,55 @@ $activeStep = 11;
                         <div class="col-md-6 col-lg-4">
                             <label for="lrn" class="form-label small font-weight-bold text-muted text-uppercase">DepEd LRN (optional — assigned by DepEd LIS)</label>
                             <input type="text" id="lrn" name="lrn" class="form-control form-control-lg border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars(StudentDisplayHelper::lrnFieldValue($personalInfo['lrn'] ?? null)) ?>" <?= $isFinalized ? 'readonly' : '' ?> maxlength="12">
+                                   value="<?= htmlspecialchars(StudentDisplayHelper::lrnFieldValue($personalInfo['lrn'] ?? null)) ?>" <?= $isReadOnly ? 'readonly' : '' ?> maxlength="12">
                         </div>
 
                         <div class="col-md-6">
                             <label for="father_name" class="form-label small font-weight-bold text-muted text-uppercase">Father's Name / Guardian</label>
                             <input type="text" id="father_name" name="father_name" class="form-control border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars($personalInfo['father_name'] ?? '') ?>" <?= $isFinalized ? 'readonly' : '' ?>>
+                                   value="<?= htmlspecialchars($personalInfo['father_name'] ?? '') ?>" <?= $isReadOnly ? 'readonly' : '' ?>>
                         </div>
                         <div class="col-md-6">
                             <label for="mother_name" class="form-label small font-weight-bold text-muted text-uppercase">Mother's Name / Guardian</label>
                             <input type="text" id="mother_name" name="mother_name" class="form-control border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars($personalInfo['mother_name'] ?? '') ?>" <?= $isFinalized ? 'readonly' : '' ?>>
+                                   value="<?= htmlspecialchars($personalInfo['mother_name'] ?? '') ?>" <?= $isReadOnly ? 'readonly' : '' ?>>
                         </div>
 
                         <div class="col-md-6 col-lg-4">
                             <label for="level_of_education" class="form-label small font-weight-bold text-muted text-uppercase">Current Level of Education</label>
                             <input type="text" id="level_of_education" name="level_of_education" class="form-control border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars($personalInfo['level_of_education'] ?? '') ?>" <?= $isFinalized ? 'readonly' : '' ?>>
+                                   value="<?= htmlspecialchars($personalInfo['level_of_education'] ?? '') ?>" <?= $isReadOnly ? 'readonly' : '' ?>>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <label for="previous_school" class="form-label small font-weight-bold text-muted text-uppercase">Previous School</label>
                             <input type="text" id="previous_school" name="previous_school" class="form-control border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars($personalInfo['previous_school'] ?? '') ?>" <?= $isFinalized ? 'readonly' : '' ?>>
+                                   value="<?= htmlspecialchars($personalInfo['previous_school'] ?? '') ?>" <?= $isReadOnly ? 'readonly' : '' ?>>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <label for="religion" class="form-label small font-weight-bold text-muted text-uppercase">Religion</label>
                             <input type="text" id="religion" name="religion" class="form-control border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars($personalInfo['religion'] ?? '') ?>" <?= $isFinalized ? 'readonly' : '' ?>>
+                                   value="<?= htmlspecialchars($personalInfo['religion'] ?? '') ?>" <?= $isReadOnly ? 'readonly' : '' ?>>
                         </div>
 
                         <div class="col-md-6 col-lg-4">
                             <label for="years_in_school" class="form-label small font-weight-bold text-muted text-uppercase">No. of Year/s in School</label>
                             <input type="number" id="years_in_school" name="years_in_school" class="form-control border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars($personalInfo['years_in_school'] ?? '') ?>" <?= $isFinalized ? 'readonly' : '' ?> min="0">
+                                   value="<?= htmlspecialchars($personalInfo['years_in_school'] ?? '') ?>" <?= $isReadOnly ? 'readonly' : '' ?> min="0">
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <label for="gender" class="form-label small font-weight-bold text-muted text-uppercase">Gender / Sex</label>
                             <input type="text" id="gender" name="gender" class="form-control border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars($personalInfo['gender'] ?? '') ?>" <?= $isFinalized ? 'readonly' : '' ?>>
+                                   value="<?= htmlspecialchars($personalInfo['gender'] ?? '') ?>" <?= $isReadOnly ? 'readonly' : '' ?>>
                         </div>
                         <div class="col-md-6 col-lg-4">
                             <label for="contact_no" class="form-label small font-weight-bold text-muted text-uppercase">Phone / Contact No.</label>
                             <input type="text" id="contact_no" name="contact_no" class="form-control border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars($personalInfo['contact_no'] ?? '') ?>" <?= $isFinalized ? 'readonly' : '' ?>>
+                                   value="<?= htmlspecialchars($personalInfo['contact_no'] ?? '') ?>" <?= $isReadOnly ? 'readonly' : '' ?>>
                         </div>
 
                         <div class="col-12">
                             <label for="address" class="form-label small font-weight-bold text-muted text-uppercase">Current Address</label>
-                            <textarea id="address" name="address" class="form-control border-2" style="border-radius: 8px;" rows="2" <?= $isFinalized ? 'readonly' : '' ?>><?= htmlspecialchars($personalInfo['address'] ?? '') ?></textarea>
+                            <textarea id="address" name="address" class="form-control border-2" style="border-radius: 8px;" rows="2" <?= $isReadOnly ? 'readonly' : '' ?>><?= htmlspecialchars($personalInfo['address'] ?? '') ?></textarea>
                         </div>
 
                         <div class="col-md-6">
@@ -140,12 +155,12 @@ $activeStep = 11;
                             <div class="d-flex gap-4 mt-2">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="exceptionality_type" id="exceptionality_with" value="With Assessment"
-                                           <?= ($personalInfo['exceptionality_type'] ?? '') === 'With Assessment' ? 'checked' : '' ?> <?= $isFinalized ? 'disabled' : '' ?>>
+                                           <?= ($personalInfo['exceptionality_type'] ?? '') === 'With Assessment' ? 'checked' : '' ?> <?= $isReadOnly ? 'disabled' : '' ?>>
                                     <label class="form-check-label" for="exceptionality_with">With Assessment</label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="exceptionality_type" id="exceptionality_without" value="Without Assessment"
-                                           <?= ($personalInfo['exceptionality_type'] ?? '') === 'Without Assessment' ? 'checked' : '' ?> <?= $isFinalized ? 'disabled' : '' ?>>
+                                           <?= ($personalInfo['exceptionality_type'] ?? '') === 'Without Assessment' ? 'checked' : '' ?> <?= $isReadOnly ? 'disabled' : '' ?>>
                                     <label class="form-check-label" for="exceptionality_without">Without Assessment</label>
                                 </div>
                             </div>
@@ -154,7 +169,7 @@ $activeStep = 11;
                         <div class="col-md-6">
                             <label for="exceptionality_assessment" class="form-label small font-weight-bold text-muted text-uppercase">Assessment Detail / Name of Institution</label>
                             <input type="text" id="exceptionality_assessment" name="exceptionality_assessment" class="form-control border-2" style="border-radius: 8px;" 
-                                   value="<?= htmlspecialchars($personalInfo['exceptionality_assessment'] ?? '') ?>" <?= $isFinalized ? 'readonly' : '' ?>>
+                                   value="<?= htmlspecialchars($personalInfo['exceptionality_assessment'] ?? '') ?>" <?= $isReadOnly ? 'readonly' : '' ?>>
                         </div>
                     </div>
                 </div>
@@ -185,7 +200,7 @@ $activeStep = 11;
                                  style="border-color: #e2e8f0; background-color: <?= ($suggestedPointOfEntry === $point) ? '#f0f9ff' : '#ffffff' ?>; border-left: 4px solid <?= ($suggestedPointOfEntry === $point) ? '#a01422' : '#e2e8f0' ?>;">
                                 <div class="form-check mb-0 w-100">
                                     <input class="form-check-input" type="radio" name="point_of_entry" id="point_entry_<?= $idx ?>" value="<?= htmlspecialchars($point) ?>"
-                                           <?= ($suggestedPointOfEntry === $point) ? 'checked' : '' ?> <?= $isFinalized ? 'disabled' : '' ?>>
+                                           <?= ($suggestedPointOfEntry === $point) ? 'checked' : '' ?> <?= $isReadOnly ? 'disabled' : '' ?>>
                                     <label class="form-check-label font-weight-bold text-dark-emphasis ms-2 cursor-pointer w-100 d-block" for="point_entry_<?= $idx ?>">
                                         <?= htmlspecialchars($point) ?>
                                         <?php if (!$itp && $point === $this->suggestPointOfEntry($readiness['readiness_result'] ?? '')): ?>
@@ -200,7 +215,7 @@ $activeStep = 11;
             </div>
 
             <!-- Actions -->
-            <?php if (!$isFinalized): ?>
+            <?php if (!$isReadOnly): ?>
                 <div class="card shadow-sm border-0" style="border-radius: 12px;">
                     <div class="card-body p-4 bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <div>
@@ -252,14 +267,17 @@ $activeStep = 11;
                             <tbody>
                                 <?php foreach ($teamMembers as $member): 
                                     $roleLabel = ucwords(str_replace('_', ' ', $member['role']));
+                                    $isAutoFilledRole = in_array($member['role'], ['parent_guardian', 'learner', 'sped_teacher'], true);
+                                    $isFilled = ($member['status'] === 'filled' || ($isAutoFilledRole && $member['assigned_user_id'] !== null));
+
                                     $statusClass = 'bg-secondary';
-                                    if ($member['status'] === 'filled') {
+                                    if ($isFilled) {
                                         if ($member['name'] === 'Not Applicable') {
                                             $statusClass = 'bg-light text-muted border';
                                         } else {
                                             $statusClass = 'bg-success text-white';
                                         }
-                                    } elseif ($member['status'] === 'pending' && $member['assigned_user_id'] !== null) {
+                                    } elseif ($member['assigned_user_id'] !== null) {
                                         $statusClass = 'bg-warning text-dark';
                                     }
                                     $isOwnRow = ((int)$member['assigned_user_id'] === intval($_SESSION['user_id']));
@@ -279,7 +297,7 @@ $activeStep = 11;
                                         <td>
                                             <span class="badge rounded-pill <?= $statusClass ?> px-3 py-2 small">
                                                 <?php 
-                                                if ($member['status'] === 'filled') {
+                                                if ($isFilled) {
                                                     if ($member['name'] === 'Not Applicable') {
                                                         echo 'Not Applicable';
                                                     } else {
@@ -296,7 +314,7 @@ $activeStep = 11;
                                         <td>
                                             <div class="d-flex gap-2 flex-wrap">
                                                 <!-- SPED Teacher/Admin Assignment Action -->
-                                                <?php if (!$isFinalized && in_array($role, ['sped_teacher', 'master_teacher', 'admin'], true)): ?>
+                                                <?php if (!$isReadOnly && in_array($role, ['sped_teacher', 'master_teacher', 'admin'], true)): ?>
                                                     <?php if ($member['role'] !== 'sped_teacher'): ?>
                                                         <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#assignModal_<?= $member['id'] ?>" id="btn_assign_trigger_<?= $member['id'] ?>">
                                                             <i class="bi bi-person-plus"></i> Assign
@@ -305,14 +323,14 @@ $activeStep = 11;
                                                 <?php endif; ?>
 
                                                 <!-- Edit own row action -->
-                                                <?php if (!$isFinalized && $isOwnRow && $member['name'] !== 'Not Applicable'): ?>
+                                                <?php if (!$isReadOnly && $isOwnRow && $member['name'] !== 'Not Applicable'): ?>
                                                     <button type="button" class="btn btn-sm btn-danger text-white" style="background-color: #a01422;" data-bs-toggle="modal" data-bs-target="#editOwnDetailsModal_<?= $member['id'] ?>" id="btn_edit_own_<?= $member['id'] ?>">
                                                         <i class="bi bi-pencil-square"></i> Fill My Details
                                                     </button>
                                                 <?php endif; ?>
 
                                                 <!-- Remind action for SPED Teacher/Admin -->
-                                                <?php if (!$isFinalized && in_array($role, ['sped_teacher', 'master_teacher', 'admin'], true) && $member['status'] === 'pending' && $member['assigned_user_id'] !== null): ?>
+                                                <?php if (!$isReadOnly && in_array($role, ['sped_teacher', 'master_teacher', 'admin'], true) && !$isFilled && $member['assigned_user_id'] !== null): ?>
                                                     <form method="post" action="<?= $basePath ?>/itp-team/remind/<?= $member['id'] ?>" class="d-inline">
                                                         <button type="submit" class="btn btn-sm btn-outline-warning" id="btn_remind_<?= $member['id'] ?>">
                                                             <i class="bi bi-bell"></i> Remind
@@ -324,7 +342,7 @@ $activeStep = 11;
                                     </tr>
 
                                     <!-- Assignment Modal -->
-                                    <?php if (!$isFinalized && in_array($role, ['sped_teacher', 'master_teacher', 'admin'], true) && $member['role'] !== 'sped_teacher'): ?>
+                                    <?php if (!$isReadOnly && in_array($role, ['sped_teacher', 'master_teacher', 'admin'], true) && $member['role'] !== 'sped_teacher'): ?>
                                         <div class="modal fade" id="assignModal_<?= $member['id'] ?>" tabindex="-1" aria-labelledby="assignModalLabel_<?= $member['id'] ?>" aria-hidden="true">
                                             <div class="modal-dialog">
                                                 <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
@@ -452,7 +470,7 @@ $activeStep = 11;
                                     <?php endif; ?>
 
                                     <!-- Edit Own Details Modal -->
-                                    <?php if (!$isFinalized && $isOwnRow && $member['name'] !== 'Not Applicable'): ?>
+                                    <?php if (!$isReadOnly && $isOwnRow && $member['name'] !== 'Not Applicable'): ?>
                                         <div class="modal fade" id="editOwnDetailsModal_<?= $member['id'] ?>" tabindex="-1" aria-labelledby="editOwnDetailsModalLabel_<?= $member['id'] ?>" aria-hidden="true">
                                             <div class="modal-dialog">
                                                 <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
@@ -536,7 +554,7 @@ $activeStep = 11;
                             'skills' => ['label' => 'Skills', 'icon' => 'bi-tools'],
                             'needs' => ['label' => 'Needs', 'icon' => 'bi-exclamation-triangle']
                         ];
-                        $canEditNarrative = (!$isFinalized && in_array($role, ['sped_teacher', 'master_teacher', 'admin'], true));
+                        $canEditNarrative = (!$isReadOnly && in_array($role, ['sped_teacher', 'master_teacher', 'admin'], true));
                         ?>
 
                         <div class="row g-4">
@@ -674,7 +692,7 @@ $activeStep = 11;
                             'Care Skills',
                             'Career Skills'
                         ];
-                        $canEditMatrix = (!$isFinalized && in_array($role, ['sped_teacher', 'master_teacher', 'admin'], true));
+                        $canEditMatrix = (!$isReadOnly && in_array($role, ['sped_teacher', 'master_teacher', 'admin'], true));
                         ?>
 
                         <div class="table-responsive">
@@ -774,6 +792,12 @@ $activeStep = 11;
                                     <i class="bi bi-lock-fill text-success" style="font-size: 2rem;"></i>
                                     <h6 class="mt-2 font-weight-bold text-success">This ITP is Finalized</h6>
                                     <p class="text-muted small mb-0">Completed on: <?= date('F d, Y h:i A', strtotime($itp['finalized_at'])) ?></p>
+                                </div>
+                            <?php elseif ($isReadinessNotReady): ?>
+                                <div class="p-3 border rounded-3 bg-light text-center py-4" style="border-left: 4px solid #ffc107 !important;">
+                                    <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2.2rem;"></i>
+                                    <h6 class="mt-2 font-weight-bold text-warning-emphasis">ITP Locked (Learner Not Ready)</h6>
+                                    <p class="text-muted small mb-0">This ITP cannot be filled or finalized because the learner requires re-evaluation based on their SF9 report card.</p>
                                 </div>
                             <?php elseif (in_array($role, ['sped_teacher', 'master_teacher', 'admin'], true)): ?>
                                 <!-- Team member Warnings -->

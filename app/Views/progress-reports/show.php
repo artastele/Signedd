@@ -359,14 +359,14 @@ $isPrincipal = ($role === 'principal');
                                             <input type="hidden" name="teacher_remark" value="<?php echo htmlspecialchars($remarksMap[$quarter]['teacher']['text'] ?? ''); ?>">
                                             <div>
                                                 <label class="form-label small">Teacher Signature Name</label>
-                                                <input type="text" name="teacher_signature" class="form-control form-control-sm" value="<?php echo htmlspecialchars($remarksMap[$quarter]['teacher']['signature'] ?? ''); ?>" <?php echo ($isTeacher && $canEdit) ? '' : 'readonly'; ?>>
+                                                <input type="text" name="teacher_signature" class="form-control form-control-sm" value="<?php echo htmlspecialchars($remarksMap[$quarter]['teacher']['signature'] ?? ''); ?>" <?php echo ($isTeacher && $canEdit && empty($remarksMap[$quarter]['teacher']['signature_data'])) ? '' : 'readonly'; ?>>
                                                 <input type="hidden" name="teacher_signature_data" id="teacher_signature_data">
                                                 <?php if (!empty($remarksMap[$quarter]['teacher']['signature_data'])): ?>
                                                     <div class="mt-2 p-2 bg-white border rounded">
                                                         <img src="<?php echo htmlspecialchars($remarksMap[$quarter]['teacher']['signature_data']); ?>" alt="Teacher signature" style="max-height: 90px; max-width: 100%;">
                                                     </div>
                                                 <?php endif; ?>
-                                                <?php if ($isTeacher && $canEdit): ?>
+                                                <?php if ($isTeacher && $canEdit && empty($remarksMap[$quarter]['teacher']['signature_data'])): ?>
                                                     <div class="mt-2">
                                                         <canvas id="teacherSignaturePad" class="sf9-signature-pad"></canvas>
                                                         <button type="button" class="btn btn-sm btn-outline-secondary mt-2" data-clear-signature="teacher">
@@ -386,18 +386,18 @@ $isPrincipal = ($role === 'principal');
                                             <h6 class="fw-bold mb-2 text-success">Parent / Guardian Section</h6>
                                             <div class="mb-3">
                                                 <label class="form-label small">Parent/Guardian Comments</label>
-                                                <textarea name="parent_comment" class="form-control form-control-sm" rows="3" <?php echo ($isParent && (!$progressReport || $progressReport['status'] !== 'finalized')) ? '' : 'readonly'; ?>><?php echo htmlspecialchars($remarksMap[$quarter]['parent']['text'] ?? ''); ?></textarea>
+                                                <textarea name="parent_comment" class="form-control form-control-sm" rows="3" <?php echo ($isParent && (!$progressReport || $progressReport['status'] !== 'finalized') && empty($remarksMap[$quarter]['parent']['signature_data'])) ? '' : 'readonly'; ?>><?php echo htmlspecialchars($remarksMap[$quarter]['parent']['text'] ?? ''); ?></textarea>
                                             </div>
                                             <div>
                                                 <label class="form-label small">Parent/Guardian Signature Name</label>
-                                                <input type="text" name="parent_signature" class="form-control form-control-sm" value="<?php echo htmlspecialchars($remarksMap[$quarter]['parent']['signature'] ?? ''); ?>" <?php echo ($isParent && (!$progressReport || $progressReport['status'] !== 'finalized')) ? '' : 'readonly'; ?>>
+                                                <input type="text" name="parent_signature" class="form-control form-control-sm" value="<?php echo htmlspecialchars($remarksMap[$quarter]['parent']['signature'] ?? ''); ?>" <?php echo ($isParent && (!$progressReport || $progressReport['status'] !== 'finalized') && empty($remarksMap[$quarter]['parent']['signature_data'])) ? '' : 'readonly'; ?>>
                                                 <input type="hidden" name="parent_signature_data" id="parent_signature_data">
                                                 <?php if (!empty($remarksMap[$quarter]['parent']['signature_data'])): ?>
                                                     <div class="mt-2 p-2 bg-white border rounded">
                                                         <img src="<?php echo htmlspecialchars($remarksMap[$quarter]['parent']['signature_data']); ?>" alt="Parent/guardian signature" style="max-height: 90px; max-width: 100%;">
                                                     </div>
                                                 <?php endif; ?>
-                                                <?php if ($isParent && (!$progressReport || $progressReport['status'] !== 'finalized')): ?>
+                                                <?php if ($isParent && (!$progressReport || $progressReport['status'] !== 'finalized') && empty($remarksMap[$quarter]['parent']['signature_data'])): ?>
                                                     <div class="mt-2">
                                                         <canvas id="parentSignaturePad" class="sf9-signature-pad"></canvas>
                                                         <button type="button" class="btn btn-sm btn-outline-secondary mt-2" data-clear-signature="parent">

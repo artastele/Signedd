@@ -51,6 +51,19 @@ $activeStep = 13;
         <!-- Wizard Navigation -->
         <?php require_once __DIR__ . '/../layouts/transition_nav.php'; ?>
 
+        <?php if ($readiness && ($readiness['status'] ?? '') === 'finalized' && ($readiness['readiness_result'] ?? '') !== 'Ready for Inclusion'): ?>
+            <div class="alert alert-warning py-3 mb-4 d-flex align-items-start gap-3 shadow-sm border-0" style="border-left: 5px solid #ffc107; background-color: #fffbeb; border-radius: 12px;">
+                <i class="bi bi-exclamation-triangle-fill text-warning fs-3 mt-1 flex-shrink-0"></i>
+                <div>
+                    <h5 class="alert-heading text-warning-emphasis mb-1 font-weight-bold">Learner Re-Evaluation / Support Needed</h5>
+                    <p class="mb-0 small text-muted">
+                        Based on the finalized transition readiness evaluation, this learner is evaluated as <strong><?= htmlspecialchars($readiness['readiness_result']) ?></strong>.
+                        They are <strong>not yet ready</strong> to transition. Please proceed with caution and ensure additional learning and support accommodations are carefully documented.
+                    </p>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <?php if ($isMainstreamed || ($iep['status'] ?? '') === 'mainstreamed'): ?>
             <div class="alert alert-success py-3 mb-4 d-flex align-items-center shadow-sm" style="border-left: 5px solid #3b6d11; background-color: #f4faf0;">
                 <i class="bi bi-check-circle-fill me-3 fs-3 text-success"></i>

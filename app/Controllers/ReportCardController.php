@@ -135,7 +135,7 @@ class ReportCardController {
             SELECT id, drafted_by, re_evaluation_date, status 
             FROM iep_records 
             WHERE student_id = :sid AND status IN ('signed', 'locked') 
-            ORDER BY locked_at DESC LIMIT 1
+            ORDER BY updated_at DESC LIMIT 1
         ");
         $iepStmt->execute(['sid' => $studentId]);
         $iepRow = $iepStmt->fetch();
