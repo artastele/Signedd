@@ -64,6 +64,14 @@ class ClassPlacementController {
             }
         }
 
+        // Parent must be the parent of this student to view
+        if ($this->userRole === 'parent') {
+            if ((int)($ctx['parent_id'] ?? 0) !== $this->userId && $this->model->getParentIdForStudent($studentId) !== $this->userId) {
+                http_response_code(403);
+                die('403 Forbidden: You can only view class placement for your own child.');
+            }
+        }
+
         // Fetch transition history log
         $placementHistory = $this->model->getPlacementHistory($studentId);
 
@@ -135,14 +143,12 @@ class ClassPlacementController {
             exit;
         }
 
-        $holdReason = null;
-        if ($status === 'on_hold') {
-            $holdReason = trim($_POST['hold_reason'] ?? '');
-            if ($holdReason === '') {
-                $_SESSION['error'] = 'A reason is required to place the student on hold.';
-                header('Location: ' . $this->basePath . '/iep/' . $iepId . '/placement-notice');
-                exit;
-            }
+        $remarks = trim($_POST['remarks'] ?? '');
+        $holdReason = ($status === 'confirmed') ? ($remarks !== '' ? $remarks : null) : trim($_POST['hold_reason'] ?? '');
+        if ($status === 'on_hold' && $holdReason === '') {
+            $_SESSION['error'] = 'A reason is required to place the student on hold.';
+            header('Location: ' . $this->basePath . '/iep/' . $iepId . '/placement-notice');
+            exit;
         }
 
         try {
@@ -163,11 +169,15 @@ class ClassPlacementController {
                     // Send Parent Notifications
                     if ($parentId) {
                         // In-system
+                        $notifMsg = 'Your child ' . $studentName . ' has been recommended for regular class placement.';
+                        if ($remarks !== '') {
+                            $notifMsg .= ' Remarks: ' . $remarks;
+                        }
                         $this->notifications->create(
                             $parentId,
                             'placement_confirmed',
                             'Placement Confirmed',
-                            'Your child ' . $studentName . ' has been recommended for regular class placement.',
+                            $notifMsg,
                             ['iep_id' => $iepId]
                         );
 
@@ -180,6 +190,11 @@ class ClassPlacementController {
                                 <h2>Class Placement Notice</h2>
                                 <p>Hello " . htmlspecialchars($parentUser['name']) . ",</p>
                                 <p>We are pleased to inform you that your child, <strong>" . htmlspecialchars($studentName) . "</strong>, has been recommended for regular class placement (mainstreamed).</p>
+                            ";
+                            if ($remarks !== '') {
+                                $htmlBody .= "<p><strong>Remarks from Teacher:</strong><br>" . nl2br(htmlspecialchars($remarks)) . "</p>";
+                            }
+                            $htmlBody .= "
                                 <p>If you have any questions, please contact the SPED teacher or school administration.</p>
                                 <p>Best regards,<br>SignED Team</p>
                             ";

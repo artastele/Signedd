@@ -380,6 +380,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                     $notifLink = BASE_PATH . '/enrollment/status';
                                 } else if ($notif['type'] === 'iep_signature_request' && !empty($notifData['iep_id']) && !empty($notifData['signatory_id'])) {
                                     $notifLink = BASE_PATH . '/iep/sign/' . $notifData['iep_id'] . '/' . $notifData['signatory_id'];
+                                } else if ($notif['type'] === 'placement_confirmed' && !empty($notifData['iep_id'])) {
+                                    $notifLink = BASE_PATH . '/iep/' . $notifData['iep_id'] . '/placement-notice';
                                 } else if (!empty($notifData['iep_id'])) {
                                     $notifLink = BASE_PATH . '/iep';
                                 }
@@ -390,6 +392,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                     case 'role_approved':
                                     case 'enrollment_approved':
                                     case 'email_verified':
+                                    case 'placement_confirmed':
                                         $bgType = 'success';
                                         $iconName = 'check-circle-fill';
                                         break;

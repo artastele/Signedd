@@ -24,6 +24,7 @@ return [
         'progress_report.view_own_child',
         'report_card.view_own_child',
         'placement_notice.view',
+        'class_placement.view',
         'transition.view',
         'itp.fill_own_row',
         'itp.sign',

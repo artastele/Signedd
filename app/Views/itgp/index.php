@@ -470,9 +470,9 @@ $statusLabels = [
 
                     <form method="POST" action="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp/inspect" id="inspectForm">
                         <div class="mb-4">
-                            <label class="form-label fw-bold small text-muted text-uppercase">Recommendations (Beginning of School Year) <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold small text-muted text-uppercase">Recommendations (Beginning of School Year)</label>
                             <textarea name="master_recommendations" class="form-control border-2" rows="4" style="border-radius:8px;"
-                                placeholder="Enter your recommendations and observations as Master Teacher II..." required><?= htmlspecialchars($itgp['master_teacher_recommendations'] ?? '') ?></textarea>
+                                placeholder="Enter your recommendations and observations as Master Teacher II..."><?= htmlspecialchars($itgp['master_teacher_recommendations'] ?? '') ?></textarea>
                         </div>
 
                         <!-- Signature Pad -->
@@ -573,17 +573,11 @@ $statusLabels = [
                                 <textarea id="itgp_goal" name="itgp_goal" class="form-control border-2" rows="2" style="border-radius:8px;"
                                     placeholder="Define the primary transition target or objective..." required><?= htmlspecialchars($itgp['goal'] ?? $itpRecommendationsBeginning ?? '') ?></textarea>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-12">
                                 <label for="entry_point" class="form-label small fw-bold text-muted text-uppercase">Point of Entry <span class="text-danger">*</span></label>
                                 <input id="entry_point" name="entry_point" type="text" class="form-control border-2" style="border-radius:8px;"
                                     placeholder="e.g. Regular Class (Mainstreamed)"
                                     value="<?= htmlspecialchars($itgp['entry_point'] ?? $itp['point_of_entry'] ?? '') ?>" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="learning_packages" class="form-label small fw-bold text-muted text-uppercase">Learning Packages</label>
-                                <input id="learning_packages" name="learning_packages" type="text" class="form-control border-2" style="border-radius:8px;"
-                                    placeholder="e.g. Life Skills, Pre-vocational"
-                                    value="<?= htmlspecialchars($itgp['learning_packages'] ?? '') ?>">
                             </div>
 
                             <!-- Activities Table -->
@@ -599,7 +593,7 @@ $statusLabels = [
                                         <thead class="text-white" style="background:#1e4072;">
                                             <tr>
                                                 <th>Competency / Skill</th>
-                                                <th>Activities</th>
+                                                <th>Activities (Indicator)</th>
                                                 <th>Time Frame</th>
                                                 <th>Person Responsible</th>
                                                 <th>Remarks</th>
@@ -611,8 +605,52 @@ $statusLabels = [
                                             $activitiesList = !empty($itgp['activities']) ? $itgp['activities'] : [['competency_skill'=>'','activities'=>'','time_frame'=>'','person_responsible'=>'','remarks'=>'']];
                                             foreach ($activitiesList as $idx => $act): ?>
                                                 <tr>
-                                                    <td><textarea name="activities[<?= $idx ?>][competency_skill]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Competency"><?= htmlspecialchars($act['competency_skill'] ?? '') ?></textarea></td>
-                                                    <td><textarea name="activities[<?= $idx ?>][activities]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Activities"><?= htmlspecialchars($act['activities'] ?? '') ?></textarea></td>
+                                                    <td>
+                                                        <?php
+                                                        $selectedCategory = $act['competency_skill'] ?? '';
+                                                        $isCustomCategory = !empty($selectedCategory);
+                                                        if ($isCustomCategory) {
+                                                            if (isset($sf9Indicators[$selectedCategory])) {
+                                                                $isCustomCategory = false;
+                                                            }
+                                                        }
+                                                        ?>
+                                                        <select name="activities[<?= $idx ?>][competency_skill]" class="form-select form-select-sm border-0 shadow-none competency-category-select">
+                                                            <option value="">-- Select Category --</option>
+                                                            <?php if ($isCustomCategory): ?>
+                                                                <option value="<?= htmlspecialchars($selectedCategory) ?>" selected><?= htmlspecialchars($selectedCategory) ?> (Custom)</option>
+                                                            <?php endif; ?>
+                                                            <?php foreach ($sf9Indicators as $domain => $indicators): ?>
+                                                                <option value="<?= htmlspecialchars($domain) ?>" <?= (!$isCustomCategory && $selectedCategory === $domain) ? 'selected' : '' ?>><?= htmlspecialchars($domain) ?></option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        <?php
+                                                        $selectedActivity = $act['activities'] ?? '';
+                                                        $hasCustomActivity = !empty($selectedActivity);
+                                                        if ($hasCustomActivity && !empty($selectedCategory) && isset($sf9Indicators[$selectedCategory])) {
+                                                            if (in_array($selectedActivity, $sf9Indicators[$selectedCategory], true)) {
+                                                                    $hasCustomActivity = false;
+                                                            }
+                                                        }
+                                                        ?>
+                                                        <select name="activities[<?= $idx ?>][activities]" class="form-select form-select-sm border-0 shadow-none activity-indicator-select">
+                                                            <?php if (empty($selectedCategory)): ?>
+                                                                <option value="">-- Select Category First --</option>
+                                                            <?php else: ?>
+                                                                <option value="">-- Select Activity --</option>
+                                                                <?php if ($hasCustomActivity): ?>
+                                                                    <option value="<?= htmlspecialchars($selectedActivity) ?>" selected><?= htmlspecialchars($selectedActivity) ?> (Custom)</option>
+                                                                <?php endif; ?>
+                                                                <?php if (isset($sf9Indicators[$selectedCategory])): ?>
+                                                                    <?php foreach ($sf9Indicators[$selectedCategory] as $ind): ?>
+                                                                        <option value="<?= htmlspecialchars($ind) ?>" <?= (!$hasCustomActivity && $selectedActivity === $ind) ? 'selected' : '' ?>><?= htmlspecialchars($ind) ?></option>
+                                                                    <?php endforeach; ?>
+                                                                <?php endif; ?>
+                                                            <?php endif; ?>
+                                                        </select>
+                                                    </td>
                                                     <td><input type="text" name="activities[<?= $idx ?>][time_frame]" class="form-control form-control-sm border-0 shadow-none" placeholder="Time Frame" value="<?= htmlspecialchars($act['time_frame'] ?? '') ?>"></td>
                                                     <td><input type="text" name="activities[<?= $idx ?>][person_responsible]" class="form-control form-control-sm border-0 shadow-none" placeholder="Person" value="<?= htmlspecialchars($act['person_responsible'] ?? '') ?>"></td>
                                                     <td><textarea name="activities[<?= $idx ?>][remarks]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Remarks"><?= htmlspecialchars($act['remarks'] ?? '') ?></textarea></td>
@@ -622,6 +660,15 @@ $statusLabels = [
                                         </tbody>
                                     </table>
                                 </div>
+                                <!-- Dropdown Template for JS dynamic row addition -->
+                                <template id="competency-select-template">
+                                    <select name="activities[__INDEX__][competency_skill]" class="form-select form-select-sm border-0 shadow-none competency-category-select">
+                                        <option value="">-- Select Category --</option>
+                                        <?php foreach ($sf9Indicators as $domain => $indicators): ?>
+                                            <option value="<?= htmlspecialchars($domain) ?>"><?= htmlspecialchars($domain) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </template>
                             </div>
 
                             <div class="col-12">
@@ -720,6 +767,43 @@ document.addEventListener("DOMContentLoaded", function () {
     var commentsBox = document.getElementById("commentsBox");
     if (commentsBox) commentsBox.scrollTop = commentsBox.scrollHeight;
 
+    // SF9 Indicators JSON
+    const sf9Indicators = <?= json_encode($sf9Indicators) ?>;
+
+    // Category change handler
+    document.addEventListener("change", function (e) {
+        if (e.target && e.target.classList.contains("competency-category-select")) {
+            var selectCategory = e.target;
+            var row = selectCategory.closest("tr");
+            var selectActivity = row.querySelector(".activity-indicator-select");
+            if (selectActivity) {
+                var category = selectCategory.value;
+                selectActivity.innerHTML = "";
+                
+                if (!category) {
+                    var opt = document.createElement("option");
+                    opt.value = "";
+                    opt.textContent = "-- Select Category First --";
+                    selectActivity.appendChild(opt);
+                } else {
+                    var defaultOpt = document.createElement("option");
+                    defaultOpt.value = "";
+                    defaultOpt.textContent = "-- Select Activity --";
+                    selectActivity.appendChild(defaultOpt);
+                    
+                    if (sf9Indicators[category]) {
+                        sf9Indicators[category].forEach(function (ind) {
+                            var opt = document.createElement("option");
+                            opt.value = ind;
+                            opt.textContent = ind;
+                            selectActivity.appendChild(opt);
+                        });
+                    }
+                }
+            }
+        }
+    });
+
     // Activity rows
     var addBtn    = document.getElementById("addActivityBtn");
     var tableBody = document.querySelector("#activitiesTable tbody");
@@ -727,9 +811,18 @@ document.addEventListener("DOMContentLoaded", function () {
         addBtn.addEventListener("click", function () {
             var idx = tableBody.querySelectorAll("tr").length;
             var tr  = document.createElement("tr");
+            
+            // Get template HTML and replace index placeholders
+            var selectTemplate = document.getElementById("competency-select-template").innerHTML;
+            var selectHtml = selectTemplate.replace(/__INDEX__/g, idx);
+            
             tr.innerHTML = `
-                <td><textarea name="activities[${idx}][competency_skill]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Competency"></textarea></td>
-                <td><textarea name="activities[${idx}][activities]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Activities"></textarea></td>
+                <td>${selectHtml}</td>
+                <td>
+                    <select name="activities[${idx}][activities]" class="form-select form-select-sm border-0 shadow-none activity-indicator-select">
+                        <option value="">-- Select Category First --</option>
+                    </select>
+                </td>
                 <td><input type="text" name="activities[${idx}][time_frame]" class="form-control form-control-sm border-0 shadow-none" placeholder="Time Frame"></td>
                 <td><input type="text" name="activities[${idx}][person_responsible]" class="form-control form-control-sm border-0 shadow-none" placeholder="Person"></td>
                 <td><textarea name="activities[${idx}][remarks]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Remarks"></textarea></td>
@@ -742,7 +835,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (btn) {
                 var row = btn.closest("tr");
                 if (tableBody.querySelectorAll("tr").length > 1) row.remove();
-                else row.querySelectorAll("input,textarea").forEach(el => el.value = "");
+                else row.querySelectorAll("input,textarea,select").forEach(el => el.value = "");
             }
         });
     }

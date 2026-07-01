@@ -22,12 +22,6 @@ if (empty($itgp)) return;
                 <span class="small text-muted text-uppercase fw-bold d-block">Point of Entry</span>
                 <p class="mb-0"><?= htmlspecialchars($itgp['entry_point'] ?? '—') ?></p>
             </div>
-            <?php if (!empty($itgp['learning_packages'])): ?>
-            <div class="col-12">
-                <span class="small text-muted text-uppercase fw-bold d-block">Learning Packages</span>
-                <p class="mb-0"><?= htmlspecialchars($itgp['learning_packages']) ?></p>
-            </div>
-            <?php endif; ?>
         </div>
 
         <?php if (!empty($itgp['activities'])): ?>

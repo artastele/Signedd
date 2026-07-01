@@ -103,6 +103,9 @@ class ITGPController {
             $generalTeachers = $this->model->getApprovedGeneralTeachers();
         }
 
+        $sf9ConfigPath = dirname(__DIR__, 2) . '/config/sf9_indicators.php';
+        $sf9Indicators = file_exists($sf9ConfigPath) ? require $sf9ConfigPath : [];
+
         $success = $_SESSION['success'] ?? null;
         $error   = $_SESSION['error']   ?? null;
         unset($_SESSION['success'], $_SESSION['error']);
@@ -440,15 +443,8 @@ class ITGPController {
             header('Location: ' . $this->basePath . '/iep/' . $iepId . '/inclusive-iep-itgp');
             exit;
         }
-
         $recommendations = trim($_POST['master_recommendations'] ?? '');
         $signatureData   = trim($_POST['master_signature']       ?? '');
-
-        if ($recommendations === '') {
-            $_SESSION['error'] = 'Recommendations (Beginning of School Year) are required.';
-            header('Location: ' . $this->basePath . '/iep/' . $iepId . '/inclusive-iep-itgp');
-            exit;
-        }
         if (empty($signatureData) || !str_starts_with($signatureData, 'data:image/')) {
             $_SESSION['error'] = 'A digital signature is required to inspect.';
             header('Location: ' . $this->basePath . '/iep/' . $iepId . '/inclusive-iep-itgp');

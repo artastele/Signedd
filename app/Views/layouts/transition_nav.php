@@ -17,8 +17,8 @@ if (!isset($transitionNavStudentCode)) {
 // Determine status of each step for gating display
 $p10Finalized = (!empty($workflow['readiness']) && $workflow['readiness']['status'] === 'finalized');
 $p11Finalized = (!empty($workflow['itp']) && $workflow['itp']['status'] === 'finalized');
-$p12Finalized = (!empty($workflow['itgp']) && $workflow['itgp']['status'] === 'signed');
-$p13Finalized = (!empty($workflow['placement']) && in_array($workflow['placement']['placement_status'], ['Notice Sent', 'Placed']));
+$p12Finalized = (!empty($workflow['itgp']) && $workflow['itgp']['status'] === 'finalized');
+$p13Finalized = (!empty($workflow['placement']) && $workflow['placement']['status'] === 'confirmed');
 
 $steps = [
     10 => [
