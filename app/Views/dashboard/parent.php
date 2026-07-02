@@ -74,12 +74,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <i class="bi bi-envelope me-1"></i>Sent to your email
                             </span>
                         </div>
-                        <div>
-                            <span class="text-muted">Login at:</span>
-                            <a href="<?php echo BASE_PATH; ?>/login" style="color: #a01422; font-size: 0.8rem;">
-                                <?php echo getenv('APP_URL') ?: 'SignED'; ?>
-                            </a>
-                        </div>
+
                     </div>
 
                     <!-- Close button -->

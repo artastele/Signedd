@@ -584,9 +584,14 @@ $statusLabels = [
                             <div class="col-12">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <label class="form-label small fw-bold text-muted text-uppercase mb-0">Enabling Activities & Learning Tasks</label>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" id="addActivityBtn">
-                                        <i class="bi bi-plus-lg me-1"></i>Add Row
-                                    </button>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-success" id="addCustomActivityBtn">
+                                            <i class="bi bi-plus-lg me-1"></i>Add Custom Activity
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="addActivityBtn">
+                                            <i class="bi bi-plus-lg me-1"></i>Add Row
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="table-responsive border rounded-3">
                                     <table class="table table-bordered align-middle mb-0" id="activitiesTable" style="font-size:.85rem;">
@@ -635,21 +640,22 @@ $statusLabels = [
                                                             }
                                                         }
                                                         ?>
-                                                        <select name="activities[<?= $idx ?>][activities]" class="form-select form-select-sm border-0 shadow-none activity-indicator-select">
-                                                            <?php if (empty($selectedCategory)): ?>
-                                                                <option value="">-- Select Category First --</option>
-                                                            <?php else: ?>
-                                                                <option value="">-- Select Activity --</option>
-                                                                <?php if ($hasCustomActivity): ?>
-                                                                    <option value="<?= htmlspecialchars($selectedActivity) ?>" selected><?= htmlspecialchars($selectedActivity) ?> (Custom)</option>
+                                                        <?php if ($hasCustomActivity): ?>
+                                                            <input type="text" name="activities[<?= $idx ?>][activities]" class="form-control form-control-sm border-0 shadow-none" placeholder="Enter Custom Activity" value="<?= htmlspecialchars($selectedActivity) ?>">
+                                                        <?php else: ?>
+                                                            <select name="activities[<?= $idx ?>][activities]" class="form-select form-select-sm border-0 shadow-none activity-indicator-select">
+                                                                <?php if (empty($selectedCategory)): ?>
+                                                                    <option value="">-- Select Category First --</option>
+                                                                <?php else: ?>
+                                                                    <option value="">-- Select Activity --</option>
+                                                                    <?php if (isset($sf9Indicators[$selectedCategory])): ?>
+                                                                        <?php foreach ($sf9Indicators[$selectedCategory] as $ind): ?>
+                                                                            <option value="<?= htmlspecialchars($ind) ?>" <?= ($selectedActivity === $ind) ? 'selected' : '' ?>><?= htmlspecialchars($ind) ?></option>
+                                                                        <?php endforeach; ?>
+                                                                    <?php endif; ?>
                                                                 <?php endif; ?>
-                                                                <?php if (isset($sf9Indicators[$selectedCategory])): ?>
-                                                                    <?php foreach ($sf9Indicators[$selectedCategory] as $ind): ?>
-                                                                        <option value="<?= htmlspecialchars($ind) ?>" <?= (!$hasCustomActivity && $selectedActivity === $ind) ? 'selected' : '' ?>><?= htmlspecialchars($ind) ?></option>
-                                                                    <?php endforeach; ?>
-                                                                <?php endif; ?>
-                                                            <?php endif; ?>
-                                                        </select>
+                                                            </select>
+                                                        <?php endif; ?>
                                                     </td>
                                                     <td><input type="text" name="activities[<?= $idx ?>][time_frame]" class="form-control form-control-sm border-0 shadow-none" placeholder="Time Frame" value="<?= htmlspecialchars($act['time_frame'] ?? '') ?>"></td>
                                                     <td><input type="text" name="activities[<?= $idx ?>][person_responsible]" class="form-control form-control-sm border-0 shadow-none" placeholder="Person" value="<?= htmlspecialchars($act['person_responsible'] ?? '') ?>"></td>
@@ -830,6 +836,29 @@ document.addEventListener("DOMContentLoaded", function () {
             `;
             tableBody.appendChild(tr);
         });
+
+        var addCustomBtn = document.getElementById("addCustomActivityBtn");
+        if (addCustomBtn) {
+            addCustomBtn.addEventListener("click", function () {
+                var idx = tableBody.querySelectorAll("tr").length;
+                var tr  = document.createElement("tr");
+                
+                var selectTemplate = document.getElementById("competency-select-template").innerHTML;
+                var selectHtml = selectTemplate.replace(/__INDEX__/g, idx);
+                
+                tr.innerHTML = `
+                    <td>${selectHtml}</td>
+                    <td>
+                        <input type="text" name="activities[${idx}][activities]" class="form-control form-control-sm border-0 shadow-none" placeholder="Enter Custom Activity">
+                    </td>
+                    <td><input type="text" name="activities[${idx}][time_frame]" class="form-control form-control-sm border-0 shadow-none" placeholder="Time Frame"></td>
+                    <td><input type="text" name="activities[${idx}][person_responsible]" class="form-control form-control-sm border-0 shadow-none" placeholder="Person"></td>
+                    <td><textarea name="activities[${idx}][remarks]" class="form-control form-control-sm border-0 shadow-none" rows="2" placeholder="Remarks"></textarea></td>
+                    <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger border-0 remove-row-btn"><i class="bi bi-trash-fill"></i></button></td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
         tableBody.addEventListener("click", function (e) {
             var btn = e.target.closest(".remove-row-btn");
             if (btn) {

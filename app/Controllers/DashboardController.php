@@ -87,8 +87,23 @@ class DashboardController {
                 require_once __DIR__ . '/../Views/dashboard/master_teacher.php';
                 break;
             case 'general_teacher':
-                header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/iep');
-                exit;
+                $assignedIepsCount = 0;
+                $activeITGPs = 0;
+                $submittedGrades = 0;
+                
+                try {
+                    require_once __DIR__ . '/../../config/db.php';
+                    $db = Database::getInstance()->getConnection();
+                    
+                    // Simple stats for visual feedback
+                    $assignedIepsCount = (int) $db->query("SELECT COUNT(*) FROM iep_records WHERE status IN ('signed', 'locked')")->fetchColumn();
+                    // We can refine these queries later if specific tracking is needed
+                } catch (PDOException $e) {
+                    error_log('DashboardController: general_teacher stats query failed - ' . $e->getMessage());
+                }
+
+                require_once __DIR__ . '/../Views/dashboard/general_teacher.php';
+                break;
             case 'general':
             case 'user':
             default:

@@ -138,6 +138,7 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                         <td><?php echo date('M d, Y', strtotime($iep['created_at'])); ?></td>
                         <td>
                             <div class="d-flex gap-1 flex-wrap">
+                                <?php if ($role !== 'general_teacher'): ?>
                                 <a href="<?php echo $basePath; ?>/iep/form/<?php echo $iep['id']; ?>"
                                    class="btn btn-sm" style="background:#1e4072;color:white;">
                                     <i class="bi bi-eye me-1"></i>View
@@ -146,6 +147,7 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                                    class="btn btn-sm btn-outline-secondary">
                                     <i class="bi bi-printer me-1"></i>Print
                                 </a>
+                                <?php endif; ?>
                                 <?php if (RoleMiddleware::hasPermission('progress_report.view') || RoleMiddleware::hasPermission('progress_report.view_own_child')): ?>
                                 <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/learning-outcomes/grades"
                                    class="btn btn-sm btn-outline-primary">
