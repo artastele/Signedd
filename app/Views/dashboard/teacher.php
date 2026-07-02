@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'SPED Teacher Dashboard - SPED LMS';
+$pageTitle = 'SPED Teacher Dashboard - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -49,7 +49,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <div class="card border-success">
                 <div class="card-body text-center">
                     <i class="bi bi-check-circle text-success" style="font-size: 2.5rem;"></i>
-                    <h3 class="mt-2 mb-0">-</h3>
+                    <h3 class="mt-2 mb-0"><?php echo (int)($verifiedStudentsCount ?? 0); ?></h3>
                     <small class="text-muted">Verified Students</small>
                 </div>
             </div>
@@ -58,7 +58,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <div class="card border-info">
                 <div class="card-body text-center">
                     <i class="bi bi-clipboard-data text-info" style="font-size: 2.5rem;"></i>
-                    <h3 class="mt-2 mb-0">-</h3>
+                    <h3 class="mt-2 mb-0"><?php echo (int)($assessmentsDoneCount ?? 0); ?></h3>
                     <small class="text-muted">Assessments Done</small>
                 </div>
             </div>
@@ -67,7 +67,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <div class="card border-primary">
                 <div class="card-body text-center">
                     <i class="bi bi-book text-primary" style="font-size: 2.5rem;"></i>
-                    <h3 class="mt-2 mb-0">-</h3>
+                    <h3 class="mt-2 mb-0"><?php echo (int)($activeIepsCount ?? 0); ?></h3>
                     <small class="text-muted">Active IEPs</small>
                 </div>
             </div>
@@ -189,7 +189,16 @@ require_once __DIR__ . '/../layouts/header.php';
                         <tr>
                             <td>
                                 <strong><?php echo htmlspecialchars($learner['student_name']); ?></strong><br>
-                                <small class="text-muted">LRN: <?php echo htmlspecialchars($learner['lrn']); ?></small>
+                                <small class="text-muted">Student ID: <?php
+                                    $learnerFk = (int)($learner['student_id'] ?? 0);
+                                    static $teacherDashCodeCache = [];
+                                    if ($learnerFk && !isset($teacherDashCodeCache[$learnerFk])) {
+                                        require_once __DIR__ . '/../../Models/StudentModel.php';
+                                        $learnerRec = (new StudentModel())->findById($learnerFk);
+                                        $teacherDashCodeCache[$learnerFk] = $learnerRec['student_id'] ?? null;
+                                    }
+                                    echo htmlspecialchars(StudentDisplayHelper::formatStudentId($teacherDashCodeCache[$learnerFk] ?? null));
+                                ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($learner['lrn'] ?? null)); ?></small>
                             </td>
                             <td style="width: 25%;">
                                 <div class="d-flex justify-content-between mb-1">
@@ -262,6 +271,32 @@ require_once __DIR__ . '/../layouts/header.php';
                     <p class="text-muted small">Create learning materials and activities</p>
                     <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/iep/implementation" class="btn btn-primary">
                         <i class="bi bi-arrow-right"></i> Go to IEP Implementation
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="bi bi-bar-chart-line text-warning" style="font-size: 3rem;"></i>
+                    <h5 class="card-title mt-3">Grades &amp; Progress</h5>
+                    <p class="text-muted small">Track and manage student grades and progress reports</p>
+                    <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/progress-reports" class="btn btn-primary">
+                        <i class="bi bi-arrow-right"></i> Go to Grades
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="bi bi-diagram-3 text-info" style="font-size: 3rem;"></i>
+                    <h5 class="card-title mt-3">Classroom &amp; Progress Modules</h5>
+                    <p class="text-muted small">Open the separate Learning Outcomes, Observation, Transition, Inclusion, and Placement modules from the IEP records page.</p>
+                    <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/iep" class="btn btn-primary">
+                        <i class="bi bi-arrow-right"></i> Go to IEP Records
                     </a>
                 </div>
             </div>

@@ -82,7 +82,7 @@ class RoleController {
 
         // Validation
         $errors = [];
-        $validRoles = ['sped_teacher', 'guidance', 'principal', 'master_teacher'];
+        $validRoles = ['sped_teacher', 'guidance', 'principal', 'master_teacher', 'general_teacher'];
 
         if (!in_array($requestedRole, $validRoles)) {
             $errors[] = 'Invalid role selected.';

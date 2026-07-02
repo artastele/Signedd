@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Verify Email - SPED LMS';
+$pageTitle = 'Verify Email - SignED';
 $basePath = defined('BASE_PATH') ? BASE_PATH : '';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
@@ -9,7 +9,7 @@ require_once __DIR__ . '/../layouts/header.php';
     <div class="auth-left">
         <div class="auth-left-content">
             <?php if (file_exists(__DIR__ . '/../../../public/images/logo-large.png')): ?>
-                <img src="<?php echo $basePath; ?>/images/logo-large.png" alt="SPED LMS Logo" class="auth-logo-large">
+                <img src="<?php echo $basePath; ?>/images/logo-large.png" alt="SignED Logo" class="auth-logo-large">
             <?php else: ?>
                 <i class="bi bi-envelope-check-fill" style="font-size: 6rem; margin-bottom: 2rem;"></i>
             <?php endif; ?>

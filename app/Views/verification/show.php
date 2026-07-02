@@ -1,10 +1,10 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 2
 // Last modified: 2026-05-04
-// Part of: SPED LMS — Enrollment Detail View
+// Part of: SignED — Enrollment Detail View
 
 $basePath = isset($basePath) ? $basePath : '/';
-$pageTitle = 'Enrollment Detail - SPED LMS';
+$pageTitle = 'Enrollment Detail - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -204,7 +204,7 @@ require_once __DIR__ . '/../layouts/header.php';
     <!-- Verification Alert -->
     <?php if ($allApproved): ?>
         <div class="alert alert-success" style="background-color: #d4edda; border-color: #3b6d11; color: #155724; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
-            <strong>✓ All documents approved!</strong> Click "Verify Enrollment" below to create learner account and generate LRN.
+            <strong>✓ All documents approved!</strong> Click "Verify Enrollment" below to create learner account and assign Student ID.
         </div>
     <?php endif; ?>
                 
@@ -778,7 +778,7 @@ require_once __DIR__ . '/../layouts/header.php';
     }
     
     function verifyEnrollment(enrollmentId) {
-        if (confirm('Verify this enrollment? This will create a learner account and generate an LRN.')) {
+        if (confirm('Verify this enrollment? This will create a learner account and assign a Student ID.')) {
             fetch(basePath + 'verification/' + enrollmentId + '/verify', {
                 method: 'POST',
                 headers: {
@@ -788,7 +788,7 @@ require_once __DIR__ . '/../layouts/header.php';
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    alert('Enrollment verified!\nLRN: ' + data.lrn + '\nLearner account created successfully.');
+                    alert('Enrollment verified!\nStudent ID: ' + data.student_id + '\nDepEd LRN: ' + (data.lrn || 'Not yet assigned') + '\nLearner account created successfully.');
                     location.href = basePath + 'verification';
                 } else {
                     alert('Error: ' + data.message);

@@ -1,9 +1,10 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Student Records
 // Last modified: 2026-05-06
-// Part of: SPED LMS — Student Record Detail
+// Part of: SignED — Student Record Detail
 
-$pageTitle = 'Student Record - SPED LMS';
+$pageTitle = 'Student Record - SignED';
+require_once __DIR__ . '/../../Middleware/RoleMiddleware.php';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -14,13 +15,23 @@ require_once __DIR__ . '/../layouts/header.php';
 
 <div class="main-content">
     <!-- Back Button -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <a href="<?php echo $basePath; ?>/students" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Back to Student Records
         </a>
-        <a href="<?php echo $basePath; ?>/assessment/history/<?php echo $student['id']; ?>" class="btn btn-primary">
-            <i class="bi bi-clock-history"></i> View Assessment History
-        </a>
+        <div>
+            <a href="<?php echo $basePath; ?>/students/edit/<?php echo $student['id']; ?>" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-pencil"></i> Edit Student ID / LRN
+            </a>
+            <a href="<?php echo $basePath; ?>/assessment/history/<?php echo $student['id']; ?>" class="btn btn-primary me-2">
+                <i class="bi bi-clock-history"></i> View Assessment History
+            </a>
+            <?php if (RoleMiddleware::hasPermission('progress_report.view') || RoleMiddleware::hasPermission('progress_report.view_own_child')): ?>
+                <a href="<?php echo $basePath; ?>/progress-reports/<?php echo $student['id']; ?>" class="btn btn-outline-primary">
+                    <i class="bi bi-bar-chart-line"></i> View Grades
+                </a>
+            <?php endif; ?>
+        </div>
     </div>
 
     <h1 class="mb-4">
@@ -35,7 +46,8 @@ require_once __DIR__ . '/../layouts/header.php';
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6">
-                    <p><strong>LRN:</strong> <?php echo htmlspecialchars($student['lrn']); ?></p>
+                    <p><strong>Student ID:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_id'] ?? null)); ?></p>
+                    <p><strong>DepEd LRN:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?></p>
                     <p><strong>Full Name:</strong> <?php echo htmlspecialchars($student['student_name']); ?></p>
                     <p><strong>Birth Date:</strong> <?php echo date('F d, Y', strtotime($student['date_of_birth'])); ?></p>
                     <p><strong>Disability Type:</strong> <?php echo htmlspecialchars($student['disability_type'] ?? 'N/A'); ?></p>

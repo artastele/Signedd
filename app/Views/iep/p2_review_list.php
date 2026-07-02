@@ -1,7 +1,7 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 4
 // Last modified: 2026-05-04
-// Part of: SPED LMS — IEP P2 Review List (Guidance/Principal)
+// Part of: SignED — IEP P2 Review List (Guidance/Principal)
 
 require __DIR__ . '/../layouts/header.php';
 require __DIR__ . '/../layouts/sidebar.php';
@@ -60,7 +60,8 @@ $basePath = defined('BASE_PATH') ? BASE_PATH : '';
                     <thead style="background-color: #1e4072; color: white;">
                         <tr>
                             <th>Student Name</th>
-                            <th>LRN</th>
+                            <th>Student ID</th>
+                            <th>DepEd LRN</th>
                             <th>Meeting Date</th>
                             <th>Status</th>
                             <th>Submitted</th>
@@ -70,15 +71,28 @@ $basePath = defined('BASE_PATH') ? BASE_PATH : '';
                     <tbody>
                         <?php if (empty($p2Documents)): ?>
                             <tr>
-                                <td colspan="6" class="text-center py-4 text-muted">
+                                <td colspan="7" class="text-center py-4 text-muted">
                                     <i class="fas fa-inbox"></i> No pending assessments
                                 </td>
                             </tr>
                         <?php else: ?>
+                            <?php
+                            require_once __DIR__ . '/../../Models/StudentModel.php';
+                            $p2StudentModel = new StudentModel();
+                            $p2StudentCodeCache = [];
+                            ?>
                             <?php foreach ($p2Documents as $doc): ?>
+                                <?php
+                                $p2Fk = (int)($doc['student_id'] ?? 0);
+                                if ($p2Fk && !isset($p2StudentCodeCache[$p2Fk])) {
+                                    $p2Rec = $p2StudentModel->findById($p2Fk);
+                                    $p2StudentCodeCache[$p2Fk] = $p2Rec['student_id'] ?? null;
+                                }
+                                ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($doc['student_name']); ?></td>
-                                    <td><?php echo htmlspecialchars($doc['lrn'] ?? 'N/A'); ?></td>
+                                    <td><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($p2StudentCodeCache[$p2Fk] ?? null)); ?></td>
+                                    <td><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($doc['lrn'] ?? null)); ?></td>
                                     <td><?php echo date('M d, Y', strtotime($doc['meeting_date'])); ?></td>
                                     <td>
                                         <span class="badge bg-warning">

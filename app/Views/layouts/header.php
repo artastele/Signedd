@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $pageTitle ?? 'SPED LMS'; ?></title>
+    <title><?php echo $pageTitle ?? 'SignED'; ?></title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/images/favicon.ico">
@@ -22,8 +22,23 @@
     
     <!-- Tabler Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-icons.min.css">
+    
+    <!-- Fredoka Font for Cartoon Style -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-light-surface">
+<?php
+$bodyClass = 'bg-light-surface';
+$bodyAttrs = '';
+if (isset($_SESSION['role']) && $_SESSION['role'] === 'learner') {
+    $bodyClass .= ' learner-layout-active';
+}
+if (isset($_SESSION['user_id'])) {
+    $bodyAttrs .= ' data-logged-in="true"';
+}
+?>
+<body class="<?php echo $bodyClass; ?>"<?php echo $bodyAttrs; ?>>
 
 <!-- Sidebar Overlay (Mobile) -->
 <div class="sidebar-overlay"></div>

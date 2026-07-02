@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Guidance Dashboard - SPED LMS';
+$pageTitle = 'Guidance Dashboard - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

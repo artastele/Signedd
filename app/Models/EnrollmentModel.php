@@ -609,6 +609,33 @@ class EnrollmentModel {
     }
 
     /**
+     * Search student record by internal Student ID (YYYYNNNN) for returning enrollment
+     */
+    public function searchByStudentIdCode($studentIdCode, $schoolYear = null) {
+        $sql = "
+            SELECT es.*
+            FROM enrollment_submissions es
+            JOIN student_records sr ON sr.enrollment_id = es.id
+            WHERE sr.student_id = :student_id
+            AND es.is_draft = FALSE
+            AND es.status IN ('verified', 'pending')
+        ";
+
+        $params = ['student_id' => $studentIdCode];
+
+        if ($schoolYear) {
+            $sql .= " AND es.school_year = :school_year";
+            $params['school_year'] = $schoolYear;
+        }
+
+        $sql .= " ORDER BY es.created_at DESC LIMIT 1";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetch();
+    }
+
+    /**
      * Search students by name for returning enrollment
      * Returns array of matching enrollments
      * Optionally filter by school year

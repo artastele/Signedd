@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 1
 // Last modified: 2026-05-01
-// Part of: SPED LMS — Enrollment Review Detail (SPED Teacher)
+// Part of: SignED — Enrollment Review Detail (SPED Teacher)
 
-$pageTitle = 'Review Enrollment - SPED LMS';
+$pageTitle = 'Review Enrollment - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 
 // Document type labels
@@ -81,7 +81,7 @@ $statusColors = [
         <div class="card-body">
             <div class="row mb-3">
                 <div class="col-md-6">
-                    <strong>LRN:</strong> <?php echo htmlspecialchars($enrollment['lrn'] ?? 'Not provided'); ?>
+                    <strong>DepEd LRN:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($enrollment['lrn'] ?? null)); ?>
                 </div>
                 <div class="col-md-6">
                     <strong>Full Name:</strong> 
@@ -492,21 +492,21 @@ $statusColors = [
         <div class="card-body">
             <div class="alert alert-success">
                 <h5><i class="bi bi-check-circle-fill"></i> Enrollment Verified!</h5>
-                <p class="mb-0">All documents have been approved. You can now create the learner account and generate the LRN.</p>
+                <p class="mb-0">All documents have been approved. You can now create the learner account and assign an internal Student ID.</p>
             </div>
             
             <h6 class="mb-3">What will happen when you click the button below:</h6>
             <ul class="mb-4">
-                <li><strong>Generate LRN</strong> (Learner Reference Number)</li>
+                <li><strong>Assign internal Student ID</strong> (format YYYYNNNN)</li>
                 <li><strong>Create Student Record</strong> in the system</li>
                 <li><strong>Create Learner Account</strong> with login credentials</li>
-                <li><strong>Send Email & Notification</strong> to parent with LRN and login details</li>
+                <li><strong>Send Email & Notification</strong> to parent with Student ID and login details</li>
             </ul>
             
             <button type="button" class="btn btn-success btn-lg w-100" 
                     onclick="createLearnerAccount(<?php echo $enrollment['id']; ?>)"
                     id="createLearnerBtn">
-                <i class="bi bi-person-plus-fill"></i> Create Learner Account & Generate LRN
+                <i class="bi bi-person-plus-fill"></i> Create Learner Account
             </button>
         </div>
     </div>
@@ -514,6 +514,10 @@ $statusColors = [
 
     <!-- Learner Account Already Created -->
     <?php if ($enrollment['status'] === 'verified' && $enrollment['learner_account_created']): ?>
+    <?php
+    require_once __DIR__ . '/../../Models/StudentModel.php';
+    $studentRecord = (new StudentModel())->findByEnrollmentId((int)$enrollment['id']);
+    ?>
     <div class="card mb-4 border-info">
         <div class="card-header bg-info text-white">
             <h5 class="mb-0"><i class="bi bi-check-circle-fill"></i> Learner Account Created</h5>
@@ -521,7 +525,8 @@ $statusColors = [
         <div class="card-body">
             <div class="alert alert-info">
                 <h6><i class="bi bi-info-circle"></i> Account Information</h6>
-                <p><strong>LRN:</strong> <?php echo htmlspecialchars($enrollment['lrn'] ?? 'N/A'); ?></p>
+                <p><strong>Student ID:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($studentRecord['student_id'] ?? null)); ?></p>
+                <p><strong>DepEd LRN:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($enrollment['lrn'] ?? $studentRecord['lrn'] ?? null)); ?></p>
                 <p class="mb-0"><strong>Status:</strong> Learner account has been created and parent has been notified.</p>
             </div>
             <p class="text-muted mb-0">
@@ -544,7 +549,7 @@ $statusColors = [
 function createLearnerAccount(enrollmentId) {
     const btn = document.getElementById('createLearnerBtn');
     
-    if (!confirm('Create learner account and generate LRN?\n\nThis will:\n- Generate a unique LRN\n- Create student record\n- Create learner login account\n- Send credentials to parent\n\nProceed?')) {
+    if (!confirm('Create learner account?\n\nThis will:\n- Assign an internal Student ID\n- Create student record\n- Create learner login account\n- Send credentials to parent\n\nProceed?')) {
         return;
     }
     
@@ -563,7 +568,8 @@ function createLearnerAccount(enrollmentId) {
     .then(data => {
         if (data.success) {
             alert('✅ Learner Account Created Successfully!\n\n' +
-                  'LRN: ' + data.lrn + '\n' +
+                  'Student ID: ' + data.student_id + '\n' +
+                  'DepEd LRN: ' + (data.lrn || 'Not yet assigned') + '\n' +
                   'Learner ID: ' + data.learner_id + '\n\n' +
                   'Parent has been notified via email and in-app notification.');
             
@@ -572,13 +578,13 @@ function createLearnerAccount(enrollmentId) {
         } else {
             alert('❌ Error: ' + data.message);
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-person-plus-fill"></i> Create Learner Account & Generate LRN';
+            btn.innerHTML = '<i class="bi bi-person-plus-fill"></i> Create Learner Account';
         }
     })
     .catch(error => {
         alert('❌ Error: ' + error.message);
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-person-plus-fill"></i> Create Learner Account & Generate LRN';
+        btn.innerHTML = '<i class="bi bi-person-plus-fill"></i> Create Learner Account';
     });
 }
 </script>

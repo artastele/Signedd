@@ -326,10 +326,10 @@ class LessonPlanModel {
         $stmt = $this->db->prepare("
             INSERT INTO lms_activities
                 (lesson_plan_id, title, instructions, activity_type, activity_data,
-                 max_score, due_date, display_order, created_at)
+                 max_score, due_date, display_order, is_f2f, created_at)
             VALUES
                 (:lesson_plan_id, :title, :instructions, :activity_type, :activity_data,
-                 :max_score, :due_date, :display_order, NOW())
+                 :max_score, :due_date, :display_order, :is_f2f, NOW())
         ");
         $stmt->execute([
             'lesson_plan_id' => $data['lesson_plan_id'],
@@ -340,6 +340,7 @@ class LessonPlanModel {
             'max_score'      => $data['max_score']      ?? 0,
             'due_date'       => $data['due_date']       ?? null,
             'display_order'  => $data['display_order']  ?? 0,
+            'is_f2f'         => $data['is_f2f']         ?? 0,
         ]);
         return $this->db->lastInsertId();
     }
@@ -524,24 +525,52 @@ class LessonPlanModel {
         $n = 0;
         switch ($type) {
             case 'multiple_choice':
-                $n = count($data['questions'] ?? []);
+                foreach (($data['questions'] ?? []) as $q) {
+                    $n += (int)($q['points'] ?? 1);
+                }
                 break;
             case 'fill_in_blanks':
-                $n = count($data['sentences'] ?? []);
+                if (!empty($data['sentences'])) {
+                    foreach ($data['sentences'] as $sentence) {
+                        $n += count($sentence['answers'] ?? []) * (int)($sentence['points'] ?? $data['points'] ?? 1);
+                    }
+                } else {
+                    $n = count($data['answers'] ?? []) * (int)($data['points'] ?? 1);
+                }
                 break;
             case 'matching':
-                $n = count($data['pairs'] ?? []);
+                $sets = $data['sets'] ?? $data['matching_sets'] ?? null;
+                if (!empty($sets)) {
+                    foreach ($sets as $set) {
+                        $n += count($set['pairs'] ?? []) * (int)($set['points'] ?? $data['points'] ?? 1);
+                    }
+                } else {
+                    $n = count($data['pairs'] ?? []) * (int)($data['points'] ?? 1);
+                }
                 break;
             case 'true_false':
-                $n = 1;
+                if (!empty($data['questions'])) {
+                    foreach ($data['questions'] as $q) {
+                        $n += (int)($q['points'] ?? $data['points'] ?? 1);
+                    }
+                } else {
+                    $n = (int)($data['points'] ?? 1);
+                }
                 break;
             case 'image_label':
-                $n = count($data['labels'] ?? []);
+                $n = count($data['labels'] ?? $data['markers'] ?? []) * (int)($data['points'] ?? 1);
                 break;
             case 'drag_drop_sort':
             case 'sequencing':
-                $items = $data['items'] ?? $data['steps'] ?? [];
-                $n = count($items);
+                $sets = $data['sets'] ?? ($type === 'drag_drop_sort' ? ($data['sort_sets'] ?? null) : ($data['sequence_sets'] ?? null));
+                if (!empty($sets)) {
+                    foreach ($sets as $set) {
+                        $n += (int)($set['points'] ?? $data['points'] ?? 1);
+                    }
+                } else {
+                    $items = $data['items'] ?? $data['steps'] ?? [];
+                    $n = count($items) > 0 ? (int)($data['points'] ?? 1) : 0;
+                }
                 break;
             default:
                 $n = 0;
@@ -768,19 +797,29 @@ class LessonPlanModel {
             JOIN lms_activities act ON sub.activity_id = act.id
             JOIN lesson_plans lp ON act.lesson_plan_id = lp.id
             JOIN lesson_assignments la ON lp.id = la.lesson_plan_id
-            WHERE la.student_id = :student_id AND lp.status = 'published'
+            WHERE la.student_id = :student_id
+              AND sub.student_id = :student_id_sub
+              AND lp.status = 'published'
         ");
-        $stmtDone->execute(['student_id' => $studentId]);
+        $stmtDone->execute(['student_id' => $studentId, 'student_id_sub' => $studentId]);
         $completed = (int) $stmtDone->fetchColumn();
 
-        // Average score from lms_grades
+        // Average score from grades, falling back to auto-scored submissions.
         $stmtAvg = $this->db->prepare("
-            SELECT AVG(g.score / NULLIF(g.max_score, 0) * 100)
-            FROM lms_grades g
-            JOIN lms_submissions sub ON g.submission_id = sub.id
+            SELECT AVG(
+                CASE
+                    WHEN g.score IS NOT NULL AND COALESCE(g.max_score, act.max_score, 0) > 0
+                        THEN g.score / NULLIF(COALESCE(g.max_score, act.max_score), 0) * 100
+                    WHEN sub.auto_score IS NOT NULL AND act.max_score > 0
+                        THEN sub.auto_score / NULLIF(act.max_score, 0) * 100
+                    ELSE NULL
+                END
+            )
+            FROM lms_submissions sub
             JOIN lms_activities act ON sub.activity_id = act.id
             JOIN lesson_plans lp ON act.lesson_plan_id = lp.id
             JOIN lesson_assignments la ON lp.id = la.lesson_plan_id
+            LEFT JOIN lms_grades g ON g.submission_id = sub.id
             WHERE la.student_id = :student_id AND lp.status = 'published'
         ");
         $stmtAvg->execute(['student_id' => $studentId]);
@@ -798,7 +837,15 @@ class LessonPlanModel {
                 lp.pdsp_domain AS domain,
                 COUNT(DISTINCT act.id) AS total,
                 COUNT(DISTINCT sub.activity_id) AS completed,
-                ROUND(AVG(g.score / NULLIF(g.max_score, 0) * 100), 1) AS avg_score
+                ROUND(AVG(
+                    CASE
+                        WHEN g.score IS NOT NULL AND COALESCE(g.max_score, act.max_score, 0) > 0
+                            THEN g.score / NULLIF(COALESCE(g.max_score, act.max_score), 0) * 100
+                        WHEN sub.auto_score IS NOT NULL AND act.max_score > 0
+                            THEN sub.auto_score / NULLIF(act.max_score, 0) * 100
+                        ELSE NULL
+                    END
+                ), 1) AS avg_score
             FROM lesson_plans lp
             JOIN lesson_assignments la ON lp.id = la.lesson_plan_id
             JOIN lms_activities act ON act.lesson_plan_id = lp.id

@@ -32,7 +32,7 @@ class IEPController {
         $role     = $this->userRole;
         $basePath = BASE_PATH;
 
-        if (!in_array($role, ['sped_teacher','guidance','principal','parent','admin'])) {
+        if (!in_array($role, ['sped_teacher','guidance','principal','parent','master_teacher','admin','general_teacher'])) {
             $_SESSION['error'] = 'Access denied.';
             header('Location: ' . BASE_PATH . '/dashboard');
             exit;
@@ -42,8 +42,24 @@ class IEPController {
         $filterYear   = $_GET['school_year'] ?? '';
         $filterStatus = $_GET['status'] ?? '';
 
-        if ($role === 'sped_teacher' || $role === 'admin') {
+        if ($role === 'sped_teacher') {
             $ieps = $this->iepModel->getByTeacher($this->userId);
+            foreach ($this->iepModel->getSignedForRole($role, $this->userId) as $signedIep) {
+                $exists = false;
+                foreach ($ieps as $existingIep) {
+                    if ((int)$existingIep['id'] === (int)$signedIep['id']) {
+                        $exists = true;
+                        break;
+                    }
+                }
+                if (!$exists) {
+                    $ieps[] = $signedIep;
+                }
+            }
+        } elseif ($role === 'general_teacher') {
+            $ieps = $this->iepModel->getByGeneralTeacher($this->userId);
+        } elseif ($role === 'admin') {
+            $ieps = $this->iepModel->getSignedForRole($role, $this->userId);
         } elseif ($role === 'parent') {
             $ieps = $this->iepModel->getSignedForRole('parent', $this->userId);
         } else {
@@ -227,6 +243,17 @@ class IEPController {
             $allSignaturesCaptured = $this->iepModel->allSignatoriesSignatureComplete((int) $iepId);
         }
 
+        $studentIdForInd = (int) ($iep['student_id'] ?? 0);
+        $dbForInd = Database::getInstance()->getConnection();
+        $stmtForInd = $dbForInd->prepare("
+            SELECT DISTINCT indicator_text 
+            FROM student_quarterly_ratings 
+            WHERE student_id = :sid 
+            ORDER BY indicator_text ASC
+        ");
+        $stmtForInd->execute(['sid' => $studentIdForInd]);
+        $availableIndicators = $stmtForInd->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
         $basePath = BASE_PATH;
         require __DIR__ . '/../Views/iep/form_simplified.php';
     }
@@ -300,6 +327,7 @@ class IEPController {
                 're_evaluation_date'    => $reEvalSql,
                 'header_learner_name'   => $this->nullableTrim($_POST['header_learner_name'] ?? null),
                 'header_learner_age'    => $this->nullableTrim($_POST['header_learner_age'] ?? null),
+                'header_student_id'     => $this->nullableTrim($_POST['header_student_id'] ?? null),
                 'header_lrn'            => $this->nullableTrim($_POST['header_lrn'] ?? null),
                 'header_section'        => $this->nullableTrim($_POST['header_section'] ?? null),
                 'header_teacher_name'   => $this->nullableTrim($_POST['header_teacher_name'] ?? null),
@@ -1549,6 +1577,7 @@ class IEPController {
             ],
             'header_learner_name'  => [$norm($iepBefore['header_learner_name'] ?? ''), $norm($_POST['header_learner_name'] ?? '')],
             'header_learner_age'   => [$norm($iepBefore['header_learner_age'] ?? ''), $norm($_POST['header_learner_age'] ?? '')],
+            'header_student_id'    => [$norm($iepBefore['header_student_id'] ?? ''), $norm($_POST['header_student_id'] ?? '')],
             'header_lrn'           => [$norm($iepBefore['header_lrn'] ?? ''), $norm($_POST['header_lrn'] ?? '')],
             'header_section'       => [$norm($iepBefore['header_section'] ?? ''), $norm($_POST['header_section'] ?? '')],
             'header_teacher_name'  => [$norm($iepBefore['header_teacher_name'] ?? ''), $norm($_POST['header_teacher_name'] ?? '')],

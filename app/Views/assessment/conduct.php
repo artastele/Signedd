@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 3
 // Last modified: 2026-05-06
-// Part of: SPED LMS — Assessment Form (Part I - Section A)
+// Part of: SignED — Assessment Form (Part I - Section A)
 
-$pageTitle = 'Conduct Assessment - SPED LMS';
+$pageTitle = 'Conduct Assessment - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -37,7 +37,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             <option value="<?php echo $student['id']; ?>" 
                                     <?php echo ($studentId == $student['id']) ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($student['student_name']); ?> 
-                                (LRN: <?php echo htmlspecialchars($student['lrn']); ?>) - 
+                                (Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_id'] ?? null)); ?>) - 
                                 <?php echo htmlspecialchars($student['grade_level_to_enroll']); ?>
                             </option>
                         <?php endforeach; ?>
@@ -135,10 +135,15 @@ require_once __DIR__ . '/../layouts/header.php';
                 <h6 class="text-secondary mb-3 mt-4">School Information</h6>
                 <div class="row">
                     <div class="col-md-4 mb-3">
-                        <label class="form-label">LRN <span class="text-danger">*</span></label>
+                        <label class="form-label">Student ID</label>
+                        <input type="text" class="form-control" id="display_student_id"
+                               value="<?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($studentData['student_id'] ?? null)); ?>" readonly>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">DepEd LRN (optional)</label>
                         <input type="text" class="form-control auto-fill-field" name="lrn" id="lrn" 
-                               value="<?php echo htmlspecialchars($studentData['lrn'] ?? ''); ?>" 
-                               pattern="\d{12}" maxlength="12" required>
+                               value="<?php echo htmlspecialchars(StudentDisplayHelper::lrnFieldValue($studentData['lrn'] ?? null)); ?>" 
+                               maxlength="12">
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">School</label>

@@ -2,6 +2,9 @@
 -- MANUAL MIGRATION: v41 → v43
 -- Run this in HeidiSQL on the sped_lms database.
 -- Safe to run multiple times (uses IF NOT EXISTS / IF EXISTS).
+-- NOTE: The canonical import is config/schema.sql, which already includes the migrations
+--       defined in this file. Use config/manual_migration_v41_v43.sql only for legacy
+--       partial migration or troubleshooting scenarios.
 -- ============================================================
 
 -- ============================================================

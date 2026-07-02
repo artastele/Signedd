@@ -1,7 +1,7 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 5
 // Last modified: 2026-05-04
-// Part of: SPED LMS — IEP P3 Form (Final IEP Document)
+// Part of: SignED — IEP P3 Form (Final IEP Document)
 
 require __DIR__ . '/../layouts/header.php';
 require __DIR__ . '/../layouts/sidebar.php';
@@ -62,8 +62,8 @@ $formType = $_GET['type'] ?? 'fill'; // 'fill' or 'upload'
                                 <input type="text" class="form-control" name="student_name" placeholder="Student name" required>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">LRN</label>
-                                <input type="text" class="form-control" name="lrn" placeholder="Learner Reference Number" required>
+                                <label class="form-label">DepEd LRN (optional — assigned by DepEd LIS)</label>
+                                <input type="text" class="form-control" name="lrn" placeholder="12-digit LRN" maxlength="12">
                             </div>
                         </div>
                         <div class="row">

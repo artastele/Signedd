@@ -3,7 +3,7 @@
 // Last modified: 2026-05-13
 // Step 17 — Parent: one child's scores/XP/stars — NO lesson content shown
 
-$pageTitle = htmlspecialchars($studentName) . "'s Progress — SPED LMS";
+$pageTitle = htmlspecialchars($studentName) . "'s Progress — SignED";
 require_once __DIR__ . '/../layouts/header.php';
 
 $r = 54; $circ = round(2 * M_PI * $r, 2);

@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 6
 // Last modified: 2026-05-05
-// Part of: SPED LMS — Materials Management
+// Part of: SignED — Materials Management
 
-$pageTitle = 'Manage Materials - SPED LMS';
+$pageTitle = 'Manage Materials - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -11,6 +11,11 @@ require_once __DIR__ . '/../layouts/header.php';
 
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
+<?php
+require_once __DIR__ . '/../../Models/StudentModel.php';
+$iepImplRec = (new StudentModel())->findById((int)($iep['student_id'] ?? 0));
+$iepStudentCode = $iepImplRec['student_id'] ?? null;
+?>
 
 <div class="main-content">
     <!-- Header -->
@@ -19,7 +24,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <h1><i class="bi bi-folder text-primary"></i> Learning Materials</h1>
             <p class="text-muted mb-0">
                 Student: <strong><?php echo htmlspecialchars($iep['student_name']); ?></strong> 
-                (LRN: <?php echo htmlspecialchars($iep['lrn']); ?>)
+                (Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($iepStudentCode ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($iep['lrn'] ?? null)); ?>)
             </p>
         </div>
         <a href="<?php echo $basePath; ?>/iep/implementation" class="btn btn-secondary">

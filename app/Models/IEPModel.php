@@ -56,6 +56,7 @@ class IEPModel {
         $cols = [
             'header_learner_name'   => 'VARCHAR(255) NULL',
             'header_learner_age'    => 'VARCHAR(50) NULL',
+            'header_student_id'     => 'VARCHAR(20) NULL',
             'header_lrn'            => 'VARCHAR(32) NULL',
             'header_section'        => 'VARCHAR(120) NULL',
             'header_teacher_name'   => 'VARCHAR(255) NULL',
@@ -232,7 +233,7 @@ class IEPModel {
                 JOIN student_records sr ON ir.student_id = sr.id
                 JOIN enrollment_submissions es ON sr.enrollment_id = es.id
                 JOIN users u ON ir.drafted_by = u.id
-                WHERE ir.status IN ('signed','signing')
+                WHERE ir.status IN ('signed','signing','locked')
                 AND es.parent_id = :user_id
                 ORDER BY ir.created_at DESC
             ");
@@ -243,7 +244,7 @@ class IEPModel {
                 FROM iep_records ir
                 JOIN student_records sr ON ir.student_id = sr.id
                 JOIN users u ON ir.drafted_by = u.id
-                WHERE ir.status IN ('signed','signing')
+                WHERE ir.status IN ('signed','signing','locked')
                 ORDER BY ir.created_at DESC
             ");
             $stmt->execute();
@@ -257,7 +258,7 @@ class IEPModel {
     public function update($iepId, $data) {
         $allowed = [
             'school_year', 'status', 'signed_document_path', 're_evaluation_date', 'signing_method',
-            'header_learner_name', 'header_learner_age', 'header_lrn', 'header_section',
+            'header_learner_name', 'header_learner_age', 'header_student_id', 'header_lrn', 'header_section',
             'header_teacher_name', 'header_school_name', 'header_grade_level',
         ];
         $sets = [];
@@ -903,14 +904,16 @@ class IEPModel {
         string $duration,
         string $eval,
         ?string $observation,
-        bool $observationUnlocked
+        bool $observationUnlocked,
+        ?string $pdspIndicatorText = null
     ): void {
         $this->ensureStepDomainColumnExists();
         $sd = $stepDomain !== null && $stepDomain !== '' ? $stepDomain : null;
+        $pit = $pdspIndicatorText !== null && $pdspIndicatorText !== '' ? $pdspIndicatorText : null;
         if ($observationUnlocked) {
             $stmt = $this->db->prepare("
                 UPDATE iep_steps
-                SET step_domain = :sd, step_objective = :o, duration_lp = :d, instructional_evaluation = :e, observation = :ob, updated_at = NOW()
+                SET step_domain = :sd, step_objective = :o, duration_lp = :d, instructional_evaluation = :e, observation = :ob, pdsp_indicator_text = :pit, updated_at = NOW()
                 WHERE id = :id
             ");
             $stmt->execute([
@@ -919,12 +922,13 @@ class IEPModel {
                 'd'  => $duration,
                 'e'  => $eval,
                 'ob' => $observation ?? '',
+                'pit'=> $pit,
                 'id' => $stepId,
             ]);
         } else {
             $stmt = $this->db->prepare("
                 UPDATE iep_steps
-                SET step_domain = :sd, step_objective = :o, duration_lp = :d, instructional_evaluation = :e, updated_at = NOW()
+                SET step_domain = :sd, step_objective = :o, duration_lp = :d, instructional_evaluation = :e, pdsp_indicator_text = :pit, updated_at = NOW()
                 WHERE id = :id
             ");
             $stmt->execute([
@@ -932,6 +936,7 @@ class IEPModel {
                 'o' => $objective,
                 'd' => $duration,
                 'e' => $eval,
+                'pit'=> $pit,
                 'id' => $stepId,
             ]);
         }
@@ -988,6 +993,7 @@ class IEPModel {
                 $dom = trim((string) ($r['step_domain'] ?? $r['domain'] ?? ''));
                 $obs = isset($r['observation']) ? trim((string) $r['observation']) : '';
                 $id  = isset($r['id']) ? (int) $r['id'] : 0;
+                $pit = isset($r['pdsp_indicator_text']) ? trim((string) $r['pdsp_indicator_text']) : null;
 
                 $unlocked = false;
                 if ($id > 0) {
@@ -1007,13 +1013,13 @@ class IEPModel {
                 $domainParam = $dom !== '' ? $dom : null;
 
                 if ($id > 0 && in_array($id, $existing, true)) {
-                    $this->updateStepFields($id, $domainParam, $obj, $dur, $ev, $obs, $unlocked);
+                    $this->updateStepFields($id, $domainParam, $obj, $dur, $ev, $obs, $unlocked, $pit);
                     $num = $this->db->prepare("UPDATE iep_steps SET step_number = :n WHERE id = :id");
                     $num->execute(['n' => $ord, 'id' => $id]);
                     $kept[] = $id;
                 } else {
                     $nid = $this->insertStepRow($iepId, $ord);
-                    $this->updateStepFields($nid, $domainParam, $obj, $dur, $ev, $obs, false);
+                    $this->updateStepFields($nid, $domainParam, $obj, $dur, $ev, $obs, false, $pit);
                     $kept[] = $nid;
                 }
                 $ord++;
@@ -1121,5 +1127,19 @@ class IEPModel {
             WHERE iep_id = :iep_id AND sent_to = :user_id AND viewed_at IS NULL
         ");
         return $stmt->execute(['iep_id' => $iepId, 'user_id' => $userId]);
+    }
+
+    public function getByGeneralTeacher($userId) {
+        $stmt = $this->db->prepare("
+            SELECT ir.*, sr.student_name, sr.lrn, u.name AS drafted_by_name
+            FROM iep_records ir
+            JOIN student_records sr ON ir.student_id = sr.id
+            JOIN general_teacher_assignments gta ON sr.id = gta.student_id
+            JOIN users u ON ir.drafted_by = u.id
+            WHERE gta.general_teacher_id = :user_id
+            ORDER BY ir.created_at DESC
+        ");
+        $stmt->execute(['user_id' => $userId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 }

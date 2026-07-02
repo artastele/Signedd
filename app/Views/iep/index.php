@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL -- Process 5
 // Last modified: 2026-05-08
-// Part of: SPED LMS -- IEP Repository (list all IEPs)
+// Part of: SignED -- IEP Repository (list all IEPs)
 
-$pageTitle = 'IEP Repository - SPED LMS';
+$pageTitle = 'IEP Repository - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 $role     = $_SESSION['role'];
 $basePath = BASE_PATH;
@@ -37,8 +37,11 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
     <?php if (!empty($_SESSION['error'])): ?>
     <div class="alert alert-danger"><?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?></div>
     <?php endif; ?>
-
-    <!-- Filters -->
+    <?php
+    require_once __DIR__ . '/../../Models/StudentModel.php';
+    $iepListStudentModel = new StudentModel();
+    $iepListStudentCodeCache = [];
+    ?>
     <form method="GET" class="row g-2 mb-4">
         <div class="col-auto">
             <select name="school_year" class="form-select form-select-sm" style="min-width:140px;">
@@ -83,7 +86,9 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
             <div class="text-center py-5 text-muted">
                 <i class="bi bi-inbox" style="font-size:2.5rem;"></i>
                 <p class="mt-2">No IEPs found.</p>
-                <?php if (in_array($role, ['sped_teacher','admin'])): ?>
+                <?php if ($role === 'parent'): ?>
+                <p class="text-muted small">Once the SPED teacher drafts and submits your child's IEP for signing, it will appear here for you to review and sign.</p>
+                <?php elseif (in_array($role, ['sped_teacher','admin'])): ?>
                 <p class="text-muted small">Students with a signed PDSP will appear in the "New IEP" dropdown above.</p>
                 <?php endif; ?>
             </div>
@@ -103,10 +108,17 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                     </thead>
                     <tbody>
                     <?php foreach ($ieps as $iep): ?>
+                    <?php
+                    $iepFk = (int)($iep['student_id'] ?? 0);
+                    if ($iepFk && !isset($iepListStudentCodeCache[$iepFk])) {
+                        $iepRec = $iepListStudentModel->findById($iepFk);
+                        $iepListStudentCodeCache[$iepFk] = $iepRec['student_id'] ?? null;
+                    }
+                    ?>
                     <tr>
                         <td>
                             <strong><?php echo htmlspecialchars($iep['student_name']); ?></strong><br>
-                            <small class="text-muted">LRN: <?php echo htmlspecialchars($iep['lrn']); ?></small>
+                            <small class="text-muted">Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($iepListStudentCodeCache[$iepFk] ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($iep['lrn'] ?? null)); ?></small>
                         </td>
                         <td><?php echo htmlspecialchars($iep['school_year']); ?></td>
                         <td>
@@ -126,6 +138,7 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                         <td><?php echo date('M d, Y', strtotime($iep['created_at'])); ?></td>
                         <td>
                             <div class="d-flex gap-1 flex-wrap">
+                                <?php if ($role !== 'general_teacher'): ?>
                                 <a href="<?php echo $basePath; ?>/iep/form/<?php echo $iep['id']; ?>"
                                    class="btn btn-sm" style="background:#1e4072;color:white;">
                                     <i class="bi bi-eye me-1"></i>View
@@ -134,6 +147,37 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                                    class="btn btn-sm btn-outline-secondary">
                                     <i class="bi bi-printer me-1"></i>Print
                                 </a>
+                                <?php endif; ?>
+                                <?php if (RoleMiddleware::hasPermission('progress_report.view') || RoleMiddleware::hasPermission('progress_report.view_own_child')): ?>
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/learning-outcomes/grades"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-bar-chart-line me-1"></i>Grades
+                                </a>
+                                <?php endif; ?>
+                                <?php if (RoleMiddleware::hasPermission('transition_readiness.view') || RoleMiddleware::hasPermission('transition_readiness.create')): ?>
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/transition-management/readiness"
+                                   class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-check2-circle me-1"></i>Readiness
+                                </a>
+                                <?php endif; ?>
+                                <?php if (RoleMiddleware::hasPermission('itp.view') || RoleMiddleware::hasPermission('itp.view_own_child') || RoleMiddleware::hasPermission('itp.create')): ?>
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/inclusion-planning/itp"
+                                   class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-people me-1"></i>ITP
+                                </a>
+                                <?php endif; ?>
+                                <?php if (RoleMiddleware::hasPermission('itgp.view') || RoleMiddleware::hasPermission('itgp.manage')): ?>
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/inclusive-iep-itgp"
+                                   class="btn btn-sm btn-outline-warning">
+                                    <i class="bi bi-journal-text me-1"></i>ITGP
+                                </a>
+                                <?php endif; ?>
+                                <?php if (RoleMiddleware::hasPermission('class_placement.view') || RoleMiddleware::hasPermission('class_placement.review')): ?>
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/placement-management/notices"
+                                   class="btn btn-sm btn-outline-dark">
+                                    <i class="bi bi-envelope me-1"></i>Notices
+                                </a>
+                                <?php endif; ?>
                                 <?php if ($iep['status'] === 'draft' && in_array($role, ['sped_teacher','admin'])): ?>
                                 <form method="POST" action="<?php echo $basePath; ?>/iep/draft/<?php echo (int)$iep['id']; ?>/delete" class="d-inline"
                                       onsubmit="return confirm('Delete this draft permanently? This cannot be undone.');">
@@ -167,9 +211,13 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                 <button type="button" class="btn btn-sm btn-outline-secondary mb-3" id="newIepEligibleReload">Reload list</button>
                 <div id="newIepEligibleList" class="list-group">
                     <?php foreach ($eligibleStudents ?? [] as $s): ?>
+                    <?php
+                    $eligibleRec = $iepListStudentModel->findById((int)($s['id'] ?? 0));
+                    $eligibleStudentCode = $eligibleRec['student_id'] ?? null;
+                    ?>
                     <a class="list-group-item list-group-item-action" href="<?php echo $basePath; ?>/iep/create?student_id=<?php echo (int)$s['id']; ?>">
                         <strong><?php echo htmlspecialchars($s['student_name']); ?></strong>
-                        <span class="text-muted small d-block">LRN <?php echo htmlspecialchars($s['lrn']); ?></span>
+                        <span class="text-muted small d-block">Student ID <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($eligibleStudentCode)); ?> · DepEd LRN <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($s['lrn'] ?? null)); ?></span>
                     </a>
                     <?php endforeach; ?>
                 </div>
@@ -191,7 +239,7 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
             var a = document.createElement('a');
             a.className = 'list-group-item list-group-item-action';
             a.href = basePath + '/iep/create?student_id=' + encodeURIComponent(s.id);
-            a.innerHTML = '<strong>' + (s.student_name || '') + '</strong><span class="text-muted small d-block">LRN ' + (s.lrn || '') + '</span>';
+            a.innerHTML = '<strong>' + (s.student_name || '') + '</strong><span class="text-muted small d-block">Student ID ' + (s.student_id || '—') + ' · DepEd LRN ' + (s.lrn || 'Not yet assigned') + '</span>';
             listEl.appendChild(a);
         });
         if (emptyEl) emptyEl.style.display = (students && students.length) ? 'none' : 'block';

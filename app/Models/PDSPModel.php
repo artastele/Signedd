@@ -260,4 +260,71 @@ class PDSPModel {
         $pdsp = $this->findById($pdspId);
         return !empty($pdsp['signed_document_path']);
     }
+
+    /**
+     * Auto-seed quarterly ratings on PDSP sign.
+     * Uses the hardcoded SF9 indicator list (config/sf9_indicators.php) — all 8 SF9 domains,
+     * all indicators exactly as they appear on the DepEd Non-Graded report card form.
+     * Seeds Q1 and Q2 only (matching PDSP form). Q3/Q4 are created only when a grade is confirmed.
+     * Uses INSERT IGNORE via unique key — safe to call multiple times (idempotent).
+     */
+    public function seedQuarterlyRatings($pdspId) {
+        try {
+            $pdsp = $this->findById($pdspId);
+            if (!$pdsp) {
+                return false;
+            }
+            $studentId = (int)$pdsp['student_id'];
+
+            // Load hardcoded SF9 indicator list
+            $sf9ConfigPath = dirname(__DIR__, 2) . '/config/sf9_indicators.php';
+            if (!file_exists($sf9ConfigPath)) {
+                error_log("PDSPModel->seedQuarterlyRatings(): sf9_indicators.php not found at $sf9ConfigPath");
+                return false;
+            }
+            $sf9Indicators = require $sf9ConfigPath;
+
+            // INSERT IGNORE requires unique key on (student_id, pdsp_record_id, indicator_text, quarter).
+            // We use INSERT OR UPDATE pattern as fallback — skip if already exists.
+            $ins = $this->db->prepare("
+                INSERT INTO student_quarterly_ratings
+                    (student_id, pdsp_record_id, domain, indicator_text, quarter, rating, source)
+                SELECT :student_id, :pdsp_id, :domain, :indicator_text, :quarter, NULL, 'manual'
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM student_quarterly_ratings
+                    WHERE student_id = :student_id2
+                      AND pdsp_record_id = :pdsp_id2
+                      AND indicator_text = :indicator_text2
+                      AND quarter = :quarter2
+                )
+            ");
+
+            foreach ($sf9Indicators as $domain => $indicators) {
+                foreach ($indicators as $indicatorText) {
+                    $indicatorText = trim($indicatorText);
+                    if ($indicatorText === '') continue;
+
+                    // Seed Q1 and Q2 only
+                    for ($q = 1; $q <= 2; $q++) {
+                        $ins->execute([
+                            'student_id'      => $studentId,
+                            'pdsp_id'         => $pdspId,
+                            'domain'          => $domain,
+                            'indicator_text'  => $indicatorText,
+                            'quarter'         => $q,
+                            'student_id2'     => $studentId,
+                            'pdsp_id2'        => $pdspId,
+                            'indicator_text2' => $indicatorText,
+                            'quarter2'        => $q,
+                        ]);
+                    }
+                }
+            }
+
+            return true;
+        } catch (Exception $e) {
+            error_log("PDSPModel->seedQuarterlyRatings() ERROR: " . $e->getMessage());
+            return false;
+        }
+    }
 }

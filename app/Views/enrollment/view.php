@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 1
 // Last modified: 2026-05-01
-// Part of: SPED LMS — View Enrollment Details (Parent/Teacher)
+// Part of: SignED — View Enrollment Details (Parent/Teacher)
 
-$pageTitle = 'View Enrollment - SPED LMS';
+$pageTitle = 'View Enrollment - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 
 // Document type labels
@@ -82,7 +82,7 @@ $isParent = $_SESSION['role'] === 'parent';
                     </h4>
                     <div class="row">
                         <div class="col-md-6 mb-2">
-                            <strong>LRN:</strong> <?php echo htmlspecialchars($enrollment['lrn'] ?? 'Not assigned'); ?>
+                            <strong>DepEd LRN:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($enrollment['lrn'] ?? null)); ?>
                         </div>
                         <div class="col-md-6 mb-2">
                             <strong>Birth Date:</strong> <?php echo date('F j, Y', strtotime($enrollment['birth_date'])); ?>

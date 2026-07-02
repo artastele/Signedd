@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Staff Requests - Principal - SPED LMS';
+$pageTitle = 'Staff Requests - Principal - SignED';
 $basePath = defined('BASE_PATH') ? BASE_PATH : '';
 require_once __DIR__ . '/../layouts/header.php';
 ?>

@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 7
 // Last modified: 2026-05-05
-// Part of: SPED LMS — View Module
+// Part of: SignED — View Module
 
-$pageTitle = htmlspecialchars($material['material_name']) . ' - SPED LMS';
+$pageTitle = htmlspecialchars($material['material_name']) . ' - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

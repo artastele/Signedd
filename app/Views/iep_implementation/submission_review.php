@@ -1,14 +1,19 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 6
 // Last modified: 2026-05-13
-// Part of: SPED LMS — Teacher Submission Review (Read-Only)
+// Part of: SignED — Teacher Submission Review (Read-Only)
 
-$pageTitle = 'Submission Review — ' . htmlspecialchars($activity['title'] ?? '') . ' — SPED LMS';
+$pageTitle = 'Submission Review — ' . htmlspecialchars($activity['title'] ?? '') . ' — SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 <body data-logged-in="true">
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
+<?php
+require_once __DIR__ . '/../../Models/StudentModel.php';
+$submissionStudentRec = (new StudentModel())->findById((int)($student['id'] ?? $student['student_id'] ?? 0));
+$submissionStudentCode = $submissionStudentRec['student_id'] ?? null;
+?>
 
 <div class="main-content">
 <div class="container-fluid py-3" style="max-width:820px;">
@@ -35,7 +40,7 @@ require_once __DIR__ . '/../layouts/header.php';
                     <span class="text-muted small">
                         <i class="ti ti-user me-1"></i>
                         <?php echo htmlspecialchars($student['student_name']); ?>
-                        (LRN: <?php echo htmlspecialchars($student['lrn']); ?>)
+                        (Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($submissionStudentCode)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?>)
                     </span>
                 </div>
                 <?php if (!empty($iep_id)): ?>
@@ -70,7 +75,16 @@ require_once __DIR__ . '/../layouts/header.php';
     </div>
 </div>
 
-<?php if (!$submission): ?>
+<?php if (!empty($activity['is_f2f'])): ?>
+    <div class="card mb-3" style="border-left:4px solid #1e4072;">
+        <div class="card-header" style="background:#f8f9fa;font-weight:600;font-size:.9rem;">
+            <i class="ti ti-info-circle me-2" style="color:#1e4072;"></i>Face-to-Face Activity
+        </div>
+        <div class="card-body">
+            <p class="mb-0 text-muted">This is a Face-to-Face / Direct Observation activity. No digital submission is required. You can record the student rating and observation notes directly below.</p>
+        </div>
+    </div>
+<?php elseif (!$submission): ?>
     <div class="alert" style="background:#fff3cd;border:1px solid #ffc107;color:#856404;">
         <i class="ti ti-info-circle me-2"></i>
         This learner has not submitted this activity yet.
@@ -129,10 +143,17 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
         <?php endforeach; ?>
 
     <?php elseif ($actType === 'true_false'): ?>
-        <div class="mb-2 fw-semibold"><?php echo htmlspecialchars($actData['statement'] ?? $actData['question'] ?? ''); ?></div>
         <?php
-        $correct = strtolower($actData['correct_answer'] ?? $actData['answer'] ?? '');
-        $given   = strtolower($answers[0] ?? $answers['0'] ?? $answers['answer'] ?? '');
+        $tfItems = $actData['questions'] ?? [[
+            'statement' => $actData['statement'] ?? $actData['question'] ?? '',
+            'answer' => $actData['correct_answer'] ?? $actData['answer'] ?? '',
+        ]];
+        ?>
+        <?php foreach ($tfItems as $ti => $tfItem): ?>
+        <div class="mb-2 fw-semibold"><?php echo htmlspecialchars($tfItem['statement'] ?? $tfItem['question'] ?? ''); ?></div>
+        <?php
+        $correct = strtolower($tfItem['answer'] ?? $tfItem['correct_answer'] ?? '');
+        $given   = strtolower($answers[$ti] ?? $answers[(string)$ti] ?? ($ti === 0 ? ($answers['answer'] ?? '') : ''));
         $isRight = $given === $correct;
         ?>
         <div class="d-flex gap-3 mt-2">
@@ -161,16 +182,40 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
                 <span class="badge" style="background:#a01422;">Incorrect</span>
             <?php endif; ?>
         </div>
+        <?php endforeach; ?>
 
     <?php elseif ($actType === 'fill_in_blanks'): ?>
-        <?php foreach ($actData['sentences'] ?? [] as $si => $sentence): ?>
+        <?php
+        $fillReviewItems = [];
+        if (!empty($actData['sentences'])) {
+            foreach ($actData['sentences'] as $sentence) {
+                $sentenceAnswers = array_values((array)($sentence['answers'] ?? []));
+                foreach ($sentenceAnswers as $answerIndex => $answerText) {
+                    $fillReviewItems[] = [
+                        'text' => $sentence['text'] ?? '',
+                        'answers' => [$answerText],
+                        'blank_label' => count($sentenceAnswers) > 1 ? 'Blank ' . ($answerIndex + 1) : 'Answer',
+                    ];
+                }
+            }
+        } elseif (!empty($actData['sentence'])) {
+            foreach (array_values((array)($actData['answers'] ?? [])) as $answerIndex => $answerText) {
+                $fillReviewItems[] = [
+                    'text' => $actData['sentence'],
+                    'answers' => [$answerText],
+                    'blank_label' => 'Blank ' . ($answerIndex + 1),
+                ];
+            }
+        }
+        ?>
+        <?php foreach ($fillReviewItems as $si => $sentence): ?>
         <?php
         $given   = trim($answers[$si] ?? $answers[(string)$si] ?? '');
         $correct = array_map('strtolower', array_map('trim', $sentence['answers'] ?? []));
         $isRight = in_array(strtolower($given), $correct);
         ?>
         <div class="mb-3 p-3 rounded" style="background:#f8f9fa;border:1px solid #dee2e6;">
-            <div class="small text-muted mb-1">Sentence <?php echo $si + 1; ?>:</div>
+            <div class="small text-muted mb-1"><?php echo htmlspecialchars($sentence['blank_label'] ?? ('Sentence ' . ($si + 1))); ?>:</div>
             <div class="mb-1"><?php echo htmlspecialchars($sentence['text'] ?? ''); ?></div>
             <div class="d-flex align-items-center gap-2 mt-2">
                 <span class="small fw-semibold">Answer:</span>
@@ -188,14 +233,17 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
         <?php endforeach; ?>
 
     <?php elseif ($actType === 'matching'): ?>
+        <?php $matchingSets = $actData['sets'] ?? $actData['matching_sets'] ?? [['title' => 'Matching Set 1', 'pairs' => $actData['pairs'] ?? []]]; ?>
+        <?php foreach ($matchingSets as $si => $set): ?>
+        <div class="fw-semibold small mb-2"><?php echo htmlspecialchars($set['title'] ?? ('Matching Set ' . ($si + 1))); ?></div>
         <table class="table table-sm table-bordered" style="font-size:.9rem;">
             <thead style="background:#1e4072;color:#fff;">
                 <tr><th>Left</th><th>Learner's Match</th><th>Correct</th><th></th></tr>
             </thead>
             <tbody>
-            <?php foreach ($actData['pairs'] ?? [] as $pi => $pair): ?>
+            <?php foreach ($set['pairs'] ?? [] as $pi => $pair): ?>
             <?php
-            $given   = $answers[$pi] ?? $answers[(string)$pi] ?? '';
+            $given   = $answers[$si . '_' . $pi] ?? ($si === 0 ? ($answers[$pi] ?? $answers[(string)$pi] ?? '') : '');
             $isRight = strtolower(trim($given)) === strtolower(trim($pair['right']));
             ?>
             <tr>
@@ -212,14 +260,23 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
             <?php endforeach; ?>
             </tbody>
         </table>
+        <?php endforeach; ?>
 
     <?php elseif ($actType === 'drag_drop_sort' || $actType === 'sequencing'): ?>
         <?php
-        $items        = $actData['items'] ?? $actData['steps'] ?? [];
-        $correctOrder = $actData['correct_order'] ?? range(0, count($items) - 1);
-        $givenOrder   = array_values($answers);
+        $orderSets = $actData['sets'] ?? ($actType === 'drag_drop_sort' ? ($actData['sort_sets'] ?? null) : ($actData['sequence_sets'] ?? null));
+        if (empty($orderSets)) {
+            $orderSets = [['title' => 'Question 1', 'items' => $actData['items'] ?? $actData['steps'] ?? [], 'correct_order' => $actData['correct_order'] ?? []]];
+        }
+        ?>
+        <?php foreach ($orderSets as $si => $set): ?>
+        <?php
+        $items        = $set['items'] ?? $set['steps'] ?? [];
+        $correctOrder = $set['correct_order'] ?? range(0, count($items) - 1);
+        $givenOrder   = is_array($answers[$si] ?? null) ? array_values($answers[$si]) : ($si === 0 ? array_values($answers) : []);
         $isRight      = array_map('strval', $givenOrder) === array_map('strval', $correctOrder);
         ?>
+        <div class="fw-semibold small mb-2"><?php echo htmlspecialchars($set['title'] ?? ('Question ' . ($si + 1))); ?></div>
         <div class="row g-3">
             <div class="col-md-6">
                 <div class="small fw-semibold mb-2 text-muted">Learner's order:</div>
@@ -253,9 +310,10 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
                 <span class="badge" style="background:#a01422;">Incorrect order</span>
             <?php endif; ?>
         </div>
+        <?php endforeach; ?>
 
     <?php elseif ($actType === 'image_label'): ?>
-        <?php $imgPath = $actData['image_path'] ?? ''; $labels = $actData['labels'] ?? []; ?>
+        <?php $imgPath = $actData['image_path'] ?? ''; $labels = $actData['labels'] ?? $actData['markers'] ?? []; ?>
         <?php if ($imgPath): ?>
         <div style="position:relative;display:inline-block;max-width:100%;margin-bottom:16px;">
             <img src="<?php echo htmlspecialchars($basePath . '/' . ltrim($imgPath, '/')); ?>"
@@ -301,7 +359,10 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
             <i class="ti ti-cards me-2"></i>
             Flashcards are view-only. The learner marked this as reviewed.
         </div>
-        <?php foreach ($actData['cards'] ?? [] as $ci => $card): ?>
+        <?php $flashcardSets = $actData['sets'] ?? $actData['flashcard_sets'] ?? [['title' => 'Flashcard Set 1', 'cards' => $actData['cards'] ?? []]]; ?>
+        <?php foreach ($flashcardSets as $set): ?>
+        <div class="fw-semibold small mb-2"><?php echo htmlspecialchars($set['title'] ?? 'Flashcard Set'); ?></div>
+        <?php foreach ($set['cards'] ?? [] as $card): ?>
         <div class="d-flex gap-3 p-2 rounded mb-2" style="background:#f8f9fa;border:1px solid #dee2e6;">
             <div class="flex-fill p-2 rounded text-center" style="background:#1e4072;color:#fff;font-size:.9rem;">
                 <?php echo htmlspecialchars($card['front'] ?? ''); ?>
@@ -311,6 +372,7 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
                 <?php echo htmlspecialchars($card['back'] ?? ''); ?>
             </div>
         </div>
+        <?php endforeach; ?>
         <?php endforeach; ?>
 
     <?php else: ?>
@@ -332,31 +394,159 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
 <?php endif; ?>
 
 <?php
+$db = Database::getInstance()->getConnection();
+$stmt = $db->prepare("
+    SELECT s.pdsp_indicator_text 
+    FROM iep_steps s
+    JOIN iep_step_lesson_plans lp ON lp.iep_step_id = s.id
+    WHERE lp.lesson_plan_id = :lp_id AND s.pdsp_indicator_text IS NOT NULL AND s.pdsp_indicator_text != ''
+    LIMIT 1
+");
+$stmt->execute(['lp_id' => $activity['lesson_plan_id']]);
+$targetedSkill = $stmt->fetchColumn() ?: null;
+
 $maxForGrade = $dispMax > 0 ? $dispMax : (int)($activity['max_score'] ?? 0);
-$needsConfirm = !empty($canGrade) && !$hasOfficial && $maxForGrade > 0;
+$needsConfirm = !empty($canGrade) && !$hasOfficial && ($maxForGrade > 0 || !empty($activity['is_f2f']));
 ?>
-<?php if ($needsConfirm): ?>
+
+<?php if (!empty($activity['is_f2f']) && !empty($canGrade)): ?>
 <div class="card mb-3" style="border-left:4px solid #3b6d11;">
     <div class="card-body py-3">
-        <h6 class="fw-semibold mb-2" style="color:#1e4072;">Confirm official grade</h6>
-        <form method="POST" action="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/submission/<?php echo (int)$activity['id']; ?>/confirm-grade" class="row g-2 align-items-end">
+        <h6 class="fw-semibold mb-2" style="color:#1e4072;">Record Face-to-Face Rating & Observation</h6>
+        <?php if (!$targetedSkill): ?>
+            <div class="alert alert-warning py-2 small mb-3">
+                <i class="ti ti-alert-triangle me-1"></i> <strong>Warning:</strong> This activity is not linked to any targeted PDSP skill. Go back to the IEP form to target a skill for this step, or this rating cannot be recorded on the SF9 report card.
+            </div>
+        <?php endif; ?>
+        
+        <form method="POST" action="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/submission/<?php echo (int)$activity['id']; ?>/confirm-grade" class="row g-3">
             <input type="hidden" name="student_id" value="<?php echo (int)$student_id; ?>">
-            <div class="col-auto">
-                <label class="form-label small mb-0">Score (max <?php echo (int)$maxForGrade; ?>)</label>
-                <input type="number" class="form-control form-control-sm" name="score" style="width:100px;"
-                       min="0" max="<?php echo (int)$maxForGrade; ?>"
-                       value="<?php echo ($submission['auto_score'] !== null && $submission['auto_score'] !== '') ? (int)$submission['auto_score'] : 0; ?>">
+            
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold mb-1">Select Quarter <span class="text-danger">*</span></label>
+                <select class="form-select form-select-sm" name="quarter" required>
+                    <option value="1">1st Quarter</option>
+                    <option value="2">2nd Quarter</option>
+                    <option value="3">3rd Quarter</option>
+                    <option value="4">4th Quarter</option>
+                </select>
             </div>
-            <div class="col-md-6">
-                <label class="form-label small mb-0">Remarks (optional)</label>
-                <input type="text" class="form-control form-control-sm" name="remarks" maxlength="500" placeholder="Short note for the learner file">
+            
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold mb-1">Rating <span class="text-danger">*</span></label>
+                <select class="form-select form-select-sm" name="rating" required>
+                    <option value="">-- Select Rating --</option>
+                    <option value="P">P (Proficient)</option>
+                    <option value="AP">AP (Approaching Proficiency)</option>
+                    <option value="D">D (Developing)</option>
+                    <option value="B">B (Beginning)</option>
+                    <option value="NA">NA (Not Applicable)</option>
+                </select>
             </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-sm text-white" style="background:#3b6d11;border:none;">
-                    Confirm grade
+            
+            <div class="col-12">
+                <label class="form-label small fw-semibold mb-1">Observation Notes <span class="text-danger">*</span></label>
+                <textarea class="form-control form-control-sm" name="observation" rows="3" required placeholder="Describe the student performance during this face-to-face session..." maxlength="1000"></textarea>
+            </div>
+            
+            <div class="col-12 mt-2">
+                <button type="submit" class="btn btn-sm text-white" style="background:#3b6d11;border:none;" <?php echo !$targetedSkill ? 'disabled' : ''; ?>>
+                    Save F2F Rating
                 </button>
             </div>
         </form>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($needsConfirm && empty($activity['is_f2f'])): ?>
+<div class="card mb-3" style="border-left:4px solid #3b6d11;">
+    <div class="card-body py-3">
+        <h6 class="fw-semibold mb-2" style="color:#1e4072;">Confirm official grade</h6>
+        <?php if (!$targetedSkill): ?>
+            <div class="alert alert-warning py-2 small mb-3">
+                <i class="ti ti-alert-triangle me-1"></i> <strong>Warning:</strong> This activity is not linked to any targeted PDSP skill. Go back to the IEP form to target a skill for this step, or this rating cannot be recorded on the SF9 report card.
+            </div>
+        <?php endif; ?>
+        
+        <form method="POST" action="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/submission/<?php echo (int)$activity['id']; ?>/confirm-grade" class="row g-3">
+            <input type="hidden" name="student_id" value="<?php echo (int)$student_id; ?>">
+            
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Score (max <?php echo (int)$maxForGrade; ?>) <span class="text-danger">*</span></label>
+                <input type="number" class="form-control form-control-sm" id="digitalScoreInput" name="score"
+                       min="0" max="<?php echo (int)$maxForGrade; ?>"
+                       value="<?php echo ($submission['auto_score'] !== null && $submission['auto_score'] !== '') ? (int)$submission['auto_score'] : 0; ?>"
+                       oninput="updateSuggestedRating(this.value, <?php echo $maxForGrade; ?>)">
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Select Quarter <span class="text-danger">*</span></label>
+                <select class="form-select form-select-sm" name="quarter" required>
+                    <option value="1">1st Quarter</option>
+                    <option value="2">2nd Quarter</option>
+                    <option value="3">3rd Quarter</option>
+                    <option value="4">4th Quarter</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Suggested Rating</label>
+                <div class="form-control form-control-sm bg-light" id="suggestedRatingLabel" style="font-weight:600;">-</div>
+                <input type="hidden" name="rating" id="suggestedRatingInput" value="">
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Override Rating (Optional)</label>
+                <select class="form-select form-select-sm" id="ratingOverrideInput" onchange="overrideSuggestedRating(this.value)">
+                    <option value="">-- Use Suggested --</option>
+                    <option value="P">P (Proficient)</option>
+                    <option value="AP">AP (Approaching Proficiency)</option>
+                    <option value="D">D (Developing)</option>
+                    <option value="B">B (Beginning)</option>
+                    <option value="NA">NA (Not Applicable)</option>
+                </select>
+            </div>
+            
+            <div class="col-12">
+                <label class="form-label small mb-1">Remarks & Observation Notes <span class="text-danger">*</span></label>
+                <textarea class="form-control form-control-sm" name="observation" rows="2" required placeholder="Add remarks and observation notes for this graded activity..." maxlength="1000"></textarea>
+            </div>
+            
+            <div class="col-12 mt-2">
+                <button type="submit" class="btn btn-sm text-white" style="background:#3b6d11;border:none;">
+                    Confirm grade & rating
+                </button>
+            </div>
+        </form>
+        
+        <script>
+        function updateSuggestedRating(score, max) {
+            score = parseFloat(score) || 0;
+            max = parseFloat(max) || 1;
+            var pct = (score / max) * 100;
+            var rating = 'B';
+            var ratingText = 'B (Beginning)';
+            
+            if (pct >= 85) { rating = 'P'; ratingText = 'P (Proficient)'; }
+            else if (pct >= 70) { rating = 'AP'; ratingText = 'AP (Approaching Proficiency)'; }
+            else if (pct >= 50) { rating = 'D'; ratingText = 'D (Developing)'; }
+            
+            document.getElementById('suggestedRatingLabel').textContent = ratingText;
+            if (!document.getElementById('ratingOverrideInput').value) {
+                document.getElementById('suggestedRatingInput').value = rating;
+            }
+        }
+        function overrideSuggestedRating(val) {
+            if (val) {
+                document.getElementById('suggestedRatingInput').value = val;
+            } else {
+                var score = document.getElementById('digitalScoreInput').value;
+                updateSuggestedRating(score, <?php echo $maxForGrade; ?>);
+            }
+        }
+        updateSuggestedRating(document.getElementById('digitalScoreInput').value, <?php echo $maxForGrade; ?>);
+        </script>
     </div>
 </div>
 <?php endif; ?>

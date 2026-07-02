@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 4
 // Last modified: 2026-05-07
-// Part of: SPED LMS — IEP Meeting Scheduler
+// Part of: SignED — IEP Meeting Scheduler
 
-$pageTitle = 'Schedule IEP Meeting - SPED LMS';
+$pageTitle = 'Schedule IEP Meeting - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -41,11 +41,24 @@ require_once __DIR__ . '/../layouts/header.php';
                             </label>
                             <select class="form-select" name="student_id" id="student_id" required>
                                 <option value="">-- Select student with finalized assessment --</option>
-                                <?php foreach ($students as $student): ?>
-                                    <option value="<?php echo $student['id']; ?>">
+                                    <?php foreach ($students as $student): ?>
+                                        <?php
+                                        static $scheduleStudentModel = null;
+                                        static $scheduleCodeCache = [];
+                                        if ($scheduleStudentModel === null) {
+                                            require_once __DIR__ . '/../../Models/StudentModel.php';
+                                            $scheduleStudentModel = new StudentModel();
+                                        }
+                                        $scheduleFk = (int)($student['id'] ?? 0);
+                                        if ($scheduleFk && !isset($scheduleCodeCache[$scheduleFk])) {
+                                            $scheduleRec = $scheduleStudentModel->findById($scheduleFk);
+                                            $scheduleCodeCache[$scheduleFk] = $scheduleRec['student_id'] ?? null;
+                                        }
+                                        ?>
+                                        <option value="<?php echo $student['id']; ?>">
                                         <?php echo htmlspecialchars($student['student_name']); ?> 
-                                        (LRN: <?php echo htmlspecialchars($student['lrn']); ?>)
-                                    </option>
+                                        (Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($scheduleCodeCache[$scheduleFk] ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?>)
+                                        </option>
                                 <?php endforeach; ?>
                             </select>
                             <div class="form-text">Only students with finalized assessments are shown</div>

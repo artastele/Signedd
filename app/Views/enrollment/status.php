@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 1
 // Last modified: 2026-05-01
-// Part of: SPED LMS — Enrollment Status (Parent View)
+// Part of: SignED — Enrollment Status (Parent View)
 
-$pageTitle = 'Enrollment Status - SPED LMS';
+$pageTitle = 'Enrollment Status - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 
 // Status colors

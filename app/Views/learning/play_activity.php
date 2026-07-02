@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 7
 // Last modified: 2026-05-05
-// Part of: SPED LMS — Interactive Activity Player
+// Part of: SignED — Interactive Activity Player
 
-$pageTitle = htmlspecialchars($activity['activity_name']) . ' - SPED LMS';
+$pageTitle = htmlspecialchars($activity['activity_name']) . ' - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 
 // Parse activity data

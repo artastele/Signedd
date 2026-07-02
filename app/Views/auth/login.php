@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Login - SPED LMS';
+$pageTitle = 'Login - SignED';
 $basePath = defined('BASE_PATH') ? BASE_PATH : '';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
@@ -9,12 +9,12 @@ require_once __DIR__ . '/../layouts/header.php';
     <div class="auth-left">
         <div class="auth-left-content">
             <?php if (file_exists(__DIR__ . '/../../../public/images/logo-large.png')): ?>
-                <img src="<?php echo $basePath; ?>/images/logo-large.png" alt="SPED LMS Logo" class="auth-logo-large">
+                <img src="<?php echo $basePath; ?>/images/logo-large.png" alt="SignED Logo" class="auth-logo-large">
             <?php else: ?>
                 <i class="bi bi-mortarboard-fill" style="font-size: 6rem; margin-bottom: 2rem;"></i>
             <?php endif; ?>
             
-            <h1>SPED LMS</h1>
+            <h1>SignED</h1>
             <p>Special Education Learning Management System</p>
             <p>Empowering educators, supporting learners, building futures.</p>
         </div>
@@ -75,11 +75,11 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
 
                 <div class="form-floating mb-3">
-                    <input type="text" class="form-control" id="email" name="email" placeholder="name@example.com or LRN" required autofocus>
-                    <label for="email"><i class="bi bi-envelope"></i> Email Address or LRN</label>
+                    <input type="text" class="form-control" id="email" name="email" placeholder="Email or Student ID (e.g. 20250001)" required autofocus>
+                    <label for="email"><i class="bi bi-envelope"></i> Email or Student ID</label>
                     <div class="form-text">
                         <small class="text-muted">
-                            <i class="bi bi-info-circle"></i> Learners can use their 12-digit LRN as username
+                            <i class="bi bi-info-circle"></i> Learners can sign in with their Student ID (e.g. 20250001)
                         </small>
                     </div>
                 </div>
@@ -118,7 +118,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <!-- Footer -->
             <div class="text-center mt-4">
                 <p class="text-muted small">
-                    &copy; <?php echo date('Y'); ?> SPED LMS. All rights reserved.
+                    &copy; <?php echo date('Y'); ?> SignED. All rights reserved.
                 </p>
             </div>
         </div>

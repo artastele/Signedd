@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Select Role - SPED LMS';
+$pageTitle = 'Select Role - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 
 $type = $_GET['type'] ?? null;
@@ -117,6 +117,7 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
                             <option value="guidance" <?php echo $oldRole === 'guidance' ? 'selected' : ''; ?>>Guidance Counselor</option>
                             <option value="principal" <?php echo $oldRole === 'principal' ? 'selected' : ''; ?>>Principal</option>
                             <option value="master_teacher" <?php echo $oldRole === 'master_teacher' ? 'selected' : ''; ?>>Master Teacher</option>
+                            <option value="general_teacher" <?php echo $oldRole === 'general_teacher' ? 'selected' : ''; ?>>General Education Teacher</option>
                         </select>
                     </div>
 

@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 3
 // Last modified: 2026-05-07
-// Part of: SPED LMS — Assessment History View
+// Part of: SignED — Assessment History View
 
-$pageTitle = 'Assessment History - SPED LMS';
+$pageTitle = 'Assessment History - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -22,7 +22,7 @@ require_once __DIR__ . '/../layouts/header.php';
             </h1>
             <p class="text-muted mb-0">
                 Complete assessment history for <strong><?php echo htmlspecialchars($student['student_name']); ?></strong> 
-                (LRN: <?php echo htmlspecialchars($student['lrn']); ?>)
+                (Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_id'] ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?>)
             </p>
         </div>
         <div>
@@ -44,8 +44,12 @@ require_once __DIR__ . '/../layouts/header.php';
                     <?php echo htmlspecialchars($student['student_name']); ?>
                 </div>
                 <div class="col-md-2">
-                    <strong>LRN:</strong><br>
-                    <?php echo htmlspecialchars($student['lrn']); ?>
+                    <strong>Student ID:</strong><br>
+                    <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_id'] ?? null)); ?>
+                </div>
+                <div class="col-md-2">
+                    <strong>DepEd LRN:</strong><br>
+                    <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?>
                 </div>
                 <div class="col-md-3">
                     <strong>Date of Birth:</strong><br>
@@ -161,8 +165,12 @@ require_once __DIR__ . '/../layouts/header.php';
                                             <div class="col-md-6">
                                                 <table class="table table-sm table-bordered">
                                                     <tr>
-                                                        <th style="width: 40%;">LRN</th>
-                                                        <td><?php echo htmlspecialchars($assessment['section_a_data']['lrn'] ?? 'N/A'); ?></td>
+                                                        <th style="width: 40%;">Student ID</th>
+                                                        <td><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($assessment['section_a_data']['student_id'] ?? null)); ?></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th style="width: 40%;">DepEd LRN</th>
+                                                        <td><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($assessment['section_a_data']['lrn'] ?? null)); ?></td>
                                                     </tr>
                                                     <tr>
                                                         <th>School</th>

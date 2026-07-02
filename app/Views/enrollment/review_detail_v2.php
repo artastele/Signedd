@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 1
 // Last modified: 2026-05-06
-// Part of: SPED LMS — Enrollment Review Detail (BEEF Document Style)
+// Part of: SignED — Enrollment Review Detail (BEEF Document Style)
 
-$pageTitle = 'Review Enrollment - SPED LMS';
+$pageTitle = 'Review Enrollment - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -112,8 +112,8 @@ require_once __DIR__ . '/../layouts/header.php';
             
             <div class="form-row">
                 <div class="form-field full-width">
-                    <label class="form-label">Learner Reference Number (LRN)</label>
-                    <div class="form-value"><?php echo htmlspecialchars($enrollment['lrn'] ?: 'Not provided'); ?></div>
+                    <label class="form-label">DepEd LRN (optional — assigned by DepEd LIS)</label>
+                    <div class="form-value"><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($enrollment['lrn'] ?? null)); ?></div>
                 </div>
             </div>
 

@@ -4,6 +4,11 @@
 -- All tables use CREATE TABLE IF NOT EXISTS (idempotent, safe to re-run)
 -- All ALTER TABLE use INFORMATION_SCHEMA checks (MariaDB compatible)
 --
+-- NOTE: This file is the canonical merged schema import for fresh installs.
+--       It already contains the migration blocks found in config/manual_migration_v41_v43.sql.
+--       Import this file only; do not separately import config/manual_migration_v41_v43.sql unless
+--       you need the legacy helper for a partial migration scenario.
+--
 -- Migration blocks: v39 .. v46 (see db_version). Latest: v46 (iep_steps.step_domain).
 -- New machine: ensure app boots once (public/index.php runs SchemaManager) OR import this file;
 -- MySQL < 8.0.12 / MariaDB without ADD COLUMN IF NOT EXISTS: use IEPModel::ensurePartOneSaveSchema at runtime
@@ -779,6 +784,15 @@ VALUES (1, 'System Admin', 'admin@spedlms.local',
         '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
         'admin', 'active', TRUE, 'local');
 
+-- Demo accounts (password: password)
+INSERT IGNORE INTO users (id, name, first_name, last_name, email, contact_number, password_hash, role, status, email_verified, auth_provider) VALUES
+(2,  'Demo Parent',         'Demo', 'Parent',         'demo.parent@spedlms.local',         '09123456701', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'parent',          'active', TRUE, 'local'),
+(3,  'Demo SPED Teacher',   'Demo', 'SPED Teacher',   'demo.sped@spedlms.local',           '09123456702', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'sped_teacher',    'active', TRUE, 'local'),
+(4,  'Demo Guidance',       'Demo', 'Guidance',       'demo.guidance@spedlms.local',       '09123456703', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'guidance',        'active', TRUE, 'local'),
+(5,  'Demo Principal',      'Demo', 'Principal',      'demo.principal@spedlms.local',      '09123456704', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'principal',       'active', TRUE, 'local'),
+(6,  'Demo Master Teacher', 'Demo', 'Master Teacher', 'demo.master@spedlms.local',         '09123456705', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'master_teacher',  'active', TRUE, 'local'),
+(7,  'Demo Learner',        'Demo', 'Learner',        'demo.learner@spedlms.local',        '09123456706', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'learner',         'active', TRUE, 'local');
+
 INSERT IGNORE INTO dlp_settings (setting_key, setting_value, description) VALUES
 ('dlp_enable_watermark',        'true',                    'Enable watermark on sensitive documents'),
 ('dlp_enable_screenshot_block', 'true',                    'Block screenshot attempts'),
@@ -812,11 +826,17 @@ CREATE TABLE IF NOT EXISTS iep_records (
     pdsp_id INT NOT NULL,
     drafted_by INT NOT NULL,
     school_year VARCHAR(20) NOT NULL,
-    status ENUM('draft','signing','signed','locked') DEFAULT 'draft',
+    status ENUM('draft','signing','signed') DEFAULT 'draft',
     signing_method ENUM('print_upload','digital') NULL,
     signed_document_path VARCHAR(500) NULL,
     re_evaluation_date DATE NULL,
-    locked_at TIMESTAMP NULL,
+    header_learner_name VARCHAR(255) NULL,
+    header_learner_age VARCHAR(50) NULL,
+    header_lrn VARCHAR(32) NULL,
+    header_section VARCHAR(120) NULL,
+    header_teacher_name VARCHAR(255) NULL,
+    header_school_name VARCHAR(255) NULL,
+    header_grade_level VARCHAR(100) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
@@ -867,6 +887,8 @@ CREATE TABLE IF NOT EXISTS iep_signatories (
     signatory_role ENUM('parent_guardian','guidance_counselor','teacher',
                         'sned_teacher','school_head','ilrc_supervisor') NOT NULL,
     signatory_name VARCHAR(200) NOT NULL,
+    send_status ENUM('not_sent','pending','signed') NOT NULL DEFAULT 'not_sent',
+    signature_request_sent_at TIMESTAMP NULL,
     signature_image_path VARCHAR(500) NULL,
     signed_at TIMESTAMP NULL,
     FOREIGN KEY (iep_id) REFERENCES iep_records(id) ON DELETE CASCADE,
@@ -895,23 +917,17 @@ INSERT IGNORE INTO db_version (version) VALUES (39);
 -- Remove complex digital form, keep simple upload system
 -- ============================================
 
+-- This is a migration step for older schema versions.
+-- On a fresh install this is safe because IF EXISTS makes it a no-op.
+-- If you want a clean-only import file, you can remove this block,
+-- but keep it here if the same file is also used to migrate older databases.
 -- Drop tables no longer needed
 DROP TABLE IF EXISTS iep_domains;
 DROP TABLE IF EXISTS iep_core; 
 DROP TABLE IF EXISTS iep_steps;
 
 -- Remove signing_method column from iep_records
-ALTER TABLE iep_records DROP COLUMN IF EXISTS signing_method;
-
--- Ensure required columns exist (some may already exist)
-ALTER TABLE iep_records 
-ADD COLUMN IF NOT EXISTS signed_document_path VARCHAR(500) NULL AFTER status,
-ADD COLUMN IF NOT EXISTS re_evaluation_date DATE NULL AFTER signed_document_path,
-ADD COLUMN IF NOT EXISTS locked_at TIMESTAMP NULL AFTER re_evaluation_date;
-
--- Update iep_signatories enum to match your 6 roles
-ALTER TABLE iep_signatories 
-MODIFY COLUMN signatory_role ENUM('parent_guardian', 'guidance_counselor', 'teacher', 'sned_teacher', 'school_head', 'ilrc_supervisor') NOT NULL;
+-- This migration block is kept for upgrade history only. For fresh installs, the table definitions already contain the desired structure.
 
 INSERT IGNORE INTO db_version (version) VALUES (40);
 
@@ -1249,13 +1265,8 @@ INSERT IGNORE INTO db_version (version) VALUES (43);
 
 UPDATE iep_records SET status = 'signed' WHERE status = 'locked';
 
-ALTER TABLE iep_records DROP COLUMN IF EXISTS locked_at;
-
-ALTER TABLE iep_records
-    MODIFY COLUMN status ENUM('draft','signing','signed') NOT NULL DEFAULT 'draft';
-
-ALTER TABLE iep_records
-    ADD COLUMN IF NOT EXISTS signing_method ENUM('print_upload','digital') NULL AFTER status;
+-- ALTER statements removed for compatibility with older MySQL versions.
+-- The fresh import schema defines iep_records in its final, supported shape.
 
 CREATE TABLE IF NOT EXISTS iep_domains (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1284,6 +1295,7 @@ CREATE TABLE IF NOT EXISTS iep_steps (
     id INT AUTO_INCREMENT PRIMARY KEY,
     iep_id INT NOT NULL,
     step_number INT NOT NULL,
+    step_domain VARCHAR(191) NULL,
     step_objective TEXT NULL,
     duration_lp VARCHAR(255) NULL,
     instructional_evaluation TEXT NULL,
@@ -1331,13 +1343,8 @@ CREATE TABLE IF NOT EXISTS iep_edit_logs (
     INDEX idx_iep_edited (iep_id, edited_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE iep_signatories
-    ADD COLUMN IF NOT EXISTS send_status ENUM('not_sent','pending','signed') NOT NULL DEFAULT 'not_sent' AFTER signatory_name;
-
-ALTER TABLE iep_signatories
-    ADD COLUMN IF NOT EXISTS signature_request_sent_at TIMESTAMP NULL AFTER send_status;
-
-UPDATE iep_signatories SET send_status = 'signed' WHERE signed_at IS NOT NULL;
+-- ALTER statements removed for compatibility with older MySQL versions.
+-- Fresh install schema already includes the send_status and signature_request_sent_at columns.
 
 INSERT IGNORE INTO db_version (version) VALUES (44);
 
@@ -1347,14 +1354,8 @@ INSERT IGNORE INTO db_version (version) VALUES (44);
 -- MIGRATION: v45 — Process 5 IEP header overrides (Section 2 editable snapshot)
 -- ============================================
 
-ALTER TABLE iep_records
-    ADD COLUMN IF NOT EXISTS header_learner_name VARCHAR(255) NULL AFTER re_evaluation_date,
-    ADD COLUMN IF NOT EXISTS header_learner_age VARCHAR(50) NULL AFTER header_learner_name,
-    ADD COLUMN IF NOT EXISTS header_lrn VARCHAR(32) NULL AFTER header_learner_age,
-    ADD COLUMN IF NOT EXISTS header_section VARCHAR(120) NULL AFTER header_lrn,
-    ADD COLUMN IF NOT EXISTS header_teacher_name VARCHAR(255) NULL AFTER header_section,
-    ADD COLUMN IF NOT EXISTS header_school_name VARCHAR(255) NULL AFTER header_teacher_name,
-    ADD COLUMN IF NOT EXISTS header_grade_level VARCHAR(100) NULL AFTER header_school_name;
+-- ALTER statements removed for compatibility with older MySQL versions.
+-- Fresh install schema already includes the header_* columns on iep_records.
 
 INSERT IGNORE INTO db_version (version) VALUES (45);
 
@@ -1364,10 +1365,540 @@ INSERT IGNORE INTO db_version (version) VALUES (45);
 -- MIGRATION: v46 — IEP step domain label (Section 5)
 -- ============================================
 
-ALTER TABLE iep_steps
-    ADD COLUMN IF NOT EXISTS step_domain VARCHAR(191) NULL AFTER step_number;
+-- ALTER statements removed for compatibility with older MySQL versions.
+-- Fresh install schema already includes the step_domain column on iep_steps.
 
 INSERT IGNORE INTO db_version (version) VALUES (46);
 
 -- END MIGRATION: v46
--- (End of versioned migrations in this file — keep db_version in sync when adding v47+.)
+
+-- ============================================
+-- MIGRATION: v47 - Unified Transition + IEP Workflow
+-- Detailed runtime DDL is mirrored in TransitionWorkflowModel::ensureTables()
+-- so demo databases can self-create missing workflow tables without reset/import.
+-- Tables: progress_reports, cot_observations, transition_readiness,
+-- individual_transition_plans, inclusive_iep_records, itgp_records,
+-- itgp_items, placement_notices.
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS progress_reports (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    iep_record_id INT NOT NULL,
+    created_by INT NOT NULL,
+    school_year VARCHAR(20) NULL,
+    quarter VARCHAR(50) NULL,
+    attendance_summary TEXT NULL,
+    progress_summary TEXT NULL,
+    teacher_remarks TEXT NULL,
+    ratings JSON NULL,
+    status ENUM('draft','finalized') NOT NULL DEFAULT 'draft',
+    document_path VARCHAR(255) NULL,
+    finalized_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (iep_record_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_progress_reports_iep (iep_record_id),
+    INDEX idx_progress_reports_student (student_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS cot_observations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    iep_record_id INT NOT NULL,
+    observed_teacher_id INT NOT NULL,
+    created_by INT NOT NULL,
+    lesson_plan_id INT NULL,
+    school_year VARCHAR(20) NULL,
+    quarter VARCHAR(50) NULL,
+    observation_date DATE NULL,
+    ratings JSON NULL,
+    strengths TEXT NULL,
+    recommendations TEXT NULL,
+    status ENUM('draft','finalized') NOT NULL DEFAULT 'draft',
+    notification_sent_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (iep_record_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (observed_teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_cot_iep (iep_record_id),
+    INDEX idx_cot_teacher (observed_teacher_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (47);
+
+-- END MIGRATION: v47
+
+-- ============================================
+-- MIGRATION: v48 - Student Attendance Records Table
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS attendance_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    attendance_date DATE NOT NULL,
+    status ENUM('present', 'absent', 'tardy', 'excused') NOT NULL DEFAULT 'present',
+    remarks TEXT NULL,
+    created_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_student_date (student_id, attendance_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (48);
+
+-- END MIGRATION: v48
+
+-- ============================================
+-- MIGRATION: v49 - Process 8 Progress Report Card Tables
+-- ============================================
+
+-- Recreate attendance_records to support F2F (manual) and online (auto_activity) attendance
+DROP TABLE IF EXISTS attendance_records;
+CREATE TABLE attendance_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    date DATE NOT NULL,
+    status ENUM('present', 'absent', 'tardy', 'excused') NOT NULL DEFAULT 'present',
+    source ENUM('manual', 'auto_activity') NOT NULL DEFAULT 'manual',
+    recorded_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_student_date_src (student_id, date, source)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create grade_entries to store F2F (manual) and online (auto) scores per quarter and domain
+CREATE TABLE IF NOT EXISTS grade_entries (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    quarter VARCHAR(50) NOT NULL,
+    domain VARCHAR(191) NOT NULL,
+    source ENUM('auto', 'manual') NOT NULL,
+    score DECIMAL(5, 2) NOT NULL,
+    recorded_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_student_quarter_domain_src (student_id, quarter, domain, source)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create report_remarks to store teacher/parent remarks & signatures per quarter
+CREATE TABLE IF NOT EXISTS report_remarks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    progress_report_id INT NOT NULL,
+    quarter VARCHAR(50) NOT NULL,
+    remark_type ENUM('teacher', 'parent') NOT NULL,
+    remark_text TEXT NULL,
+    signature_name VARCHAR(255) NULL,
+    signature_data MEDIUMTEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (progress_report_id) REFERENCES progress_reports(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_report_quarter_type (progress_report_id, quarter, remark_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (49);
+
+-- END MIGRATION: v49
+
+-- ============================================
+-- MIGRATION: v50 - Process 9 Classroom Observation Tool (COT) Tables
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS cot_indicator_sets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_year VARCHAR(50) NOT NULL,
+    indicator_number INT NOT NULL,
+    indicator_text TEXT NOT NULL,
+    competency_code VARCHAR(50) NOT NULL,
+    created_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_school_year (school_year)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS classroom_observations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    observer_id INT NOT NULL,
+    observed_teacher_id INT NOT NULL,
+    school_year VARCHAR(50) NOT NULL,
+    quarter VARCHAR(50) NOT NULL,
+    observation_number INT NOT NULL,
+    subject_grade_level VARCHAR(255) NOT NULL,
+    scheduled_at DATETIME NOT NULL,
+    status ENUM('scheduled', 'in_progress', 'finalized') NOT NULL DEFAULT 'scheduled',
+    other_comments TEXT NULL,
+    average_score DECIMAL(5, 2) NULL,
+    finalized_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (observer_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (observed_teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_observer_id (observer_id),
+    INDEX idx_observed_teacher_id (observed_teacher_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS observation_ratings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    observation_id INT NOT NULL,
+    indicator_id INT NOT NULL,
+    rating VARCHAR(5) NOT NULL,
+    rated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (observation_id) REFERENCES classroom_observations(id) ON DELETE CASCADE,
+    FOREIGN KEY (indicator_id) REFERENCES cot_indicator_sets(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_observation_indicator (observation_id, indicator_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (50);
+
+-- END MIGRATION: v50
+
+-- ============================================
+-- MIGRATION: v51 - Process 10 Transition Readiness Tables
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS transition_readiness (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    iep_record_id INT NOT NULL,
+    progress_report_id INT NULL,
+    cot_observation_id INT NULL,
+    created_by INT NOT NULL,
+    readiness_result ENUM('Ready for Inclusion','Needs More Support','Not Yet Ready','For Re-evaluation') NOT NULL DEFAULT 'For Re-evaluation',
+    evidence_summary TEXT NULL,
+    teacher_recommendation TEXT NULL,
+    status ENUM('draft','finalized') NOT NULL DEFAULT 'draft',
+    finalized_at DATETIME NULL,
+    overall_status ENUM('ready','partial','not_ready') NOT NULL DEFAULT 'partial',
+    overall_status_overridden BOOLEAN NOT NULL DEFAULT FALSE,
+    overall_remarks TEXT NULL,
+    evaluated_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (iep_record_id) REFERENCES iep_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (progress_report_id) REFERENCES progress_reports(id) ON DELETE SET NULL,
+    FOREIGN KEY (cot_observation_id) REFERENCES cot_observations(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (evaluated_by) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_transition_readiness_iep (iep_record_id),
+    INDEX idx_transition_result (readiness_result),
+    INDEX idx_transition_status (status),
+    INDEX idx_transition_overall_status (overall_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS transition_readiness_goals (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    transition_readiness_id INT NOT NULL,
+    iep_step_id INT NOT NULL,
+    goal_text TEXT NOT NULL,
+    pdsp_domain VARCHAR(191) NOT NULL,
+    suggested_status ENUM('ready','partial','not_ready') NOT NULL DEFAULT 'partial',
+    final_status ENUM('ready','partial','not_ready') NOT NULL DEFAULT 'partial',
+    status_overridden BOOLEAN NOT NULL DEFAULT FALSE,
+    remarks TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (transition_readiness_id) REFERENCES transition_readiness(id) ON DELETE CASCADE,
+    FOREIGN KEY (iep_step_id) REFERENCES iep_steps(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_readiness_goal (transition_readiness_id, iep_step_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (51);
+
+-- END MIGRATION: v51
+
+-- ============================================
+-- MIGRATION: v52 - Process 11 Individual Transition Plan (ITP) Tables
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS itp_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    transition_readiness_id INT NOT NULL,
+    school_year VARCHAR(20) NOT NULL,
+    point_of_entry VARCHAR(255) NULL,
+    learner_information JSON NULL,
+    status ENUM('in_progress', 'finalized') NOT NULL DEFAULT 'in_progress',
+    drafted_by INT NOT NULL,
+    finalized_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (transition_readiness_id) REFERENCES transition_readiness(id) ON DELETE CASCADE,
+    FOREIGN KEY (drafted_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_itp_student (student_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS itp_team_members (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    itp_id INT NOT NULL,
+    role ENUM('itp_coordinator', 'school_head', 'sped_teacher', 'parent_guardian', 'learner', 'guidance_teacher', 'linkages') NOT NULL,
+    assigned_user_id INT NULL,
+    name VARCHAR(255) NULL,
+    contact_details VARCHAR(255) NULL,
+    date_started DATE NULL,
+    status ENUM('pending', 'filled') NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (itp_id) REFERENCES itp_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_itp_role (itp_id, role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS itp_signatures (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    itp_id INT NOT NULL,
+    signatory_role ENUM('parent_guardian') NOT NULL DEFAULT 'parent_guardian',
+    signature_image_path VARCHAR(255) NOT NULL,
+    signed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (itp_id) REFERENCES itp_records(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_itp_signature_role (itp_id, signatory_role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS itp_narrative (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    itp_id INT NOT NULL,
+    section ENUM('strengths', 'interests', 'talents', 'skills', 'needs') NOT NULL,
+    item_text TEXT NOT NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    FOREIGN KEY (itp_id) REFERENCES itp_records(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS itp_recommendations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    itp_id INT NOT NULL,
+    timing ENUM('beginning_of_sy', 'end_of_sy') NOT NULL,
+    recommendation_text TEXT NOT NULL,
+    FOREIGN KEY (itp_id) REFERENCES itp_records(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_itp_recommendation_timing (itp_id, timing)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS itp_program_matrix (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    itp_id INT NOT NULL,
+    row_type INT NOT NULL,
+    column_type INT NOT NULL,
+    is_checked BOOLEAN NOT NULL DEFAULT FALSE,
+    FOREIGN KEY (itp_id) REFERENCES itp_records(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_itp_matrix_cell (itp_id, row_type, column_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (52);
+
+-- END MIGRATION: v52
+
+-- ============================================
+-- MIGRATION: v53 - Process 12 General Teacher & ITGP Tables
+-- ============================================
+
+ALTER TABLE users MODIFY COLUMN role ENUM('user','parent','sped_teacher','guidance','principal','master_teacher','learner','admin','general_teacher') DEFAULT 'user';
+
+INSERT IGNORE INTO users (id, name, first_name, last_name, email, contact_number, password_hash, role, status, email_verified, auth_provider)
+VALUES (8, 'Demo General Teacher', 'Demo', 'General Teacher', 'demo.genteacher@spedlms.local', '09123456707',
+        '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'general_teacher', 'active', TRUE, 'local');
+
+CREATE TABLE IF NOT EXISTS itgp_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    itp_id INT NOT NULL,
+    general_teacher_id INT NOT NULL,
+    goal TEXT NULL,
+    entry_point VARCHAR(255) NULL,
+    learning_packages TEXT NULL,
+    recommendations TEXT NULL,
+    status ENUM('draft','finalized') NOT NULL DEFAULT 'draft',
+    finalized_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (itp_id) REFERENCES itp_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (general_teacher_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS itgp_activities (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    itgp_id INT NOT NULL,
+    competency_skill TEXT NULL,
+    activities TEXT NULL,
+    time_frame VARCHAR(255) NULL,
+    person_responsible VARCHAR(255) NULL,
+    remarks TEXT NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (itgp_id) REFERENCES itgp_records(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS itgp_comments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    itgp_id INT NOT NULL,
+    posted_by INT NOT NULL,
+    comment_text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (itgp_id) REFERENCES itgp_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (posted_by) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS general_teacher_assignments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    general_teacher_id INT NOT NULL,
+    assigned_by INT NOT NULL,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (general_teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_assignment (student_id, general_teacher_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (53);
+
+-- END MIGRATION: v53
+
+-- ============================================
+-- MIGRATION: v54 - Process 13 Class Placements & Mainstream Status
+-- ============================================
+
+ALTER TABLE student_records ADD COLUMN status ENUM('active','mainstreamed') NOT NULL DEFAULT 'active';
+
+CREATE TABLE IF NOT EXISTS class_placements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    itgp_id INT NOT NULL,
+    reviewed_by INT NOT NULL,
+    status ENUM('confirmed','on_hold') NOT NULL DEFAULT 'confirmed',
+    hold_reason TEXT NULL,
+    confirmed_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (itgp_id) REFERENCES itgp_records(id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (54);
+
+-- END MIGRATION: v54
+
+-- ============================================
+-- MIGRATION: v55 - SPED LMS Activity System Overhaul
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `activity_attempt_log` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `activity_id` INT UNSIGNED NOT NULL,
+  `student_id` INT UNSIGNED NOT NULL,
+  `question_index` TINYINT UNSIGNED NOT NULL,
+  `selected_value` VARCHAR(255) NOT NULL,
+  `correct_value` VARCHAR(255) NOT NULL,
+  `is_correct` TINYINT(1) NOT NULL DEFAULT 0,
+  `attempted_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_activity_student` (`activity_id`, `student_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `lms_submissions`
+  ADD COLUMN `flashcard_results` JSON NULL AFTER `auto_score`;
+
+INSERT IGNORE INTO db_version (version) VALUES (55);
+
+-- END MIGRATION: v55
+
+-- ============================================
+-- MIGRATION: v57 - Classroom Observation Tool (COT) Updates
+-- ============================================
+
+ALTER TABLE `classroom_observations` 
+  MODIFY COLUMN `status` ENUM('scheduled', 'in_progress', 'pending_signoff', 'finalized') NOT NULL DEFAULT 'scheduled',
+  ADD COLUMN `teacher_signed_at` DATETIME NULL AFTER `finalized_at`;
+
+ALTER TABLE `observation_ratings` 
+  MODIFY COLUMN `rating` VARCHAR(5) NULL;
+
+INSERT IGNORE INTO db_version (version) VALUES (57);
+
+-- END MIGRATION: v57
+
+-- ============================================
+-- MIGRATION: v58 - COT teacher signature image
+-- ============================================
+
+ALTER TABLE classroom_observations
+  ADD COLUMN teacher_signature_path VARCHAR(500) NULL AFTER teacher_signed_at;
+
+INSERT IGNORE INTO db_version (version) VALUES (58);
+
+-- END MIGRATION: v58
+
+-- ============================================
+-- MIGRATION: v59 - SF9 student quarterly ratings
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS student_quarterly_ratings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  student_id INT NOT NULL,
+  pdsp_record_id INT NOT NULL,
+  domain ENUM(
+    'Daily Living Skills',
+    'Socio-Emotional',
+    'Language Development',
+    'Psychomotor',
+    'Cognitive',
+    'Aesthetic/Creative',
+    'Behavioral Development',
+    'Orientation and Mobility'
+  ) NOT NULL,
+  indicator_text TEXT NOT NULL,
+  quarter TINYINT NOT NULL COMMENT '1, 2, 3, or 4',
+  rating ENUM('P','AP','D','B','NA') NULL DEFAULT NULL,
+  observation TEXT NULL,
+  source ENUM('digital','f2f','manual') NOT NULL DEFAULT 'manual',
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_id) REFERENCES student_records(id),
+  FOREIGN KEY (pdsp_record_id) REFERENCES pdsp_records(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (59);
+
+-- END MIGRATION: v59
+
+-- ============================================
+-- MIGRATION: v60 - IEP steps target PDSP indicator text
+-- ============================================
+
+ALTER TABLE iep_steps
+  ADD COLUMN IF NOT EXISTS pdsp_indicator_text TEXT NULL DEFAULT NULL
+  COMMENT 'Linked PDSP skill indicator this step targets';
+
+INSERT IGNORE INTO db_version (version) VALUES (60);
+
+-- END MIGRATION: v60
+
+-- ============================================
+-- MIGRATION: v61 - LMS activities F2F flag
+-- ============================================
+
+ALTER TABLE lms_activities
+  ADD COLUMN IF NOT EXISTS is_f2f TINYINT(1) NOT NULL DEFAULT 0
+  COMMENT 'Boolean flag for Face-to-Face / Direct Observation activity';
+
+INSERT IGNORE INTO db_version (version) VALUES (61);
+
+-- END MIGRATION: v61
+
+
+-- MIGRATION: v62 - Unique constraint on student_quarterly_ratings to prevent double-seeding
+ALTER TABLE student_quarterly_ratings
+    ADD CONSTRAINT IF NOT EXISTS uq_sqr_student_indicator_quarter
+    UNIQUE (student_id, pdsp_record_id, indicator_text(150), quarter);
+
+INSERT IGNORE INTO db_version (version) VALUES (62);
+
+-- END MIGRATION: v62

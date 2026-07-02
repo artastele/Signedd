@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 1
 // Last modified: 2026-05-01
-// Part of: SPED LMS — Enrollment Review List (SPED Teacher)
+// Part of: SignED — Enrollment Review List (SPED Teacher)
 
-$pageTitle = 'Review Enrollments - SPED LMS';
+$pageTitle = 'Review Enrollments - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 

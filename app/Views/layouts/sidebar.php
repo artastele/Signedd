@@ -13,9 +13,39 @@ function isActive($path) {
 // Check if any IEP Procedure link is active
 function isIEPProcedureActive() {
     global $currentPath, $basePath;
-    $iepPaths = ['/assessment/conduct', '/iep/meetings', '/iep/p2/', '/iep/p3/', '/iep/documents'];
+    $iepPaths = [
+        '/assessment/conduct', 
+        '/iep/meetings', 
+        '/iep/p2/', 
+        '/iep/p3/', 
+        '/iep/documents', 
+        '/iep/',
+    ];
+    // Exclude transition paths to prevent both menus from opening
+    foreach (['/transition-readiness', '/individual-transition-plan', '/inclusive-iep-itgp', '/placement-notice'] as $exclude) {
+        if (strpos($currentPath, $basePath . $exclude) !== false) {
+            return false;
+        }
+    }
     foreach ($iepPaths as $path) {
-        if (strpos($currentPath, $basePath . $path) === 0) {
+        if (strpos($currentPath, $basePath . $path) !== false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Check if any ITP Procedure link is active
+function isITPProcedureActive() {
+    global $currentPath, $basePath;
+    $itpPaths = [
+        '/transition-readiness',
+        '/individual-transition-plan',
+        '/inclusive-iep-itgp',
+        '/placement-notice'
+    ];
+    foreach ($itpPaths as $path) {
+        if (strpos($currentPath, $basePath . $path) !== false) {
             return true;
         }
     }
@@ -31,17 +61,20 @@ function isEnrollmentAvailabilityMenuActive() {
     }
     return false;
 }
+if ($role === 'learner') {
+    return;
+}
 ?>
 
 <div class="sidebar" id="sidebar">
     <!-- Logo -->
     <div class="sidebar-logo">
         <?php if (file_exists(__DIR__ . '/../../../public/images/logo.png')): ?>
-            <img src="<?php echo $basePath; ?>/images/logo.png" alt="SPED LMS Logo">
+            <img src="<?php echo $basePath; ?>/images/logo.png" alt="SignED Logo">
         <?php else: ?>
             <i class="bi bi-mortarboard-fill" style="font-size: 3rem; color: #ffffff;"></i>
         <?php endif; ?>
-        <h4>SPED LMS</h4>
+        <h4>SignED</h4>
     </div>
 
     <!-- Navigation Menu (Scrollable) -->
@@ -58,7 +91,7 @@ function isEnrollmentAvailabilityMenuActive() {
             </a>
 
         <?php elseif ($role === 'learner'): ?>
-            <!-- Process 7 — Learner nav links -->
+            <!-- LMS Learner nav links -->
             <a href="<?php echo $basePath; ?>/learning/dashboard" class="<?php echo isActive('/learning/dashboard'); ?>">
                 <i class="bi bi-book-open"></i>
                 <span>My Lessons</span>
@@ -85,6 +118,10 @@ function isEnrollmentAvailabilityMenuActive() {
             <a href="<?php echo $basePath; ?>/iep/meetings" class="<?php echo isActive('/iep/meetings'); ?>">
                 <i class="bi bi-calendar-check"></i>
                 <span>IEP Meetings</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
+                <i class="bi bi-file-earmark-bar-graph"></i>
+                <span>Progress Reports</span>
             </a>
             <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/meetings') ? 'active' : ''; ?>">
                 <i class="bi bi-file-earmark-text"></i>
@@ -138,7 +175,7 @@ function isEnrollmentAvailabilityMenuActive() {
                         <i class="bi bi-2-circle"></i>
                         <span>Part 2: Meeting & PDSP</span>
                     </a>
-                    <a href="<?php echo $basePath; ?>/iep" class="sidebar-submenu-item <?php echo isActive('/iep') && !isActive('/iep/meetings') && !isActive('/iep/availability') ? 'active' : ''; ?>">
+                    <a href="<?php echo $basePath; ?>/iep" class="sidebar-submenu-item <?php echo isActive('/iep') && !isActive('/iep/meetings') && !isActive('/iep/availability') && !preg_match('#/iep/\\d+/#', $currentPath) ? 'active' : ''; ?>">
                         <i class="bi bi-3-circle"></i>
                         <span>Part 3: Generate IEP</span>
                     </a>
@@ -153,10 +190,45 @@ function isEnrollmentAvailabilityMenuActive() {
                 <i class="bi bi-bar-chart-line"></i>
                 <span>Progress Tracker</span>
             </a>
-            <a href="<?php echo $basePath; ?>/activities" class="<?php echo isActive('/activities'); ?>">
-                <i class="bi bi-activity"></i>
-                <span>Activity Logs</span>
+            <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
+                <i class="bi bi-file-earmark-bar-graph"></i>
+                <span>Progress Reports</span>
             </a>
+            <a href="<?php echo $basePath; ?>/attendance-log" class="<?php echo isActive('/attendance-log'); ?>">
+                <i class="bi bi-calendar-check"></i>
+                <span>Attendance Log</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/cot/observations" class="<?php echo isActive('/cot/observations'); ?>">
+                <i class="bi bi-eye"></i>
+                <span>My COT</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/implementation') && !isActive('/iep/meetings') ? 'active' : ''; ?>">
+                <i class="bi bi-folder2-open"></i>
+                <span>IEP Records</span>
+            </a>
+
+        <?php elseif ($role === 'general_teacher'): ?>
+            <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !preg_match('#/iep/\\d+/#', $currentPath) ? 'active' : ''; ?>">
+                <i class="bi bi-folder2-open"></i>
+                <span>Assigned IEPs</span>
+            </a>
+            <?php
+            $currentIepId = null;
+            if (preg_match('#/iep/(\d+)#', $currentPath, $matches)) {
+                $currentIepId = (int)$matches[1];
+            }
+            if ($currentIepId):
+            ?>
+                <div class="border-top border-secondary opacity-25 my-2"></div>
+                <a href="<?php echo $basePath; ?>/iep/<?php echo $currentIepId; ?>/inclusive-iep-itgp" class="sidebar-submenu-item <?php echo isActive('/iep/' . $currentIepId . '/inclusive-iep-itgp'); ?>">
+                    <i class="bi bi-file-text"></i>
+                    <span>Inclusive IEP (ITGP)</span>
+                </a>
+                <a href="<?php echo $basePath; ?>/iep/<?php echo $currentIepId; ?>/placement-notice" class="sidebar-submenu-item <?php echo isActive('/iep/' . $currentIepId . '/placement-notice'); ?>">
+                    <i class="bi bi-envelope"></i>
+                    <span>Placement Notice</span>
+                </a>
+            <?php endif; ?>
 
         <?php elseif ($role === 'guidance'): ?>
             <a href="<?php echo $basePath; ?>/iep/availability" class="<?php echo isActive('/iep/availability'); ?>">
@@ -170,6 +242,10 @@ function isEnrollmentAvailabilityMenuActive() {
             <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/meetings') && !isActive('/iep/availability') ? 'active' : ''; ?>">
                 <i class="bi bi-file-earmark-medical"></i>
                 <span>IEP Documents</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
+                <i class="bi bi-file-earmark-bar-graph"></i>
+                <span>Progress Reports</span>
             </a>
 
         <?php elseif ($role === 'principal'): ?>
@@ -185,22 +261,46 @@ function isEnrollmentAvailabilityMenuActive() {
                 <i class="bi bi-file-earmark-medical"></i>
                 <span>IEP Documents</span>
             </a>
+            <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
+                <i class="bi bi-file-earmark-bar-graph"></i>
+                <span>Progress Reports</span>
+            </a>
             <a href="<?php echo $basePath; ?>/principal/staff-requests" class="<?php echo isActive('/principal/staff-requests'); ?>">
                 <i class="bi bi-person-check"></i>
                 <span>Staff Requests</span>
             </a>
 
         <?php elseif ($role === 'master_teacher'): ?>
-            <a href="<?php echo $basePath; ?>/observation" class="<?php echo isActive('/observation'); ?>">
-                <i class="bi bi-eye"></i>
-                <span>Class Observation</span>
+            <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/implementation') ? 'active' : ''; ?>">
+                <i class="bi bi-folder2-open"></i>
+                <span>IEP Records</span>
             </a>
-            <a href="<?php echo $basePath; ?>/cot" class="<?php echo isActive('/cot'); ?>">
-                <i class="bi bi-clipboard-check"></i>
-                <span>COT Results</span>
+            <a href="<?php echo $basePath; ?>/cot/indicators" class="<?php echo isActive('/cot/indicators'); ?>">
+                <i class="bi bi-list-task"></i>
+                <span>COT Indicator Sets</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/cot/observations" class="<?php echo isActive('/cot/observations'); ?>">
+                <i class="bi bi-eye"></i>
+                <span>Observations</span>
             </a>
 
         <?php elseif ($role === 'admin'): ?>
+            <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
+                <i class="bi bi-file-earmark-bar-graph"></i>
+                <span>Progress Reports</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/implementation') ? 'active' : ''; ?>">
+                <i class="bi bi-folder2-open"></i>
+                <span>IEP Records</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/cot/indicators" class="<?php echo isActive('/cot/indicators'); ?>">
+                <i class="bi bi-list-task"></i>
+                <span>COT Indicator Sets</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/cot/observations" class="<?php echo isActive('/cot/observations'); ?>">
+                <i class="bi bi-eye"></i>
+                <span>Observations</span>
+            </a>
             <a href="<?php echo $basePath; ?>/admin/manage-users" class="<?php echo isActive('/admin/manage-users'); ?>">
                 <i class="bi bi-people"></i>
                 <span>Manage Users</span>
@@ -234,10 +334,6 @@ function isEnrollmentAvailabilityMenuActive() {
 
         <div class="sidebar-divider"></div>
 
-        <a href="<?php echo $basePath; ?>/account/settings">
-            <i class="bi bi-gear"></i>
-            <span>Account Settings</span>
-        </a>
     </div>
 
     <!-- User Info & Logout -->

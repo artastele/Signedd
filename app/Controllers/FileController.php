@@ -292,7 +292,7 @@ class FileController {
                               OR EXISTS (
                                   SELECT 1 FROM users u
                                   WHERE u.id = :user_id2
-                                    AND u.email = CONCAT('learner_', sr.lrn, '@spedlms.local')
+                                    AND u.email = CONCAT('learner_', sr.student_id, '@spedlms.local')
                               )
                           )
                     ");
@@ -317,7 +317,7 @@ class FileController {
                         FROM learner_iep li
                         JOIN student_records sr ON li.student_id = sr.id
                         JOIN enrollment_submissions es ON sr.enrollment_id = es.id
-                        JOIN users u ON u.email = CONCAT(sr.lrn, '@learner.spedlms.local')
+                        JOIN users u ON u.email = CONCAT('learner_', sr.student_id, '@spedlms.local')
                         WHERE li.id = :learner_iep_id AND u.id = :user_id
                     ");
                     $stmt->execute([
@@ -336,7 +336,7 @@ class FileController {
                         SELECT sr.id
                         FROM student_records sr
                         JOIN enrollment_submissions es ON sr.enrollment_id = es.id
-                        JOIN users u ON u.email = CONCAT(sr.lrn, '@learner.spedlms.local')
+                        JOIN users u ON u.email = CONCAT('learner_', sr.student_id, '@spedlms.local')
                         WHERE sr.id = :student_id AND u.id = :user_id
                     ");
                     $stmt->execute([

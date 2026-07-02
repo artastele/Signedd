@@ -56,5 +56,19 @@
     
     <!-- Sidebar Mobile Navigation -->
     <script src="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/js/sidebar.js"></script>
+
+    <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'learner'): ?>
+    <!-- Mobile Bottom Navigation Bar for Learner -->
+    <nav class="learner-bottom-nav">
+        <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/learning/dashboard" class="learner-bottom-tab <?php echo strpos($_SERVER['REQUEST_URI'], '/learning/dashboard') !== false && !strpos($_SERVER['REQUEST_URI'], 'tab=badges') ? 'active' : ''; ?>">
+            <i class="bi bi-house-heart-fill"></i>
+            <span>Home</span>
+        </a>
+        <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/learning/dashboard?tab=badges" class="learner-bottom-tab <?php echo strpos($_SERVER['REQUEST_URI'], 'tab=badges') !== false ? 'active' : ''; ?>">
+            <i class="bi bi-trophy-fill"></i>
+            <span>My Badges</span>
+        </a>
+    </nav>
+    <?php endif; ?>
 </body>
 </html>

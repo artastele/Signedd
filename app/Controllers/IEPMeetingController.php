@@ -326,6 +326,7 @@ class IEPMeetingController {
                 if ($pdspModel->areAllSignaturesComplete($pdspId)) {
                     // Update PDSP status to complete
                     $pdspModel->update($pdspId, ['status' => 'complete']);
+                    $pdspModel->seedQuarterlyRatings($pdspId);
                     
                     // Update meeting status to completed
                     $pdsp = $pdspModel->findById($pdspId);
@@ -683,6 +684,7 @@ class IEPMeetingController {
             $result = $pdspModel->markAsSigned($pdspId, $signatories);
             
             if ($result) {
+                $pdspModel->seedQuarterlyRatings($pdspId);
                 // Update meeting status to completed
                 $this->meetingModel->update($pdsp['meeting_id'], ['status' => 'completed']);
                 
@@ -1479,6 +1481,8 @@ class IEPMeetingController {
                 echo json_encode(['success' => false, 'message' => 'Failed to update PDSP']);
                 exit;
             }
+
+            $pdspModel->seedQuarterlyRatings($pdspId);
             
             // Update meeting status to 'completed'
             $meetingResult = $this->meetingModel->update($meetingId, [

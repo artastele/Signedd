@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 1
 // Last modified: 2026-05-02
-// Part of: SPED LMS — Enrollment Form (7 Steps)
+// Part of: SignED — Enrollment Form (7 Steps)
 
-$pageTitle = 'Enrollment Form - SPED LMS';
+$pageTitle = 'Enrollment Form - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 
 // Prepare data for form (draft, previous enrollment, or empty)
@@ -83,8 +83,9 @@ if ($hasAutoFill) {
         <p class="mb-0">
             Previous enrollment data for <strong><?php echo htmlspecialchars($previousEnrollment['first_name'] . ' ' . $previousEnrollment['last_name']); ?></strong> 
             has been loaded. Review and update any changed information.
-            <?php if (!empty($previousEnrollment['lrn'])): ?>
-                <br><strong>LRN:</strong> <?php echo htmlspecialchars($previousEnrollment['lrn']); ?>
+            <?php if (!empty($previousEnrollment['student_id']) || !empty($previousEnrollment['lrn'])): ?>
+                <br><strong>Student ID:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($previousEnrollment['student_id'] ?? null)); ?>
+                &nbsp;·&nbsp; <strong>DepEd LRN:</strong> <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($previousEnrollment['lrn'] ?? null)); ?>
             <?php endif; ?>
         </p>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>

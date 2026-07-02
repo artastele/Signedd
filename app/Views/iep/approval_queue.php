@@ -1,7 +1,7 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 5
 // Last modified: 2026-05-04
-// Part of: SPED LMS — IEP Approval Queue (Principal)
+// Part of: SignED — IEP Approval Queue (Principal)
 
 require __DIR__ . '/../layouts/header.php';
 require __DIR__ . '/../layouts/sidebar.php';
@@ -9,6 +9,20 @@ require __DIR__ . '/../layouts/topbar.php';
 
 $basePath = defined('BASE_PATH') ? BASE_PATH : '';
 $documents = $documents ?? [];
+require_once __DIR__ . '/../../Models/StudentModel.php';
+$approvalStudentModel = new StudentModel();
+$approvalStudentCodeCache = [];
+$approvalStudentCode = static function (array $doc) use ($approvalStudentModel, &$approvalStudentCodeCache) {
+    $fk = (int)($doc['student_id'] ?? 0);
+    if (!$fk) {
+        return null;
+    }
+    if (!isset($approvalStudentCodeCache[$fk])) {
+        $rec = $approvalStudentModel->findById($fk);
+        $approvalStudentCodeCache[$fk] = $rec['student_id'] ?? null;
+    }
+    return $approvalStudentCodeCache[$fk];
+};
 ?>
 
 <div class="main-content">
@@ -61,7 +75,8 @@ $documents = $documents ?? [];
                     <thead style="background-color: #1e4072; color: white;">
                         <tr>
                             <th>Student Name</th>
-                            <th>LRN</th>
+                            <th>Student ID</th>
+                            <th>DepEd LRN</th>
                             <th>Created By</th>
                             <th>Created Date</th>
                             <th>Signatures</th>
@@ -71,7 +86,7 @@ $documents = $documents ?? [];
                     <tbody>
                         <?php if (empty($documents)): ?>
                             <tr>
-                                <td colspan="6" class="text-center py-4 text-muted">
+                                <td colspan="7" class="text-center py-4 text-muted">
                                     <i class="fas fa-inbox"></i> No documents pending approval
                                 </td>
                             </tr>
@@ -81,7 +96,8 @@ $documents = $documents ?? [];
                                     <td>
                                         <strong><?php echo htmlspecialchars($doc['student_name']); ?></strong>
                                     </td>
-                                    <td><?php echo htmlspecialchars($doc['lrn']); ?></td>
+                                    <td><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($approvalStudentCode($doc))); ?></td>
+                                    <td><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($doc['lrn'] ?? null)); ?></td>
                                     <td><?php echo htmlspecialchars($doc['created_by_name']); ?></td>
                                     <td><?php echo date('M d, Y H:i', strtotime($doc['created_at'])); ?></td>
                                     <td>

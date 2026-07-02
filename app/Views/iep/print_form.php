@@ -11,7 +11,8 @@
  * @var string $basePath
  */
 $hName   = trim((string) ($iep['header_learner_name'] ?? ''));
-$hLrn    = trim((string) ($iep['header_lrn'] ?? ''));
+$hStudentId = trim((string) ($iep['header_student_id'] ?? ($studentData['student_id'] ?? '')));
+$hLrn    = trim((string) ($iep['header_lrn'] ?? ($studentData['lrn'] ?? '')));
 $hSchool = trim((string) ($iep['header_school_name'] ?? ''));
 $hYear   = trim((string) ($iep['school_year'] ?? ''));
 $hGrade  = trim((string) ($iep['header_grade_level'] ?? ''));
@@ -70,8 +71,14 @@ foreach ($signatories ?? [] as $sig) {
                 <?= htmlspecialchars($hName) ?>
             </td>
             <td>
-                <span class="lbl">LRN</span>
-                <?= htmlspecialchars($hLrn) ?>
+                <span class="lbl">Student ID</span>
+                <?= htmlspecialchars(StudentDisplayHelper::formatStudentId($hStudentId ?: null)) ?>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <span class="lbl">DepEd LRN</span>
+                <?= htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($hLrn ?: null)) ?>
             </td>
         </tr>
         <tr>
@@ -119,7 +126,14 @@ foreach ($signatories ?? [] as $sig) {
         <?php foreach ($iepSteps as $st): ?>
             <tr>
                 <td class="text-center"><?= (int) ($st['step_number'] ?? 0) ?></td>
-                <td><?= nl2br(htmlspecialchars(trim((string) ($st['step_objective'] ?? '')))) ?></td>
+                <td>
+                    <?= nl2br(htmlspecialchars(trim((string) ($st['step_objective'] ?? '')))) ?>
+                    <?php if (!empty($st['pdsp_indicator_text'])): ?>
+                        <div style="margin-top: 1mm; font-size: 8pt; color: #555; font-style: italic;">
+                            Targeted PDSP Skill: <?= htmlspecialchars($st['pdsp_indicator_text']) ?>
+                        </div>
+                    <?php endif; ?>
+                </td>
                 <td><?= nl2br(htmlspecialchars(trim((string) ($st['duration_lp'] ?? '')))) ?></td>
                 <td><?= nl2br(htmlspecialchars(trim((string) ($st['instructional_evaluation'] ?? '')))) ?></td>
             </tr>
@@ -140,7 +154,7 @@ foreach ($signatories ?? [] as $sig) {
     </div>
 
     <p style="margin-top:8mm;font-size:9pt;color:#444;">
-        Generated from SPED LMS. Status: <?= htmlspecialchars((string) ($iep['status'] ?? '')) ?>
+        Generated from SignED. Status: <?= htmlspecialchars((string) ($iep['status'] ?? '')) ?>
         <?php if (!empty($iep['signed_at'])): ?> · Signed <?= htmlspecialchars(date('Y-m-d', strtotime((string) $iep['signed_at']))) ?><?php endif; ?>
     </p>
 

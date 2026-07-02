@@ -3,7 +3,7 @@
 // Last modified: 2026-05-13
 // Step 16 — Parent: list all children's progress (no lesson content shown)
 
-$pageTitle = "My Child's Progress — SPED LMS";
+$pageTitle = "My Child's Progress — SignED";
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 <body data-logged-in="true">

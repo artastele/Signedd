@@ -1,7 +1,7 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 5 (SIMPLIFIED)
 // Last modified: 2026-05-13
-// Part of: SPED LMS — IEP Form (Upload Only System)
+// Part of: SignED — IEP Form (Upload Only System)
 
 $pageTitle = 'IEP — Individualized Education Plan';
 require_once __DIR__ . '/../layouts/header.php';
@@ -327,7 +327,7 @@ require_once __DIR__ . '/../layouts/header.php';
                     <div class="table-responsive">
                         <table class="table table-sm align-middle">
                             <thead>
-                            <tr><th>Role</th><th>Name</th><th>Status</th><th>Sign link (copy)</th></tr>
+                            <tr><th>Role</th><th>Name</th><th>Status</th></tr>
                             </thead>
                             <tbody>
                             <?php foreach ($signatories as $sig): ?>
@@ -355,19 +355,6 @@ require_once __DIR__ . '/../layouts/header.php';
                                             <span class="badge bg-secondary">On file</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td>
-                                        <?php if ($pend):
-                                            $signUrl = $basePath . '/iep/sign/' . (int) $iep['id'] . '/' . (int) $sig['id'];
-                                            ?>
-                                            <div class="input-group input-group-sm">
-                                                <input type="text" class="form-control" readonly value="<?= htmlspecialchars($signUrl) ?>">
-                                                <button type="button" class="btn btn-outline-secondary copy-sign-link">Copy</button>
-                                            </div>
-                                            <a class="btn btn-sm btn-outline-primary mt-1" href="<?= htmlspecialchars($signUrl) ?>">Open sign page</a>
-                                        <?php else: ?>
-                                            <span class="text-muted small">—</span>
-                                        <?php endif; ?>
-                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                             </tbody>
@@ -384,19 +371,6 @@ require_once __DIR__ . '/../layouts/header.php';
                     </form>
                 </div>
             </div>
-            <script>
-            document.querySelectorAll('.copy-sign-link').forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    var inp = this.closest('.input-group').querySelector('input');
-                    if (!inp) return;
-                    inp.select();
-                    document.execCommand('copy');
-                    if (typeof Swal !== 'undefined') {
-                        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Link copied', showConfirmButton: false, timer: 2000 });
-                    }
-                });
-            });
-            </script>
             <?php endif; ?>
 
             <?php

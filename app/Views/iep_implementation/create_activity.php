@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 6
 // Last modified: 2026-05-05
-// Part of: SPED LMS — Activity Builder
+// Part of: SignED — Activity Builder
 
-$pageTitle = 'Create Activity - SPED LMS';
+$pageTitle = 'Create Activity - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -59,11 +59,23 @@ require_once __DIR__ . '/../layouts/header.php';
                         <div class="mb-4" id="assignSection" style="display: none;">
                             <label class="form-label fw-bold">Assign To *</label>
                             <select id="assignTo" class="form-select" multiple size="5" required>
+                                <?php
+                                require_once __DIR__ . '/../../Models/StudentModel.php';
+                                $createActivityStudentModel = new StudentModel();
+                                $createActivityCodeCache = [];
+                                ?>
                                 <?php foreach ($students as $student): ?>
+                                    <?php
+                                    $createFk = (int)($student['id'] ?? $student['student_id'] ?? 0);
+                                    if ($createFk && !isset($createActivityCodeCache[$createFk])) {
+                                        $createRec = $createActivityStudentModel->findById($createFk);
+                                        $createActivityCodeCache[$createFk] = $createRec['student_id'] ?? null;
+                                    }
+                                    ?>
                                     <option value="<?php echo $student['id']; ?>"
                                             <?php if (isset($iep) && $iep['id'] == $student['id']) echo 'selected'; ?>>
                                         <?php echo htmlspecialchars($student['student_name']); ?> 
-                                        (LRN: <?php echo htmlspecialchars($student['lrn']); ?>)
+                                            (Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($createActivityCodeCache[$createFk] ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?>)
                                     </option>
                                 <?php endforeach; ?>
                             </select>

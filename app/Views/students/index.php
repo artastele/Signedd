@@ -1,9 +1,9 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Student Records
 // Last modified: 2026-05-06
-// Part of: SPED LMS — Student Records List
+// Part of: SignED — Student Records List
 
-$pageTitle = 'Student Records - SPED LMS';
+$pageTitle = 'Student Records - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -77,7 +77,8 @@ require_once __DIR__ . '/../layouts/header.php';
                     <table class="table table-hover">
                         <thead class="table-dark">
                             <tr>
-                                <th>LRN</th>
+                                <th>Student ID</th>
+                                <th>DepEd LRN</th>
                                 <th>Student Name</th>
                                 <th>Birth Date</th>
                                 <th>Disability Type</th>
@@ -91,8 +92,9 @@ require_once __DIR__ . '/../layouts/header.php';
                             <?php foreach ($students as $student): ?>
                                 <tr>
                                     <td>
-                                        <strong><?php echo htmlspecialchars($student['lrn']); ?></strong>
+                                        <strong><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_id'] ?? null)); ?></strong>
                                     </td>
+                                    <td><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?></td>
                                     <td><?php echo htmlspecialchars($student['student_name']); ?></td>
                                     <td><?php echo date('M d, Y', strtotime($student['date_of_birth'])); ?></td>
                                     <td><?php echo htmlspecialchars($student['disability_type'] ?? 'N/A'); ?></td>

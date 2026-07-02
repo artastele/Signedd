@@ -1,9 +1,9 @@
-ï»¿<?php
-// DO NOT ALTER WITHOUT APPROVAL â€” Process 4 Part II
+<?php
+// DO NOT ALTER WITHOUT APPROVAL — Process 4 Part II
 // Last modified: 2026-05-07
-// Part of: SPED LMS â€” PDSP Form
+// Part of: SignED — PDSP Form
 
-$pageTitle = 'PDSP Form (Part II) - SPED LMS';
+$pageTitle = 'PDSP Form (Part II) - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 
 // Include print stylesheet
@@ -62,7 +62,7 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/print.css" media="print
             </div>
             <div class="card-body">
                 <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> After the physical IEP meeting, upload the signed handwritten PDSP document here. This serves as proof of signing.
+                    <i class="bi bi-info-circle"></i> After the physical IEP meeting, upload the signed handwritten PDSP document here. This serves as proof of signing. OCR auto-fill is optional. If OCR is unavailable, continue manually by completing the form and marking the uploaded document as signed.
                 </div>
                 
                 <?php if (!empty($pdsp['signed_document_path'])): ?>

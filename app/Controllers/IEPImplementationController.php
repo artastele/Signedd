@@ -376,14 +376,18 @@ class IEPImplementationController {
     public function addActivity() {
         header('Content-Type: application/json');
         try {
-            $body = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $body = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($body)) {
+                $body = $_POST;
+            }
 
             $lessonPlanId = (int) ($body['lesson_plan_id'] ?? 0);
             $title        = trim($body['title']            ?? '');
             $instructions = trim($body['instructions']     ?? '');
             $activityType = trim($body['activity_type']    ?? '');
             $activityData = $body['activity_data']         ?? null;
-            $maxScore     = (int) ($body['max_score']      ?? 0);
+            $isF2F        = isset($body['is_f2f']) ? (int)$body['is_f2f'] : 0;
+            $maxScore     = $isF2F ? 0 : (int) ($body['max_score'] ?? 0);
             $dueDate      = !empty($body['due_date']) ? $body['due_date'] : null;
 
             if (!$lessonPlanId || !$title || !$activityType) {
@@ -400,20 +404,51 @@ class IEPImplementationController {
                 exit;
             }
 
-            // Ensure activity_data is a JSON string
+            // Ensure activity_data is an array for manipulation
+            $activityDataArr = [];
             if (is_array($activityData)) {
-                $activityDataJson = json_encode($activityData);
+                $activityDataArr = $activityData;
             } elseif (is_string($activityData)) {
-                // Validate it's valid JSON
-                json_decode($activityData);
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    echo json_encode(['success' => false, 'message' => 'activity_data must be valid JSON.']);
+                $activityDataArr = json_decode($activityData, true) ?? [];
+            }
+
+            // Upload image file for image_label (scoring/validation)
+            if ($activityType === 'image_label') {
+                $imagePath = null;
+                if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
+                    $file    = $_FILES['image_file'];
+                    $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                    $allowed = ['jpg', 'jpeg', 'png'];
+                    if (!in_array($ext, $allowed)) {
+                        echo json_encode(['success' => false, 'message' => 'Allowed image types: JPG, PNG.']);
+                        exit;
+                    }
+                    if ($file['size'] > 5 * 1024 * 1024) {
+                        echo json_encode(['success' => false, 'message' => 'Image file must be under 5MB.']);
+                        exit;
+                    }
+                    $uploadDir = __DIR__ . '/../../public/uploads/activities/' . $lessonPlanId . '/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    $fileName = 'act_' . time() . '_' . uniqid() . '.' . $ext;
+                    $fullPath = $uploadDir . $fileName;
+                    if (move_uploaded_file($file['tmp_name'], $fullPath)) {
+                        $imagePath = 'uploads/activities/' . $lessonPlanId . '/' . $fileName;
+                    }
+                }
+
+                if ($imagePath) {
+                    $activityDataArr['image_path'] = $imagePath;
+                }
+
+                if (empty($activityDataArr['image_path'])) {
+                    echo json_encode(['success' => false, 'message' => 'Please upload an image before saving this activity.']);
                     exit;
                 }
-                $activityDataJson = $activityData;
-            } else {
-                $activityDataJson = '{}';
             }
+
+            $activityDataJson = json_encode($activityDataArr);
 
             $existing     = $this->model->getActivities($lessonPlanId);
             $displayOrder = count($existing);
@@ -427,6 +462,7 @@ class IEPImplementationController {
                 'max_score'      => $maxScore,
                 'due_date'       => $dueDate,
                 'display_order'  => $displayOrder,
+                'is_f2f'         => $isF2F,
             ]);
 
             if (!$activityId) {
@@ -785,12 +821,26 @@ class IEPImplementationController {
                         break;
 
                     case 'true_false':
-                        $qText  = trim($data['question1'] ?? $data['Question1'] ?? $data['statement'] ?? '');
-                        $answer = strtolower(trim($data['correct_answer'] ?? $data['q1_correct'] ?? 'true'));
+                        $questions = [];
+                        for ($q = 1; $q <= 5; $q++) {
+                            $qText = trim($data["question$q"] ?? $data["Question$q"] ?? ($q === 1 ? ($data['statement'] ?? '') : ''));
+                            if ($qText === '') {
+                                continue;
+                            }
+                            $answer = strtolower(trim($data["q{$q}_correct"] ?? ($q === 1 ? ($data['correct_answer'] ?? 'true') : 'true')));
+                            $questions[] = [
+                                'statement' => $qText,
+                                'answer' => $answer === 'false' ? 'false' : 'true',
+                                'points' => 1,
+                            ];
+                        }
+                        $firstQuestion = $questions[0] ?? ['statement' => '', 'answer' => 'true'];
                         $activityData = [
-                            'statement'      => $qText,
-                            'correct_answer' => $answer === 'false' ? 'false' : 'true',
-                            'points'         => 1,
+                            'questions' => $questions,
+                            'statement' => $firstQuestion['statement'],
+                            'answer' => $firstQuestion['answer'],
+                            'correct_answer' => $firstQuestion['answer'],
+                            'points' => 1,
                         ];
                         break;
 
@@ -819,6 +869,44 @@ class IEPImplementationController {
                             }
                         }
                         $activityData = ['pairs' => $pairs, 'points' => 1];
+                        break;
+
+                    case 'drag_drop_sort':
+                        $items = [];
+                        for ($i = 1; $i <= 10; $i++) {
+                            $text = trim($data["item$i"] ?? $data["Item$i"] ?? '');
+                            if ($text !== '') {
+                                $items[] = ['text' => $text, 'order' => count($items) + 1];
+                            }
+                        }
+                        $activityData = ['items' => $items, 'points' => 1];
+                        break;
+
+                    case 'sequencing':
+                        $steps = [];
+                        for ($i = 1; $i <= 10; $i++) {
+                            $text = trim($data["step$i"] ?? $data["Step$i"] ?? '');
+                            if ($text !== '') {
+                                $steps[] = ['text' => $text, 'order' => count($steps) + 1];
+                            }
+                        }
+                        $activityData = ['steps' => $steps, 'points' => 1];
+                        break;
+
+                    case 'flashcards':
+                        $cards = [];
+                        for ($i = 1; $i <= 10; $i++) {
+                            $front = trim($data["front$i"] ?? $data["Front$i"] ?? '');
+                            $back = trim($data["back$i"] ?? $data["Back$i"] ?? '');
+                            if ($front !== '' && $back !== '') {
+                                $cards[] = ['front' => $front, 'back' => $back];
+                            }
+                        }
+                        $activityData = ['cards' => $cards];
+                        break;
+
+                    case 'image_label':
+                        $activityData = ['labels' => [], 'points' => 1];
                         break;
 
                     default:
@@ -1129,45 +1217,264 @@ class IEPImplementationController {
         $activity['activity_data'] = json_decode($activity['activity_data'] ?? '{}', true) ?? [];
         $maxScore = LessonPlanModel::displayMaxScoreForActivity($activity);
 
-        $stmt = $db->prepare('SELECT id, auto_score FROM lms_submissions WHERE activity_id = :a AND student_id = :s LIMIT 1');
-        $stmt->execute(['a' => $activityId, 's' => $studentId]);
-        $sub = $stmt->fetch();
-        if (!$sub) {
-            $_SESSION['error'] = 'No submission found.';
+        // Find targeted PDSP skill
+        $stmtSkill = $db->prepare("
+            SELECT s.pdsp_indicator_text 
+            FROM iep_steps s
+            JOIN iep_step_lesson_plans lp ON lp.iep_step_id = s.id
+            WHERE lp.lesson_plan_id = :lp_id AND s.pdsp_indicator_text IS NOT NULL AND s.pdsp_indicator_text != ''
+            LIMIT 1
+        ");
+        $stmtSkill->execute(['lp_id' => $activity['lesson_plan_id']]);
+        $targetedSkill = $stmtSkill->fetchColumn() ?: null;
+
+        $quarter = isset($_POST['quarter']) ? (int) $_POST['quarter'] : 1;
+        $rating = isset($_POST['rating']) ? trim((string)$_POST['rating']) : null;
+        $observation = isset($_POST['observation']) ? trim((string)$_POST['observation']) : null;
+
+        if (!empty($activity['is_f2f'])) {
+            // FACE-TO-FACE ACTIVITY PATH
+            if (!$targetedSkill) {
+                $_SESSION['error'] = 'This activity is not linked to any targeted PDSP skill.';
+                header('Location: ' . $this->basePath . '/iep/implementation/submission/' . $activityId . '?student_id=' . $studentId);
+                exit;
+            }
+            if (!$rating) {
+                $_SESSION['error'] = 'Rating is required for Face-to-Face activity.';
+                header('Location: ' . $this->basePath . '/iep/implementation/submission/' . $activityId . '?student_id=' . $studentId);
+                exit;
+            }
+            if (!$observation) {
+                $_SESSION['error'] = 'Observation notes are required for Face-to-Face activity.';
+                header('Location: ' . $this->basePath . '/iep/implementation/submission/' . $activityId . '?student_id=' . $studentId);
+                exit;
+            }
+
+            // Find PDSP record for student
+            $stmtPdsp = $db->prepare("SELECT id FROM pdsp_records WHERE student_id = :sid AND status IN ('signed', 'complete') LIMIT 1");
+            $stmtPdsp->execute(['sid' => $studentId]);
+            $pdspRecordId = $stmtPdsp->fetchColumn();
+            if (!$pdspRecordId) {
+                $stmtPdsp = $db->prepare("SELECT id FROM pdsp_records WHERE student_id = :sid LIMIT 1");
+                $stmtPdsp->execute(['sid' => $studentId]);
+                $pdspRecordId = $stmtPdsp->fetchColumn();
+            }
+            if (!$pdspRecordId) {
+                $_SESSION['error'] = 'No signed PDSP record found for this student. Please sign a PDSP first.';
+                header('Location: ' . $this->basePath . '/iep/implementation/submission/' . $activityId . '?student_id=' . $studentId);
+                exit;
+            }
+
+            // Upsert rating & observation
+            $stmtCheck = $db->prepare("
+                SELECT id FROM student_quarterly_ratings 
+                WHERE student_id = :sid AND pdsp_record_id = :pid AND indicator_text = :ind AND quarter = :q
+                LIMIT 1
+            ");
+            $stmtCheck->execute([
+                'sid' => $studentId,
+                'pid' => $pdspRecordId,
+                'ind' => $targetedSkill,
+                'q'   => $quarter
+            ]);
+            $existingRatingId = $stmtCheck->fetchColumn();
+
+            if ($existingRatingId) {
+                $stmtUpdate = $db->prepare("
+                    UPDATE student_quarterly_ratings 
+                    SET rating = :r, observation = :obs, source = 'f2f', updated_at = NOW()
+                    WHERE id = :id
+                ");
+                $stmtUpdate->execute([
+                    'r'   => $rating,
+                    'obs' => $observation,
+                    'id'  => $existingRatingId
+                ]);
+            } else {
+                $stmtDom = $db->prepare("
+                    SELECT domain_name FROM pdsp_domains 
+                    WHERE pdsp_id = :pid AND (skills_description = :ind OR sub_domain = :ind)
+                    LIMIT 1
+                ");
+                $stmtDom->execute(['pid' => $pdspRecordId, 'ind' => $targetedSkill]);
+                $dName = $stmtDom->fetchColumn() ?: 'Cognitive';
+                
+                $map = [
+                    'perceptuo-cognitive' => 'Cognitive',
+                    'cognitive' => 'Cognitive',
+                    'psychosocial' => 'Behavioral Development',
+                    'behavioral development' => 'Behavioral Development',
+                    'socio-emotional' => 'Socio-Emotional',
+                    'psychomotor' => 'Psychomotor',
+                    'daily living skills' => 'Daily Living Skills',
+                    'communication and language' => 'Language Development',
+                    'language development' => 'Language Development',
+                    'communication' => 'Language Development',
+                    'aesthetic/creative' => 'Aesthetic/Creative',
+                    'orientation and mobility' => 'Orientation and Mobility'
+                ];
+                $mappedDom = $map[strtolower(trim($dName))] ?? 'Cognitive';
+
+                $stmtInsert = $db->prepare("
+                    INSERT INTO student_quarterly_ratings (student_id, pdsp_record_id, domain, indicator_text, quarter, rating, observation, source)
+                    VALUES (:sid, :pid, :dom, :ind, :q, :r, :obs, 'f2f')
+                ");
+                $stmtInsert->execute([
+                    'sid' => $studentId,
+                    'pid' => $pdspRecordId,
+                    'dom' => $mappedDom,
+                    'ind' => $targetedSkill,
+                    'q'   => $quarter,
+                    'r'   => $rating,
+                    'obs' => $observation
+                ]);
+            }
+
+            // Save observation notes to existing iep_steps.observation field if a step is linked
+            $stmtStep = $db->prepare("
+                SELECT s.id 
+                FROM iep_steps s
+                JOIN iep_step_lesson_plans lp ON lp.iep_step_id = s.id
+                WHERE lp.lesson_plan_id = :lp_id
+                LIMIT 1
+            ");
+            $stmtStep->execute(['lp_id' => $activity['lesson_plan_id']]);
+            $linkedStepId = $stmtStep->fetchColumn();
+            if ($linkedStepId) {
+                $stmtUpStep = $db->prepare("UPDATE iep_steps SET observation = :obs WHERE id = :id");
+                $stmtUpStep->execute(['obs' => $observation, 'id' => $linkedStepId]);
+            }
+
+            $_SESSION['success'] = 'F2F rating and observation recorded successfully.';
+            header('Location: ' . $this->basePath . '/iep/implementation/submission/' . $activityId . '?student_id=' . $studentId);
+            exit;
+        } else {
+            // DIGITAL PATH
+            if (is_string($activity['activity_data'])) {
+                require_once __DIR__ . '/../Models/LessonPlanModel.php';
+                $activity['activity_data'] = json_decode($activity['activity_data'] ?? '{}', true) ?? [];
+                $maxScore = LessonPlanModel::displayMaxScoreForActivity($activity);
+            }
+
+            $stmt = $db->prepare('SELECT id, auto_score FROM lms_submissions WHERE activity_id = :a AND student_id = :s LIMIT 1');
+            $stmt->execute(['a' => $activityId, 's' => $studentId]);
+            $sub = $stmt->fetch();
+            if (!$sub) {
+                $_SESSION['error'] = 'No submission found.';
+                header('Location: ' . $this->basePath . '/iep/implementation/submission/' . $activityId . '?student_id=' . $studentId);
+                exit;
+            }
+
+            $posted = isset($_POST['score']) ? (int) $_POST['score'] : null;
+            $score  = $posted !== null ? $posted : (int) ($sub['auto_score'] ?? 0);
+            if ($maxScore > 0 && $score > $maxScore) {
+                $score = $maxScore;
+            }
+            if ($score < 0) {
+                $score = 0;
+            }
+
+            // Save to lms_grades
+            $ins = $db->prepare("
+                INSERT INTO lms_grades (submission_id, graded_by, score, max_score, is_complete, remarks)
+                VALUES (:sid, :uid, :sc, :mx, 1, :rm)
+                ON DUPLICATE KEY UPDATE
+                    score = VALUES(score),
+                    max_score = VALUES(max_score),
+                    is_complete = 1,
+                    graded_by = VALUES(graded_by),
+                    remarks = VALUES(remarks),
+                    graded_at = CURRENT_TIMESTAMP
+            ");
+            $ins->execute([
+                'sid' => (int) $sub['id'],
+                'uid' => (int) $this->userId,
+                'sc'  => $score,
+                'mx'  => $maxScore > 0 ? $maxScore : (int) ($activity['max_score'] ?? 0),
+                'rm'  => $observation ?: (trim((string) ($_POST['remarks'] ?? '')) ?: null),
+            ]);
+
+            // Save to student_quarterly_ratings if rating and targeted skill exist
+            if ($rating && $targetedSkill) {
+                $stmtPdsp = $db->prepare("SELECT id FROM pdsp_records WHERE student_id = :sid AND status IN ('signed', 'complete') LIMIT 1");
+                $stmtPdsp->execute(['sid' => $studentId]);
+                $pdspRecordId = $stmtPdsp->fetchColumn();
+                if (!$pdspRecordId) {
+                    $stmtPdsp = $db->prepare("SELECT id FROM pdsp_records WHERE student_id = :sid LIMIT 1");
+                    $stmtPdsp->execute(['sid' => $studentId]);
+                    $pdspRecordId = $stmtPdsp->fetchColumn();
+                }
+
+                if ($pdspRecordId) {
+                    $stmtCheck = $db->prepare("
+                        SELECT id FROM student_quarterly_ratings 
+                        WHERE student_id = :sid AND pdsp_record_id = :pid AND indicator_text = :ind AND quarter = :q
+                        LIMIT 1
+                    ");
+                    $stmtCheck->execute([
+                        'sid' => $studentId,
+                        'pid' => $pdspRecordId,
+                        'ind' => $targetedSkill,
+                        'q'   => $quarter
+                    ]);
+                    $existingRatingId = $stmtCheck->fetchColumn();
+
+                    if ($existingRatingId) {
+                        $stmtUpdate = $db->prepare("
+                            UPDATE student_quarterly_ratings 
+                            SET rating = :r, observation = :obs, source = 'digital', updated_at = NOW()
+                            WHERE id = :id
+                        ");
+                        $stmtUpdate->execute([
+                            'r'   => $rating,
+                            'obs' => $observation,
+                            'id'  => $existingRatingId
+                        ]);
+                    } else {
+                        $stmtDom = $db->prepare("
+                            SELECT domain_name FROM pdsp_domains 
+                            WHERE pdsp_id = :pid AND (skills_description = :ind OR sub_domain = :ind)
+                            LIMIT 1
+                        ");
+                        $stmtDom->execute(['pid' => $pdspRecordId, 'ind' => $targetedSkill]);
+                        $dName = $stmtDom->fetchColumn() ?: 'Cognitive';
+                        
+                        $map = [
+                            'perceptuo-cognitive' => 'Cognitive',
+                            'cognitive' => 'Cognitive',
+                            'psychosocial' => 'Behavioral Development',
+                            'behavioral development' => 'Behavioral Development',
+                            'socio-emotional' => 'Socio-Emotional',
+                            'psychomotor' => 'Psychomotor',
+                            'daily living skills' => 'Daily Living Skills',
+                            'communication and language' => 'Language Development',
+                            'language development' => 'Language Development',
+                            'communication' => 'Language Development',
+                            'aesthetic/creative' => 'Aesthetic/Creative',
+                            'orientation and mobility' => 'Orientation and Mobility'
+                        ];
+                        $mappedDom = $map[strtolower(trim($dName))] ?? 'Cognitive';
+
+                        $stmtInsert = $db->prepare("
+                            INSERT INTO student_quarterly_ratings (student_id, pdsp_record_id, domain, indicator_text, quarter, rating, observation, source)
+                            VALUES (:sid, :pid, :dom, :ind, :q, :r, :obs, 'digital')
+                        ");
+                        $stmtInsert->execute([
+                            'sid' => $studentId,
+                            'pid' => $pdspRecordId,
+                            'dom' => $mappedDom,
+                            'ind' => $targetedSkill,
+                            'q'   => $quarter,
+                            'r'   => $rating,
+                            'obs' => $observation
+                        ]);
+                    }
+                }
+            }
+
+            $_SESSION['success'] = 'Grade and rating confirmed successfully.';
             header('Location: ' . $this->basePath . '/iep/implementation/submission/' . $activityId . '?student_id=' . $studentId);
             exit;
         }
-
-        $posted = isset($_POST['score']) ? (int) $_POST['score'] : null;
-        $score  = $posted !== null ? $posted : (int) ($sub['auto_score'] ?? 0);
-        if ($maxScore > 0 && $score > $maxScore) {
-            $score = $maxScore;
-        }
-        if ($score < 0) {
-            $score = 0;
-        }
-
-        $ins = $db->prepare("
-            INSERT INTO lms_grades (submission_id, graded_by, score, max_score, is_complete, remarks)
-            VALUES (:sid, :uid, :sc, :mx, 1, :rm)
-            ON DUPLICATE KEY UPDATE
-                score = VALUES(score),
-                max_score = VALUES(max_score),
-                is_complete = 1,
-                graded_by = VALUES(graded_by),
-                remarks = VALUES(remarks),
-                graded_at = CURRENT_TIMESTAMP
-        ");
-        $ins->execute([
-            'sid' => (int) $sub['id'],
-            'uid' => (int) $this->userId,
-            'sc'  => $score,
-            'mx'  => $maxScore > 0 ? $maxScore : (int) ($activity['max_score'] ?? 0),
-            'rm'  => trim((string) ($_POST['remarks'] ?? '')) ?: null,
-        ]);
-
-        $_SESSION['success'] = 'Grade confirmed.';
-        header('Location: ' . $this->basePath . '/iep/implementation/submission/' . $activityId . '?student_id=' . $studentId);
-        exit;
     }
 }

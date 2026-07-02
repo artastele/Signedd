@@ -84,6 +84,22 @@ route('GET', '/api/locations/barangays/{province}/{city}', 'LocationController',
 // Services (General Information)
 route('GET', '/services', 'ServicesController', 'index');
 
+// Process 8 — Progress Report Card
+route('GET', '/attendance-log', 'ProgressReportController', 'attendanceIndex', 'progress_report.view');
+route('GET', '/progress-reports', 'ProgressReportController', 'index', 'progress_report.view');
+route('GET', '/progress-reports/{student_id}', 'ProgressReportController', 'show', 'progress_report.view');
+route('POST', '/progress-reports/{student_id}', 'ProgressReportController', 'store', 'progress_report.manage');
+route('POST', '/progress-reports/{student_id}/grades', 'ProgressReportController', 'saveGrades', 'progress_report.manage');
+route('POST', '/progress-reports/{student_id}/ratings', 'ProgressReportController', 'saveQuarterlyRatings', 'progress_report.manage');
+route('POST', '/progress-reports/{student_id}/remarks', 'ProgressReportController', 'saveRemarks');
+route('POST', '/progress-reports/{id}/finalize', 'ProgressReportController', 'finalize', 'progress_report.manage');
+
+// Process 8 — Student Attendance Sheet
+route('GET', '/progress-reports/{student_id}/attendance', 'ProgressReportController', 'attendance', 'progress_report.view');
+route('POST', '/progress-reports/{student_id}/attendance', 'ProgressReportController', 'saveAttendance', 'progress_report.manage');
+route('POST', '/progress-reports/{student_id}/attendance/import', 'ProgressReportController', 'importAttendance', 'progress_report.manage');
+route('POST', '/progress-reports/{student_id}/attendance/delete/{id}', 'ProgressReportController', 'deleteAttendance', 'progress_report.manage');
+
 // Role Selection
 route('GET', '/role/select', 'RoleController', 'showSelection', 'role.select');
 route('POST', '/role/select-parent', 'RoleController', 'selectParent', 'role.select');
@@ -236,6 +252,7 @@ route('GET',  '/iep/ajax/step-progress/{id}',   'IEPController', 'stepProgress',
 route('POST', '/iep/submitIEP',                'IEPController', 'submitIEP',      'iep.create');
 route('POST', '/iep/finalize-digital',         'IEPController', 'finalizeDigitalIep', 'iep.create');
 route('POST', '/iep/draft/{id}/delete',        'IEPController', 'deleteDraft',    'iep.create');
+route('GET',  '/iep/print/report-card/{student_id}', 'ReportCardController', 'printReportCard', 'iep.view');
 route('GET',  '/iep/print/{id}',               'IEPController', 'printForm',      'iep.view');
 route('GET',  '/iep/ajax/eligible-students',   'IEPController', 'eligibleStudentsJson', 'iep.create');
 route('POST', '/iep/ajax/lesson-plan-upload',  'IEPController', 'uploadLessonPlanDocForIep', 'iep.create');
@@ -245,6 +262,47 @@ route('POST', '/iep/save-signature',          'IEPController', 'saveSignature', 
 route('POST', '/iep/upload-signed-doc',        'IEPController', 'upload',         'iep.create');
 // Download IEP document
 route('GET',  '/iep/download/{id}',            'IEPController', 'downloadDocument', 'iep.view');
+
+// Unified transition workflow connected to existing IEP and implementation data
+route('GET',  '/iep/{id}/learning-outcomes/grades',              'TransitionWorkflowController', 'grades', 'progress_report.view');
+route('GET',  '/iep/{id}/learning-outcomes/attendance',          'TransitionWorkflowController', 'attendance', 'progress_report.view');
+// Legacy unified workflow removed — use dedicated module routes below.
+// Process 7–13 module entry points (new dedicated controllers)
+route('GET',  '/iep/{id}/transition-management/readiness',       'TransitionReadinessController', 'index', 'transition_readiness.view');
+route('POST', '/iep/{id}/transition-management/readiness',       'TransitionReadinessController', 'save',  'transition_readiness.create');
+route('GET',  '/iep/{id}/transition-readiness',                  'TransitionReadinessController', 'index', 'transition_readiness.view');
+route('POST', '/iep/{id}/transition-readiness',                  'TransitionReadinessController', 'save',  'transition_readiness.create');
+route('GET',  '/iep/{id}/inclusion-planning/itp',                'ITPController', 'index', ['itp.view', 'itp.view_own_child']);
+route('POST', '/iep/{id}/inclusion-planning/itp',                'ITPController', 'save',  'itp.create');
+route('GET',  '/iep/{id}/individual-transition-plan',            'ITPController', 'index', ['itp.view', 'itp.view_own_child']);
+route('POST', '/iep/{id}/individual-transition-plan',            'ITPController', 'save',  'itp.create');
+route('POST', '/iep/{id}/itp/assign',                            'ITPController', 'assignTeam', 'itp.create');
+route('POST', '/iep/{id}/itp/narrative',                         'ITPController', 'saveNarrative', 'itp.create');
+route('POST', '/iep/{id}/itp/matrix',                            'ITPController', 'saveMatrix', 'itp.create');
+route('POST', '/iep/{id}/itp/signature/save',                    'ITPController', 'saveParentSignature', 'itp.sign');
+route('POST', '/iep/{id}/itp/finalize',                          'ITPController', 'finalizeItp', 'itp.finalize');
+route('GET',  '/itp-team/edit/{id}',                             'ITPController', 'editTeamMember', 'itp.fill_own_row');
+route('POST', '/itp-team/save/{id}',                             'ITPController', 'saveTeamMember', 'itp.fill_own_row');
+route('POST', '/itp-team/remind/{id}',                           'ITPController', 'remindTeamMember', 'itp.create');
+route('GET',  '/iep/{id}/inclusive-iep-itgp',                    'ITGPController', 'index');
+route('POST', '/iep/{id}/inclusive-iep-itgp',                    'ITGPController', 'save');
+route('POST', '/iep/{id}/inclusive-iep-itgp/assign',             'ITGPController', 'assignGeneralTeacher');
+route('POST', '/iep/{id}/inclusive-iep-itgp/comment',            'ITGPController', 'addComment');
+route('POST', '/iep/{id}/inclusive-iep-itgp/sned-remarks',       'ITGPController', 'saveSnedRemarks');
+route('POST', '/iep/{id}/inclusive-iep-itgp/send-back',          'ITGPController', 'sendBackToGenTeacher');
+route('POST', '/iep/{id}/inclusive-iep-itgp/inspect',            'ITGPController', 'inspect');
+route('POST', '/iep/{id}/inclusive-iep-itgp/finalize',           'ITGPController', 'finalize');
+route('GET',  '/iep/{id}/placement-management/notices',          'ClassPlacementController', 'index');
+route('POST', '/iep/{id}/placement-management/notices',          'ClassPlacementController', 'save');
+route('GET',  '/iep/{id}/placement-notice',                      'ClassPlacementController', 'index', 'class_placement.view');
+route('POST', '/iep/{id}/placement-notice',                      'ClassPlacementController', 'save',  'class_placement.confirm');
+
+// Double slash fallbacks for missing IEP ID (graceful redirects instead of raw 404)
+route('GET', '/iep//transition-readiness',                  'TransitionReadinessController', 'index', 'transition_readiness.view');
+route('GET', '/iep//individual-transition-plan',            'ITPController', 'index', 'itp.view');
+route('GET', '/iep//inclusive-iep-itgp',                    'ITGPController', 'index');
+route('GET', '/iep//placement-notice',                      'ClassPlacementController', 'index');
+
 // New cycle
 
 // IEP Documents — Unified dashboard (replaces p2/review, p3/sign, approval)
@@ -313,6 +371,27 @@ route('GET', '/admin/activity-logs/export', 'AdminController', 'exportActivityLo
 
 route('GET', '/students', 'StudentController', 'index', 'student.records');
 route('GET', '/students/view/{id}', 'StudentController', 'view', 'student.view');
+route('GET', '/students/edit/{id}', 'StudentController', 'edit', 'student.view');
+route('POST', '/students/edit/{id}', 'StudentController', 'update', 'student.view');
+
+// ============================================
+// PROCESS 9 — CLASSROOM OBSERVATION TOOL (COT)
+// ============================================
+route('GET', '/cot/indicators', 'ClassroomObservationController', 'manageIndicators', 'observation.manage_indicators');
+route('POST', '/cot/indicators/save', 'ClassroomObservationController', 'saveIndicators', 'observation.manage_indicators');
+route('POST', '/cot/indicators/load-defaults', 'ClassroomObservationController', 'loadDefaultIndicators', 'observation.manage_indicators');
+route('GET', '/itgp/inspection-queue', 'ITGPController', 'inspectionQueue', 'itgp.view');
+
+route('GET', '/cot/observations', 'ClassroomObservationController', 'history');
+route('GET', '/cot/observations/schedule', 'ClassroomObservationController', 'showScheduleForm', 'observation.schedule');
+route('POST', '/cot/observations/schedule', 'ClassroomObservationController', 'schedule', 'observation.schedule');
+route('GET', '/cot/observations/{id}/rate', 'ClassroomObservationController', 'rateLive', 'observation.rate');
+route('POST', '/cot/observations/{id}/rate/save', 'ClassroomObservationController', 'saveRating', 'observation.rate');
+route('POST', '/cot/observations/{id}/comments/save', 'ClassroomObservationController', 'saveComments', 'observation.rate');
+route('POST', '/cot/observations/{id}/finalize', 'ClassroomObservationController', 'finalize', 'observation.finalize');
+route('GET', '/cot/observations/{id}/view', 'ClassroomObservationController', 'view');
+route('GET', '/cot/observations/{id}/sign-off', 'ClassroomObservationController', 'showSignOff');
+route('POST', '/cot/observations/{id}/sign-off', 'ClassroomObservationController', 'signOff');
 
 // ============================================
 // 404 NOT FOUND

@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Register - SPED LMS';
+$pageTitle = 'Register - SignED';
 $basePath = defined('BASE_PATH') ? BASE_PATH : '';
 require_once __DIR__ . '/../layouts/header.php';
 
@@ -17,12 +17,12 @@ unset($_SESSION['old_first_name'], $_SESSION['old_middle_name'], $_SESSION['old_
     <div class="auth-left">
         <div class="auth-left-content">
             <?php if (file_exists(__DIR__ . '/../../../public/images/logo-large.png')): ?>
-                <img src="<?php echo $basePath; ?>/images/logo-large.png" alt="SPED LMS Logo" class="auth-logo-large">
+                <img src="<?php echo $basePath; ?>/images/logo-large.png" alt="SignED Logo" class="auth-logo-large">
             <?php else: ?>
                 <i class="bi bi-mortarboard-fill" style="font-size: 6rem; margin-bottom: 2rem;"></i>
             <?php endif; ?>
             
-            <h1>Join SPED LMS</h1>
+            <h1>Join SignED</h1>
             <p>Create your account and start your journey with us.</p>
             <p>Supporting special education, one learner at a time.</p>
         </div>
@@ -159,7 +159,7 @@ unset($_SESSION['old_first_name'], $_SESSION['old_middle_name'], $_SESSION['old_
             <!-- Footer -->
             <div class="text-center mt-4">
                 <p class="text-muted small">
-                    &copy; <?php echo date('Y'); ?> SPED LMS. All rights reserved.
+                    &copy; <?php echo date('Y'); ?> SignED. All rights reserved.
                 </p>
             </div>
         </div>

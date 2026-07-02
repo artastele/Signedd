@@ -297,6 +297,13 @@ function renderNotifications(notifications) {
                 </a>
                 <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
             `;
+        } else if (data.itp_member_id) {
+            actionHtml = `
+                <a href="${getBasePath()}/itp-team/edit/${data.itp_member_id}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-pencil-square"></i> Fill Info
+                </a>
+                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
+            `;
         } else if (notification.type === 'iep_signed' && data.iep_id) {
             actionHtml = `
                 <a href="${getBasePath()}/iep/form/${data.iep_id}" class="btn btn-sm btn-success">
