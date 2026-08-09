@@ -28,8 +28,34 @@ CREATE TABLE IF NOT EXISTS db_version (
 -- SECURITY  Authentication & Authorization
 -- ============================================
 
+-- ============================================
+-- SCHOOL MANAGEMENT
+-- ============================================
+CREATE TABLE IF NOT EXISTS schools (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    school_id VARCHAR(50) UNIQUE NOT NULL,
+    school_name VARCHAR(255) NOT NULL,
+    division VARCHAR(100),
+    region VARCHAR(50),
+    address TEXT,
+    enrollment_sy VARCHAR(50) DEFAULT '2026-2027',
+    enrollment_status ENUM('open','upcoming','closed') DEFAULT 'open',
+    enrollment_start_date DATE NULL,
+    enrollment_end_date DATE NULL,
+    enrollment_guidelines TEXT NULL,
+    enrollment_announcement TEXT NULL,
+    guidelines_published BOOLEAN DEFAULT FALSE,
+    logo_path VARCHAR(500) NULL,
+    pubmat_path VARCHAR(500) NULL,
+    contact_email VARCHAR(255) NULL,
+    contact_number VARCHAR(100) NULL,
+    facebook_page VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    school_id INT NULL,
     name VARCHAR(255) NOT NULL,
     first_name VARCHAR(100),
     middle_name VARCHAR(100),
@@ -51,8 +77,10 @@ CREATE TABLE IF NOT EXISTS users (
     locked_until TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE SET NULL,
     INDEX idx_email (email),
     INDEX idx_role (role),
+    INDEX idx_school_id (school_id),
     INDEX idx_deleted_at (deleted_at),
     INDEX idx_locked_until (locked_until)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -91,6 +119,8 @@ CREATE TABLE IF NOT EXISTS role_documents (
 CREATE TABLE IF NOT EXISTS enrollment_submissions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     parent_id INT NOT NULL,
+    target_school_id INT NULL,
+    assigned_teacher_id INT NULL,
     enrollment_type ENUM('new','transfer','returning') NOT NULL,
     school_year VARCHAR(20) NOT NULL,
     previous_enrollment_id INT NULL,
@@ -178,10 +208,14 @@ CREATE TABLE IF NOT EXISTS enrollment_submissions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (parent_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (target_school_id) REFERENCES schools(id) ON DELETE SET NULL,
+    FOREIGN KEY (assigned_teacher_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (previous_enrollment_id) REFERENCES enrollment_submissions(id) ON DELETE SET NULL,
     INDEX idx_status (status),
     INDEX idx_parent_id (parent_id),
+    INDEX idx_target_school_id (target_school_id),
+    INDEX idx_assigned_teacher_id (assigned_teacher_id),
     INDEX idx_enrollment_type (enrollment_type),
     INDEX idx_school_year (school_year)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -210,6 +244,9 @@ CREATE TABLE IF NOT EXISTS enrollment_documents (
 CREATE TABLE IF NOT EXISTS student_records (
     id INT AUTO_INCREMENT PRIMARY KEY,
     enrollment_id INT NOT NULL,
+    school_id INT NULL,
+    assigned_teacher_id INT NULL,
+    student_id VARCHAR(50) NULL,
     lrn VARCHAR(12) UNIQUE,
     student_name VARCHAR(255) NOT NULL,
     date_of_birth DATE,
@@ -220,9 +257,14 @@ CREATE TABLE IF NOT EXISTS student_records (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (enrollment_id) REFERENCES enrollment_submissions(id) ON DELETE CASCADE,
+    FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE SET NULL,
+    FOREIGN KEY (assigned_teacher_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_student_name (student_name),
-    INDEX idx_lrn (lrn)
+    INDEX idx_lrn (lrn),
+    INDEX idx_school_id (school_id),
+    INDEX idx_assigned_teacher_id (assigned_teacher_id),
+    INDEX idx_student_id_code (student_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS education_history (
@@ -779,19 +821,10 @@ CREATE TABLE IF NOT EXISTS system_settings (
 -- ============================================
 
 -- Default admin account (password: password)
-INSERT IGNORE INTO users (id, name, email, password_hash, role, status, email_verified, auth_provider)
+INSERT IGNORE INTO users (id, name, email, password_hash, role, status, email_verified, auth_provider, school_id)
 VALUES (1, 'System Admin', 'admin@spedlms.local',
         '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-        'admin', 'active', TRUE, 'local');
-
--- Demo accounts (password: password)
-INSERT IGNORE INTO users (id, name, first_name, last_name, email, contact_number, password_hash, role, status, email_verified, auth_provider) VALUES
-(2,  'Demo Parent',         'Demo', 'Parent',         'demo.parent@spedlms.local',         '09123456701', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'parent',          'active', TRUE, 'local'),
-(3,  'Demo SPED Teacher',   'Demo', 'SPED Teacher',   'demo.sped@spedlms.local',           '09123456702', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'sped_teacher',    'active', TRUE, 'local'),
-(4,  'Demo Guidance',       'Demo', 'Guidance',       'demo.guidance@spedlms.local',       '09123456703', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'guidance',        'active', TRUE, 'local'),
-(5,  'Demo Principal',      'Demo', 'Principal',      'demo.principal@spedlms.local',      '09123456704', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'principal',       'active', TRUE, 'local'),
-(6,  'Demo Master Teacher', 'Demo', 'Master Teacher', 'demo.master@spedlms.local',         '09123456705', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'master_teacher',  'active', TRUE, 'local'),
-(7,  'Demo Learner',        'Demo', 'Learner',        'demo.learner@spedlms.local',        '09123456706', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'learner',         'active', TRUE, 'local');
+        'admin', 'active', TRUE, 'local', NULL);
 
 INSERT IGNORE INTO dlp_settings (setting_key, setting_value, description) VALUES
 ('dlp_enable_watermark',        'true',                    'Enable watermark on sensitive documents'),
@@ -807,7 +840,14 @@ INSERT IGNORE INTO system_settings (setting_key, setting_value, category, descri
 ('max_login_attempts', '5',  'security', 'Maximum failed login attempts before lockout'),
 ('lockout_duration',   '15', 'security', 'Account lockout duration in minutes'),
 ('otp_expiration',     '10', 'security', 'OTP expiration time in minutes'),
-('logout_warning',     '2',  'security', 'Show logout warning X minutes before timeout');
+('logout_warning',     '2',  'security', 'Show logout warning X minutes before timeout'),
+('enrollment_sy',           '2026-2027', 'enrollment', 'Active enrollment school year'),
+('enrollment_status',       'upcoming',  'enrollment', 'Enrollment status (open, upcoming, closed)'),
+('enrollment_start_date',   '2026-06-01', 'enrollment', 'Enrollment period start date'),
+('enrollment_end_date',     '2026-08-15', 'enrollment', 'Enrollment period end date'),
+('enrollment_guidelines',   'No official enrollment guidelines have been published yet by a School Head.', 'enrollment', 'Official enrollment requirements and guidelines'),
+('enrollment_announcement', 'Official Enrollment for SY 2026-2027 is UPCOMING. Please check back once a School Principal has established enrollment guidelines for your school.', 'enrollment', 'Public announcement banner for enrollment'),
+('enrollment_guidelines_published', 'false', 'enrollment', 'Whether guidelines have been published by a Principal');
 
 -- Mark all migrations as applied on fresh install
 INSERT IGNORE INTO db_version (version) VALUES
@@ -921,10 +961,11 @@ INSERT IGNORE INTO db_version (version) VALUES (39);
 -- On a fresh install this is safe because IF EXISTS makes it a no-op.
 -- If you want a clean-only import file, you can remove this block,
 -- but keep it here if the same file is also used to migrate older databases.
--- Drop tables no longer needed
+SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS iep_domains;
 DROP TABLE IF EXISTS iep_core; 
 DROP TABLE IF EXISTS iep_steps;
+SET FOREIGN_KEY_CHECKS = 1;
 
 -- Remove signing_method column from iep_records
 -- This migration block is kept for upgrade history only. For fresh installs, the table definitions already contain the desired structure.
@@ -1104,6 +1145,7 @@ CREATE TABLE IF NOT EXISTS lms_submissions (
     file_path VARCHAR(500) NULL,                  -- for file_submission type (future)
     answers JSON NULL,                            -- learner answers for scored types
     auto_score INT NULL,                          -- computed on submit for auto-scored types
+    flashcard_results JSON NULL,                  -- flashcard details
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (activity_id) REFERENCES lms_activities(id) ON DELETE CASCADE,
     FOREIGN KEY (student_id) REFERENCES student_records(id) ON DELETE CASCADE,
@@ -1767,8 +1809,6 @@ INSERT IGNORE INTO db_version (version) VALUES (53);
 -- MIGRATION: v54 - Process 13 Class Placements & Mainstream Status
 -- ============================================
 
-ALTER TABLE student_records ADD COLUMN status ENUM('active','mainstreamed') NOT NULL DEFAULT 'active';
-
 CREATE TABLE IF NOT EXISTS class_placements (
     id INT AUTO_INCREMENT PRIMARY KEY,
     student_id INT NOT NULL,
@@ -1803,9 +1843,6 @@ CREATE TABLE IF NOT EXISTS `activity_attempt_log` (
   `attempted_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_activity_student` (`activity_id`, `student_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-ALTER TABLE `lms_submissions`
-  ADD COLUMN `flashcard_results` JSON NULL AFTER `auto_score`;
 
 INSERT IGNORE INTO db_version (version) VALUES (55);
 
@@ -1874,7 +1911,7 @@ INSERT IGNORE INTO db_version (version) VALUES (59);
 -- ============================================
 
 ALTER TABLE iep_steps
-  ADD COLUMN IF NOT EXISTS pdsp_indicator_text TEXT NULL DEFAULT NULL
+  ADD COLUMN pdsp_indicator_text TEXT NULL DEFAULT NULL
   COMMENT 'Linked PDSP skill indicator this step targets';
 
 INSERT IGNORE INTO db_version (version) VALUES (60);
@@ -1886,7 +1923,7 @@ INSERT IGNORE INTO db_version (version) VALUES (60);
 -- ============================================
 
 ALTER TABLE lms_activities
-  ADD COLUMN IF NOT EXISTS is_f2f TINYINT(1) NOT NULL DEFAULT 0
+  ADD COLUMN is_f2f TINYINT(1) NOT NULL DEFAULT 0
   COMMENT 'Boolean flag for Face-to-Face / Direct Observation activity';
 
 INSERT IGNORE INTO db_version (version) VALUES (61);
@@ -1896,7 +1933,7 @@ INSERT IGNORE INTO db_version (version) VALUES (61);
 
 -- MIGRATION: v62 - Unique constraint on student_quarterly_ratings to prevent double-seeding
 ALTER TABLE student_quarterly_ratings
-    ADD CONSTRAINT IF NOT EXISTS uq_sqr_student_indicator_quarter
+    ADD CONSTRAINT uq_sqr_student_indicator_quarter
     UNIQUE (student_id, pdsp_record_id, indicator_text(150), quarter);
 
 INSERT IGNORE INTO db_version (version) VALUES (62);
