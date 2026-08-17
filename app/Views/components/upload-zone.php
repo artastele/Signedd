@@ -23,21 +23,21 @@ $uniqueId = uniqid('upload_');
 
 <div class="upload-zone-container">
     <!-- Upload Zone (shown when no file uploaded) -->
-    <div class="upload-zone" id="<?= $uniqueId ?>_zone" style="<?= isset($existingFile) ? 'display: none;' : '' ?>">
-        <div class="upload-zone-content">
-            <i class="bi bi-upload fs-1 text-muted mb-2"></i>
-            <p class="upload-hint mb-2">Drag and drop or choose a file</p>
-            <p class="upload-formats text-muted small">
-                Accepted: <?= str_replace(['.', ','], ['', ', '], $acceptedTypes) ?> • Max <?= $maxSize ?>MB
+    <div class="upload-zone py-3 px-2" id="<?= $uniqueId ?>_zone" style="<?= isset($existingFile) ? 'display: none;' : '' ?>">
+        <div class="upload-zone-content text-center">
+            <i class="bi bi-cloud-arrow-up fs-3 text-secondary mb-1"></i>
+            <p class="upload-hint mb-1 fw-medium" style="font-size: 0.88rem; color: #475569;">Drag and drop or choose a file</p>
+            <p class="upload-formats text-muted mb-2" style="font-size: 0.78rem;">
+                Accepted: <?= str_replace(['.', ','], ['', ', '], strtoupper($acceptedTypes)) ?> • Max <?= $maxSize ?>MB
             </p>
             
-            <div class="upload-buttons mt-3">
-                <button type="button" class="btn btn-outline-primary" id="<?= $uniqueId ?>_file_btn">
-                    <i class="bi bi-upload"></i> Choose File
+            <div class="upload-buttons d-flex gap-2 justify-content-center mt-2">
+                <button type="button" class="btn btn-sm btn-outline-primary py-1 px-3" id="<?= $uniqueId ?>_file_btn">
+                    <i class="bi bi-folder2-open me-1"></i> Choose File
                 </button>
                 <?php if ($showCamera): ?>
-                    <button type="button" class="btn btn-outline-primary btn-upload-camera" id="<?= $uniqueId ?>_camera_btn">
-                        <i class="bi bi-camera"></i> Take Photo
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-upload-camera py-1 px-3" id="<?= $uniqueId ?>_camera_btn">
+                        <i class="bi bi-camera me-1"></i> Take Photo
                     </button>
                 <?php endif; ?>
             </div>

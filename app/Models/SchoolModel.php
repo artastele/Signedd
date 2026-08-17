@@ -118,9 +118,10 @@ class SchoolModel {
      */
     public static function getSchoolLogoUrl($school, $basePath = '') {
         if (!empty($school['logo_path'])) {
-            $fullFilePath = __DIR__ . '/../../public/' . ltrim($school['logo_path'], '/');
+            $relPath = ltrim($school['logo_path'], '/');
+            $fullFilePath = function_exists('public_path') ? public_path($relPath) : (__DIR__ . '/../../public/' . $relPath);
             if (file_exists($fullFilePath)) {
-                return $basePath . '/' . ltrim($school['logo_path'], '/');
+                return $basePath . '/' . $relPath;
             }
         }
 
@@ -141,6 +142,7 @@ class SchoolModel {
                '<text x="60" y="67" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#f5b301" text-anchor="middle" letter-spacing="1">' . htmlspecialchars($initials) . '</text>' .
                '</svg>';
 
-        return 'data:image/svg+xml;utf8,' . rawurlencode($svg);
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
     }
+
 }

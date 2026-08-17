@@ -165,206 +165,224 @@ require_once __DIR__ . '/../layouts/header.php';
         <?php endforeach; ?>
     <?php endif; ?>
 
-    <!-- Registered SPED Centers Selection & School Guidelines Dossier Section -->
+    <!-- Registered SPED Centers & School Guidelines Dossier Section -->
     <?php
     require_once __DIR__ . '/../../Models/SchoolModel.php';
-    if (!isset($allSchools) || empty($allSchools)) {
-        $parentSchoolModel = new SchoolModel();
-        $allSchools = $parentSchoolModel->getAllSchools();
+    require_once __DIR__ . '/../../Models/UserModel.php';
+    $parentSchModelObj = new SchoolModel();
+    $parentUserModelObj = new UserModel();
+    $parentUserRecord = $parentUserModelObj->findById($_SESSION['user_id']);
+
+    // Save school_id into session if passed in URL
+    if (!empty($_GET['school_id'])) {
+        $_SESSION['selected_school_id'] = (int)$_GET['school_id'];
     }
-    ?>
 
-    <?php if (!empty($allSchools)): ?>
-        <div class="card mb-4 border-0 shadow-sm" style="border-left: 5px solid #a01422 !important;">
-            <div class="card-header bg-white pt-3 pb-2 border-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-buildings-fill text-danger fs-4"></i>
-                    <div>
-                        <h5 class="mb-0 text-dark fw-bold">Select Registered SPED Center / School</h5>
-                        <small class="text-muted">Choose a school to view official enrollment guidelines, Pubmat poster, contact details, and enroll your child.</small>
-                    </div>
-                </div>
-            </div>
-            <div class="card-body pt-2">
-                <!-- School Selector Dropdown -->
-                <div class="mb-3">
-                    <select class="form-select border-primary fw-semibold text-dark shadow-sm" id="parent_school_select" onchange="switchParentSchoolCard(this.value)">
-                        <?php foreach ($allSchools as $idx => $sch): ?>
-                            <option value="<?php echo $sch['id']; ?>" <?php echo $idx === 0 ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($sch['school_name']); ?> (DepEd ID: <?php echo htmlspecialchars($sch['school_id']); ?> — <?php echo htmlspecialchars($sch['division'] ?? 'Division'); ?>)
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <!-- Individual School Cards -->
-                <?php foreach ($allSchools as $idx => $pts): ?>
-                    <?php 
-                    $pSy = $pts['enrollment_sy'] ?? '2026-2027';
-                    $pStatus = strtoupper($pts['enrollment_status'] ?? 'OPEN');
-                    $pBadgeClass = ($pStatus === 'OPEN') ? 'bg-success' : (($pStatus === 'UPCOMING') ? 'bg-warning text-dark' : 'bg-danger');
-                    $pLogoUrl = SchoolModel::getSchoolLogoUrl($pts, $basePath);
-                    ?>
-                    <div class="parent-school-dossier-card" id="school-dossier-<?php echo $pts['id']; ?>" style="<?php echo $idx === 0 ? 'display: block;' : 'display: none;'; ?>">
-                        <div class="p-3 bg-light rounded-3 border mb-2">
-                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3 pb-3 border-bottom">
-                                <div class="d-flex align-items-center gap-3">
-                                    <div class="p-1 bg-white rounded-circle shadow-sm border" style="width: 75px; height: 75px; flex-shrink: 0;">
-                                        <img src="<?php echo htmlspecialchars($pLogoUrl); ?>" alt="School Seal" style="width: 100%; height: 100%; object-fit: contain; border-radius: 50%;">
-                                    </div>
-                                    <div>
-                                        <h5 class="fw-bold mb-1 text-dark"><?php echo htmlspecialchars($pts['school_name']); ?></h5>
-                                        <div class="small text-muted mb-1">
-                                            <span class="badge bg-secondary me-1">DepEd ID: <?php echo htmlspecialchars($pts['school_id']); ?></span>
-                                            <span class="badge bg-info text-dark me-1"><?php echo htmlspecialchars($pts['division'] ?? 'Division Office'); ?></span>
-                                            <span class="badge bg-light text-dark border"><?php echo htmlspecialchars($pts['region'] ?? 'Region XI'); ?></span>
-                                        </div>
-                                        <small class="text-secondary d-block"><i class="bi bi-geo-alt-fill text-danger me-1"></i> <?php echo htmlspecialchars($pts['address'] ?? 'Official Address'); ?></small>
-                                    </div>
-                                </div>
-                                <span class="badge <?php echo $pBadgeClass; ?> px-3 py-2 fs-6">
-                                    <i class="bi bi-calendar-check me-1"></i> SY <?php echo htmlspecialchars($pSy); ?> — <?php echo $pStatus; ?>
-                                </span>
-                            </div>
-
-                            <div class="row g-3">
-                                <!-- Details & Contact Info -->
-                                <div class="col-md-5">
-                                    <div class="p-3 bg-white rounded-3 h-100 border">
-                                        <h6 class="fw-bold text-dark mb-2">
-                                            <i class="bi bi-telephone-option-fill me-1 text-primary"></i> School Contact & Details
-                                        </h6>
-                                        <ul class="list-unstyled mb-0 small">
-                                            <?php if (!empty($pts['contact_email'])): ?>
-                                                <li class="mb-1.5"><i class="bi bi-envelope-fill text-primary me-1"></i> <a href="mailto:<?php echo htmlspecialchars($pts['contact_email']); ?>" class="text-decoration-none fw-semibold"><?php echo htmlspecialchars($pts['contact_email']); ?></a></li>
-                                            <?php endif; ?>
-                                            <?php if (!empty($pts['contact_number'])): ?>
-                                                <li class="mb-1.5"><i class="bi bi-telephone-fill text-success me-1"></i> <span class="fw-semibold text-dark"><?php echo htmlspecialchars($pts['contact_number']); ?></span></li>
-                                            <?php endif; ?>
-                                            <?php if (!empty($pts['facebook_page'])): ?>
-                                                <li class="mb-1.5"><i class="bi bi-facebook text-primary me-1"></i> <a href="<?php echo htmlspecialchars($pts['facebook_page']); ?>" target="_blank" class="text-decoration-none fw-semibold">Official Facebook Page</a></li>
-                                            <?php endif; ?>
-                                        </ul>
-
-                                        <?php if (!empty($pts['enrollment_start_date'])): ?>
-                                            <div class="small text-dark border-top pt-2 mt-2">
-                                                <i class="bi bi-clock-history me-1 text-primary"></i> 
-                                                <strong>Enrollment Timeline:</strong><br>
-                                                <span class="text-secondary"><?php echo date('M j, Y', strtotime($pts['enrollment_start_date'])); ?> <?php echo !empty($pts['enrollment_end_date']) ? ' to ' . date('M j, Y', strtotime($pts['enrollment_end_date'])) : ''; ?></span>
-                                            </div>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-
-                                <!-- Requirements Checklist -->
-                                <div class="col-md-7">
-                                    <div class="p-3 bg-white rounded-3 h-100 border">
-                                        <h6 class="fw-bold text-dark mb-2">
-                                            <i class="bi bi-file-earmark-check me-1 text-primary"></i> Requirements & Policy Guidelines
-                                        </h6>
-                                        <?php 
-                                        $pGuidelinesStr = $pts['enrollment_guidelines'] ?? "PSA Birth Certificate\nForm 138/SF10 (Report Card)\nMedical / Diagnostic Evaluation Report\nPWD ID (Optional)";
-                                        $pGuidelineItems = array_filter(array_map('trim', explode("\n", $pGuidelinesStr)));
-                                        if (!empty($pGuidelineItems)):
-                                        ?>
-                                            <ul class="list-unstyled mb-0 small">
-                                                 <?php foreach ($pGuidelineItems as $pgItem): 
-                                                     $isOpt = (bool) preg_match('/\((?:Optional|optional)\)$/i', $pgItem);
-                                                     $cleanText = preg_replace('/\s*\((?:Optional|optional)\)$/i', '', preg_replace('/^[\-\*\•\d+\.\s]+/', '', $pgItem));
-                                                 ?>
-                                                     <li class="d-flex align-items-center gap-2 mb-1.5 text-secondary">
-                                                         <?php if ($isOpt): ?>
-                                                             <i class="bi bi-info-circle text-muted flex-shrink-0"></i>
-                                                             <span><?php echo htmlspecialchars($cleanText); ?></span>
-                                                             <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle py-0.5 px-1.5" style="font-size: 0.68rem;">Optional</span>
-                                                         <?php else: ?>
-                                                             <i class="bi bi-check-circle-fill text-success flex-shrink-0"></i>
-                                                             <span><?php echo htmlspecialchars($cleanText); ?></span>
-                                                             <span class="badge bg-danger-subtle text-danger border border-danger-subtle py-0.5 px-1.5" style="font-size: 0.68rem;">Required</span>
-                                                         <?php endif; ?>
-                                                     </li>
-                                                 <?php endforeach; ?>
-                                            </ul>
-                                        <?php else: ?>
-                                            <p class="text-muted small mb-0">No official enrollment guidelines have been published yet.</p>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Pubmat Poster -->
-                            <?php if (!empty($pts['pubmat_path'])): ?>
-                                <div class="border-top pt-3 mt-3 text-center">
-                                    <h6 class="fw-bold text-start text-dark small mb-2">
-                                        <i class="bi bi-image me-1 text-primary"></i> Official School Enrollment Publicity Poster (Pubmat):
-                                    </h6>
-                                    <a href="<?php echo $basePath . '/' . ltrim($pts['pubmat_path'], '/'); ?>" target="_blank">
-                                        <img src="<?php echo $basePath . '/' . ltrim($pts['pubmat_path'], '/'); ?>" alt="Enrollment Pubmat Poster" class="img-fluid rounded border shadow-sm" style="max-height: 420px; object-fit: contain; width: 100%;">
-                                    </a>
-                                </div>
-                            <?php endif; ?>
-
-                            <!-- Action: Enroll Child to this SPED Center -->
-                            <div class="mt-3 pt-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                <small class="text-muted"><i class="bi bi-shield-check text-success me-1"></i> Verified DepEd Registered SPED Center</small>
-                                <a href="<?php echo $basePath; ?>/enrollment?school_id=<?php echo $pts['id']; ?>" class="btn btn-primary fw-semibold shadow-sm px-4">
-                                    <i class="bi bi-person-plus-fill me-1"></i> Enroll Child to <?php echo htmlspecialchars($pts['school_name']); ?>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-
-        <script>
-        function switchParentSchoolCard(schoolId) {
-            document.querySelectorAll('.parent-school-dossier-card').forEach(function(card) {
-                card.style.display = 'none';
-            });
-            const targetCard = document.getElementById('school-dossier-' + schoolId);
-            if (targetCard) {
-                targetCard.style.display = 'block';
+    // Resolve target school ID for parent
+    $targetSchoolId = null;
+    if (!empty($enrollments)) {
+        foreach ($enrollments as $eRec) {
+            if (!empty($eRec['school_id'])) {
+                $targetSchoolId = (int)$eRec['school_id'];
+                break;
             }
         }
-        </script>
+    }
+
+    if (!$targetSchoolId && !empty($_SESSION['selected_school_id'])) {
+        $targetSchoolId = (int)$_SESSION['selected_school_id'];
+    }
+
+    if (!$targetSchoolId && !empty($parentUserRecord['school_id'])) {
+        $targetSchoolId = (int)$parentUserRecord['school_id'];
+    }
+
+    if (!isset($allSchools) || empty($allSchools)) {
+        $allSchools = $parentSchModelObj->getAllSchools();
+    }
+
+    if (!$targetSchoolId && !empty($allSchools)) {
+        $targetSchoolId = (int)$allSchools[0]['id'];
+    }
+
+    $parentEnrolledSchool = $targetSchoolId ? $parentSchModelObj->findById($targetSchoolId) : null;
+    ?>
+
+    <?php if ($parentEnrolledSchool): ?>
+        <!-- Display ONLY the selected/enrolled school details card (No dropdown selector menu) -->
+        <?php 
+        $pts = $parentEnrolledSchool;
+        $pSy = $pts['enrollment_sy'] ?? '2026-2027';
+        $pStatus = strtoupper($pts['enrollment_status'] ?? 'OPEN');
+        $pBadgeClass = ($pStatus === 'OPEN') ? 'bg-success' : (($pStatus === 'UPCOMING') ? 'bg-warning text-dark' : 'bg-secondary');
+        $pLogoUrl = SchoolModel::getSchoolLogoUrl($pts, $basePath);
+        ?>
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom flex-wrap gap-2">
+                <h5 class="mb-0 fw-bold text-dark">
+                    <i class="bi bi-info-circle-fill text-primary me-2"></i> School Enrollment Guidelines & Profile
+                </h5>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge <?php echo $pBadgeClass; ?> px-3 py-1.5">
+                        <i class="bi bi-clock-history me-1"></i> Enrollment <?php echo $pStatus; ?> (SY <?php echo htmlspecialchars($pSy); ?>)
+                    </span>
+                </div>
+            </div>
+            <div class="card-body p-4">
+                <div class="row align-items-start g-4">
+                    <!-- School Badge & Address -->
+                    <div class="col-md-4 border-end">
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <div class="p-1 bg-white rounded-circle shadow-sm border flex-shrink-0" style="width: 65px; height: 65px;">
+                                <img src="<?php echo htmlspecialchars($pLogoUrl); ?>" alt="School Logo" style="width: 100%; height: 100%; object-fit: contain; border-radius: 50%;">
+                            </div>
+                            <div>
+                                <h6 class="fw-bold mb-0 text-dark"><?php echo htmlspecialchars($pts['school_name']); ?></h6>
+                                <small class="text-muted d-block">DepEd ID: <?php echo htmlspecialchars($pts['school_id']); ?></small>
+                                <small class="text-muted"><?php echo htmlspecialchars($pts['division'] ?? 'Division Office'); ?></small>
+                            </div>
+                        </div>
+
+                        <div class="small text-secondary mb-2">
+                            <i class="bi bi-geo-alt-fill text-danger me-1"></i> <strong>Address:</strong> <?php echo htmlspecialchars($pts['address'] ?? 'Official Address'); ?>
+                        </div>
+
+                        <?php if (!empty($pts['enrollment_start_date'])): ?>
+                            <div class="small text-secondary mb-2">
+                                <i class="bi bi-calendar-range text-primary me-1"></i> <strong>Enrollment Timeline:</strong><br>
+                                <?php echo date('M j, Y', strtotime($pts['enrollment_start_date'])); ?> <?php echo !empty($pts['enrollment_end_date']) ? ' to ' . date('M j, Y', strtotime($pts['enrollment_end_date'])) : ''; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Contact Details -->
+                        <div class="mt-3 pt-3 border-top">
+                            <div class="small fw-bold text-dark mb-1">Official School Contacts:</div>
+                            <?php if (!empty($pts['contact_email'])): ?>
+                                <div class="small text-muted mb-1">
+                                    <i class="bi bi-envelope-fill text-primary me-1"></i> <a href="mailto:<?php echo htmlspecialchars($pts['contact_email']); ?>" class="text-decoration-none"><?php echo htmlspecialchars($pts['contact_email']); ?></a>
+                                </div>
+                            <?php endif; ?>
+                            <?php if (!empty($pts['contact_number'])): ?>
+                                <div class="small text-muted mb-1">
+                                    <i class="bi bi-telephone-fill text-success me-1"></i> <?php echo htmlspecialchars($pts['contact_number']); ?>
+                                </div>
+                            <?php endif; ?>
+                            <?php if (!empty($pts['facebook_page'])): ?>
+                                <div class="small text-muted">
+                                    <i class="bi bi-facebook text-primary me-1"></i> <a href="<?php echo htmlspecialchars($pts['facebook_page']); ?>" target="_blank" class="text-decoration-none">Official Facebook Page</a>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Guidelines & Requirements -->
+                    <div class="col-md-5 border-end">
+                        <h6 class="fw-bold text-dark mb-2"><i class="bi bi-card-checklist text-success me-1"></i> Requirements & Policy Guidelines:</h6>
+                        <?php 
+                        $pGuidelinesStr = $pts['enrollment_guidelines'] ?? "PSA Birth Certificate\nForm 138/SF10 (Report Card)\nMedical / Diagnostic Evaluation Report\nPWD ID (Optional)";
+                        $pGuidelineItems = array_filter(array_map('trim', explode("\n", $pGuidelinesStr)));
+                        if (!empty($pGuidelineItems)):
+                        ?>
+                            <div class="p-3 bg-light rounded-3 border">
+                                <ul class="list-unstyled mb-0 small">
+                                     <?php foreach ($pGuidelineItems as $pgItem): 
+                                         $isOpt = (bool) preg_match('/\((?:Optional|optional)\)$/i', $pgItem);
+                                         $cleanText = preg_replace('/\s*\((?:Optional|optional)\)$/i', '', preg_replace('/^[\-\*\•\d+\.\s]+/', '', $pgItem));
+                                     ?>
+                                         <li class="d-flex align-items-center gap-2 mb-1.5 text-secondary">
+                                             <?php if ($isOpt): ?>
+                                                 <i class="bi bi-info-circle text-muted flex-shrink-0"></i>
+                                                 <span><?php echo htmlspecialchars($cleanText); ?></span>
+                                                 <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle py-0.5 px-1.5" style="font-size: 0.68rem;">Optional</span>
+                                             <?php else: ?>
+                                                 <i class="bi bi-check-circle-fill text-success flex-shrink-0"></i>
+                                                 <span><?php echo htmlspecialchars($cleanText); ?></span>
+                                                 <span class="badge bg-danger-subtle text-danger border border-danger-subtle py-0.5 px-1.5" style="font-size: 0.68rem;">Required</span>
+                                             <?php endif; ?>
+                                         </li>
+                                     <?php endforeach; ?>
+                                </ul>
+                            </div>
+                        <?php else: ?>
+                            <p class="text-muted small mb-0">No official enrollment guidelines have been published yet.</p>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Pubmat Poster -->
+                    <div class="col-md-3 text-center">
+                        <h6 class="fw-bold text-dark mb-2"><i class="bi bi-image text-info me-1"></i> Publicity Poster (Pubmat):</h6>
+                        <?php 
+                        $pubmatPath = !empty($pts['pubmat_path']) ? ltrim($pts['pubmat_path'], '/') : null;
+                        $pubmatFull = $pubmatPath && function_exists('public_path') ? public_path($pubmatPath) : null;
+                        $pubmatUrl = ($pubmatFull && file_exists($pubmatFull)) ? ($basePath . '/' . $pubmatPath) : null;
+                        ?>
+                        <?php if ($pubmatUrl): ?>
+                            <a href="<?php echo htmlspecialchars($pubmatUrl); ?>" target="_blank">
+                                <img src="<?php echo htmlspecialchars($pubmatUrl); ?>" alt="Enrollment Pubmat Poster" class="img-fluid rounded-3 border shadow-sm hover-zoom" style="max-height: 180px; object-fit: cover;">
+                            </a>
+                            <small class="d-block text-muted mt-1" style="font-size: 0.75rem;">Click to enlarge poster</small>
+                        <?php else: ?>
+                            <div class="p-4 bg-light rounded-3 border text-muted small">
+                                <i class="bi bi-image-fill fs-2 d-block mb-1 text-secondary"></i>
+                                No Pubmat poster uploaded yet.
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
     <?php endif; ?>
 
-    <!-- Statistics Cards - Simplified -->
-    <div class="row mb-4">
-        <div class="col-md-3 mb-3">
-            <div class="card">
-                <div class="card-body text-center py-3">
-                    <h4 class="mb-0"><?php echo $stats['total'] ?? 0; ?></h4>
-                    <small class="text-muted">Total Enrollments</small>
+
+
+    <!-- Statistics Cards - Clean & Modern -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center p-3">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-2.5 d-inline-flex align-items-center justify-content-center mb-2" style="width: 54px; height: 54px;">
+                        <i class="bi bi-people-fill text-primary fs-3"></i>
+                    </div>
+                    <h3 class="fw-bold mb-0 text-dark"><?php echo $stats['total'] ?? 0; ?></h3>
+                    <small class="text-secondary fw-semibold">Total Enrollments</small>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card">
-                <div class="card-body text-center py-3">
-                    <h4 class="mb-0"><?php echo $stats['pending'] ?? 0; ?></h4>
-                    <small class="text-muted">Pending Review</small>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center p-3">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-2.5 d-inline-flex align-items-center justify-content-center mb-2" style="width: 54px; height: 54px;">
+                        <i class="bi bi-hourglass-split text-warning fs-3"></i>
+                    </div>
+                    <h3 class="fw-bold mb-0 text-dark"><?php echo $stats['pending'] ?? 0; ?></h3>
+                    <small class="text-secondary fw-semibold">Pending Review</small>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card">
-                <div class="card-body text-center py-3">
-                    <h4 class="mb-0"><?php echo $stats['approved'] ?? 0; ?></h4>
-                    <small class="text-muted">Approved</small>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center p-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-2.5 d-inline-flex align-items-center justify-content-center mb-2" style="width: 54px; height: 54px;">
+                        <i class="bi bi-check-circle-fill text-success fs-3"></i>
+                    </div>
+                    <h3 class="fw-bold mb-0 text-dark"><?php echo $stats['approved'] ?? 0; ?></h3>
+                    <small class="text-secondary fw-semibold">Approved</small>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card">
-                <div class="card-body text-center py-3">
-                    <h4 class="mb-0"><?php echo $stats['rejected'] ?? 0; ?></h4>
-                    <small class="text-muted">Rejected</small>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center p-3">
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-2.5 d-inline-flex align-items-center justify-content-center mb-2" style="width: 54px; height: 54px;">
+                        <i class="bi bi-x-circle-fill text-danger fs-3"></i>
+                    </div>
+                    <h3 class="fw-bold mb-0 text-dark"><?php echo $stats['rejected'] ?? 0; ?></h3>
+                    <small class="text-secondary fw-semibold">Rejected</small>
                 </div>
             </div>
         </div>
     </div>
+
 
     <?php
     // Load notifications for dashboard widget
@@ -413,14 +431,12 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
                 <div class="card-body">
                     <?php if (empty($enrollments)): ?>
-                        <div class="text-center py-4">
-                            <i class="bi bi-inbox display-4 text-muted"></i>
-                            <p class="mt-3 text-muted">No enrollments yet</p>
-                            <a href="<?php echo BASE_PATH; ?>/enrollment" class="btn btn-primary">
-                                <i class="bi bi-plus-circle"></i> Enroll Your Child
-                            </a>
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                            <p class="mb-0 small">No enrollment applications submitted yet.</p>
                         </div>
                     <?php else: ?>
+
                         <div class="table-responsive">
                             <table class="table table-hover align-middle">
                                 <thead>
@@ -611,24 +627,67 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     </div>
 
-    <!-- Quick Actions -->
-    <div class="row">
-        <div class="col-md-6 mb-3">
-            <a href="<?php echo BASE_PATH; ?>/enrollment" class="btn btn-primary w-100">
-                <i class="bi bi-plus-circle"></i> Enroll Another Child
-            </a>
+    <!-- Quick Actions Cards -->
+    <h5 class="fw-bold text-dark mb-3"><i class="bi bi-lightning-charge-fill text-primary me-1"></i> Quick Actions</h5>
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex flex-column justify-content-between text-center p-4">
+                    <div>
+                        <div class="rounded-circle bg-danger bg-opacity-10 p-3 d-inline-flex align-items-center justify-content-center mb-3" style="width: 64px; height: 64px;">
+                            <i class="bi bi-person-plus-fill text-danger fs-2"></i>
+                        </div>
+                        <h5 class="card-title fw-bold text-dark mb-2" style="font-size: 1.05rem;">Enroll Child</h5>
+                        <p class="text-secondary small mb-3">Submit a new SPED enrollment application for your child.</p>
+                    </div>
+                    <div class="mt-auto pt-2 w-100">
+                        <a href="<?php echo BASE_PATH; ?>/enrollment" class="btn btn-outline-danger w-100 fw-semibold py-2 text-nowrap">
+                            <i class="bi bi-plus-circle me-1"></i> Enroll Child
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="col-md-6 mb-3">
-            <a href="<?php echo BASE_PATH; ?>/enrollment/status" class="btn btn-outline-secondary w-100">
-                <i class="bi bi-list-check"></i> View All Enrollments
-            </a>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex flex-column justify-content-between text-center p-4">
+                    <div>
+                        <div class="rounded-circle bg-primary bg-opacity-10 p-3 d-inline-flex align-items-center justify-content-center mb-3" style="width: 64px; height: 64px;">
+                            <i class="bi bi-list-check text-primary fs-2"></i>
+                        </div>
+                        <h5 class="card-title fw-bold text-dark mb-2" style="font-size: 1.05rem;">Enrollment Status</h5>
+                        <p class="text-secondary small mb-3">Track progress and status of all submitted applications.</p>
+                    </div>
+                    <div class="mt-auto pt-2 w-100">
+                        <a href="<?php echo BASE_PATH; ?>/enrollment/status" class="btn btn-outline-primary w-100 fw-semibold py-2 text-nowrap">
+                            <i class="bi bi-eye-fill me-1"></i> View All Status
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="col-md-6 mb-3">
-            <a href="<?php echo BASE_PATH; ?>/iep" class="btn btn-outline-secondary w-100">
-                <i class="bi bi-diagram-3"></i> View IEP / Transition Updates
-            </a>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex flex-column justify-content-between text-center p-4">
+                    <div>
+                        <div class="rounded-circle bg-success bg-opacity-10 p-3 d-inline-flex align-items-center justify-content-center mb-3" style="width: 64px; height: 64px;">
+                            <i class="bi bi-diagram-3-fill text-success fs-2"></i>
+                        </div>
+                        <h5 class="card-title fw-bold text-dark mb-2" style="font-size: 1.05rem;">IEP & Transition</h5>
+                        <p class="text-secondary small mb-3">View Individualized Education Plans and progress updates.</p>
+                    </div>
+                    <div class="mt-auto pt-2 w-100">
+                        <a href="<?php echo BASE_PATH; ?>/iep" class="btn btn-outline-success w-100 fw-semibold py-2 text-nowrap">
+                            <i class="bi bi-diagram-3 me-1"></i> View IEP Records
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+
 </div>
 
 

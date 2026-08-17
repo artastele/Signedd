@@ -439,15 +439,9 @@ class AuthController {
             $client->setClientId(env('GOOGLE_CLIENT_ID'));
             $client->setClientSecret(env('GOOGLE_CLIENT_SECRET'));
             
-            // Resolve redirect URI (from env or dynamically from current host)
-            $redirectUri = env('GOOGLE_REDIRECT_URI');
-            if (empty($redirectUri)) {
-                $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                $redirectUri = $scheme . '://' . $host . $basePath . '/auth/google/callback';
-            }
-            
+            $redirectUri = $this->getGoogleRedirectUri();
             $client->setRedirectUri($redirectUri);
+
             $client->addScope('email');
             $client->addScope('profile');
             
@@ -502,13 +496,9 @@ class AuthController {
             $client->setClientId(env('GOOGLE_CLIENT_ID'));
             $client->setClientSecret(env('GOOGLE_CLIENT_SECRET'));
 
-            $redirectUri = env('GOOGLE_REDIRECT_URI');
-            if (empty($redirectUri)) {
-                $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                $redirectUri = $scheme . '://' . $host . $basePath . '/auth/google/callback';
-            }
+            $redirectUri = $this->getGoogleRedirectUri();
             $client->setRedirectUri($redirectUri);
+
             
             // Exchange code for access token
             $token = $client->fetchAccessTokenWithAuthCode($_GET['code']);
@@ -620,4 +610,21 @@ class AuthController {
         }
         return true;
     }
+
+    /**
+     * Helper to build exact Google OAuth Redirect URI
+     */
+    private function getGoogleRedirectUri() {
+        $redirectUri = env('GOOGLE_REDIRECT_URI');
+        if (!empty($redirectUri)) {
+            return $redirectUri;
+        }
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+        $scheme = $isHttps ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+        return $scheme . '://' . $host . $basePath . '/auth/google/callback';
+    }
 }
+

@@ -123,9 +123,10 @@ require_once __DIR__ . '/../layouts/header.php';
                     <i class="bi bi-building-add text-secondary" style="font-size: 2.8rem;"></i>
                     <h5 class="fw-bold mt-2 text-dark">No Registered SPED Schools Yet</h5>
                     <p class="text-muted mb-3 small">Are you a School Head or Principal? Register your school in SignED to establish your enrollment guidelines and faculty roster.</p>
-                    <a href="<?php echo $basePath; ?>/role/select" class="btn btn-outline-danger btn-sm fw-bold px-4 py-2">
+                    <a href="<?php echo $basePath; ?>/role/select?type=principal" class="btn btn-outline-danger btn-sm fw-bold px-4 py-2">
                         <i class="bi bi-plus-circle-fill me-1"></i> Register Your School Now
                     </a>
+
                 </div>
             <?php else: ?>
                 <!-- Clean Auto-Rotating Featured Schools Hero Carousel -->

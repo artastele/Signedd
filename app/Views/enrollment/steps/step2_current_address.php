@@ -125,58 +125,40 @@
             function togglePermanentAddress() {
                 const checkbox = document.getElementById('same_as_current_address');
                 const fields = document.getElementById('permanent_address_fields');
-                fields.style.display = checkbox.checked ? 'none' : 'block';
+                if (fields) {
+                    fields.style.display = checkbox.checked ? 'none' : 'block';
+                }
             }
 
-            // Pre-fill current address if data exists
-            document.addEventListener('DOMContentLoaded', function() {
+            // Pre-fill address if data exists
+            document.addEventListener('DOMContentLoaded', async function() {
                 const currentProvince = '<?php echo htmlspecialchars(getFormValue('current_province')); ?>';
                 const currentCity = '<?php echo htmlspecialchars(getFormValue('current_city')); ?>';
                 const currentBarangay = '<?php echo htmlspecialchars(getFormValue('current_barangay')); ?>';
                 
                 if (currentProvince) {
-                    setTimeout(() => {
-                        document.getElementById('current_province').value = currentProvince;
-                        document.getElementById('current_province').dispatchEvent(new Event('change'));
-                        
-                        setTimeout(() => {
-                            if (currentCity) {
-                                document.getElementById('current_city').value = currentCity;
-                                document.getElementById('current_city').dispatchEvent(new Event('change'));
-                                
-                                setTimeout(() => {
-                                    if (currentBarangay) {
-                                        document.getElementById('current_barangay').value = currentBarangay;
-                                    }
-                                }, 500);
-                            }
-                        }, 500);
-                    }, 1000);
+                    await loadProvinces('current_province', currentProvince);
+                    if (currentCity) {
+                        await loadCities(currentProvince, 'current_city', 'current_barangay', currentCity);
+                        if (currentBarangay) {
+                            await loadBarangays(currentProvince, currentCity, 'current_barangay', currentBarangay);
+                        }
+                    }
                 }
 
-                // Pre-fill permanent address if data exists and not same as current
+                const sameAsCurrent = document.getElementById('same_as_current_address')?.checked;
                 const permanentProvince = '<?php echo htmlspecialchars(getFormValue('permanent_province')); ?>';
                 const permanentCity = '<?php echo htmlspecialchars(getFormValue('permanent_city')); ?>';
                 const permanentBarangay = '<?php echo htmlspecialchars(getFormValue('permanent_barangay')); ?>';
                 
-                if (permanentProvince && !document.getElementById('same_as_current_address').checked) {
-                    setTimeout(() => {
-                        document.getElementById('permanent_province').value = permanentProvince;
-                        document.getElementById('permanent_province').dispatchEvent(new Event('change'));
-                        
-                        setTimeout(() => {
-                            if (permanentCity) {
-                                document.getElementById('permanent_city').value = permanentCity;
-                                document.getElementById('permanent_city').dispatchEvent(new Event('change'));
-                                
-                                setTimeout(() => {
-                                    if (permanentBarangay) {
-                                        document.getElementById('permanent_barangay').value = permanentBarangay;
-                                    }
-                                }, 500);
-                            }
-                        }, 500);
-                    }, 1500);
+                if (permanentProvince && !sameAsCurrent) {
+                    await loadProvinces('permanent_province', permanentProvince);
+                    if (permanentCity) {
+                        await loadCities(permanentProvince, 'permanent_city', 'permanent_barangay', permanentCity);
+                        if (permanentBarangay) {
+                            await loadBarangays(permanentProvince, permanentCity, 'permanent_barangay', permanentBarangay);
+                        }
+                    }
                 }
             });
             </script>

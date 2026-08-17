@@ -133,7 +133,7 @@ foreach ($requests as $r) {
                                         <div class="d-flex align-items-start gap-3">
                                             <!-- School Logo Badge -->
                                             <div class="text-center">
-                                                <?php if (!empty($req['school_logo_path']) && file_exists(__DIR__ . '/../../../public/' . $req['school_logo_path'])): ?>
+                                                <?php if (!empty($req['school_logo_path']) && file_exists(public_path($req['school_logo_path']))): ?>
                                                     <img src="<?php echo $basePath . '/' . htmlspecialchars($req['school_logo_path']); ?>" alt="School Logo" class="rounded-circle border shadow-sm" style="width: 85px; height: 85px; object-fit: cover;">
                                                 <?php else: ?>
                                                     <div class="rounded-circle bg-light border d-flex align-items-center justify-content-center text-secondary" style="width: 85px; height: 85px;">

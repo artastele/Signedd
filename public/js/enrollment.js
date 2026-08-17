@@ -186,8 +186,8 @@ function setSignatureData(dataURL) {
 
 function initLocationDropdowns() {
     // Load provinces on page load
-    loadProvinces('current_province', 'current_city', 'current_barangay');
-    loadProvinces('permanent_province', 'permanent_city', 'permanent_barangay');
+    loadProvinces('current_province');
+    loadProvinces('permanent_province');
 
     // Province change handlers
     document.getElementById('current_province')?.addEventListener('change', function() {
@@ -219,86 +219,196 @@ function initLocationDropdowns() {
     console.log('Location dropdowns initialized');
 }
 
-function loadProvinces(provinceSelectId, citySelectId, barangaySelectId) {
-    fetch(getBasePath() + '/api-provinces.php')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const select = document.getElementById(provinceSelectId);
-                if (select) {
-                    select.innerHTML = '<option value="">-- Select Province --</option>';
-                    data.provinces.forEach(province => {
-                        select.innerHTML += `<option value="${province}">${province}</option>`;
-                    });
-                }
-            }
+function loadProvinces(provinceSelectId, selectedValue = '') {
+    const select = document.getElementById(provinceSelectId);
+    if (!select) return Promise.resolve(null);
+
+    let valToSelect = '';
+    if (typeof selectedValue === 'string' && selectedValue !== 'current_city' && selectedValue !== 'permanent_city') {
+        valToSelect = selectedValue;
+    }
+
+    select.innerHTML = '<option value="">Loading provinces...</option>';
+
+    return fetch(getBasePath() + '/api-provinces.php')
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
         })
-        .catch(error => console.error('Failed to load provinces:', error));
-}
-
-function loadCities(province, citySelectId, barangaySelectId) {
-    if (!province) return;
-
-    fetch(getBasePath() + '/api-cities.php?province=' + encodeURIComponent(province))
-        .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                const select = document.getElementById(citySelectId);
-                if (select) {
-                    select.innerHTML = '<option value="">-- Select City/Municipality --</option>';
-                    data.cities.forEach(city => {
-                        select.innerHTML += `<option value="${city}">${city}</option>`;
-                    });
-                }
+            if (data && data.success && Array.isArray(data.provinces)) {
+                let options = '<option value="">-- Select Province --</option>';
+                let foundSelected = false;
                 
-                // Clear barangay dropdown
-                const barangaySelect = document.getElementById(barangaySelectId);
-                if (barangaySelect) {
-                    barangaySelect.innerHTML = '<option value="">-- Select Barangay --</option>';
+                data.provinces.forEach(province => {
+                    const isSelected = (valToSelect && province.toLowerCase() === valToSelect.toLowerCase());
+                    if (isSelected) foundSelected = true;
+                    options += `<option value="${province}"${isSelected ? ' selected' : ''}>${province}</option>`;
+                });
+
+                if (valToSelect && !foundSelected) {
+                    options += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
                 }
+
+                select.innerHTML = options;
+                if (valToSelect) select.value = valToSelect;
+            } else {
+                select.innerHTML = '<option value="">-- Select Province --</option>';
             }
+            return data;
         })
-        .catch(error => console.error('Failed to load cities:', error));
+        .catch(error => {
+            console.error('Failed to load provinces:', error);
+            select.innerHTML = '<option value="">Failed to load provinces</option>';
+            if (valToSelect) {
+                select.innerHTML += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
+            }
+            return null;
+        });
 }
 
-function loadBarangays(province, city, barangaySelectId) {
-    if (!province || !city) return;
+function loadCities(province, citySelectId, barangaySelectId = null, selectedValue = '') {
+    const select = document.getElementById(citySelectId);
+    let barangaySelectIdStr = (typeof barangaySelectId === 'string' && barangaySelectId.includes('barangay')) ? barangaySelectId : null;
+    let valToSelect = selectedValue;
 
-    fetch(getBasePath() + '/api-barangays.php?province=' + encodeURIComponent(province) + '&city=' + encodeURIComponent(city))
-        .then(response => response.json())
+    if (!valToSelect && typeof barangaySelectId === 'string' && !barangaySelectId.includes('barangay')) {
+        valToSelect = barangaySelectId;
+    }
+
+    if (!select) return Promise.resolve(null);
+
+    if (!province) {
+        select.innerHTML = '<option value="">Select province first</option>';
+        if (barangaySelectIdStr && document.getElementById(barangaySelectIdStr)) {
+            document.getElementById(barangaySelectIdStr).innerHTML = '<option value="">Select city first</option>';
+        }
+        return Promise.resolve(null);
+    }
+
+    select.innerHTML = '<option value="">Loading cities...</option>';
+
+    return fetch(getBasePath() + '/api-cities.php?province=' + encodeURIComponent(province))
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
         .then(data => {
-            if (data.success) {
-                const select = document.getElementById(barangaySelectId);
-                if (select) {
-                    select.innerHTML = '<option value="">-- Select Barangay --</option>';
-                    data.barangays.forEach(barangay => {
-                        select.innerHTML += `<option value="${barangay}">${barangay}</option>`;
-                    });
+            if (data && data.success && Array.isArray(data.cities)) {
+                let options = '<option value="">-- Select City/Municipality --</option>';
+                let foundSelected = false;
+
+                data.cities.forEach(city => {
+                    const isSelected = (valToSelect && city.toLowerCase() === valToSelect.toLowerCase());
+                    if (isSelected) foundSelected = true;
+                    options += `<option value="${city}"${isSelected ? ' selected' : ''}>${city}</option>`;
+                });
+
+                if (valToSelect && !foundSelected) {
+                    options += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
+                }
+
+                select.innerHTML = options;
+                if (valToSelect) select.value = valToSelect;
+
+                if (barangaySelectIdStr && document.getElementById(barangaySelectIdStr) && !valToSelect) {
+                    document.getElementById(barangaySelectIdStr).innerHTML = '<option value="">-- Select Barangay --</option>';
+                }
+            } else {
+                select.innerHTML = '<option value="">-- Select City/Municipality --</option>';
+                if (barangaySelectIdStr && document.getElementById(barangaySelectIdStr)) {
+                    document.getElementById(barangaySelectIdStr).innerHTML = '<option value="">-- Select Barangay --</option>';
                 }
             }
+            return data;
         })
-        .catch(error => console.error('Failed to load barangays:', error));
+        .catch(error => {
+            console.error('Failed to load cities:', error);
+            select.innerHTML = '<option value="">Failed to load cities</option>';
+            if (valToSelect) {
+                select.innerHTML += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
+            }
+            return null;
+        });
 }
 
-function copyCurrentToPermanent() {
-    document.getElementById('permanent_house_no').value = document.getElementById('current_house_no').value;
-    document.getElementById('permanent_province').value = document.getElementById('current_province').value;
-    
-    // Trigger change to load cities
-    const event = new Event('change');
-    document.getElementById('permanent_province').dispatchEvent(event);
-    
-    // Wait for cities to load, then set city
-    setTimeout(() => {
-        document.getElementById('permanent_city').value = document.getElementById('current_city').value;
-        document.getElementById('permanent_city').dispatchEvent(event);
-        
-        // Wait for barangays to load, then set barangay
-        setTimeout(() => {
-            document.getElementById('permanent_barangay').value = document.getElementById('current_barangay').value;
-            document.getElementById('permanent_zip_code').value = document.getElementById('current_zip_code').value;
-        }, 500);
-    }, 500);
+function loadBarangays(province, city, barangaySelectId, selectedValue = '') {
+    const select = document.getElementById(barangaySelectId);
+    let valToSelect = selectedValue;
+
+    if (!select) return Promise.resolve(null);
+
+    if (!province || !city) {
+        select.innerHTML = '<option value="">Select city first</option>';
+        return Promise.resolve(null);
+    }
+
+    select.innerHTML = '<option value="">Loading barangays...</option>';
+
+    return fetch(getBasePath() + '/api-barangays.php?province=' + encodeURIComponent(province) + '&city=' + encodeURIComponent(city))
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.success && Array.isArray(data.barangays)) {
+                let options = '<option value="">-- Select Barangay --</option>';
+                let foundSelected = false;
+
+                data.barangays.forEach(barangay => {
+                    const isSelected = (valToSelect && barangay.toLowerCase() === valToSelect.toLowerCase());
+                    if (isSelected) foundSelected = true;
+                    options += `<option value="${barangay}"${isSelected ? ' selected' : ''}>${barangay}</option>`;
+                });
+
+                if (valToSelect && !foundSelected) {
+                    options += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
+                }
+
+                select.innerHTML = options;
+                if (valToSelect) select.value = valToSelect;
+            } else {
+                select.innerHTML = '<option value="">-- Select Barangay --</option>';
+                if (valToSelect) {
+                    select.innerHTML += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
+                    select.value = valToSelect;
+                }
+            }
+            return data;
+        })
+        .catch(error => {
+            console.error('Failed to load barangays:', error);
+            select.innerHTML = '<option value="">Failed to load barangays</option>';
+            if (valToSelect) {
+                select.innerHTML += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
+                select.value = valToSelect;
+            }
+            return null;
+        });
+}
+
+async function copyCurrentToPermanent() {
+    const curHouse = document.getElementById('current_house_no')?.value || '';
+    const curProv = document.getElementById('current_province')?.value || '';
+    const curCity = document.getElementById('current_city')?.value || '';
+    const curBrgy = document.getElementById('current_barangay')?.value || '';
+    const curZip = document.getElementById('current_zip_code')?.value || '';
+
+    const permHouse = document.getElementById('permanent_house_no');
+    const permZip = document.getElementById('permanent_zip_code');
+
+    if (permHouse) permHouse.value = curHouse;
+    if (permZip) permZip.value = curZip;
+
+    if (curProv) {
+        await loadProvinces('permanent_province', curProv);
+        if (curCity) {
+            await loadCities(curProv, 'permanent_city', 'permanent_barangay', curCity);
+            if (curBrgy) {
+                await loadBarangays(curProv, curCity, 'permanent_barangay', curBrgy);
+            }
+        }
+    }
 }
 
 // ============================================

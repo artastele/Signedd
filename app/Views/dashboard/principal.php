@@ -6,6 +6,7 @@ require_once __DIR__ . '/../layouts/header.php';
 // Fetch staff members under Principal's school
 require_once __DIR__ . '/../../Models/UserModel.php';
 require_once __DIR__ . '/../../Models/RoleRequestModel.php';
+require_once __DIR__ . '/../../Models/TeacherAssignmentModel.php';
 
 $db = Database::getInstance()->getConnection();
 $userModel = new UserModel();
@@ -23,6 +24,10 @@ if ($schoolId) {
     $stmt->execute(['school_id' => $schoolId]);
     $facultyMembers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
+
+// Fetch teacher classroom assignments for this school
+$assignmentModel = new TeacherAssignmentModel();
+$teacherAssignments = $schoolId ? $assignmentModel->getBySchoolId($schoolId) : [];
 
 // Count pending staff applications for this school
 $pendingStaffCount = 0;
@@ -42,12 +47,13 @@ if ($schoolId) {
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3 mb-0 text-gray-800">Principal Dashboard</h1>
-            <p class="text-muted small mb-0">Manage school faculty, review staff requests, and sign IEPs.</p>
+            <p class="text-muted small mb-0">Manage school faculty, assign teacher classrooms/sections, and sign IEPs.</p>
         </div>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFacultyModal">
-            <i class="bi bi-person-plus-fill me-1"></i> Enroll / Register Staff Member
+        <button class="btn btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#assignTeacherModal">
+            <i class="bi bi-geo-alt-fill me-1"></i> Assign Classroom & Section
         </button>
     </div>
+
 
     <!-- Alert Messages -->
     <?php if (isset($_SESSION['success'])): ?>
@@ -116,87 +122,109 @@ if ($schoolId) {
     </div>
     <?php endif; ?>
 
-    <div class="row mb-4">
-        <div class="col-md-3 mb-3">
+    <div class="row g-3 mb-4">
+        <!-- 1. IEP Approval Card -->
+        <div class="col-md-3">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center p-4">
-                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 d-inline-block mb-3">
-                        <i class="bi bi-pen text-primary fs-1"></i>
+                <div class="card-body d-flex flex-column justify-content-between text-center p-4">
+                    <div>
+                        <div class="rounded-circle bg-danger bg-opacity-10 p-3 d-inline-flex align-items-center justify-content-center mb-3" style="width: 64px; height: 64px;">
+                            <i class="bi bi-file-earmark-check-fill text-danger fs-2"></i>
+                        </div>
+                        <h5 class="card-title fw-bold text-dark mb-2" style="font-size: 1.05rem;">IEP Approval</h5>
+                        <p class="text-secondary small mb-3">Review and sign Individualized Education Plans submitted by staff.</p>
                     </div>
-                    <h5 class="card-title fw-bold">IEP Approval</h5>
-                    <p class="text-muted small">Review and approve Individualized Education Plans.</p>
-                    <a href="<?php echo $basePath; ?>/iep/approval" class="btn btn-outline-primary w-100">Review & Sign</a>
+                    <div class="mt-auto pt-2 w-100">
+                        <a href="<?php echo $basePath; ?>/iep/approval" class="btn btn-outline-danger w-100 fw-semibold py-2 text-nowrap">
+                            <i class="bi bi-pen-fill me-1"></i> Review & Sign
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm h-100 <?php echo $pendingStaffCount > 0 ? 'border-warning border' : ''; ?>" style="<?php echo $pendingStaffCount > 0 ? 'border-left: 4px solid #f59e0b !important;' : ''; ?>">
-                <div class="card-body text-center p-4 position-relative">
+        <!-- 2. Staff Requests Card -->
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100 <?php echo $pendingStaffCount > 0 ? 'border-warning border' : ''; ?>">
+                <div class="card-body d-flex flex-column justify-content-between text-center p-4 position-relative">
                     <?php if ($pendingStaffCount > 0): ?>
-                        <span class="position-absolute top-0 end-0 translate-middle badge rounded-pill bg-danger" style="margin-top: 12px; margin-right: 4px; font-size: 0.8rem; min-width: 24px;">
+                        <span class="position-absolute top-0 end-0 badge rounded-pill bg-danger" style="margin-top: 10px; margin-right: 10px; font-size: 0.75rem;">
                             <?php echo $pendingStaffCount; ?>
                         </span>
                     <?php endif; ?>
-                    <div class="rounded-circle <?php echo $pendingStaffCount > 0 ? 'bg-warning bg-opacity-15' : 'bg-secondary bg-opacity-10'; ?> p-3 d-inline-block mb-3">
-                        <i class="bi bi-person-check <?php echo $pendingStaffCount > 0 ? 'text-warning' : 'text-secondary'; ?> fs-1"></i>
-                    </div>
-                    <h5 class="card-title fw-bold">Pending Staff Requests</h5>
-                    <?php if ($pendingStaffCount > 0): ?>
-                        <p class="text-warning fw-semibold small mb-3">
-                            <i class="bi bi-exclamation-circle-fill me-1"></i>
-                            <?php echo $pendingStaffCount; ?> application<?php echo $pendingStaffCount > 1 ? 's' : ''; ?> awaiting approval
-                        </p>
-                    <?php else: ?>
-                        <p class="text-muted small mb-3">No pending applications at this time.</p>
-                    <?php endif; ?>
-                    <a href="<?php echo $basePath; ?>/principal/staff-requests" class="btn <?php echo $pendingStaffCount > 0 ? 'btn-warning fw-bold' : 'btn-outline-secondary'; ?> w-100">
+                    <div>
+                        <div class="rounded-circle <?php echo $pendingStaffCount > 0 ? 'bg-warning bg-opacity-15' : 'bg-primary bg-opacity-10'; ?> p-3 d-inline-flex align-items-center justify-content-center mb-3" style="width: 64px; height: 64px;">
+                            <i class="bi bi-person-badge-fill <?php echo $pendingStaffCount > 0 ? 'text-warning' : 'text-primary'; ?> fs-2"></i>
+                        </div>
+                        <h5 class="card-title fw-bold text-dark mb-2" style="font-size: 1.05rem;">Staff Requests</h5>
                         <?php if ($pendingStaffCount > 0): ?>
-                            <i class="bi bi-bell-fill me-1"></i> Review Applications
+                            <p class="text-warning fw-semibold small mb-3">
+                                <i class="bi bi-exclamation-circle-fill me-1"></i> <?php echo $pendingStaffCount; ?> application<?php echo $pendingStaffCount > 1 ? 's' : ''; ?> awaiting review
+                            </p>
                         <?php else: ?>
-                            Staff Applications
+                            <p class="text-secondary small mb-3">Review incoming teacher and staff applications for your school.</p>
                         <?php endif; ?>
-                    </a>
+                    </div>
+                    <div class="mt-auto pt-2 w-100">
+                        <a href="<?php echo $basePath; ?>/principal/staff-requests" class="btn <?php echo $pendingStaffCount > 0 ? 'btn-warning text-dark fw-bold' : 'btn-outline-primary'; ?> w-100 py-2 text-nowrap">
+                            <?php if ($pendingStaffCount > 0): ?>
+                                <i class="bi bi-bell-fill me-1"></i> Review Requests
+                            <?php else: ?>
+                                <i class="bi bi-people-fill me-1"></i> Staff Requests
+                            <?php endif; ?>
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-3 mb-3">
+        <!-- 3. Classroom Assignment Card -->
+        <div class="col-md-3">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center p-4">
-                    <div class="rounded-circle bg-success bg-opacity-10 p-3 d-inline-block mb-3">
-                        <i class="bi bi-people text-success fs-1"></i>
+                <div class="card-body d-flex flex-column justify-content-between text-center p-4">
+                    <div>
+                        <div class="rounded-circle bg-success bg-opacity-10 p-3 d-inline-flex align-items-center justify-content-center mb-3" style="width: 64px; height: 64px;">
+                            <i class="bi bi-geo-alt-fill text-success fs-2"></i>
+                        </div>
+                        <h5 class="card-title fw-bold text-dark mb-2" style="font-size: 1.05rem;">Room Assignment</h5>
+                        <p class="text-secondary small mb-3">Assign designated grade, section, building & room to faculty.</p>
                     </div>
-                    <h5 class="card-title fw-bold">Register New Staff</h5>
-                    <p class="text-muted small">Directly enroll a teacher or counselor to your school.</p>
-                    <button type="button" class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#addFacultyModal">
-                        + Add Staff Member
-                    </button>
+                    <div class="mt-auto pt-2 w-100">
+                        <button type="button" class="btn btn-outline-success w-100 fw-semibold py-2 text-nowrap" data-bs-toggle="modal" data-bs-target="#assignTeacherModal">
+                            <i class="bi bi-geo-alt-fill me-1"></i> Assign Room
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-3 mb-3">
+        <!-- 4. Enrollment Schedule Card -->
+        <div class="col-md-3">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center p-4">
-                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 d-inline-block mb-3">
-                        <i class="bi bi-megaphone text-warning fs-1"></i>
+                <div class="card-body d-flex flex-column justify-content-between text-center p-4">
+                    <div>
+                        <div class="rounded-circle bg-dark bg-opacity-10 p-3 d-inline-flex align-items-center justify-content-center mb-3" style="width: 64px; height: 64px;">
+                            <i class="bi bi-calendar-event-fill text-dark fs-2"></i>
+                        </div>
+                        <h5 class="card-title fw-bold text-dark mb-2" style="font-size: 1.05rem;">Enrollment Schedule</h5>
+                        <p class="text-secondary small mb-3">Publish official guidelines, contact info, and timeline for parents.</p>
                     </div>
-                    <h5 class="card-title fw-bold">Enrollment Schedule</h5>
-                    <p class="text-muted small">Generate & publish enrollment guidelines & timeline (Process 4).</p>
-                    <button type="button" class="btn btn-warning text-dark fw-bold w-100" data-bs-toggle="modal" data-bs-target="#manageGuidelinesModal">
-                        <i class="bi bi-gear-fill me-1"></i> Set Guidelines
-                    </button>
+                    <div class="mt-auto pt-2 w-100">
+                        <button type="button" class="btn btn-outline-dark w-100 fw-semibold py-2 text-nowrap" data-bs-toggle="modal" data-bs-target="#manageGuidelinesModal">
+                            <i class="bi bi-gear-fill me-1"></i> Set Guidelines
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- School Faculty Roster Table -->
+
+    <!-- School Faculty Roster & Classroom Assignments Table -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-building me-2"></i>School Faculty & Staff Roster</h5>
-            <span class="badge bg-primary rounded-pill"><?php echo count($facultyMembers); ?> Active Staff</span>
+            <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-building me-2"></i>Faculty Roster & Classroom Assignments</h5>
+            <span class="badge bg-primary rounded-pill"><?php echo count($facultyMembers); ?> Approved Staff</span>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -204,31 +232,70 @@ if ($schoolId) {
                     <thead class="table-light">
                         <tr>
                             <th>Staff Name</th>
-                            <th>Email Address</th>
-                            <th>Designated Role</th>
-                            <th>Enrolled Date</th>
-                            <th>Status</th>
+                            <th>Role & Email</th>
+                            <th>Grade Level & Section</th>
+                            <th>Building & Room Number</th>
+                            <th>Message / Note</th>
+                            <th class="text-end">Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (!empty($facultyMembers)): ?>
                             <?php foreach ($facultyMembers as $staff): ?>
+                                <?php $assign = $teacherAssignments[$staff['id']] ?? null; ?>
                                 <tr>
-                                    <td class="fw-semibold"><?php echo htmlspecialchars($staff['name']); ?></td>
-                                    <td><?php echo htmlspecialchars($staff['email']); ?></td>
+                                    <td class="fw-bold text-dark">
+                                        <i class="bi bi-person-badge text-secondary me-1"></i>
+                                        <?php echo htmlspecialchars($staff['name']); ?>
+                                    </td>
                                     <td>
-                                        <span class="badge bg-info text-dark">
+                                        <div class="small fw-semibold"><?php echo htmlspecialchars($staff['email']); ?></div>
+                                        <span class="badge bg-info text-dark" style="font-size: 0.7rem;">
                                             <?php echo ucwords(str_replace('_', ' ', $staff['role'])); ?>
                                         </span>
                                     </td>
-                                    <td><?php echo date('M j, Y', strtotime($staff['created_at'])); ?></td>
-                                    <td><span class="badge bg-success">Active</span></td>
+                                    <td>
+                                        <?php if ($assign): ?>
+                                            <span class="badge bg-primary px-2.5 py-1.5 fs-6">
+                                                <i class="bi bi-bookmark-fill me-1"></i> <?php echo htmlspecialchars($assign['grade_level']); ?> — <?php echo htmlspecialchars($assign['section_name']); ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge bg-light text-secondary border px-2 py-1">
+                                                <i class="bi bi-dash-circle me-1"></i> Not Assigned
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($assign): ?>
+                                            <span class="badge bg-secondary px-2.5 py-1.5 fs-6">
+                                                <i class="bi bi-door-open-fill me-1"></i> <?php echo htmlspecialchars($assign['building_name']); ?> | Room <?php echo htmlspecialchars($assign['room_number']); ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge bg-light text-secondary border px-2 py-1">
+                                                <i class="bi bi-building me-1"></i> No Room Set
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td style="max-width: 200px;">
+                                        <?php if ($assign && !empty($assign['optional_message'])): ?>
+                                            <span class="small text-muted fst-italic truncate d-block" title="<?php echo htmlspecialchars($assign['optional_message']); ?>">
+                                                "<?php echo htmlspecialchars($assign['optional_message']); ?>"
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="text-muted small">—</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-primary fw-semibold px-3" onclick="openAssignModal(<?php echo $staff['id']; ?>, '<?php echo addslashes(htmlspecialchars($staff['name'])); ?>', '<?php echo addslashes(htmlspecialchars($assign['grade_level'] ?? '')); ?>', '<?php echo addslashes(htmlspecialchars($assign['section_name'] ?? '')); ?>', '<?php echo addslashes(htmlspecialchars($assign['building_name'] ?? '')); ?>', '<?php echo addslashes(htmlspecialchars($assign['room_number'] ?? '')); ?>', '<?php echo addslashes(htmlspecialchars($assign['optional_message'] ?? '')); ?>')">
+                                            <i class="bi bi-pencil-square me-1"></i> <?php echo $assign ? 'Edit Room' : 'Assign Room'; ?>
+                                        </button>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">
-                                    No faculty members registered under your school yet. Click <strong>"+ Add Staff Member"</strong> above to enroll staff!
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="bi bi-info-circle me-1"></i> No approved faculty members in your school roster yet. Once teachers apply and are approved, they will appear here for classroom assignment!
                                 </td>
                             </tr>
                         <?php endif; ?>
@@ -239,53 +306,102 @@ if ($schoolId) {
     </div>
 </div>
 
-<!-- Modal: Enroll / Register Staff Member -->
-<div class="modal fade" id="addFacultyModal" tabindex="-1" aria-labelledby="addFacultyModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+<!-- Modal: Assign Teacher Classroom, Section, Building & Room Number -->
+<div class="modal fade" id="assignTeacherModal" tabindex="-1" aria-labelledby="assignTeacherModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="addFacultyModalLabel">
-                    <i class="bi bi-person-plus-fill me-2"></i> Enroll Staff Member
+                <h5 class="modal-title fw-bold" id="assignTeacherModalLabel">
+                    <i class="bi bi-geo-alt-fill me-2"></i> Assign Teacher Classroom & Section
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="POST" action="<?php echo $basePath; ?>/principal/register-staff">
+            <form method="POST" action="<?php echo $basePath; ?>/principal/assign-teacher">
                 <div class="modal-body">
+                    <p class="text-muted small mb-3">Assign or update the designated grade level, section name, building, and room number for a teacher in your school roster.</p>
+                    
                     <div class="mb-3">
-                        <label for="staff_name" class="form-label fw-semibold">Staff Full Name *</label>
-                        <input type="text" class="form-control" id="staff_name" name="name" required placeholder="e.g. Maria Santos">
-                    </div>
-                    <div class="mb-3">
-                        <label for="staff_email" class="form-label fw-semibold">Email Address *</label>
-                        <input type="email" class="form-control" id="staff_email" name="email" required placeholder="teacher@school.edu.ph">
-                    </div>
-                    <div class="mb-3">
-                        <label for="staff_role" class="form-label fw-semibold">Designated Staff Role *</label>
-                        <select class="form-select" id="staff_role" name="role" required>
-                            <option value="sped_teacher">SPED Teacher</option>
-                            <option value="guidance">Guidance Counselor</option>
-                            <option value="master_teacher">Master Teacher</option>
-                            <option value="general_teacher">General Education Teacher</option>
+                        <label for="assign_teacher_id" class="form-label fw-semibold">Select Teacher / Staff Member *</label>
+                        <select class="form-select" id="assign_teacher_id" name="teacher_id" required>
+                            <option value="">-- Select Faculty Member --</option>
+                            <?php foreach ($facultyMembers as $f): ?>
+                                <option value="<?php echo $f['id']; ?>">
+                                    <?php echo htmlspecialchars($f['name']); ?> (<?php echo ucwords(str_replace('_', ' ', $f['role'])); ?> - <?php echo htmlspecialchars($f['email']); ?>)
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label for="employee_number" class="form-label fw-semibold">Employee / DepEd Number (Optional)</label>
-                        <input type="text" class="form-control" id="employee_number" name="employee_number" placeholder="e.g. 104821-T1">
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="assign_grade_level" class="form-label fw-semibold">Grade Level *</label>
+                            <select class="form-select" id="assign_grade_level" name="grade_level" required>
+                                <option value="">-- Select Grade Level --</option>
+                                <option value="Kindergarten">Kindergarten</option>
+                                <option value="Grade 1">Grade 1</option>
+                                <option value="Grade 2">Grade 2</option>
+                                <option value="Grade 3">Grade 3</option>
+                                <option value="Grade 4">Grade 4</option>
+                                <option value="Grade 5">Grade 5</option>
+                                <option value="Grade 6">Grade 6</option>
+                                <option value="SPED Program">SPED Program</option>
+                            </select>
+                        </div>
+
+
+                        <div class="col-md-6">
+                            <label for="assign_section_name" class="form-label fw-semibold">Section Name *</label>
+                            <input type="text" class="form-control" id="assign_section_name" name="section_name" required placeholder="e.g. Section Hope / Section Diamond">
+                        </div>
                     </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="assign_building_name" class="form-label fw-semibold">Building Name / Hall *</label>
+                            <input type="text" class="form-control" id="assign_building_name" name="building_name" required placeholder="e.g. SPED Building A / Marcos Hall">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="assign_room_number" class="form-label fw-semibold">Room Number *</label>
+                            <input type="text" class="form-control" id="assign_room_number" name="room_number" required placeholder="e.g. Room 101 / Room 204">
+                        </div>
+                    </div>
+
                     <div class="mb-3">
-                        <label for="staff_password" class="form-label fw-semibold">Initial Password *</label>
-                        <input type="text" class="form-control" id="staff_password" name="password" value="Teacher123!" required>
-                        <div class="form-text">Share this password with the staff member for their initial login.</div>
+                        <label for="assign_optional_message" class="form-label fw-semibold">Principal Message / Note to Teacher (Optional)</label>
+                        <textarea class="form-control" id="assign_optional_message" name="optional_message" rows="3" placeholder="e.g. Welcome to SY 2026-2027! Please prepare your classroom materials before August 15."></textarea>
                     </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer bg-light">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Enroll Faculty Member</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">
+                        <i class="bi bi-check-circle-fill me-1"></i> Save & Assign Classroom
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+<script>
+function openAssignModal(teacherId, teacherName, gradeLevel, sectionName, buildingName, roomNumber, optionalMessage) {
+    var selectEl = document.getElementById('assign_teacher_id');
+    if (selectEl) {
+        selectEl.value = teacherId;
+    }
+    document.getElementById('assign_grade_level').value = gradeLevel || '';
+    document.getElementById('assign_section_name').value = sectionName || '';
+    document.getElementById('assign_building_name').value = buildingName || '';
+    document.getElementById('assign_room_number').value = roomNumber || '';
+    document.getElementById('assign_optional_message').value = optionalMessage || '';
+    
+    var modalEl = document.getElementById('assignTeacherModal');
+    if (modalEl) {
+        var modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+}
+</script>
+
 
 <!-- Modal 2: Set & Publish Enrollment Guidelines & Schedule (Process 4) -->
 <?php

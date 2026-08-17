@@ -12,7 +12,7 @@ function route($method, $pattern, $controller, $action, $permission = null) {
     }
     
     // Convert pattern to regex
-    $pattern = preg_replace('/\{[a-zA-Z0-9_]+\}/', '([a-zA-Z0-9_-]+)', $pattern);
+    $pattern = preg_replace('/\{[a-zA-Z0-9_]+\}/', '([^/]+)', $pattern);
     $pattern = '#^' . $pattern . '$#';
     
     if (preg_match($pattern, $path, $matches)) {
@@ -77,6 +77,9 @@ route('POST', '/notifications/read-all', 'NotificationController', 'markAllAsRea
 route('POST', '/notifications/{id}/delete', 'NotificationController', 'delete');
 
 // Location API (AJAX endpoints for enrollment form)
+route('GET', '/api-provinces.php', 'LocationController', 'getProvinces');
+route('GET', '/api-cities.php', 'LocationController', 'getCities');
+route('GET', '/api-barangays.php', 'LocationController', 'getBarangays');
 route('GET', '/api/locations/provinces', 'LocationController', 'getProvinces');
 route('GET', '/api/locations/cities/{province}', 'LocationController', 'getCities');
 route('GET', '/api/locations/barangays/{province}/{city}', 'LocationController', 'getBarangays');
@@ -339,7 +342,9 @@ route('GET', '/principal/staff-requests', 'PrincipalController', 'staffRequests'
 route('POST', '/principal/staff-requests/{id}/approve', 'PrincipalController', 'approveStaff', 'staff.approve');
 route('POST', '/principal/staff-requests/{id}/reject', 'PrincipalController', 'rejectStaff', 'staff.approve');
 route('POST', '/principal/register-staff', 'PrincipalController', 'registerStaff', 'staff.approve');
+route('POST', '/principal/assign-teacher', 'PrincipalController', 'assignTeacher', 'staff.approve');
 route('POST', '/principal/enrollment-settings', 'PrincipalController', 'updateEnrollmentSettings', 'dashboard.principal');
+
 
 // ============================================
 // ADMIN ROUTES

@@ -454,6 +454,9 @@ class StudentModel {
      * Get students belonging to a specific school (for Principal view)
      */
     public function getBySchool($schoolId) {
+        if (empty($schoolId)) {
+            return [];
+        }
         $stmt = $this->db->prepare("
             SELECT 
                 sr.*,
@@ -466,16 +469,16 @@ class StudentModel {
             FROM student_records sr
             LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
             LEFT JOIN users u ON es.parent_id = u.id
-            WHERE (sr.school_id = :school_id OR es.target_school_id = :school_id_check OR :school_id_null IS NULL)
+            WHERE (sr.school_id = :school_id OR es.target_school_id = :school_id_check)
             ORDER BY sr.created_at DESC
         ");
         $stmt->execute([
             'school_id' => $schoolId,
-            'school_id_check' => $schoolId,
-            'school_id_null' => $schoolId
+            'school_id_check' => $schoolId
         ]);
         return $stmt->fetchAll();
     }
+
 
     /**
      * Get students assigned to a specific SPED teacher (My Students)

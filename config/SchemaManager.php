@@ -17,8 +17,10 @@ class SchemaManager {
             // Read schema.sql
             $schemaPath = __DIR__ . '/schema.sql';
             if (!file_exists($schemaPath)) {
-                throw new Exception("schema.sql not found");
+                // If schema.sql is not present on production server, assume schema is pre-imported
+                return true;
             }
+
 
             $sql = file_get_contents($schemaPath);
 

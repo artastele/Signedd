@@ -7,10 +7,26 @@ class LocationController {
     private $locations;
 
     public function __construct() {
-        // Load Philippine location data
-        $jsonPath = __DIR__ . '/../../public/data/philippines.json';
-        if (file_exists($jsonPath)) {
-            $this->locations = json_decode(file_get_contents($jsonPath), true);
+        // Load Philippine location data (supports standard and flat hosting structures)
+        $possiblePaths = [
+            __DIR__ . '/../../public/data/philippines.json',
+            __DIR__ . '/../../data/philippines.json',
+            __DIR__ . '/../data/philippines.json',
+            dirname(__DIR__, 2) . '/data/philippines.json',
+            dirname(__DIR__, 2) . '/public/data/philippines.json',
+        ];
+
+        $jsonPath = null;
+        foreach ($possiblePaths as $path) {
+            if (file_exists($path)) {
+                $jsonPath = $path;
+                break;
+            }
+        }
+
+        if ($jsonPath && ($data = file_get_contents($jsonPath))) {
+            $decoded = json_decode($data, true);
+            $this->locations = is_array($decoded) ? $decoded : $this->getDefaultLocations();
         } else {
             $this->locations = $this->getDefaultLocations();
         }
@@ -38,12 +54,26 @@ class LocationController {
             $province = $_GET['province'];
         }
         
-        $province = urldecode($province);
-        
+        $province = trim(urldecode($province ?? ''));
+
+        // Match province (case-insensitive fallback)
+        $targetProvinceKey = null;
         if (isset($this->locations[$province])) {
+            $targetProvinceKey = $province;
+        } else {
+            foreach ($this->locations as $pKey => $cities) {
+                if (strcasecmp(trim($pKey), $province) === 0) {
+                    $targetProvinceKey = $pKey;
+                    break;
+                }
+            }
+        }
+        
+        if ($targetProvinceKey !== null && isset($this->locations[$targetProvinceKey])) {
             echo json_encode([
                 'success' => true,
-                'cities' => array_keys($this->locations[$province])
+                'province' => $targetProvinceKey,
+                'cities' => array_keys($this->locations[$targetProvinceKey])
             ]);
         } else {
             echo json_encode([
@@ -69,18 +99,48 @@ class LocationController {
             $city = $_GET['city'];
         }
         
-        $province = urldecode($province);
-        $city = urldecode($city);
+        $province = trim(urldecode($province ?? ''));
+        $city = trim(urldecode($city ?? ''));
+
+        // Match province (case-insensitive fallback)
+        $targetProvinceKey = null;
+        if (isset($this->locations[$province])) {
+            $targetProvinceKey = $province;
+        } else {
+            foreach ($this->locations as $pKey => $cities) {
+                if (strcasecmp(trim($pKey), $province) === 0) {
+                    $targetProvinceKey = $pKey;
+                    break;
+                }
+            }
+        }
+
+        // Match city (case-insensitive fallback)
+        $targetCityKey = null;
+        if ($targetProvinceKey !== null && isset($this->locations[$targetProvinceKey])) {
+            if (isset($this->locations[$targetProvinceKey][$city])) {
+                $targetCityKey = $city;
+            } else {
+                foreach ($this->locations[$targetProvinceKey] as $cKey => $brgys) {
+                    if (strcasecmp(trim($cKey), $city) === 0) {
+                        $targetCityKey = $cKey;
+                        break;
+                    }
+                }
+            }
+        }
         
-        if (isset($this->locations[$province][$city])) {
+        if ($targetProvinceKey !== null && $targetCityKey !== null && isset($this->locations[$targetProvinceKey][$targetCityKey])) {
             echo json_encode([
                 'success' => true,
-                'barangays' => $this->locations[$province][$city]
+                'province' => $targetProvinceKey,
+                'city' => $targetCityKey,
+                'barangays' => $this->locations[$targetProvinceKey][$targetCityKey]
             ]);
         } else {
             echo json_encode([
                 'success' => false,
-                'message' => 'City not found',
+                'message' => 'City or Barangay list not found for selected location',
                 'province' => $province,
                 'city' => $city
             ]);

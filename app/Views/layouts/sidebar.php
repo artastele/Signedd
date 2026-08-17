@@ -74,9 +74,10 @@ if ($role === 'learner') {
 <div class="sidebar" id="sidebar">
     <!-- Logo -->
     <div class="sidebar-logo">
-        <?php if (file_exists(__DIR__ . '/../../../public/images/logo.png')): ?>
+        <?php if (file_exists(__DIR__ . '/../../../public/images/logo.png') || file_exists(__DIR__ . '/../../../images/logo.png')): ?>
             <img src="<?php echo $basePath; ?>/images/logo.png" alt="SignED Logo">
         <?php else: ?>
+
             <i class="bi bi-mortarboard-fill" style="font-size: 3rem; color: #ffffff;"></i>
         <?php endif; ?>
         <h4>SignED</h4>
@@ -111,11 +112,8 @@ if ($role === 'learner') {
                 <i class="bi bi-list-check"></i>
                 <span>My Enrollments</span>
             </a>
-            <a href="<?php echo $basePath; ?>/enrollment" class="<?php echo isActive('/enrollment'); ?>">
-                <i class="bi bi-plus-circle"></i>
-                <span>Enroll Child</span>
-            </a>
             <!-- Step 16 — Child LMS Progress -->
+
             <a href="<?php echo $basePath; ?>/parent/child-progress" class="<?php echo isActive('/parent/child-progress'); ?>">
                 <i class="bi bi-bar-chart-line"></i>
                 <span>My Child's Progress</span>

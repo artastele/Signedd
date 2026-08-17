@@ -691,21 +691,24 @@ class EnrollmentModel {
      * Get pending enrollment submissions pool for a school
      */
     public function getPendingPoolForSchool($schoolId) {
+        if (empty($schoolId)) {
+            return [];
+        }
         $stmt = $this->db->prepare("
             SELECT es.*, u.name as parent_name, u.email as parent_email
             FROM enrollment_submissions es
             JOIN users u ON es.parent_id = u.id
             WHERE es.status = 'pending'
               AND es.is_draft = FALSE
-              AND (es.target_school_id = :school_id OR :school_id_check IS NULL)
+              AND es.target_school_id = :school_id
             ORDER BY es.created_at DESC
         ");
         $stmt->execute([
-            'school_id' => $schoolId,
-            'school_id_check' => $schoolId
+            'school_id' => $schoolId
         ]);
         return $stmt->fetchAll();
     }
+
 
     /**
      * Get verified enrollments assigned to a specific SPED teacher

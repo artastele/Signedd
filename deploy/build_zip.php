@@ -1,107 +1,149 @@
 <?php
 /**
- * SignED — Create Deployment ZIP for InfinityFree
- * Creates a zip file ready to upload via InfinityFree File Manager
+ * SignED — Build FLAT Deployment ZIP for InfinityFree
+ *
+ * Structure on server (/htdocs):
+ *   index.php        <- from public/index.php (already self-detecting)
+ *   .htaccess        <- routes ALL requests to index.php
+ *   .env             <- from .env.test-server
+ *   app/
+ *   config/
+ *   routes/
+ *   vendor/
+ *   css/             <- from public/css/
+ *   js/              <- from public/js/
+ *   images/          <- from public/images/
+ *   data/            <- from public/data/
+ *   templates/       <- from public/templates/
+ *   api-*.php        <- from public/api-*.php
  */
 
 $rootDir  = dirname(__DIR__);
 $zipPath  = $rootDir . '/signedtest_deploy.zip';
-
-$excludePatterns = [
-    '^\\.git',
-    '^\\.vscode',
-    '^\\.idea',
-    '^\\.env',
-    '^\\.env\\.',
-    '^logs/',
-    '^scratch/',
-    '^deploy\\.zip$',
-    '^signedtest_deploy\\.zip$',
-    '^composer\\.phar$',
-    'vendor/',
-    '^public/uploads/',
-    '^\\.DS_Store',
-    '^Thumbs\\.db',
-    '\\.md$',
-    '\\.sql$',
-    '^deploy/',
-];
+$publicDir = $rootDir . '/public';
 
 echo "=========================================================\n";
-echo "   SignED - Build Deployment ZIP for InfinityFree\n";
+echo "   SignED - Build FLAT InfinityFree Deployment ZIP\n";
 echo "=========================================================\n\n";
 
 if (!class_exists('ZipArchive')) {
-    echo "[ERROR] PHP ZipArchive extension is not enabled.\n";
-    exit(1);
+    echo "[ERROR] PHP ZipArchive extension not enabled.\n"; exit(1);
 }
 
-function getFilesToZip($baseDir, $excludePatterns) {
-    $files = [];
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($baseDir, RecursiveDirectoryIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::SELF_FIRST
+// -------------------------------------------------------
+// 1. App-level files (app/, config/, routes/, vendor/)
+//    go to root of ZIP as-is
+// -------------------------------------------------------
+$appExclude = [
+    '^\\.git', '^\\.vscode', '^\\.idea',
+    '^\\.env', '^\\.env\\.',
+    '^logs/', '^scratch/',
+    '^signedtest_deploy\\.zip$', '^deploy\\.zip$',
+    '^composer\\.phar$',
+    '^public/',       // handled separately below
+    '^deploy/',       // exclude deploy scripts
+    '^\\.DS_Store', '^Thumbs\\.db',
+    '\\.md$', '\\.sql$',
+    '^signed_', '^composer\\.json$', '^composer\\.lock$',
+    '^\\.htaccess$', '^\\.gitignore$',
+];
+
+// -------------------------------------------------------
+// 2. public/ files go to ROOT of ZIP (not under public/)
+//    Exception: public/uploads/ excluded (user data)
+// -------------------------------------------------------
+$publicExclude = [
+    '^uploads/',
+];
+
+function collectFiles($baseDir, $excludePatterns, $prefix = '') {
+    $result = [];
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($baseDir, RecursiveDirectoryIterator::SKIP_DOTS)
     );
-    foreach ($iterator as $item) {
-        if ($item->isFile()) {
-            $relativePath = str_replace('\\', '/', substr($item->getPathname(), strlen($baseDir) + 1));
-            $excluded = false;
-            foreach ($excludePatterns as $pattern) {
-                if (preg_match('#' . $pattern . '#i', $relativePath)) {
-                    $excluded = true;
-                    break;
-                }
-            }
-            if (!$excluded) {
-                $files[] = $relativePath;
-            }
+    foreach ($it as $item) {
+        if (!$item->isFile()) continue;
+        $rel = str_replace('\\', '/', substr($item->getPathname(), strlen($baseDir) + 1));
+        $skip = false;
+        foreach ($excludePatterns as $p) {
+            if (preg_match('#' . $p . '#i', $rel)) { $skip = true; break; }
+        }
+        if (!$skip) {
+            $result[] = [
+                'local' => $item->getPathname(),
+                'zip'   => $prefix . $rel,
+            ];
         }
     }
-    return $files;
+    return $result;
 }
 
-$files = getFilesToZip($rootDir, $excludePatterns);
+echo "[1/4] Collecting app-level files (app/, config/, routes/, vendor/)...\n";
+$appFiles = collectFiles($rootDir, $appExclude);
+echo "      Found: " . count($appFiles) . " files\n";
 
-echo "[1/3] Found " . count($files) . " files to package.\n";
+echo "[2/4] Collecting public/ files (css/, js/, images/, index.php etc.)...\n";
+$publicFiles = collectFiles($publicDir, $publicExclude);
+echo "      Found: " . count($publicFiles) . " files (will go to root)\n";
 
-if (file_exists($zipPath)) {
-    unlink($zipPath);
-}
+$total = count($appFiles) + count($publicFiles) + 3; // +3 for .env, .htaccess, index.php
+echo "\n[3/4] Building ZIP ($total files)...\n";
 
+if (file_exists($zipPath)) unlink($zipPath);
 $zip = new ZipArchive();
 if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
-    echo "[ERROR] Cannot create ZIP file at: $zipPath\n";
-    exit(1);
+    echo "[ERROR] Cannot create ZIP.\n"; exit(1);
 }
 
-echo "[2/3] Building ZIP...\n";
-
-// Add all project files
-foreach ($files as $relPath) {
-    $fullPath = $rootDir . '/' . $relPath;
-    $zip->addFile($fullPath, $relPath);
+// Add app-level files
+foreach ($appFiles as $f) {
+    $zip->addFile($f['local'], $f['zip']);
 }
 
-// Add the test server .env as .env (the critical config)
-$serverEnvFile = $rootDir . '/.env.test-server';
-if (file_exists($serverEnvFile)) {
-    $zip->addFile($serverEnvFile, '.env');
-    echo "[+] Included .env.test-server as .env\n";
+// Add public/ files at root level (css/, js/, images/, index.php, etc.)
+foreach ($publicFiles as $f) {
+    $zip->addFile($f['local'], $f['zip']);
 }
+
+// Add .env.test-server as .env
+$serverEnv = $rootDir . '/.env.test-server';
+if (file_exists($serverEnv)) {
+    $zip->addFile($serverEnv, '.env');
+    echo "      [+] .env.test-server => .env\n";
+}
+
+// Add root .htaccess that routes everything to index.php (public/)
+$htaccess = <<<'HTACCESS'
+# SignED — InfinityFree .htaccess
+# Routes all requests to index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Serve existing files/dirs directly (css, js, images, etc.)
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Everything else → index.php
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+HTACCESS;
+
+$zip->addFromString('.htaccess', $htaccess);
+echo "      [+] Root .htaccess (flat routing)\n";
 
 $zip->close();
 
 $sizeMB = round(filesize($zipPath) / 1024 / 1024, 2);
-echo "[3/3] ZIP created: signedtest_deploy.zip ({$sizeMB} MB)\n\n";
+echo "\n[4/4] ZIP created: signedtest_deploy.zip ({$sizeMB} MB)\n";
+echo "\n=========================================================\n";
+echo " UPLOAD INSTRUCTIONS (InfinityFree File Manager):\n";
 echo "=========================================================\n";
-echo " NEXT STEPS:\n";
-echo "=========================================================\n";
-echo " 1. Open InfinityFree Control Panel for if0_42187079\n";
-echo " 2. Go to: Online File Manager\n";
-echo " 3. Navigate to: /htdocs\n";
-echo " 4. Upload: signedtest_deploy.zip (drag & drop or upload button)\n";
-echo " 5. Right-click the zip → Extract\n";
-echo " 6. Go to phpMyAdmin → import deploy/config/schema.sql\n";
-echo "    (upload the SQL file directly from your computer)\n";
-echo " 7. Visit: http://signedtest.site.je\n\n";
-echo "ZIP location: $zipPath\n\n";
+echo " 1. Go to File Manager → /htdocs\n";
+echo " 2. DELETE everything currently in /htdocs\n";
+echo " 3. Upload signedtest_deploy.zip\n";
+echo " 4. Extract → files land directly in /htdocs root\n";
+echo " 5. phpMyAdmin → Import deploy/config/schema.sql\n";
+echo " 6. Visit: http://signedtest.site.je\n\n";
+echo "ZIP: $zipPath\n\n";

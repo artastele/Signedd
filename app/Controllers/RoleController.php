@@ -145,7 +145,7 @@ class RoleController {
                         $schoolId = $this->schoolModel->createSchool($newCode, $newName, $newDiv, $newReg, $newAddr);
                         if ($schoolId) {
                             $logoFile = $_FILES['school_logo'];
-                            $logoDir = __DIR__ . '/../../public/uploads/schools/';
+                            $logoDir = public_path('uploads/schools/');
                             if (!is_dir($logoDir)) {
                                 mkdir($logoDir, 0755, true);
                             }
@@ -173,7 +173,8 @@ class RoleController {
 
         // File uploads
         $uploadedFiles = [];
-        $uploadDir = __DIR__ . '/../../public/uploads/role_verification/';
+        $uploadDir = public_path('uploads/role_verification/');
+
 
         // Create directory if not exists
         if (!is_dir($uploadDir)) {

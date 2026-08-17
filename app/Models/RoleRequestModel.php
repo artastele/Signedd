@@ -47,6 +47,7 @@ class RoleRequestModel {
     public function findById($id) {
         $stmt = $this->db->prepare("
             SELECT rr.*, u.name as user_name, u.email as user_email, u.contact_number as user_contact,
+                   u.school_id as user_school_id, s.id as school_table_id,
                    s.school_id as school_code, s.school_name, s.division as school_division, s.region as school_region,
                    s.address as school_address, s.logo_path as school_logo_path,
                    reviewer.name as reviewer_name
@@ -60,6 +61,7 @@ class RoleRequestModel {
         $stmt->execute(['id' => $id]);
         return $stmt->fetch();
     }
+
 
     /**
      * Get all pending role requests with school details
@@ -101,7 +103,7 @@ class RoleRequestModel {
      */
     public function getPendingByApproverAndSchool($approverRole, $schoolId) {
         if (!$schoolId) {
-            return $this->getPendingByApprover($approverRole);
+            return [];
         }
 
         $stmt = $this->db->prepare("
@@ -122,6 +124,7 @@ class RoleRequestModel {
         ]);
         return $stmt->fetchAll();
     }
+
 
     /**
      * Get role requests by user ID

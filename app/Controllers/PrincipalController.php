@@ -30,17 +30,11 @@ class PrincipalController {
         $principalUser = $this->userModel->findById($_SESSION['user_id']);
         $schoolId = $principalUser['school_id'] ?? null;
 
-        $allRequests = $this->roleRequestModel->getAll();
-        
-        // Filter to show only staff requests (not principal) matching principal's school_id
-        $requests = array_filter($allRequests, function($req) use ($schoolId) {
-            $isStaff = $req['requested_role'] !== 'principal';
-            if (!$isStaff) return false;
-            if ($schoolId && isset($req['school_id']) && $req['school_id']) {
-                return (int)$req['school_id'] === (int)$schoolId;
-            }
-            return true;
-        });
+        if (!$schoolId) {
+            $requests = [];
+        } else {
+            $requests = $this->roleRequestModel->getPendingByApproverAndSchool('principal', $schoolId);
+        }
         
         require_once __DIR__ . '/../Views/principal/staff_requests.php';
     }
@@ -69,8 +63,26 @@ class PrincipalController {
             exit;
         }
 
-        $reviewNote = trim($_POST['review_note'] ?? '');
         $principalUser = $this->userModel->findById($_SESSION['user_id']);
+        $schoolId = $principalUser['school_id'] ?? null;
+
+        $targetSchoolId = 0;
+        if (!empty($request['user_school_id'])) {
+            $targetSchoolId = (int)$request['user_school_id'];
+        } elseif (!empty($request['school_table_id'])) {
+            $targetSchoolId = (int)$request['school_table_id'];
+        } elseif (!empty($request['submitted_docs'])) {
+            $docs = is_string($request['submitted_docs']) ? json_decode($request['submitted_docs'], true) : $request['submitted_docs'];
+            $targetSchoolId = (int)($docs['school_id'] ?? 0);
+        }
+
+        if (!$schoolId || ($targetSchoolId > 0 && $targetSchoolId !== (int)$schoolId)) {
+            $_SESSION['error'] = 'Unauthorized: This staff application belongs to another school.';
+            header('Location: ' . $this->basePath . '/principal/staff-requests');
+            exit;
+        }
+
+        $reviewNote = trim($_POST['review_note'] ?? '');
 
         // Update role request status
         $this->roleRequestModel->updateStatus(
@@ -132,6 +144,27 @@ class PrincipalController {
             header('Location: ' . $this->basePath . '/principal/staff-requests');
             exit;
         }
+
+        $principalUser = $this->userModel->findById($_SESSION['user_id']);
+        $schoolId = $principalUser['school_id'] ?? null;
+
+        $targetSchoolId = 0;
+        if (!empty($request['user_school_id'])) {
+            $targetSchoolId = (int)$request['user_school_id'];
+        } elseif (!empty($request['school_table_id'])) {
+            $targetSchoolId = (int)$request['school_table_id'];
+        } elseif (!empty($request['submitted_docs'])) {
+            $docs = is_string($request['submitted_docs']) ? json_decode($request['submitted_docs'], true) : $request['submitted_docs'];
+            $targetSchoolId = (int)($docs['school_id'] ?? 0);
+        }
+
+        if (!$schoolId || ($targetSchoolId > 0 && $targetSchoolId !== (int)$schoolId)) {
+            $_SESSION['error'] = 'Unauthorized: This staff application belongs to another school.';
+            header('Location: ' . $this->basePath . '/principal/staff-requests');
+            exit;
+        }
+
+
 
         $reviewNote = trim($_POST['review_note'] ?? 'Your application was rejected.');
 
@@ -223,6 +256,78 @@ class PrincipalController {
     }
 
     /**
+     * Assign teacher classroom, grade level, section, building, room number, and optional message
+     */
+    public function assignTeacher() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
+        }
+
+        $principalUser = $this->userModel->findById($_SESSION['user_id']);
+        $schoolId = $principalUser['school_id'] ?? null;
+
+        if (!$schoolId) {
+            $_SESSION['error'] = 'You must have an approved SPED Center / School before assigning classrooms.';
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
+        }
+
+        $teacherId       = isset($_POST['teacher_id']) ? (int)$_POST['teacher_id'] : 0;
+        $gradeLevel      = trim($_POST['grade_level'] ?? '');
+        $sectionName     = trim($_POST['section_name'] ?? '');
+        $buildingName    = trim($_POST['building_name'] ?? '');
+        $roomNumber      = trim($_POST['room_number'] ?? '');
+        $optionalMessage = trim($_POST['optional_message'] ?? '');
+
+        if (!$teacherId || empty($gradeLevel) || empty($sectionName) || empty($buildingName) || empty($roomNumber)) {
+            $_SESSION['error'] = 'Teacher, Grade Level, Section Name, Building Name, and Room Number are required fields.';
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
+        }
+
+        // Verify target teacher belongs to this school
+        $targetTeacher = $this->userModel->findById($teacherId);
+        if (!$targetTeacher || (int)($targetTeacher['school_id'] ?? 0) !== (int)$schoolId) {
+            $_SESSION['error'] = 'Selected teacher does not belong to your school faculty roster.';
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
+        }
+
+        require_once __DIR__ . '/../Models/TeacherAssignmentModel.php';
+        $assignmentModel = new TeacherAssignmentModel();
+        $assignmentModel->assignTeacher(
+            $schoolId,
+            $teacherId,
+            $gradeLevel,
+            $sectionName,
+            $buildingName,
+            $roomNumber,
+            $optionalMessage,
+            $_SESSION['user_id']
+        );
+
+        // Notify assigned teacher
+        $this->notificationModel->create(
+            $teacherId,
+            'room_assigned',
+            'Classroom & Section Assigned',
+            "Your Principal has assigned you to {$gradeLevel} - {$sectionName} in {$buildingName}, Room {$roomNumber}.",
+            [
+                'grade_level'   => $gradeLevel,
+                'section_name'  => $sectionName,
+                'building_name' => $buildingName,
+                'room_number'   => $roomNumber
+            ]
+        );
+
+        $_SESSION['success'] = "Classroom assignment saved for {$targetTeacher['name']}! (Assigned: {$gradeLevel} - {$sectionName}, {$buildingName}, Room {$roomNumber})";
+        header('Location: ' . $this->basePath . '/dashboard');
+        exit;
+    }
+
+
+    /**
      * Update Process 4 Enrollment Guidelines & Schedule (Principal capability)
      */
     public function updateEnrollmentSettings() {
@@ -299,7 +404,7 @@ class PrincipalController {
             // Optional Pubmat Poster Upload
             if (isset($_FILES['pubmat_image']) && $_FILES['pubmat_image']['error'] === UPLOAD_ERR_OK) {
                 $pubmatFile = $_FILES['pubmat_image'];
-                $pubmatDir = __DIR__ . '/../../public/uploads/pubmats/';
+                $pubmatDir = public_path('uploads/pubmats/');
                 if (!is_dir($pubmatDir)) {
                     mkdir($pubmatDir, 0755, true);
                 }
@@ -350,7 +455,8 @@ class PrincipalController {
             exit;
         }
 
-        $uploadDir = __DIR__ . '/../../public/uploads/schools/';
+        $uploadDir = public_path('uploads/schools/');
+
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
