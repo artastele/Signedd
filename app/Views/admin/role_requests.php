@@ -114,10 +114,28 @@ foreach ($requests as $r) {
                                         </span>
                                     </p>
                                     <?php if ($docs && !empty($docs['employee_number'])): ?>
-                                        <p class="mb-0">
+                                        <p class="mb-2">
                                             <strong class="text-secondary small d-block">DepEd Employee / ID Number:</strong>
                                             <span class="badge bg-secondary font-monospace fs-6"><?php echo htmlspecialchars($docs['employee_number']); ?></span>
                                         </p>
+                                    <?php endif; ?>
+
+                                    <?php if (!empty($docs['certifications'])): ?>
+                                        <div class="mt-2 pt-2 border-top">
+                                            <strong class="text-secondary small d-block mb-1">
+                                                <i class="bi bi-award-fill text-warning me-1"></i> FSL & SPED Certifications (<?php echo count($docs['certifications']); ?>):
+                                            </strong>
+                                            <div class="d-flex flex-column gap-1">
+                                                <?php foreach ($docs['certifications'] as $cert): ?>
+                                                    <div class="d-flex justify-content-between align-items-center bg-white p-1.5 px-2 rounded border small">
+                                                        <span><i class="bi bi-patch-check-fill text-success me-1"></i> <?php echo htmlspecialchars($cert['title'] ?: 'FSL Cert'); ?></span>
+                                                        <a href="<?php echo $basePath . '/' . htmlspecialchars($cert['path']); ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary py-0 px-1.5 text-nowrap" style="font-size: 0.75rem;">
+                                                            View PDF
+                                                        </a>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        </div>
                                     <?php endif; ?>
                                 </div>
 
@@ -157,10 +175,30 @@ foreach ($requests as $r) {
                                                         <?php echo htmlspecialchars($req['school_region'] ?? 'Region'); ?>
                                                     </span>
                                                 </div>
-                                                <p class="mb-0 text-secondary small">
+                                                <p class="mb-2 text-secondary small">
                                                     <strong>Complete Address:</strong><br>
                                                     <i class="bi bi-pin-map-fill text-danger me-1"></i> <?php echo htmlspecialchars($req['school_address'] ?? 'Not specified'); ?>
                                                 </p>
+
+                                                <?php 
+                                                $sipFile = $req['sip_path'] ?? ($docs['files']['sip_document'] ?? null);
+                                                ?>
+                                                <?php if (!empty($sipFile)): ?>
+                                                    <div class="mt-2 pt-2 border-top">
+                                                        <span class="badge bg-success me-2 py-1 px-2">
+                                                            <i class="bi bi-file-earmark-pdf-fill me-1"></i> SIP Uploaded
+                                                        </span>
+                                                        <a href="<?php echo $basePath . '/' . htmlspecialchars($sipFile); ?>" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary py-0 px-2 small" style="font-size: 0.8rem; border-radius: 6px;">
+                                                            <i class="bi bi-eye me-1"></i> View SIP PDF Document
+                                                        </a>
+                                                    </div>
+                                                <?php else: ?>
+                                                    <div class="mt-2 pt-2 border-top">
+                                                        <span class="badge bg-secondary text-white py-1 px-2">
+                                                            <i class="bi bi-info-circle me-1"></i> SIP Document Pending Upload
+                                                        </span>
+                                                    </div>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </div>

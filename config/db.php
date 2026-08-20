@@ -38,6 +38,34 @@ class Database {
                 error_log("WARNING: Had to manually enable autocommit");
             }
             
+            // Self-healing schema auto-migration for missing Stage 1 columns
+            static $autoMigrated = false;
+            if (!$autoMigrated) {
+                $autoMigrated = true;
+                try {
+                    $this->connection->exec("ALTER TABLE schools ADD COLUMN sip_path VARCHAR(500) NULL");
+                } catch (PDOException $e) {}
+                try {
+                    $this->connection->exec("ALTER TABLE users ADD COLUMN fsl_cert_path VARCHAR(500) NULL");
+                } catch (PDOException $e) {}
+                try {
+                    $this->connection->exec("ALTER TABLE users ADD COLUMN fsl_cert_issue_date DATE NULL");
+                } catch (PDOException $e) {}
+                
+                // Ensure default System Admin user exists if users table is empty
+                try {
+                    $userCnt = (int)$this->connection->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
+                    if ($userCnt === 0) {
+                        $passHash = password_hash('password', PASSWORD_BCRYPT);
+                        $stmtAdmin = $this->connection->prepare("
+                            INSERT INTO users (id, name, email, password_hash, role, status, email_verified, auth_provider, school_id)
+                            VALUES (1, 'System Admin', 'admin@spedlms.local', :pass, 'admin', 'active', 1, 'local', NULL)
+                        ");
+                        $stmtAdmin->execute(['pass' => $passHash]);
+                    }
+                } catch (PDOException $e) {}
+            }
+            
             error_log("Database connected with autocommit=" . ($autocommit ? "ON" : "OFF"));
         } catch (PDOException $e) {
             error_log("Database connection failed: " . $e->getMessage());

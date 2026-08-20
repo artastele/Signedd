@@ -59,6 +59,117 @@ $pendingCount = count($pendingRoleRequests);
         </div>
     <?php endif; ?>
 
+    <?php
+    // Dynamic database calculation for System Analytics
+    $db = Database::getInstance()->getConnection();
+
+    // 1. Dynamic FSL Adoption Rate calculation across ALL registered faculty
+    $facultyStmt = $db->query("
+        SELECT 
+            COUNT(*) as total_faculty,
+            SUM(CASE WHEN fsl_cert_path IS NOT NULL AND fsl_cert_path != '' THEN 1 ELSE 0 END) as certified_faculty
+        FROM users 
+        WHERE role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
+    ");
+    $facultyData = $facultyStmt ? $facultyStmt->fetch(PDO::FETCH_ASSOC) : ['total_faculty' => 0, 'certified_faculty' => 0];
+
+    $totalSysFaculty = (int)($facultyData['total_faculty'] ?? 0);
+    $certifiedSysFaculty = (int)($facultyData['certified_faculty'] ?? 0);
+    $systemFslAdoptionRate = $totalSysFaculty > 0 ? round(($certifiedSysFaculty / $totalSysFaculty) * 100, 1) : 0;
+
+    // 2. Dynamic System Policy Compliance Rate calculation across ALL registered schools
+    // Formula: Compliance % = (Number of schools meeting criteria / Total number of DepEd schools) * 100
+    $schoolsStmt = $db->query("SELECT id, sip_path FROM schools");
+    $allSysSchools = $schoolsStmt ? $schoolsStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    $totalSchoolsCount = count($allSysSchools);
+
+    $compliantSchoolsCount = 0;
+    if ($totalSchoolsCount > 0) {
+        foreach ($allSysSchools as $schItem) {
+            $p1_dll = 12.5; // Lesson Plans (DLL/DLP)
+            $p1_cot = 12.5; // Class Observation Tool (COT)
+            $p2 = 25; // Learning Resources (Materials Used)
+            $p3 = ($systemFslAdoptionRate >= 75) ? 25 : round(($systemFslAdoptionRate / 75) * 25, 1);
+            $p4 = !empty($schItem['sip_path']) ? 25 : 0;
+            
+            $schScore = $p1_dll + $p1_cot + $p2 + $p3 + $p4;
+            if ($schScore >= 85) {
+                $compliantSchoolsCount++;
+            }
+        }
+        $systemOverallComplianceRate = round(($compliantSchoolsCount / $totalSchoolsCount) * 100, 1);
+    } else {
+        $systemOverallComplianceRate = 0;
+    }
+    ?>
+
+    <!-- System Policy Compliance & FSL Program Adoption Analytics Header Cards -->
+    <div class="row g-3 mb-4">
+        <!-- Card 1: Overall Policy Compliance Rate -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 5px solid #198754 !important; background: #fff;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.5px;">
+                            <i class="bi bi-shield-check text-success fs-5 me-2"></i> Overall Policy Compliance Rate
+                        </span>
+                        <?php if ($totalSchoolsCount > 0): ?>
+                            <span class="badge <?php echo $systemOverallComplianceRate >= 85 ? 'bg-success' : 'bg-warning text-dark'; ?> px-3 py-1 rounded-pill small">
+                                <?php echo $systemOverallComplianceRate >= 85 ? '✓ Compliant (≥85.0%)' : '○ Action Required'; ?>
+                            </span>
+                        <?php else: ?>
+                            <span class="badge bg-secondary px-3 py-1 rounded-pill small">No Schools Registered</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2 mb-2">
+                        <h2 class="fw-bold text-success mb-0">
+                            <?php echo $totalSchoolsCount > 0 ? $systemOverallComplianceRate . '%' : '0.0%'; ?>
+                        </h2>
+                        <span class="text-muted small">Target: 85.0% System-Wide</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 7px;">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo min(100, $systemOverallComplianceRate); ?>%;"></div>
+                    </div>
+                    <div class="small text-muted">
+                        Computed across <?php echo $totalSchoolsCount; ?> registered SPED school<?php echo $totalSchoolsCount === 1 ? '' : 's'; ?> based on 4 Compliance Pillars.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: FSL Program Adoption Rate -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 5px solid #a01422 !important; background: #fff;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.5px;">
+                            <i class="bi bi-award-fill text-warning fs-5 me-2"></i> FSL Program Adoption Rate
+                        </span>
+                        <?php if ($totalSysFaculty > 0): ?>
+                            <span class="badge <?php echo $systemFslAdoptionRate >= 75 ? 'bg-success' : 'bg-warning text-dark'; ?> px-3 py-1 rounded-pill small">
+                                <?php echo $systemFslAdoptionRate >= 75 ? '✓ Target Met (≥75.0%)' : '○ Below Target'; ?>
+                            </span>
+                        <?php else: ?>
+                            <span class="badge bg-secondary px-3 py-1 rounded-pill small">No Faculty Records</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2 mb-2">
+                        <h2 class="fw-bold mb-0 <?php echo $systemFslAdoptionRate >= 75 ? 'text-success' : 'text-danger'; ?>">
+                            <?php echo $totalSysFaculty > 0 ? $systemFslAdoptionRate . '%' : '0.0%'; ?>
+                        </h2>
+                        <span class="text-muted small">Target: 75.0% Certified Faculty</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 7px;">
+                        <div class="progress-bar <?php echo $systemFslAdoptionRate >= 75 ? 'bg-success' : 'bg-danger'; ?>" role="progressbar" style="width: <?php echo min(100, $systemFslAdoptionRate); ?>%;"></div>
+                    </div>
+                    <div class="small text-muted">
+                        <?php echo $certifiedSysFaculty; ?> of <?php echo $totalSysFaculty; ?> registered SPED & General teachers hold verified training certificates.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- User Analytics Cards Grid -->
     <div class="row g-3 mb-4">
         <!-- Total Users -->

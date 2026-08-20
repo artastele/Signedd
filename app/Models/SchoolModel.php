@@ -114,6 +114,17 @@ class SchoolModel {
     }
 
     /**
+     * Update School Improvement Plan (SIP) PDF document file path
+     */
+    public function updateSipPath($schoolId, $sipPath) {
+        $stmt = $this->db->prepare("UPDATE schools SET sip_path = :sip_path WHERE id = :id");
+        return $stmt->execute([
+            'id'       => $schoolId,
+            'sip_path' => $sipPath
+        ]);
+    }
+
+    /**
      * Hybrid Logo Resolver: Returns uploaded logo URL if available, else generates School Initials SVG Badge
      */
     public static function getSchoolLogoUrl($school, $basePath = '') {

@@ -200,6 +200,49 @@ class RoleController {
             }
         }
 
+        // Process optional School Improvement Plan (SIP) PDF document
+        if (isset($_FILES['sip_document']) && $_FILES['sip_document']['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES['sip_document'];
+            $result = $this->uploadFile($file, $uploadDir, 'sip_' . $userId . '_');
+            if ($result['success']) {
+                $uploadedFiles['sip_document'] = $result['path'];
+                if ($schoolId) {
+                    $this->schoolModel->updateSipPath($schoolId, $result['path']);
+                }
+            }
+        }
+
+        // Process multiple FSL & Inclusive Education Certifications
+        $uploadedCertifications = [];
+        if (!empty($_FILES['fsl_certifications']['name'][0])) {
+            $titles = $_POST['fsl_cert_titles'] ?? [];
+            $dates = $_POST['fsl_cert_dates'] ?? [];
+            foreach ($_FILES['fsl_certifications']['name'] as $idx => $name) {
+                if ($_FILES['fsl_certifications']['error'][$idx] === UPLOAD_ERR_OK) {
+                    $singleFile = [
+                        'name'     => $_FILES['fsl_certifications']['name'][$idx],
+                        'type'     => $_FILES['fsl_certifications']['type'][$idx],
+                        'tmp_name' => $_FILES['fsl_certifications']['tmp_name'][$idx],
+                        'error'    => $_FILES['fsl_certifications']['error'][$idx],
+                        'size'     => $_FILES['fsl_certifications']['size'][$idx],
+                    ];
+                    $res = $this->uploadFile($singleFile, $uploadDir, 'fsl_cert_' . $userId . '_' . $idx . '_');
+                    if ($res['success']) {
+                        $certItem = [
+                            'path'       => $res['path'],
+                            'title'      => trim($titles[$idx] ?? 'FSL Certification'),
+                            'issue_date' => $dates[$idx] ?? null
+                        ];
+                        $uploadedCertifications[] = $certItem;
+                        // Save primary cert on user record
+                        if ($idx === 0) {
+                            $this->userModel->updateFslCert($userId, $res['path'], $dates[$idx] ?? null);
+                        }
+                    }
+                }
+            }
+        }
+
         if (!empty($errors)) {
             $_SESSION['errors'] = $errors;
             $_SESSION['old_role'] = $requestedRole;
@@ -214,7 +257,8 @@ class RoleController {
             'employee_number' => $employeeNumber,
             'principal_rank' => $principalRank,
             'school_id' => $schoolId,
-            'files' => $uploadedFiles
+            'files' => $uploadedFiles,
+            'certifications' => $uploadedCertifications
         ];
 
         $requestId = $this->roleRequestModel->create($userId, $requestedRole, $submittedDocs);

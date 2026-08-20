@@ -114,6 +114,25 @@ class UserModel {
     }
 
     /**
+     * Update FSL Training Certificate path and issue date
+     */
+    public function updateFslCert($userId, $certPath, $issueDate = null) {
+        $stmt = $this->db->prepare("
+            UPDATE users
+            SET fsl_cert_path = :cert_path,
+                fsl_cert_issue_date = :issue_date,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([
+            'cert_path'  => $certPath,
+            'issue_date' => $issueDate ?: null,
+            'id'         => $userId
+        ]);
+    }
+
+    /**
      * Log login attempt
      */
     public function logLoginAttempt($email, $result, $ipAddress = null) {

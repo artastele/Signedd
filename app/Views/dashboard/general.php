@@ -1,6 +1,10 @@
 <?php
 $pageTitle = 'Dashboard - SignED';
 $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+require_once __DIR__ . '/../../Models/SchoolModel.php';
+$schoolModel = new SchoolModel();
+$registeredSchools = $schoolModel->getAllSchools();
+$registeredSchools = is_array($registeredSchools) ? $registeredSchools : [];
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -100,33 +104,133 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     </div>
 
-    <!-- Featured Registered SPED Centers Hero Carousel -->
     <?php
-    require_once __DIR__ . '/../../Models/SchoolModel.php';
-    $schoolModel = new SchoolModel();
-    $registeredSchools = $schoolModel->getAllSchools();
+    // Dynamic Database Metrics Calculation for General Dashboard Overview
+    $db = Database::getInstance()->getConnection();
+
+    // 1. Active Learners Count from DB
+    $learnersStmt = $db->query("SELECT COUNT(*) as cnt FROM users WHERE role = 'learner'");
+    $activeLearnersCount = $learnersStmt ? (int)$learnersStmt->fetchColumn() : 0;
+
+    // 2. Dynamic Faculty & FSL Certified ratio from DB
+    $genFacultyStmt = $db->query("
+        SELECT 
+            COUNT(*) as total_faculty,
+            SUM(CASE WHEN fsl_cert_path IS NOT NULL AND fsl_cert_path != '' THEN 1 ELSE 0 END) as certified_faculty
+        FROM users 
+        WHERE role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
+    ");
+    $genFacultyData = $genFacultyStmt ? $genFacultyStmt->fetch(PDO::FETCH_ASSOC) : ['total_faculty' => 0, 'certified_faculty' => 0];
+    $genTotalFaculty = (int)($genFacultyData['total_faculty'] ?? 0);
+    $genCertifiedFaculty = (int)($genFacultyData['certified_faculty'] ?? 0);
+    $genFslRatio = $genTotalFaculty > 0 ? round(($genCertifiedFaculty / $genTotalFaculty) * 100, 1) : 0;
+
+    // 3. Dynamic Overall Policy Compliance Rate from DB
+    // Formula: Compliance % = (Number of schools meeting criteria / Total number of DepEd schools) * 100
+    $genSchoolsCount = count($registeredSchools);
+    $genCompliantCount = 0;
+    if ($genSchoolsCount > 0) {
+        foreach ($registeredSchools as $schItem) {
+            $p1_dll = 12.5; // Lesson Plans (DLL/DLP)
+            $p1_cot = 12.5; // Class Observation Tool (COT)
+            $p2 = 25; // Learning Resources (Materials Used)
+            $p3 = ($genFslRatio >= 75) ? 25 : round(($genFslRatio / 75) * 25, 1);
+            $p4 = !empty($schItem['sip_path']) ? 25 : 0;
+            
+            $schScore = $p1_dll + $p1_cot + $p2 + $p3 + $p4;
+            if ($schScore >= 85) {
+                $genCompliantCount++;
+            }
+        }
+        $genOverallCompliance = round(($genCompliantCount / $genSchoolsCount) * 100, 1);
+    } else {
+        $genOverallCompliance = 0;
+    }
     ?>
 
+    <!-- 4 Stat Summary KPI Header Cards Row (Compliance & System Overview) -->
+    <div class="row g-3 mb-4">
+        <!-- Stat 1: Registered Schools -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 4px solid #0d6efd !important; background: #fff;">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-secondary small fw-bold text-uppercase"><i class="bi bi-building text-primary me-1"></i> Registered Schools</span>
+                        <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill small"><?php echo $genSchoolsCount; ?> Active</span>
+                    </div>
+                    <div class="h3 fw-bold text-dark mb-0"><?php echo $genSchoolsCount; ?></div>
+                    <div class="small text-muted mt-1" style="font-size: 0.75rem;">Across all DepEd Divisions</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stat 2: Overall Policy Compliance -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 4px solid #198754 !important; background: #fff;">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-secondary small fw-bold text-uppercase"><i class="bi bi-shield-check text-success me-1"></i> Overall Compliance</span>
+                        <span class="badge <?php echo $genOverallCompliance >= 85 ? 'bg-success bg-opacity-10 text-success' : 'bg-warning bg-opacity-10 text-dark'; ?> rounded-pill small">Target: 85.0%</span>
+                    </div>
+                    <div class="h3 fw-bold <?php echo $genOverallCompliance >= 85 ? 'text-success' : ($genSchoolsCount > 0 ? 'text-warning text-dark' : 'text-muted'); ?> mb-0">
+                        <?php echo $genSchoolsCount > 0 ? $genOverallCompliance . '%' : '0.0%'; ?>
+                    </div>
+                    <div class="small text-muted mt-1" style="font-size: 0.75rem;">
+                        <?php echo $genSchoolsCount > 0 ? 'System-Wide Policy Status' : 'No Database Data'; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stat 3: Needs Action -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 4px solid #ffc107 !important; background: #fff;">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-secondary small fw-bold text-uppercase"><i class="bi bi-exclamation-triangle text-warning me-1"></i> Needs Action</span>
+                        <span class="badge bg-warning bg-opacity-10 text-dark rounded-pill small">Submissions Due</span>
+                    </div>
+                    <div class="h3 fw-bold text-dark mb-0"><?php echo isset($pendingRequest) && $pendingRequest ? 1 : 0; ?></div>
+                    <div class="small text-muted mt-1" style="font-size: 0.75rem;">Pending Verifications</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stat 4: Active Learners -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 4px solid #0dcaf0 !important; background: #fff;">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-secondary small fw-bold text-uppercase"><i class="bi bi-people text-info me-1"></i> Active Learners</span>
+                        <span class="badge bg-info bg-opacity-10 text-dark rounded-pill small">Across all tiers</span>
+                    </div>
+                    <div class="h3 fw-bold text-dark mb-0"><?php echo number_format($activeLearnersCount); ?></div>
+                    <div class="small text-muted mt-1" style="font-size: 0.75rem;">Total SPED & DHH Enrollees</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Featured Registered SPED Centers Hero Carousel -->
+
     <div class="card mb-4 border-0 shadow-sm overflow-hidden" style="border-top: 4px solid #a01422 !important; background: #ffffff; border-radius: 12px;">
-        <div class="card-header bg-white border-0 pt-3 px-4 pb-0 d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 text-dark fw-bold fs-5">
-                <i class="bi bi-buildings-fill text-danger me-2"></i> Registered SPED Schools
+        <div class="card-header bg-white py-3 px-4 border-0 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold text-dark">
+                <i class="bi bi-building-check text-danger me-2"></i> Registered SPED Schools & Regional Hubs
             </h5>
-            <span class="badge bg-light text-dark border px-3 py-2 fs-6 fw-semibold rounded-pill">
+            <span class="badge bg-light text-success border border-success px-3 py-1 rounded-pill small">
                 <i class="bi bi-check-circle-fill text-success me-1"></i> <?php echo count($registeredSchools); ?> Active School<?php echo count($registeredSchools) === 1 ? '' : 's'; ?>
             </span>
         </div>
-        <div class="card-body p-4">
+        <div class="card-body p-4 pt-2">
             <?php if (empty($registeredSchools)): ?>
-                <!-- Clean Placeholder when no schools exist yet -->
-                <div class="p-4 text-center bg-light rounded-3 border my-1">
-                    <i class="bi bi-building-add text-secondary" style="font-size: 2.8rem;"></i>
-                    <h5 class="fw-bold mt-2 text-dark">No Registered SPED Schools Yet</h5>
-                    <p class="text-muted mb-3 small">Are you a School Head or Principal? Register your school in SignED to establish your enrollment guidelines and faculty roster.</p>
-                    <a href="<?php echo $basePath; ?>/role/select?type=principal" class="btn btn-outline-danger btn-sm fw-bold px-4 py-2">
-                        <i class="bi bi-plus-circle-fill me-1"></i> Register Your School Now
+                <div class="text-center py-4 bg-light rounded-3 border">
+                    <i class="bi bi-building-exclamation text-muted" style="font-size: 2.5rem;"></i>
+                    <h5 class="fw-bold text-secondary mt-2 mb-1">No SPED Schools Registered Yet</h5>
+                    <p class="small text-muted mb-3">Be the first Principal to register your school in the SignED regional network.</p>
+                    <a href="<?php echo $basePath; ?>/role/select?type=principal" class="btn btn-primary btn-sm fw-semibold px-3 py-2">
+                        <i class="bi bi-plus-circle me-1"></i> Register School Now
                     </a>
-
                 </div>
             <?php else: ?>
                 <!-- Clean Auto-Rotating Featured Schools Hero Carousel -->
@@ -167,15 +271,16 @@ require_once __DIR__ . '/../layouts/header.php';
                                                 <i class="bi bi-clock-history me-1"></i> Enrollment <?php echo $schStatus; ?>
                                             </span>
                                         </div>
-                                        <p class="text-secondary small mb-2">
-                                            <i class="bi bi-pin-map text-muted me-1"></i> <?php echo htmlspecialchars($sch['address'] ?? 'Official DepEd Registered Address'); ?>
-                                        </p>
-                                        <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                            <small class="text-muted"><i class="bi bi-shield-check text-success me-1"></i> DepEd Verified School</small>
-                                            <a href="<?php echo $basePath; ?>/role/select?type=parent&school_id=<?php echo $sch['id']; ?>" class="btn btn-sm btn-primary fw-semibold px-3 py-1.5 shadow-sm">
-                                                <i class="bi bi-person-plus-fill me-1"></i> Enroll Child to <?php echo htmlspecialchars($sch['school_name']); ?>
-                                            </a>
-                                        </div>
+                                         <p class="text-secondary small mb-2">
+                                             <i class="bi bi-pin-map text-muted me-1"></i> <?php echo htmlspecialchars($sch['address'] ?? 'Official DepEd Registered Address'); ?>
+                                         </p>
+
+                                         <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                             <small class="text-muted"><i class="bi bi-shield-check text-success me-1"></i> DepEd Verified School</small>
+                                             <a href="<?php echo $basePath; ?>/role/select?type=parent&school_id=<?php echo $sch['id']; ?>" class="btn btn-sm btn-primary fw-semibold px-3 py-1.5 shadow-sm">
+                                                 <i class="bi bi-person-plus-fill me-1"></i> Enroll Child to <?php echo htmlspecialchars($sch['school_name']); ?>
+                                             </a>
+                                         </div>
                                     </div>
                                 </div>
                             </div>

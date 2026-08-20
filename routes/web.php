@@ -401,7 +401,8 @@ route('GET', '/cot/observations/{id}/sign-off', 'ClassroomObservationController'
 route('POST', '/cot/observations/{id}/sign-off', 'ClassroomObservationController', 'signOff');
 
 // Principal Routes
-route('POST', '/principal/enrollment-settings', 'PrincipalController', 'saveEnrollmentSettings');
+route('POST', '/principal/enrollment-settings', 'PrincipalController', 'updateEnrollmentSettings');
+route('POST', '/principal/save-guidelines', 'PrincipalController', 'updateEnrollmentSettings');
 route('POST', '/principal/upload-logo', 'PrincipalController', 'uploadLogo');
 
 // ============================================

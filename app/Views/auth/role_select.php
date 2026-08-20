@@ -380,15 +380,12 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
                             <div class="form-text small">Please upload your school's official logo or seal (PNG, JPG, WEBP).</div>
                         </div>
 
-                        <div class="row g-3 mt-2">
-                            <div class="col-md-6">
-                                <label for="government_id" class="form-label fw-semibold">DepEd ID / Valid Govt ID <span class="text-muted fw-normal">(Optional)</span></label>
-                                <input type="file" class="form-control" id="government_id" name="government_id" accept="image/*,application/pdf">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="proof_designation" class="form-label fw-semibold">Proof of Appointment Document <span class="text-muted fw-normal">(Optional)</span></label>
-                                <input type="file" class="form-control" id="proof_designation" name="proof_designation" accept="image/*,application/pdf">
-                            </div>
+                        <div class="mt-3">
+                            <label for="sip_document" class="form-label fw-semibold">
+                                <i class="bi bi-file-earmark-pdf-fill text-danger me-1"></i> School Improvement Plan (SIP) Document <span class="text-danger">*</span>
+                            </label>
+                            <input type="file" class="form-control" id="sip_document" name="sip_document" accept="application/pdf,image/*" required>
+                            <div class="form-text small text-muted">Upload your school's official School Improvement Plan (SIP PDF document) for System Admin verification.</div>
                         </div>
                     </div>
 
@@ -536,15 +533,33 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
                                 </div>
                             </div>
 
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label for="government_id" class="form-label fw-semibold">DepEd ID / PRC License <span class="text-muted fw-normal">(Optional)</span></label>
-                                    <input type="file" class="form-control" id="government_id" name="government_id" accept="image/*,application/pdf">
+                            <!-- Relevant Training Certifications & Seminars Upload Section -->
+                            <div class="mt-3 pt-3 border-top">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label fw-semibold text-dark mb-0">
+                                        <i class="bi bi-award-fill text-warning me-1"></i> Relevant Training Certifications & Seminars <span class="text-muted fw-normal">(Optional)</span>
+                                    </label>
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2.5" id="addCertBtn" style="border-radius: 6px; font-size: 0.8rem;">
+                                        <i class="bi bi-plus-lg me-1"></i> Add Another Certification
+                                    </button>
                                 </div>
-                                <div class="col-md-6">
-                                    <label for="proof_designation" class="form-label fw-semibold">Proof of Appointment <span class="text-muted fw-normal">(Optional)</span></label>
-                                    <input type="file" class="form-control" id="proof_designation" name="proof_designation" accept="image/*,application/pdf">
+
+                                <div id="certificationsContainer">
+                                    <div class="cert-item p-2.5 mb-2 bg-white rounded border">
+                                        <div class="row g-2 align-items-center">
+                                            <div class="col-md-6">
+                                                <input type="file" class="form-control form-control-sm" name="fsl_certifications[]" accept="application/pdf,image/*">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <input type="text" class="form-control form-control-sm" name="fsl_cert_titles[]" placeholder="Title (e.g. FSL Level 1)">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <input type="date" class="form-control form-control-sm" name="fsl_cert_dates[]" title="Issue Date">
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
+                                <div class="form-text small text-muted">Upload any FSL, Inclusive Education, or SPED training certificates you hold with issue dates.</div>
                             </div>
                         </div>
                     </div>
@@ -708,6 +723,43 @@ document.addEventListener('DOMContentLoaded', function() {
         if (regionSelect.value) {
             updateDepedDivisions();
         }
+    }
+
+    const addCertBtn = document.getElementById('addCertBtn');
+    const certsContainer = document.getElementById('certificationsContainer');
+    if (addCertBtn && certsContainer) {
+        addCertBtn.addEventListener('click', function() {
+            const newRow = document.createElement('div');
+            newRow.className = 'cert-item p-2.5 mb-2 bg-white rounded border';
+            newRow.innerHTML = `
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-5">
+                        <input type="file" class="form-control form-control-sm" name="fsl_certifications[]" accept="application/pdf,image/*">
+                    </div>
+                    <div class="col-md-4">
+                        <input type="text" class="form-control form-control-sm" name="fsl_cert_titles[]" placeholder="Title (e.g. FSL Level 2)">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" class="form-control form-control-sm" name="fsl_cert_dates[]" title="Issue Date">
+                    </div>
+                    <div class="col-md-1 text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1.5 remove-cert-btn" style="border-radius: 4px;" title="Remove">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            certsContainer.appendChild(newRow);
+        });
+
+        certsContainer.addEventListener('click', function(e) {
+            if (e.target.closest('.remove-cert-btn')) {
+                const item = e.target.closest('.cert-item');
+                if (item) {
+                    item.remove();
+                }
+            }
+        });
     }
 });
 </script>

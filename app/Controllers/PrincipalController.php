@@ -414,6 +414,20 @@ class PrincipalController {
                     $schoolModel->updatePubmat($schoolId, 'uploads/pubmats/' . $fileName);
                 }
             }
+
+            // SIP PDF Document Upload
+            if (isset($_FILES['sip_document']) && $_FILES['sip_document']['error'] === UPLOAD_ERR_OK) {
+                $sipFile = $_FILES['sip_document'];
+                $sipDir = public_path('uploads/role_verification/');
+                if (!is_dir($sipDir)) {
+                    mkdir($sipDir, 0755, true);
+                }
+                $ext = pathinfo($sipFile['name'], PATHINFO_EXTENSION);
+                $fileName = 'sip_' . $schoolId . '_' . time() . '.' . strtolower($ext);
+                if (move_uploaded_file($sipFile['tmp_name'], $sipDir . $fileName)) {
+                    $schoolModel->updateSipPath($schoolId, 'uploads/role_verification/' . $fileName);
+                }
+            }
         }
 
         $_SESSION['success'] = 'Official Enrollment Guidelines, Pubmat Poster & School Details saved and published successfully!';
