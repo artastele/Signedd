@@ -47,6 +47,7 @@ return [
         'iep.create',
         'iep.sign',
         'learning.materials',
+        'learning.access',
         'transition.view',
         'progress_report.create',
         'progress_report.manage',
@@ -118,6 +119,7 @@ return [
 
     'master_teacher' => [
         'dashboard.master',
+        'learning.access',
         'iep.view',
         'iep.implement',
         'observation.conduct',
@@ -162,6 +164,7 @@ return [
 
     'general_teacher' => [
         'dashboard.teacher',
+        'learning.access',
         'iep.view',
         'student.records',
         'student.view',

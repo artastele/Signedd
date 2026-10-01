@@ -60,6 +60,12 @@ class IEPImplementationController {
             exit;
         }
 
+        if (!in_array($iep['status'] ?? '', ['signed', 'locked'], true)) {
+            $_SESSION['error'] = 'Cannot open teaching workspace: IEP must be signed and finalized (Process 5) before implementation begins.';
+            header('Location: ' . $this->basePath . '/iep');
+            exit;
+        }
+
         $lessonPlans = $this->model->getByIepId($iepId);
         $materials   = $this->model->getMaterialsByIepId($iepId);
         $activities  = $this->model->getActivitiesByIepId($iepId);
@@ -77,6 +83,24 @@ class IEPImplementationController {
         if ($iepFull) {
             $iep['pdsp_signed_document_path'] = $iepFull['pdsp_signed_document_path'] ?? null;
         }
+
+        // Fetch student's learning track and traditional records (Stage 2)
+        $db = Database::getInstance()->getConnection();
+        $studentId = (int)($iep['student_id'] ?? 0);
+        $stmtTrack = $db->prepare("SELECT learning_track, lms_invite_status FROM student_records WHERE id = :sid LIMIT 1");
+        $stmtTrack->execute(['sid' => $studentId]);
+        $studentTrackInfo = $stmtTrack->fetch(PDO::FETCH_ASSOC) ?: ['learning_track' => 'unassigned', 'lms_invite_status' => 'none'];
+
+        // Fetch traditional documents (DLL, physical IEP, progress notes)
+        $stmtTrad = $db->prepare("
+            SELECT tid.*, u.name as uploaded_by_name 
+            FROM traditional_iep_documents tid
+            LEFT JOIN users u ON tid.uploaded_by = u.id
+            WHERE tid.student_id = :sid
+            ORDER BY tid.created_at DESC
+        ");
+        $stmtTrad->execute(['sid' => $studentId]);
+        $traditionalDocs = $stmtTrad->fetchAll(PDO::FETCH_ASSOC);
 
         $basePath    = $this->basePath;
 
@@ -187,7 +211,7 @@ class IEPImplementationController {
             }
 
             $studentId = $lp['student_id'] ?? $iepId;
-            $uploadDir = __DIR__ . '/../../public/uploads/lesson_plans/' . $studentId . '/';
+            $uploadDir = function_exists('public_path') ? public_path('uploads/lesson_plans/' . $studentId . '/') : (__DIR__ . '/../../public/uploads/lesson_plans/' . $studentId . '/');
             if (!is_dir($uploadDir)) {
                 mkdir($uploadDir, 0755, true);
             }
@@ -207,6 +231,307 @@ class IEPImplementationController {
         } catch (Throwable $e) {
             error_log('uploadLessonDoc error: ' . $e->getMessage());
             echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    // ============================================================
+    // INTERACTIVE LESSON PAGES (VLE / Moodle Multi-Page)
+    // ============================================================
+
+    public function getLessonPagesJson($lessonPlanId): void {
+        header('Content-Type: application/json');
+        try {
+            $lpId = (int)$lessonPlanId;
+            $pages = $this->model->getPagesByLessonPlan($lpId);
+            echo json_encode(['success' => true, 'pages' => $pages]);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    public function addLessonPage($lessonPlanId): void {
+        header('Content-Type: application/json');
+        try {
+            $lpId = (int)$lessonPlanId;
+            if (!$lpId) {
+                echo json_encode(['success' => false, 'message' => 'Invalid lesson plan ID.']);
+                exit;
+            }
+
+            $title          = trim($_POST['title'] ?? '');
+            $content        = trim($_POST['content'] ?? '');
+            $guideQuestions = trim($_POST['guide_questions'] ?? '');
+            $mediaType      = trim($_POST['media_type'] ?? 'none');
+            $mediaPath      = trim($_POST['media_path'] ?? $_POST['media_url'] ?? '');
+
+            if (empty($title)) {
+                echo json_encode(['success' => false, 'message' => 'Page title is required.']);
+                exit;
+            }
+
+            // Handle file upload if provided
+            if (isset($_FILES['media_file']) && $_FILES['media_file']['error'] === UPLOAD_ERR_OK) {
+                $file = $_FILES['media_file'];
+                $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'mp4', 'webm', 'ogg', 'mov'];
+                if (in_array($ext, $allowed)) {
+                    $uploadDir = function_exists('public_path') ? public_path('uploads/lesson_pages/' . $lpId . '/') : (__DIR__ . '/../../public/uploads/lesson_pages/' . $lpId . '/');
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    $fileName = 'page_' . time() . '_' . bin2hex(random_bytes(3)) . '.' . $ext;
+                    move_uploaded_file($file['tmp_name'], $uploadDir . $fileName);
+                    $mediaPath = 'uploads/lesson_pages/' . $lpId . '/' . $fileName;
+
+                    if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                        $mediaType = 'image';
+                    } elseif (in_array($ext, ['mp4', 'webm', 'ogg', 'mov'])) {
+                        $mediaType = 'video';
+                    } else {
+                        $mediaType = 'file';
+                    }
+                }
+            }
+
+            $pageId = $this->model->createPage([
+                'lesson_plan_id'  => $lpId,
+                'title'           => $title,
+                'content'         => $content,
+                'guide_questions' => !empty($guideQuestions) ? $guideQuestions : null,
+                'media_type'      => $mediaType,
+                'media_path'      => !empty($mediaPath) ? $mediaPath : null
+            ]);
+
+            $page = $this->model->getPageById($pageId);
+            echo json_encode(['success' => true, 'page_id' => $pageId, 'page' => $page, 'message' => 'Slide created successfully!']);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    public function updateLessonPage($pageId): void {
+        header('Content-Type: application/json');
+        try {
+            $pId = (int)$pageId;
+            $existing = $this->model->getPageById($pId);
+            if (!$existing) {
+                echo json_encode(['success' => false, 'message' => 'Page not found.']);
+                exit;
+            }
+
+            $title          = trim($_POST['title'] ?? '');
+            $content        = trim($_POST['content'] ?? '');
+            $guideQuestions = trim($_POST['guide_questions'] ?? '');
+            $mediaType      = trim($_POST['media_type'] ?? $existing['media_type'] ?? 'none');
+            $mediaPath      = trim($_POST['media_path'] ?? $_POST['media_url'] ?? $existing['media_path'] ?? '');
+
+            if (empty($title)) {
+                echo json_encode(['success' => false, 'message' => 'Page title is required.']);
+                exit;
+            }
+
+            // Handle file upload if provided
+            if (isset($_FILES['media_file']) && $_FILES['media_file']['error'] === UPLOAD_ERR_OK) {
+                $file = $_FILES['media_file'];
+                $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'mp4', 'webm', 'ogg', 'mov'];
+                if (in_array($ext, $allowed)) {
+                    $lpId = (int)$existing['lesson_plan_id'];
+                    $uploadDir = function_exists('public_path') ? public_path('uploads/lesson_pages/' . $lpId . '/') : (__DIR__ . '/../../public/uploads/lesson_pages/' . $lpId . '/');
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    $fileName = 'page_' . time() . '_' . bin2hex(random_bytes(3)) . '.' . $ext;
+                    move_uploaded_file($file['tmp_name'], $uploadDir . $fileName);
+                    $mediaPath = 'uploads/lesson_pages/' . $lpId . '/' . $fileName;
+
+                    if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                        $mediaType = 'image';
+                    } elseif (in_array($ext, ['mp4', 'webm', 'ogg', 'mov'])) {
+                        $mediaType = 'video';
+                    } else {
+                        $mediaType = 'file';
+                    }
+                }
+            }
+
+            $ok = $this->model->updatePage($pId, [
+                'title'           => $title,
+                'content'         => $content,
+                'guide_questions' => !empty($guideQuestions) ? $guideQuestions : null,
+                'media_type'      => $mediaType,
+                'media_path'      => !empty($mediaPath) ? $mediaPath : null
+            ]);
+
+            $page = $this->model->getPageById($pId);
+            echo json_encode(['success' => true, 'page' => $page, 'message' => 'Slide updated successfully!']);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    public function deleteLessonPage($pageId): void {
+        header('Content-Type: application/json');
+        try {
+            $pId = (int)$pageId;
+            $res = $this->model->deletePage($pId);
+            echo json_encode(['success' => (bool)$res, 'message' => $res ? 'Slide deleted successfully.' : 'Failed to delete slide.']);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    public function clearLessonPages($lessonPlanId): void {
+        header('Content-Type: application/json');
+        try {
+            $lpId = (int)$lessonPlanId;
+            $res = $this->model->deleteAllPagesByLessonPlan($lpId);
+            echo json_encode(['success' => (bool)$res, 'message' => 'Lahat ng slides ay na-clear na.']);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    /**
+     * Dedicated Full-Page Lesson Slides Studio & FSL Interactive Aids Builder
+     */
+    public function lessonSlideBuilder($lessonPlanId): void {
+        $lpId = (int)$lessonPlanId;
+        $lessonPlan = $this->model->findById($lpId);
+
+        if (!$lessonPlan) {
+            $_SESSION['error'] = 'Lesson plan not found.';
+            header('Location: ' . $this->basePath . '/iep/implementation');
+            exit;
+        }
+
+        $iepId = (int)$lessonPlan['iep_id'];
+        $iep   = $this->model->getIepById($iepId);
+        $pages = $this->model->getPagesByLessonPlan($lpId);
+
+        // FSL Vocabulary for interactive sign insertion (filter out any signs without real videos)
+        require_once __DIR__ . '/../Models/FSLModel.php';
+        $fslModel = new FSLModel();
+        $fslSigns = $fslModel->getAll(null, '', true);
+        $fslCategories = $fslModel->getCategories(true);
+
+        $pageTitle = 'Lesson Studio: ' . ($lessonPlan['title'] ?? 'Slides Builder');
+        $basePath  = $this->basePath;
+
+        require_once __DIR__ . '/../Views/iep_implementation/lesson_slide_builder.php';
+    }
+
+    /**
+     * Teacher custom FSL video upload
+     */
+    public function uploadCustomFslSign(): void {
+        header('Content-Type: application/json');
+        try {
+            $word = trim($_POST['word'] ?? '');
+            $category = trim($_POST['category'] ?? 'Custom Signs');
+            $description = trim($_POST['description'] ?? '');
+
+            if (empty($word)) {
+                echo json_encode(['success' => false, 'message' => 'Mangyaring ilagay ang salita / tawag sa senyas (word is required).']);
+                exit;
+            }
+
+            if (!isset($_FILES['video_file']) || $_FILES['video_file']['error'] !== UPLOAD_ERR_OK) {
+                echo json_encode(['success' => false, 'message' => 'Mangyaring mag-upload ng video file para sa senyas na ito.']);
+                exit;
+            }
+
+            $file = $_FILES['video_file'];
+            if ($file['size'] > 10 * 1024 * 1024) {
+                echo json_encode(['success' => false, 'message' => 'Laki ng video ay dapat mas mababa sa 10MB (Max 10MB).']);
+                exit;
+            }
+            $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $allowed = ['mp4', 'webm', 'mov', 'ogg', 'm4v'];
+
+            if (!in_array($ext, $allowed)) {
+                echo json_encode(['success' => false, 'message' => 'Hindi wastong format ng video. Pwede: MP4, WebM, MOV, OGG.']);
+                exit;
+            }
+
+            $uploadDir = function_exists('public_path') ? public_path('uploads/fsl_custom_videos/') : (__DIR__ . '/../../public/uploads/fsl_custom_videos/');
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+
+            $cleanSlug = preg_replace('/[^a-z0-9_-]/i', '_', strtolower($word));
+            $fileName = 'fsl_' . $cleanSlug . '_' . time() . '.' . $ext;
+            $destPath = $uploadDir . $fileName;
+
+            if (!move_uploaded_file($file['tmp_name'], $destPath)) {
+                echo json_encode(['success' => false, 'message' => 'Nabigong i-save ang video file sa server.']);
+                exit;
+            }
+
+            $relPath = 'uploads/fsl_custom_videos/' . $fileName;
+
+            require_once __DIR__ . '/../Models/FSLModel.php';
+            $fslModel = new FSLModel();
+            $signId = $fslModel->addWord([
+                'word'        => $word,
+                'category'    => !empty($category) ? $category : 'Custom Signs',
+                'video_path'  => $relPath,
+                'gif_path'    => null,
+                'description' => !empty($description) ? $description : 'Gawa ng guro para sa ' . $word
+            ]);
+
+            $newSign = $fslModel->getById($signId);
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Matagumpay na na-upload ang iyong bagong FSL Video!',
+                'sign'    => $newSign
+            ]);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+
+
+    public function uploadSlideImage(): void {
+        header('Content-Type: application/json');
+        try {
+            if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+                echo json_encode(['success' => false, 'message' => 'No image file uploaded or upload error.']);
+                exit;
+            }
+
+            $file = $_FILES['image'];
+            $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+            if (!in_array($ext, $allowed)) {
+                echo json_encode(['success' => false, 'message' => 'Invalid image format. Allowed: JPG, PNG, GIF, WebP, SVG.']);
+                exit;
+            }
+
+            $uploadDir = function_exists('public_path') ? public_path('uploads/lesson_editor/') : (__DIR__ . '/../../public/uploads/lesson_editor/');
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+
+            $fileName = 'editor_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+            if (move_uploaded_file($file['tmp_name'], $uploadDir . $fileName)) {
+                $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+                $url = $basePath . '/uploads/lesson_editor/' . $fileName;
+                echo json_encode(['success' => true, 'url' => $url]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Failed to save uploaded image.']);
+            }
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         exit;
     }
@@ -266,7 +591,7 @@ class IEPImplementationController {
                     exit;
                 }
 
-                $uploadDir = __DIR__ . '/../../public/uploads/materials/' . $lessonPlanId . '/';
+                $uploadDir = function_exists('public_path') ? public_path('uploads/materials/' . $lessonPlanId . '/') : (__DIR__ . '/../../public/uploads/materials/' . $lessonPlanId . '/');
                 if (!is_dir($uploadDir)) {
                     mkdir($uploadDir, 0755, true);
                 }
@@ -339,13 +664,21 @@ class IEPImplementationController {
         header('Content-Type: application/json');
         try {
             $body       = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-            $materialId = (int) ($body['material_id'] ?? 0);
+            $rawId      = $body['material_id'] ?? '';
 
-            if (!$materialId) {
+            if (!$rawId) {
                 echo json_encode(['success' => false, 'message' => 'material_id is required.']);
                 exit;
             }
 
+            if (is_string($rawId) && strpos($rawId, 'interactive_') === 0) {
+                $lpId = (int)str_replace('interactive_', '', $rawId);
+                $this->model->deleteAllPagesByLessonPlan($lpId);
+                echo json_encode(['success' => true, 'message' => 'Interactive lesson slides deleted.']);
+                exit;
+            }
+
+            $materialId = (int)$rawId;
             $material = $this->model->getMaterialById($materialId);
             if (!$material) {
                 echo json_encode(['success' => false, 'message' => 'Material not found.']);
@@ -427,7 +760,7 @@ class IEPImplementationController {
                         echo json_encode(['success' => false, 'message' => 'Image file must be under 5MB.']);
                         exit;
                     }
-                    $uploadDir = __DIR__ . '/../../public/uploads/activities/' . $lessonPlanId . '/';
+                    $uploadDir = function_exists('public_path') ? public_path('uploads/activities/' . $lessonPlanId . '/') : (__DIR__ . '/../../public/uploads/activities/' . $lessonPlanId . '/');
                     if (!is_dir($uploadDir)) {
                         mkdir($uploadDir, 0755, true);
                     }
@@ -1020,7 +1353,7 @@ class IEPImplementationController {
                 }
 
                 $lpId      = (int) $material['lesson_plan_id'];
-                $uploadDir = __DIR__ . '/../../public/uploads/materials/' . $lpId . '/';
+                $uploadDir = function_exists('public_path') ? public_path('uploads/materials/' . $lpId . '/') : (__DIR__ . '/../../public/uploads/materials/' . $lpId . '/');
                 if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
 
                 $fileName = 'mat_' . time() . '_' . uniqid() . '.' . $ext;
@@ -1067,19 +1400,71 @@ class IEPImplementationController {
                 exit;
             }
 
-            $body  = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $body = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($body)) {
+                $body = $_POST;
+            }
+
             $title = trim($body['title'] ?? '');
             if (!$title) {
                 echo json_encode(['success' => false, 'message' => 'Title is required.']);
                 exit;
             }
 
+            $lessonPlanId = isset($body['lesson_plan_id']) ? (int) $body['lesson_plan_id'] : (int) $activity['lesson_plan_id'];
+            $activityType = trim($body['activity_type'] ?? $activity['activity_type']);
+            $instructions = isset($body['instructions']) ? trim($body['instructions']) : ($activity['instructions'] ?? '');
+            $isF2F        = isset($body['is_f2f']) ? (int) $body['is_f2f'] : (int) ($activity['is_f2f'] ?? 0);
+            $maxScore     = $isF2F ? 0 : (isset($body['max_score']) ? (int) $body['max_score'] : (int) $activity['max_score']);
+            $dueDate      = !empty($body['due_date']) ? $body['due_date'] : null;
+
             $updateData = [
-                'title'        => $title,
-                'instructions' => trim($body['instructions'] ?? ''),
-                'max_score'    => isset($body['max_score']) ? (int) $body['max_score'] : (int) $activity['max_score'],
-                'due_date'     => !empty($body['due_date']) ? $body['due_date'] : null,
+                'title'          => $title,
+                'instructions'   => $instructions,
+                'lesson_plan_id' => $lessonPlanId,
+                'activity_type'  => $activityType,
+                'max_score'      => $maxScore,
+                'due_date'       => $dueDate,
+                'is_f2f'         => $isF2F,
             ];
+
+            if (isset($body['activity_data'])) {
+                $activityData = $body['activity_data'];
+                $activityDataArr = [];
+                if (is_array($activityData)) {
+                    $activityDataArr = $activityData;
+                } elseif (is_string($activityData)) {
+                    $activityDataArr = json_decode($activityData, true) ?? [];
+                }
+
+                // If image_label, check for new image upload or keep old
+                if ($activityType === 'image_label') {
+                    if (isset($_FILES['image_file']) && $_FILES['image_file']['error'] === UPLOAD_ERR_OK) {
+                        $file    = $_FILES['image_file'];
+                        $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                        $allowed = ['jpg', 'jpeg', 'png'];
+                        if (!in_array($ext, $allowed)) {
+                            echo json_encode(['success' => false, 'message' => 'Allowed image types: JPG, PNG.']);
+                            exit;
+                        }
+                        if ($file['size'] > 5 * 1024 * 1024) {
+                            echo json_encode(['success' => false, 'message' => 'Image file must be under 5MB.']);
+                            exit;
+                        }
+                        $uploadDir = function_exists('public_path') ? public_path('uploads/activities/' . $lessonPlanId . '/') : (__DIR__ . '/../../public/uploads/activities/' . $lessonPlanId . '/');
+                        if (!is_dir($uploadDir)) {
+                            mkdir($uploadDir, 0755, true);
+                        }
+                        $fileName = 'act_' . time() . '_' . uniqid() . '.' . $ext;
+                        $fullPath = $uploadDir . $fileName;
+                        if (move_uploaded_file($file['tmp_name'], $fullPath)) {
+                            $activityDataArr['image_path'] = 'uploads/activities/' . $lessonPlanId . '/' . $fileName;
+                        }
+                    }
+                }
+
+                $updateData['activity_data'] = json_encode($activityDataArr);
+            }
 
             $this->model->updateActivity($activityId, $updateData);
             $updated = $this->model->getActivityById($activityId);
@@ -1477,4 +1862,81 @@ class IEPImplementationController {
             exit;
         }
     }
+
+    /**
+     * Upload Traditional IEP Record Document (DLL, Physical IEP, Progress Note)
+     */
+    public function uploadTraditionalDoc() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . $this->basePath . '/iep/implementation');
+            exit;
+        }
+
+        $iepId = (int)($_POST['iep_id'] ?? 0);
+        $studentId = (int)($_POST['student_id'] ?? 0);
+        $docType = trim($_POST['document_type'] ?? 'dll');
+        $title = trim($_POST['title'] ?? '');
+        $quarter = trim($_POST['quarter'] ?? 'Q1');
+        $notes = trim($_POST['notes'] ?? '');
+
+        if (empty($title) || empty($_FILES['doc_file']['tmp_name'])) {
+            $_SESSION['error'] = 'Title and document file are required.';
+            header('Location: ' . $this->basePath . '/iep/implementation/workspace/' . $iepId);
+            exit;
+        }
+
+        $uploadDir = function_exists('public_path') ? public_path('uploads/traditional_iep/') : (__DIR__ . '/../../public/uploads/traditional_iep/');
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $file = $_FILES['doc_file'];
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $newFilename = 'trad_' . $studentId . '_' . time() . '.' . $ext;
+        $destPath = $uploadDir . $newFilename;
+        $relPath = 'uploads/traditional_iep/' . $newFilename;
+
+        if (move_uploaded_file($file['tmp_name'], $destPath)) {
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("
+                INSERT INTO traditional_iep_documents (student_id, uploaded_by, document_type, title, file_path, file_size, quarter, notes)
+                VALUES (:student_id, :uploaded_by, :document_type, :title, :file_path, :file_size, :quarter, :notes)
+            ");
+            $stmt->execute([
+                'student_id'    => $studentId,
+                'uploaded_by'   => $this->userId,
+                'document_type' => $docType,
+                'title'         => $title,
+                'file_path'     => $relPath,
+                'file_size'     => (int)$file['size'],
+                'quarter'       => $quarter,
+                'notes'         => $notes
+            ]);
+
+            $_SESSION['success'] = "Traditional IEP Document '{$title}' uploaded successfully!";
+        } else {
+            $_SESSION['error'] = 'Failed to upload document file.';
+        }
+
+        header('Location: ' . $this->basePath . '/iep/implementation/workspace/' . $iepId);
+        exit;
+    }
+
+    /**
+     * Delete Traditional IEP Document
+     */
+    public function deleteTraditionalDoc($docId) {
+        $docId = (int)$docId;
+        $iepId = (int)($_POST['iep_id'] ?? 0);
+
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->prepare("DELETE FROM traditional_iep_documents WHERE id = :id AND uploaded_by = :uid");
+        $stmt->execute(['id' => $docId, 'uid' => $this->userId]);
+
+        $_SESSION['success'] = "Document removed successfully.";
+        header('Location: ' . $this->basePath . '/iep/implementation/workspace/' . $iepId);
+        exit;
+    }
 }
+
+

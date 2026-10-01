@@ -56,6 +56,16 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
         if (!isset($schools) || empty($schools)) {
             $selectSchoolModel = new SchoolModel();
             $schools = $selectSchoolModel->getAllSchools();
+            if (empty($schools)) {
+                try {
+                    $dbFallback = Database::getInstance()->getConnection();
+                    $dbFallback->exec("
+                        INSERT INTO schools (school_id, school_name, division, region, address, enrollment_sy, enrollment_status, guidelines_published, contact_email, contact_number, created_at)
+                        VALUES ('118543', 'Cebu City National SPED Center', 'Cebu City', 'Region VII', 'M.J. Cuenco Ave, Cebu City', '2026-2027', 'open', 1, 'cebucity.sped@deped.gov.ph', '09123456789', NOW())
+                    ");
+                    $schools = $selectSchoolModel->getAllSchools();
+                } catch (\Throwable $e) {}
+            }
         }
         ?>
         <div class="card border-0 shadow-sm">
@@ -537,7 +547,7 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
                             <div class="mt-3 pt-3 border-top">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <label class="form-label fw-semibold text-dark mb-0">
-                                        <i class="bi bi-award-fill text-warning me-1"></i> Relevant Training Certifications & Seminars <span class="text-muted fw-normal">(Optional)</span>
+                                        <i class="bi bi-award-fill text-warning me-1"></i> Relevant Training Certifications &amp; Seminars <span class="text-danger">* (Required)</span>
                                     </label>
                                     <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2.5" id="addCertBtn" style="border-radius: 6px; font-size: 0.8rem;">
                                         <i class="bi bi-plus-lg me-1"></i> Add Another Certification
@@ -548,10 +558,10 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
                                     <div class="cert-item p-2.5 mb-2 bg-white rounded border">
                                         <div class="row g-2 align-items-center">
                                             <div class="col-md-6">
-                                                <input type="file" class="form-control form-control-sm" name="fsl_certifications[]" accept="application/pdf,image/*">
+                                                <input type="file" class="form-control form-control-sm" name="fsl_certifications[]" accept="application/pdf,image/*" required>
                                             </div>
                                             <div class="col-md-4">
-                                                <input type="text" class="form-control form-control-sm" name="fsl_cert_titles[]" placeholder="Title (e.g. FSL Level 1)">
+                                                <input type="text" class="form-control form-control-sm" name="fsl_cert_titles[]" placeholder="Title (e.g. FSL Level 1, SPED Training)" required>
                                             </div>
                                             <div class="col-md-2">
                                                 <input type="date" class="form-control form-control-sm" name="fsl_cert_dates[]" title="Issue Date">
@@ -559,7 +569,7 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
                                         </div>
                                     </div>
                                 </div>
-                                <div class="form-text small text-muted">Upload any FSL, Inclusive Education, or SPED training certificates you hold with issue dates.</div>
+                                <div class="form-text small text-muted">Please upload your official FSL, Inclusive Education, or SPED training certificates with issue dates for verification.</div>
                             </div>
                         </div>
                     </div>

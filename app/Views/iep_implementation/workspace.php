@@ -7,6 +7,29 @@ $pageTitle = 'IEP Workspace — ' . htmlspecialchars($iep['student_name'] ?? 'St
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
+<!-- Summernote Lite (Rich Text / WYSIWYG Editor for Lesson Pages) -->
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
+<style>
+.note-editor.note-frame {
+    border-radius: 8px !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+}
+.note-toolbar {
+    background-color: #f8fafc !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    border-top-left-radius: 8px !important;
+    border-top-right-radius: 8px !important;
+    padding: 6px !important;
+}
+.note-btn {
+    border-radius: 4px !important;
+    font-size: 0.8rem !important;
+}
+</style>
+
 <body data-logged-in="true">
 
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
@@ -45,6 +68,128 @@ require_once __DIR__ . '/../layouts/header.php';
         </span>
     </div>
 
+
+    <!-- ============================================================
+         STAGE 2 DUAL-TRACK STATUS & TRADITIONAL IEP RECORD-KEEPING
+         ============================================================ -->
+    <?php 
+        $currentTrack = $studentTrackInfo['learning_track'] ?? 'unassigned';
+        $isTraditional = ($currentTrack === 'traditional');
+    ?>
+    <div class="card mb-4 border-<?= $isTraditional ? 'secondary' : 'primary' ?> shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
+             style="background: <?= $isTraditional ? '#475569' : '#1e4072' ?>; color:#fff; border-radius:6px 6px 0 0;">
+            <span class="fw-semibold">
+                <i class="bi bi-<?= $isTraditional ? 'folder2-open' : 'laptop-fill' ?> me-2"></i>
+                Dual-Track Mode: <?= $isTraditional ? '🏫 SEN Traditional F2F Track (Record-Keeping Active)' : '💻 SignED Interactive LMS Track' ?>
+            </span>
+            <button type="button" class="btn btn-sm btn-light py-1 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#uploadTraditionalDocModal">
+                <i class="bi bi-cloud-arrow-up-fill me-1"></i> Upload Traditional Document (DLL / Physical IEP)
+            </button>
+        </div>
+        <div class="card-body p-3 bg-light">
+            <?php if (empty($traditionalDocs)): ?>
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 text-muted small">
+                    <span><i class="bi bi-info-circle me-1"></i>No uploaded traditional Daily Lesson Logs (DLL) or physical IEP forms yet for this learner.</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#uploadTraditionalDocModal">
+                        <i class="bi bi-plus-circle me-1"></i>Add DLL / Scanned Form
+                    </button>
+                </div>
+            <?php else: ?>
+                <h6 class="fw-bold text-dark mb-2" style="font-size:0.875rem;"><i class="bi bi-file-earmark-medical me-1 text-primary"></i>Uploaded Traditional Documents &amp; Lesson Logs (DLL):</h6>
+                <div class="row g-2">
+                    <?php foreach ($traditionalDocs as $td): ?>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card bg-white p-2 border rounded shadow-sm h-100">
+                                <div class="d-flex align-items-start justify-content-between gap-1">
+                                    <div>
+                                        <span class="badge bg-<?= $td['document_type'] === 'dll' ? 'primary' : 'secondary' ?> text-uppercase" style="font-size:0.7rem;">
+                                            <?= htmlspecialchars($td['document_type']) ?> &bull; <?= htmlspecialchars($td['quarter'] ?? 'Q1') ?>
+                                        </span>
+                                        <h6 class="fw-bold mb-1 mt-1 text-dark" style="font-size:0.85rem;"><?= htmlspecialchars($td['title']) ?></h6>
+                                        <div class="small text-muted" style="font-size:0.75rem;">
+                                            <i class="bi bi-person me-1"></i><?= htmlspecialchars($td['uploaded_by_name'] ?? 'Teacher') ?> &bull; <?= date('M j, Y', strtotime($td['created_at'])) ?>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex flex-column gap-1">
+                                        <a href="<?= $basePath . '/' . ltrim($td['file_path'], '/') ?>" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-1" title="View Document">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <form method="POST" action="<?= $basePath ?>/iep/implementation/traditional-doc/delete/<?= $td['id'] ?>" onsubmit="return confirm('Remove this document?');">
+                                            <input type="hidden" name="iep_id" value="<?= $iepId ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                                <?php if (!empty($td['notes'])): ?>
+                                    <div class="mt-1 pt-1 border-top text-muted small" style="font-size:0.75rem;">
+                                        <em><?= htmlspecialchars($td['notes']) ?></em>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Upload Traditional Document Modal -->
+    <div class="modal fade" id="uploadTraditionalDocModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content text-dark">
+                <form method="POST" action="<?= $basePath ?>/iep/implementation/traditional-doc/upload" enctype="multipart/form-data">
+                    <input type="hidden" name="iep_id" value="<?= $iepId ?>">
+                    <input type="hidden" name="student_id" value="<?= (int)($iep['student_id'] ?? 0) ?>">
+                    <div class="modal-header bg-light">
+                        <h6 class="modal-title fw-bold"><i class="bi bi-cloud-arrow-up-fill me-2 text-primary"></i>Upload Traditional IEP / DLL Document</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Document Type <span class="text-danger">*</span></label>
+                            <select name="document_type" class="form-select" required>
+                                <option value="dll">Daily Lesson Log (DLL)</option>
+                                <option value="physical_iep">Physical / Scanned Signed IEP Form</option>
+                                <option value="assessment_report">Assessment / Progress Report</option>
+                                <option value="progress_note">Progress Note / Offline Activity Sheet</option>
+                                <option value="other">Other Supporting Document</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Title / Description <span class="text-danger">*</span></label>
+                            <input type="text" name="title" class="form-control" placeholder="e.g. DLL Week 3 - Functional Academics" required>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Quarter</label>
+                                <select name="quarter" class="form-select">
+                                    <option value="Q1">Quarter 1</option>
+                                    <option value="Q2">Quarter 2</option>
+                                    <option value="Q3">Quarter 3</option>
+                                    <option value="Q4">Quarter 4</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">File (PDF, Docx, Image) <span class="text-danger">*</span></label>
+                                <input type="file" name="doc_file" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" required>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Notes / Objectives</label>
+                            <textarea name="notes" class="form-control" rows="2" placeholder="Optional notes..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Upload Document</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <!-- ====================================================
          SECTION 1 — LESSON PLANS
@@ -177,7 +322,7 @@ require_once __DIR__ . '/../layouts/header.php';
 
             <!-- Material type selector grid -->
             <div class="row g-3 mb-4">
-                <div class="col-md-4">
+                <div class="col-md-6 col-lg-3">
                     <div class="material-type-card" id="matTypeFile" onclick="openMaterialModal('file')"
                          tabindex="0" role="button" aria-label="Upload File">
                         <div class="material-type-icon">📁</div>
@@ -185,7 +330,7 @@ require_once __DIR__ . '/../layouts/header.php';
                         <div class="material-type-desc">Upload a document, image, or video</div>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6 col-lg-3">
                     <div class="material-type-card" id="matTypeLink" onclick="openMaterialModal('link')"
                          tabindex="0" role="button" aria-label="External Link">
                         <div class="material-type-icon">🔗</div>
@@ -193,12 +338,20 @@ require_once __DIR__ . '/../layouts/header.php';
                         <div class="material-type-desc">Add a URL to an external resource</div>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6 col-lg-3">
                     <div class="material-type-card" id="matTypeEmbed" onclick="openMaterialModal('embed')"
                          tabindex="0" role="button" aria-label="Embed Content">
                         <div class="material-type-icon">▶</div>
                         <div class="material-type-title">Embed</div>
                         <div class="material-type-desc">Embed YouTube or Google Drive content</div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="material-type-card" id="matTypeInteractive" onclick="openMaterialModal('interactive')"
+                         tabindex="0" role="button" aria-label="Interactive Lesson Slides" style="border-color:#0284c7;">
+                        <div class="material-type-icon">📑</div>
+                        <div class="material-type-title" style="color:#0284c7;">Interactive Lesson</div>
+                        <div class="material-type-desc">Custom multi-page slides, text, &amp; media</div>
                     </div>
                 </div>
             </div>
@@ -227,12 +380,25 @@ require_once __DIR__ . '/../layouts/header.php';
                         <?php foreach ($materials as $mat): ?>
                             <?php
                             $matType = $mat['material_type'] ?? 'file';
-                            $matIcon = $matType === 'file' ? '📁' : ($matType === 'link' ? '🔗' : '▶');
-                            $matBg   = $matType === 'file' ? '#1e4072' : ($matType === 'link' ? '#6c757d' : '#a01422');
+                            $isInteractive = ($matType === 'interactive' || !empty($mat['is_interactive']));
+                            $matIcon = $isInteractive ? '📑' : ($matType === 'file' ? '📁' : ($matType === 'link' ? '🔗' : '▶'));
+                            $matBg   = $isInteractive ? '#0284c7' : ($matType === 'file' ? '#1e4072' : ($matType === 'link' ? '#6c757d' : '#a01422'));
+                            $rowId   = htmlspecialchars((string)$mat['id']);
                             ?>
-                            <tr id="matRow_<?php echo (int)$mat['id']; ?>">
+                            <tr id="matRow_<?php echo $rowId; ?>">
                                 <td class="text-center"><?php echo $matIcon; ?></td>
-                                <td class="fw-semibold"><?php echo htmlspecialchars($mat['title']); ?></td>
+                                <td class="fw-semibold">
+                                    <?php if ($isInteractive): ?>
+                                        <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/lesson/<?php echo (int)$mat['lesson_plan_id']; ?>/builder" class="text-decoration-none text-dark d-flex align-items-center gap-1">
+                                            <span><?php echo htmlspecialchars($mat['title']); ?></span>
+                                            <span class="badge bg-light text-primary border" style="font-size:0.65rem;">Open Studio</span>
+                                        </a>
+                                    <?php else: ?>
+                                        <a href="javascript:void(0)" class="text-decoration-none text-dark" onclick="viewMaterial(<?php echo htmlspecialchars(json_encode($mat), ENT_QUOTES); ?>)">
+                                            <?php echo htmlspecialchars($mat['title']); ?>
+                                        </a>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <span class="badge" style="background:<?php echo $matBg; ?>;font-size:0.7rem;">
                                         <?php echo ucfirst(htmlspecialchars($matType)); ?>
@@ -241,18 +407,31 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <td class="text-muted"><?php echo htmlspecialchars($mat['lesson_plan_title'] ?? '—'); ?></td>
                                 <td>
                                     <div class="d-flex gap-1 flex-wrap">
-                                        <button class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;"
-                                                onclick="viewMaterial(<?php echo htmlspecialchars(json_encode($mat), ENT_QUOTES); ?>)">
-                                            <i class="ti ti-eye me-1"></i>View
-                                        </button>
-                                        <button class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;font-size:0.75rem;"
-                                                onclick="openEditMaterial(<?php echo htmlspecialchars(json_encode($mat), ENT_QUOTES); ?>)">
-                                            <i class="ti ti-pencil me-1"></i>Edit
-                                        </button>
-                                        <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem;"
-                                                onclick="confirmDeleteMaterial(<?php echo (int)$mat['id']; ?>, '<?php echo htmlspecialchars(addslashes($mat['title'])); ?>')">
-                                            <i class="ti ti-trash me-1"></i>Delete
-                                        </button>
+                                        <?php if ($isInteractive): ?>
+                                            <a href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo (int)$mat['lesson_plan_id']; ?>" target="_blank" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem; border-radius:6px;">
+                                                <i class="ti ti-eye me-1"></i>View
+                                            </a>
+                                            <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/lesson/<?php echo (int)$mat['lesson_plan_id']; ?>/builder" class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;font-size:0.75rem; border-radius:6px;">
+                                                <i class="ti ti-pencil me-1"></i>Edit Slides
+                                            </a>
+                                            <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
+                                                    onclick="confirmDeleteMaterial('<?php echo $rowId; ?>', '<?php echo htmlspecialchars(addslashes($mat['title'])); ?>')">
+                                                <i class="ti ti-trash me-1"></i>Delete
+                                            </button>
+                                        <?php else: ?>
+                                            <button class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
+                                                    onclick="viewMaterial(<?php echo htmlspecialchars(json_encode($mat), ENT_QUOTES); ?>)">
+                                                <i class="ti ti-eye me-1"></i>View
+                                            </button>
+                                            <button class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
+                                                    onclick="openEditMaterial(<?php echo htmlspecialchars(json_encode($mat), ENT_QUOTES); ?>)">
+                                                <i class="ti ti-pencil me-1"></i>Edit
+                                            </button>
+                                            <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
+                                                    onclick="confirmDeleteMaterial('<?php echo $rowId; ?>', '<?php echo htmlspecialchars(addslashes($mat['title'])); ?>')">
+                                                <i class="ti ti-trash me-1"></i>Delete
+                                            </button>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
@@ -320,9 +499,14 @@ require_once __DIR__ . '/../layouts/header.php';
                             <i class="ti ti-pencil me-1"></i>
                             <span id="builderTypeLabel">Activity Builder</span>
                         </h6>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="closeActivityBuilder()">
-                            <i class="ti ti-x me-1"></i>Cancel
-                        </button>
+                        <div class="d-flex align-items-center gap-2">
+                            <a href="#" id="builderLearnerPreviewBtn" target="_blank" class="btn btn-sm d-none align-items-center gap-1" style="background:#6c5ce7;color:#fff;border:none;font-size:0.75rem;border-radius:6px;font-weight:600;text-decoration:none;">
+                                <i class="ti ti-device-gamepad"></i><span>Preview as Learner</span>
+                            </a>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="closeActivityBuilder()" style="border-radius:6px;font-size:0.75rem;">
+                                <i class="ti ti-x me-1"></i>Cancel
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Common fields -->
@@ -343,9 +527,12 @@ require_once __DIR__ . '/../layouts/header.php';
                             <input type="text" class="form-control form-control-sm" id="builderTitle" placeholder="Enter title" required>
                         </div>
                         <div class="col-12">
-                            <label class="form-label small fw-semibold">Instructions</label>
-                            <textarea class="form-control form-control-sm" id="builderInstructions" rows="2"
-                                      placeholder="Instructions for the learner..."></textarea>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small fw-semibold mb-0">Instructions / Mga Panuto</label>
+                                <span class="badge bg-light text-primary border" style="font-size:0.7rem;"><i class="ti ti-typography me-1"></i>WYSIWYG: Tables &amp; Images Supported</span>
+                            </div>
+                            <textarea class="form-control form-control-sm" id="builderInstructions" rows="3"
+                                      placeholder="Instructions for the learner (tables, formatted text, and images supported)..."></textarea>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-semibold">Due Date <span class="text-muted">(optional)</span></label>
@@ -432,15 +619,22 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <td><?php echo !empty($act['is_f2f']) ? '—' : (int)($act['max_score'] ?? 0); ?></td>
                                 <td>
                                     <div class="d-flex gap-1 flex-wrap">
-                                        <button class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;"
+                                        <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/learning/activity/<?php echo (int)$act['id']; ?>"
+                                           target="_blank"
+                                           class="btn btn-sm"
+                                           style="background:#6c5ce7;color:#fff;border:none;font-size:0.75rem; border-radius:6px; text-decoration:none; display:inline-flex; align-items:center;"
+                                           title="Open Learner's Interactive Preview">
+                                            <i class="ti ti-device-gamepad me-1"></i>Preview
+                                        </a>
+                                        <button class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
                                                 onclick="viewActivity(<?php echo htmlspecialchars(json_encode($act), ENT_QUOTES); ?>)">
                                             <i class="ti ti-eye me-1"></i>View
                                         </button>
-                                        <button class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;font-size:0.75rem;"
+                                        <button class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
                                                 onclick="openEditActivity(<?php echo htmlspecialchars(json_encode($act), ENT_QUOTES); ?>)">
                                             <i class="ti ti-pencil me-1"></i>Edit
                                         </button>
-                                        <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem;"
+                                        <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
                                                 onclick="confirmDeleteActivity(<?php echo (int)$act['id']; ?>, '<?php echo htmlspecialchars(addslashes($act['title'])); ?>')">
                                             <i class="ti ti-trash me-1"></i>Delete
                                         </button>
@@ -842,8 +1036,11 @@ require_once __DIR__ . '/../layouts/header.php';
             <div class="modal-body" id="viewActivityBody">
                 <!-- populated by JS -->
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <div class="modal-footer d-flex justify-content-between">
+                <a href="#" id="vActLearnerPreviewBtn" target="_blank" class="btn btn-sm" style="background:#6c5ce7;color:#fff;border:none;border-radius:6px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;">
+                    <i class="ti ti-device-gamepad me-1"></i>Open Learner's Interactive Preview
+                </a>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal" style="border-radius:6px;">Close</button>
             </div>
         </div>
     </div>
@@ -866,8 +1063,11 @@ require_once __DIR__ . '/../layouts/header.php';
                     <input type="text" class="form-control" id="editActTitle" required>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label fw-semibold small">Instructions</label>
-                    <textarea class="form-control" id="editActInstructions" rows="3" placeholder="Instructions for the learner..."></textarea>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label fw-semibold small mb-0">Instructions / Mga Panuto</label>
+                        <span class="badge bg-light text-primary border" style="font-size:0.7rem;"><i class="ti ti-typography me-1"></i>WYSIWYG: Tables &amp; Images Supported</span>
+                    </div>
+                    <textarea class="form-control" id="editActInstructions" rows="4" placeholder="Instructions for the learner..."></textarea>
                 </div>
                 <div class="row g-2">
                     <div class="col-md-6">
@@ -891,11 +1091,667 @@ require_once __DIR__ . '/../layouts/header.php';
     </div>
 </div>
 
+<!-- ============================================================
+     MODAL: Interactive Lesson Studio Choice (Connected to Lesson Plan)
+     ============================================================ -->
+<div class="modal fade" id="interactiveLessonChoiceModal" tabindex="-1" aria-labelledby="interactiveLessonChoiceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 540px;">
+        <div class="modal-content" style="border-radius: 12px; overflow: hidden; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+            <div class="modal-header py-3 px-4" style="background:#1e4072; color:#fff;">
+                <div>
+                    <h5 class="modal-title fw-bold mb-0" id="interactiveLessonChoiceModalLabel" style="font-size: 1.1rem;">
+                        <i class="ti ti-presentation me-2"></i>Interactive Lesson Slides Studio
+                    </h5>
+                    <small class="text-white-50" style="font-size: 0.78rem;">Select a Lesson Plan to create or edit interactive slides.</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            
+            <div class="modal-body p-4">
+                <!-- Step 1: Select Lesson Plan (Same as Upload File, Embed, Link) -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-dark mb-1">
+                        Lesson Plan <span class="text-danger">*</span>
+                    </label>
+                    <select class="form-select fw-semibold" id="interactiveChoiceLpSelect" onchange="onInteractiveLpSelectChanged(this)" style="border-radius: 6px;">
+                        <option value="">— Select Lesson Plan —</option>
+                        <?php foreach ($lessonPlans as $lp): 
+                            $lpId = (int)$lp['id'];
+                            $lpDomain = $lp['pdsp_domain'] ?? '';
+                            $domainLabel = $domainLabels[$lpDomain] ?? ucwords(str_replace('_', ' ', $lpDomain));
+                            $slideCount = 0;
+                            foreach ($materials as $m) {
+                                if (($m['material_type'] ?? '') === 'interactive' && (int)($m['lesson_plan_id'] ?? 0) === $lpId) {
+                                    $slideCount = (int)($m['slide_count'] ?? 0);
+                                }
+                            }
+                        ?>
+                            <option value="<?php echo $lpId; ?>" 
+                                    data-domain-key="<?php echo htmlspecialchars($lpDomain); ?>" 
+                                    data-domain-label="<?php echo htmlspecialchars($domainLabel); ?>" 
+                                    data-slides="<?php echo $slideCount; ?>">
+                                <?php echo htmlspecialchars($lp['title']); ?> (<?php echo htmlspecialchars($domainLabel); ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text small text-muted mt-1">
+                        <i class="ti ti-info-circle me-1"></i>Like File Upload, Interactive Lessons connect directly to a Lesson Plan linked to an IEP Step Objective.
+                    </div>
+                </div>
+
+                <!-- Info Box displayed dynamically when a Lesson Plan is selected -->
+                <div id="interactiveLpSelectedInfoBox" class="p-3 rounded-3 border bg-light mb-3" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small text-muted fw-semibold" style="font-size: 0.78rem;">Linked PDSP Domain:</span>
+                        <span class="badge bg-primary text-white rounded-pill px-2.5 py-1 fw-bold" id="interactiveLpDomainBadge" style="font-size: 0.75rem;">
+                            Daily Living Skills
+                        </span>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="small text-muted fw-semibold" style="font-size: 0.78rem;">Current Slides:</span>
+                        <span class="badge bg-white text-dark border rounded-pill px-2.5 py-1 fw-semibold" id="interactiveLpSlideBadge" style="font-size: 0.75rem;">
+                            3 Slides
+                        </span>
+                    </div>
+
+                    <div id="interactiveSlideActionPrompt" class="mb-3">
+                        <!-- Dynamic explanation -->
+                    </div>
+
+                    <div class="d-flex flex-column gap-2">
+                        <button type="button" class="btn btn-primary fw-bold py-2 rounded-2 w-100" id="btnOpenInteractiveStudio" onclick="openChosenInteractiveStudio()">
+                            <i class="ti ti-presentation me-1"></i> Open Studio
+                        </button>
+                        <button type="button" class="btn btn-outline-danger fw-semibold py-1.5 rounded-2 w-100" id="btnStartEmptyInteractiveSlides" onclick="startEmptyInteractiveSlides()" style="display: none; font-size: 0.8125rem;">
+                            <i class="ti ti-trash me-1"></i> Clear &amp; Start with Empty Slides (0 Slides)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Accordion / Toggle: Create a brand new Lesson Plan linked to an IEP Step Objective -->
+                <div class="border-top pt-3 mt-3">
+                    <button type="button" class="btn btn-link text-decoration-none p-0 small fw-bold text-primary d-flex align-items-center" onclick="toggleNewLessonPlanForm()">
+                        <i class="ti ti-plus-circle me-1.5" id="toggleNewLpIcon"></i>
+                        <span>Need to create a new Lesson Plan for an IEP Step Objective?</span>
+                    </button>
+
+                    <div id="newLessonPlanStepForm" class="mt-3 p-3 rounded-3 border bg-light" style="display: none;">
+                        <h6 class="fw-bold small text-dark mb-2">New Lesson Plan for IEP</h6>
+                        
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold text-dark mb-1">Lesson Plan Title <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="newStepLpTitle" placeholder="e.g. Lesson <?php echo count($lessonPlans) + 1; ?>: Proper Handwashing" style="border-radius: 6px;">
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold text-dark mb-1">IEP Step Objective &amp; PDSP Domain <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-sm" id="newStepLpDomain" style="border-radius: 6px;">
+                                <?php 
+                                foreach ($domainLabels as $key => $lbl): 
+                                ?>
+                                    <option value="<?php echo $key; ?>"><?php echo htmlspecialchars($lbl); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="form-text small" style="font-size: 0.72rem;">The PDSP domain aligns with the IEP step objective.</div>
+                        </div>
+
+                        <button type="button" class="btn btn-sm btn-success w-100 fw-bold py-1.5 rounded-2 mt-2" id="btnCreateStepLp" onclick="createStepLessonPlanAndOpenStudio()">
+                            <i class="ti ti-sparkles me-1"></i> Create Lesson Plan &amp; Open Studio
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     MODAL: Multi-Page Lesson Builder (Wide Accessible Layout)
+     ============================================================ -->
+<div class="modal fade" id="lessonPagesModal" tabindex="-1" aria-labelledby="lessonPagesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable" style="max-width: 95vw; width: 1480px; margin: 1.5rem auto;">
+        <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header d-flex justify-content-between align-items-center" style="background:#1e4072;color:#fff;">
+                <h5 class="modal-title d-flex align-items-center mb-0" id="lessonPagesModalLabel" style="font-size: 1.15rem; font-weight:700;">
+                    <i class="ti ti-layout-grid me-2"></i>Interactive Lesson Slides Builder &mdash; <span id="lpModalLessonTitle" class="ms-1 fw-bold">Lesson</span>
+                </h5>
+                <div class="d-flex align-items-center gap-2">
+                    <a href="#" id="btnPreviewLearnerView" target="_blank" class="btn btn-sm btn-outline-light d-flex align-items-center gap-1" style="font-size:0.8rem; border-radius:6px; font-weight:600;">
+                        <i class="ti ti-external-link"></i><span>View as Learner</span>
+                    </a>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body p-3 p-md-4">
+                <!-- Lesson Plan Selector Dropdown -->
+                <div class="card mb-3 border bg-light shadow-none" style="border-radius:8px;">
+                    <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="form-label fw-bold small mb-0 text-nowrap" style="color:#1e4072;">
+                                <i class="ti ti-book me-1"></i>Selected Lesson Plan:
+                            </label>
+                            <select class="form-select form-select-sm fw-semibold" id="lpModalLpSelect" style="min-width: 260px; border-radius:6px;" onchange="onLpModalSelectChange(this.value)">
+                                <?php if (empty($lessonPlans)): ?>
+                                    <option value="">— No lesson plans available —</option>
+                                <?php else: ?>
+                                    <?php foreach ($lessonPlans as $lp): ?>
+                                        <option value="<?php echo (int)$lp['id']; ?>"><?php echo htmlspecialchars($lp['title']); ?></option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+                        <span class="small text-muted"><i class="ti ti-info-circle me-1"></i>Create, edit, and organize multi-page interactive slides with tables, images, FSL videos and guide questions.</span>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <!-- Left: Page List & Outline -->
+                    <div class="col-lg-4">
+                        <div class="card border h-100 shadow-sm" style="border-radius:8px;">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                                <span class="fw-bold small text-dark"><i class="ti ti-list-numbers me-1 text-primary"></i>Lesson Slides Outline</span>
+                                <button type="button" class="btn btn-sm d-flex align-items-center gap-1" style="background:#1e4072;color:#fff;font-size:0.75rem;border-radius:6px;" onclick="resetLessonPageForm()">
+                                    <i class="ti ti-plus"></i><span>New Slide</span>
+                                </button>
+                            </div>
+                            <div class="card-body p-2" style="max-height: 600px; overflow-y: auto;">
+                                <div id="lessonPagesEmpty" class="text-center py-4 text-muted small">
+                                    <i class="ti ti-layout-grid-add" style="font-size: 2rem; color: #cbd5e1;"></i>
+                                    <p class="mt-2 mb-0">No slides created yet. Use the form on the right to build your first lesson slide.</p>
+                                </div>
+                                <div id="lessonPagesContainer" class="d-flex flex-column gap-2"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Slide Editor Form (Expanded 8 Columns) -->
+                    <div class="col-lg-8">
+                        <div class="card border shadow-sm" style="border-radius:8px;">
+                            <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+                                <span class="fw-bold small text-dark" id="lpPageFormTitle"><i class="ti ti-edit me-1 text-success"></i>Add New Lesson Slide</span>
+                                <span class="badge bg-secondary" id="lpPageNumBadge" style="font-size:0.7rem;">New</span>
+                            </div>
+                            <div class="card-body p-3">
+                                <form id="lessonPageForm" enctype="multipart/form-data" onsubmit="event.preventDefault(); submitLessonPage();">
+                                    <input type="hidden" id="lpPageId" value="">
+                                    <input type="hidden" id="lpPageLpId" value="">
+
+                                    <div class="mb-2">
+                                        <label class="form-label fw-semibold small mb-1">Slide / Page Title <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control form-control-sm" id="lpPageTitle" placeholder="e.g. Slide 1: Introduction to Daily Greetings in FSL" required style="border-radius:6px;">
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <label class="form-label fw-semibold small mb-0">Lesson Narrative, Tables &amp; Content <span class="text-danger">*</span></label>
+                                            <span class="badge bg-light text-primary border" style="font-size:0.7rem;"><i class="ti ti-table me-1"></i>WYSIWYG: Tables &amp; Images Supported</span>
+                                        </div>
+                                        <textarea class="form-control form-control-sm" id="lpPageContent" rows="6" placeholder="Write lesson slide narrative, story, instructions, tables, or add images..."></textarea>
+                                        <div class="form-text mt-1 d-flex justify-content-between align-items-center flex-wrap gap-1" style="font-size: 0.72rem;">
+                                            <span><i class="ti ti-info-circle me-1"></i>Insert tables or place images between paragraphs using the toolbar.</span>
+                                            <span class="text-muted">Tip: Use <code>[fsl:word]</code> to embed interactive sign demos.</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <label class="form-label fw-semibold small mb-1 text-primary">
+                                            <i class="ti ti-help me-1"></i>Guide Questions / Reflection Prompts <span class="text-muted fw-normal">(optional)</span>
+                                        </label>
+                                        <textarea class="form-control form-control-sm" id="lpPageGuideQuestions" rows="2" placeholder="e.g. 1. Can you practice signing 'HELLO'?&#10;2. How would you greet your teacher in the morning?" style="border-radius:6px;"></textarea>
+                                        <div class="form-text mt-0" style="font-size: 0.72rem;">Interactive check-in questions displayed in a highlighted callout on this slide.</div>
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <label class="form-label fw-semibold small mb-1"><i class="ti ti-video me-1"></i>Media Attachment / Sign Language Video</label>
+                                        <select class="form-select form-select-sm mb-2" id="lpPageMediaType" onchange="toggleLessonPageMediaInputs()" style="border-radius:6px;">
+                                            <option value="none">No media</option>
+                                            <option value="image">Image (Upload JPG, PNG, GIF, WebP)</option>
+                                            <option value="video">FSL Video (Upload MP4 or WebM)</option>
+                                            <option value="embed">Embed Video (YouTube or Google Drive URL)</option>
+                                        </select>
+
+                                        <!-- Media File Upload Input -->
+                                        <div id="lpPageFileUploadWrap" style="display:none;" class="mb-2">
+                                            <label class="form-label small text-muted mb-1">Select file to upload:</label>
+                                            <input type="file" class="form-control form-control-sm" id="lpPageMediaFile" accept="image/*,video/mp4,video/webm" style="border-radius:6px;">
+                                            <div id="lpCurrentMediaPreview" class="small mt-1 text-muted"></div>
+                                        </div>
+
+                                        <!-- Media URL / Embed Input -->
+                                        <div id="lpPageUrlWrap" style="display:none;" class="mb-2">
+                                            <label class="form-label small text-muted mb-1">Paste video or embed URL:</label>
+                                            <input type="url" class="form-control form-control-sm" id="lpPageMediaPath" placeholder="https://www.youtube.com/watch?v=... or Google Drive URL" style="border-radius:6px;">
+                                        </div>
+                                    </div>
+
+                                    <div id="lpPageFormError" class="alert alert-danger py-1 px-2 small mb-2" style="display:none; border-radius:6px;"></div>
+
+                                    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" onclick="resetLessonPageForm()" style="border-radius:6px; font-size:0.8rem;">
+                                            <i class="ti ti-rotate-clockwise"></i><span>Reset</span>
+                                        </button>
+                                        <button type="submit" class="btn btn-sm d-flex align-items-center gap-1" id="btnSaveLessonPage" style="background:#1e4072;color:#fff;border:none;border-radius:6px; font-size:0.8rem; font-weight:600; padding: 0.35rem 1rem;">
+                                            <i class="ti ti-device-floppy"></i><span>Save Slide</span>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal" style="border-radius:6px;">Close Builder</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+const BASE   = '<?php echo addslashes($basePath); ?>';
+const IEP_ID = <?php echo (int)$iep['id']; ?>;
+
 // ================================================================
-// VIEW / EDIT MATERIALS
+// LESSON PAGES / SLIDES BUILDER (WITH SUMMERNOTE RICH TEXT & TABLES)
 // ================================================================
-// NOTE: BASE is declared in the main JS block below — used here directly
+let currentLpPages = [];
+let activeEditPageId = null;
+
+function initSummernoteEditor() {
+    if (typeof $ !== 'undefined' && $.fn.summernote) {
+        if (!$('#lpPageContent').hasClass('summernote-initialized')) {
+            $('#lpPageContent').summernote({
+                placeholder: 'Write lesson slide narrative, story, instructions, tables, or add images...',
+                tabsize: 2,
+                height: 280,
+                toolbar: [
+                    ['style', ['style', 'bold', 'italic', 'underline', 'clear']],
+                    ['font', ['color']],
+                    ['para', ['ul', 'ol', 'paragraph']],
+                    ['table', ['table']],
+                    ['insert', ['link', 'picture', 'video']],
+                    ['view', ['fullscreen', 'codeview', 'help']]
+                ],
+                callbacks: {
+                    onImageUpload: function(files) {
+                        if (!files || !files.length) return;
+                        for (let i = 0; i < files.length; i++) {
+                            uploadEditorImage(files[i], $(this));
+                        }
+                    }
+                }
+            });
+            $('#lpPageContent').addClass('summernote-initialized');
+        }
+    }
+}
+
+function uploadEditorImage(file, $editor) {
+    const fd = new FormData();
+    fd.append('image', file);
+
+    fetch(BASE + '/iep/implementation/upload-slide-image', {
+        method: 'POST',
+        body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.url) {
+            $editor.summernote('insertImage', data.url);
+        } else {
+            // Fallback to base64
+            const reader = new FileReader();
+            reader.onloadend = function() {
+                $editor.summernote('insertImage', reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    })
+    .catch(err => {
+        console.error('Image upload failed, fallback to base64:', err);
+        const reader = new FileReader();
+        reader.onloadend = function() {
+            $editor.summernote('insertImage', reader.result);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function openLessonPagesModal(lpId, lpTitle) {
+    if (!lpId) {
+        openInteractiveLessonChoiceModal();
+        return;
+    }
+    // Navigate directly to the dedicated full-page Lesson Slides Studio!
+    window.location.href = BASE + '/iep/implementation/lesson/' + lpId + '/builder';
+}
+
+
+function onLpModalSelectChange(newLpId) {
+    const selectEl = document.getElementById('lpModalLpSelect');
+    const lpTitle = (selectEl && selectEl.selectedIndex >= 0) ? selectEl.options[selectEl.selectedIndex].text : 'Lesson';
+    document.getElementById('lpModalLessonTitle').textContent = lpTitle;
+    document.getElementById('lpPageLpId').value = newLpId;
+    
+    const previewBtn = document.getElementById('btnPreviewLearnerView');
+    if (previewBtn) {
+        previewBtn.href = BASE + '/learning/lesson/' + newLpId;
+    }
+
+    resetLessonPageForm();
+    loadLessonPages(newLpId);
+}
+
+function toggleLessonPageMediaInputs() {
+    const type = document.getElementById('lpPageMediaType').value;
+    const fileWrap = document.getElementById('lpPageFileUploadWrap');
+    const urlWrap = document.getElementById('lpPageUrlWrap');
+
+    if (type === 'image' || type === 'video') {
+        fileWrap.style.display = 'block';
+        urlWrap.style.display = 'none';
+    } else if (type === 'embed') {
+        fileWrap.style.display = 'none';
+        urlWrap.style.display = 'block';
+    } else {
+        fileWrap.style.display = 'none';
+        urlWrap.style.display = 'none';
+    }
+}
+
+function resetLessonPageForm() {
+    activeEditPageId = null;
+    document.getElementById('lpPageId').value = '';
+    document.getElementById('lpPageTitle').value = '';
+    
+    initSummernoteEditor();
+    if (typeof $ !== 'undefined' && $('#lpPageContent').hasClass('summernote-initialized')) {
+        $('#lpPageContent').summernote('code', '');
+    } else {
+        document.getElementById('lpPageContent').value = '';
+    }
+
+    document.getElementById('lpPageGuideQuestions').value = '';
+    document.getElementById('lpPageMediaType').value = 'none';
+    document.getElementById('lpPageMediaPath').value = '';
+    document.getElementById('lpPageMediaFile').value = '';
+    document.getElementById('lpCurrentMediaPreview').innerHTML = '';
+    document.getElementById('lpPageFormError').style.display = 'none';
+    document.getElementById('lpPageFormTitle').innerHTML = '<i class="ti ti-plus me-1 text-primary"></i>Add New Lesson Slide';
+    document.getElementById('lpPageNumBadge').textContent = 'New';
+    document.getElementById('lpPageNumBadge').className = 'badge bg-secondary';
+    document.getElementById('btnSaveLessonPage').innerHTML = '<i class="ti ti-device-floppy me-1"></i>Save Slide';
+    toggleLessonPageMediaInputs();
+    highlightActiveSlideCard(null);
+}
+
+function highlightActiveSlideCard(pageId) {
+    document.querySelectorAll('.lp-slide-item').forEach(el => {
+        el.classList.remove('border-primary', 'bg-light', 'shadow-sm');
+    });
+    if (pageId) {
+        const item = document.getElementById('lpPageItem_' + pageId);
+        if (item) {
+            item.classList.add('border-primary', 'bg-light', 'shadow-sm');
+        }
+    }
+}
+
+async function loadLessonPages(lpId) {
+    const container = document.getElementById('lessonPagesContainer');
+    const empty = document.getElementById('lessonPagesEmpty');
+    container.innerHTML = '<div class="text-center py-3 text-muted small"><i class="spinner-border spinner-border-sm me-1"></i>Loading slides...</div>';
+
+    try {
+        const res = await fetch(BASE + '/iep/implementation/lesson-plan/' + lpId + '/pages');
+        const data = await res.json();
+        if (data.success) {
+            currentLpPages = data.pages || [];
+            renderLessonPagesList(currentLpPages);
+        } else {
+            container.innerHTML = '<div class="alert alert-danger p-2 small">' + escHtml(data.message || 'Could not load pages.') + '</div>';
+        }
+    } catch (e) {
+        container.innerHTML = '<div class="alert alert-danger p-2 small">Error loading slides.</div>';
+    }
+}
+
+function renderLessonPagesList(pages) {
+    const container = document.getElementById('lessonPagesContainer');
+    const empty = document.getElementById('lessonPagesEmpty');
+
+    if (!pages || pages.length === 0) {
+        container.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+
+    empty.style.display = 'none';
+    container.innerHTML = '';
+
+    pages.forEach((p, idx) => {
+        const item = document.createElement('div');
+        item.className = 'card bg-white p-2 border rounded lp-slide-item';
+        item.style.cursor = 'pointer';
+        item.style.transition = 'all 0.15s ease';
+        item.id = 'lpPageItem_' + p.id;
+
+        let mediaBadge = '';
+        if (p.media_type === 'image') {
+            mediaBadge = '<span class="badge bg-info text-dark" style="font-size:0.65rem;"><i class="ti ti-photo me-1"></i>Image</span>';
+        } else if (p.media_type === 'video') {
+            mediaBadge = '<span class="badge bg-primary" style="font-size:0.65rem;"><i class="ti ti-video me-1"></i>Video</span>';
+        } else if (p.media_type === 'embed') {
+            mediaBadge = '<span class="badge bg-danger" style="font-size:0.65rem;"><i class="ti ti-brand-youtube me-1"></i>Embed</span>';
+        }
+
+        // Clean text preview (strip HTML tags for outline snippet)
+        const textSnippet = (p.content || '').replace(/<[^>]*>?/gm, '');
+
+        item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <div class="flex-grow-1 min-width-0" onclick="editLessonPageById(${p.id})">
+                    <div class="d-flex align-items-center gap-1 mb-1">
+                        <span class="badge" style="background:#1e4072;font-size:0.7rem;">Slide ${idx + 1}</span>
+                        ${mediaBadge}
+                        ${p.guide_questions ? '<span class="badge bg-warning text-dark" style="font-size:0.65rem;"><i class="ti ti-help me-1"></i>Questions</span>' : ''}
+                    </div>
+                    <h6 class="fw-bold mb-1 text-dark text-truncate" style="font-size:0.85rem;" title="${escHtml(p.title)}">
+                        ${escHtml(p.title)}
+                    </h6>
+                    <p class="text-muted small mb-0 text-truncate" style="font-size:0.75rem;">
+                        ${escHtml(textSnippet.substring(0, 80))}...
+                    </p>
+                </div>
+                <div class="d-flex flex-column gap-1 flex-shrink-0">
+                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:0.75rem; border-radius:4px;" onclick="editLessonPageById(${p.id})" title="Edit Slide">
+                        <i class="ti ti-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:0.75rem; border-radius:4px;" onclick="event.stopPropagation(); deleteLessonPage(${p.id}, ${p.lesson_plan_id})" title="Delete Slide">
+                        <i class="ti ti-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        container.appendChild(item);
+    });
+
+    if (activeEditPageId) {
+        highlightActiveSlideCard(activeEditPageId);
+    }
+}
+
+function editLessonPageById(pageId) {
+    const p = currentLpPages.find(item => Number(item.id) === Number(pageId));
+    if (!p) return;
+    editLessonPage(p);
+}
+
+function editLessonPage(p) {
+    activeEditPageId = p.id;
+    document.getElementById('lpPageId').value = p.id;
+    document.getElementById('lpPageLpId').value = p.lesson_plan_id;
+    document.getElementById('lpPageTitle').value = p.title || '';
+    
+    initSummernoteEditor();
+    if (typeof $ !== 'undefined' && $('#lpPageContent').hasClass('summernote-initialized')) {
+        $('#lpPageContent').summernote('code', p.content || '');
+    } else {
+        document.getElementById('lpPageContent').value = p.content || '';
+    }
+
+    document.getElementById('lpPageGuideQuestions').value = p.guide_questions || '';
+    document.getElementById('lpPageMediaType').value = p.media_type || 'none';
+    document.getElementById('lpPageMediaPath').value = (p.media_type === 'embed' ? p.media_path : '') || '';
+    document.getElementById('lpPageMediaFile').value = '';
+    document.getElementById('lpPageFormError').style.display = 'none';
+    
+    document.getElementById('lpPageFormTitle').innerHTML = '<i class="ti ti-pencil me-1 text-warning"></i>Edit Lesson Slide #' + p.page_number;
+    document.getElementById('lpPageNumBadge').textContent = 'Slide #' + p.page_number;
+    document.getElementById('lpPageNumBadge').className = 'badge bg-warning text-dark';
+    document.getElementById('btnSaveLessonPage').innerHTML = '<i class="ti ti-device-floppy me-1"></i>Update Slide';
+
+    const prevEl = document.getElementById('lpCurrentMediaPreview');
+    if (p.media_path && (p.media_type === 'image' || p.media_type === 'video')) {
+        prevEl.innerHTML = `<span class="text-success"><i class="ti ti-check me-1"></i>Current media: <code>${escHtml(p.media_path)}</code></span> (Upload new file to replace)`;
+    } else {
+        prevEl.innerHTML = '';
+    }
+
+    toggleLessonPageMediaInputs();
+    highlightActiveSlideCard(p.id);
+}
+
+async function submitLessonPage() {
+    const pageId = document.getElementById('lpPageId').value;
+    const lpId = document.getElementById('lpPageLpId').value;
+    const title = document.getElementById('lpPageTitle').value.trim();
+    
+    let content = '';
+    if (typeof $ !== 'undefined' && $('#lpPageContent').hasClass('summernote-initialized')) {
+        content = $('#lpPageContent').summernote('code');
+    } else {
+        content = document.getElementById('lpPageContent').value.trim();
+    }
+
+    const guideQuestions = document.getElementById('lpPageGuideQuestions').value.trim();
+    const mediaType = document.getElementById('lpPageMediaType').value;
+    const mediaPath = document.getElementById('lpPageMediaPath').value.trim();
+    const mediaFile = document.getElementById('lpPageMediaFile').files[0];
+    const errEl = document.getElementById('lpPageFormError');
+
+    errEl.style.display = 'none';
+
+    if (!title) {
+        errEl.textContent = 'Please enter a slide title.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('content', content);
+    formData.append('guide_questions', guideQuestions);
+    formData.append('media_type', mediaType);
+    formData.append('media_path', mediaPath);
+    if (mediaFile) {
+        formData.append('media_file', mediaFile);
+    }
+
+    const btn = document.getElementById('btnSaveLessonPage');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="spinner-border spinner-border-sm me-1"></i>Saving...';
+
+    const endpoint = pageId 
+        ? (BASE + '/iep/implementation/lesson-plan/page/' + pageId + '/update')
+        : (BASE + '/iep/implementation/lesson-plan/' + lpId + '/page/add');
+
+    try {
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.innerHTML = pageId ? '<i class="ti ti-device-floppy me-1"></i>Update Slide' : '<i class="ti ti-device-floppy me-1"></i>Save Slide';
+
+        if (data.success) {
+            hasModifiedLessonPages = true;
+            Swal.fire({
+                icon: 'success',
+                title: 'Saved!',
+                text: data.message,
+                timer: 1500,
+                showConfirmButton: false
+            });
+            resetLessonPageForm();
+            loadLessonPages(lpId);
+        } else {
+            errEl.textContent = data.message || 'Failed to save slide.';
+            errEl.style.display = 'block';
+        }
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-device-floppy me-1"></i>Save Slide';
+        errEl.textContent = 'Network or server error.';
+        errEl.style.display = 'block';
+    }
+}
+
+async function deleteLessonPage(pageId, lpId) {
+    const result = await Swal.fire({
+        title: 'Delete this slide?',
+        text: 'This slide will be permanently removed from this lesson plan.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#a01422',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, delete it'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+        const res = await fetch(BASE + '/iep/implementation/lesson-plan/page/' + pageId + '/delete', {
+            method: 'POST'
+        });
+        const data = await res.json();
+        if (data.success) {
+            hasModifiedLessonPages = true;
+            Swal.fire({
+                icon: 'success',
+                title: 'Deleted',
+                text: data.message,
+                timer: 1500,
+                showConfirmButton: false
+            });
+            loadLessonPages(lpId);
+            resetLessonPageForm();
+        } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message, confirmButtonColor: '#a01422' });
+        }
+    } catch (e) {
+        Swal.fire({ icon: 'error', title: 'Error', text: 'Network or server error.', confirmButtonColor: '#a01422' });
+    }
+}
+
+let hasModifiedLessonPages = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const lpModal = document.getElementById('lessonPagesModal');
+    if (lpModal) {
+        lpModal.addEventListener('hidden.bs.modal', function () {
+            if (hasModifiedLessonPages) {
+                window.location.reload();
+            }
+        });
+    }
+});
+
+// ================================================================
+// VIEW / EDIT MATERIALS & ACTIVITIES
+// ================================================================
 
 function viewMaterial(mat) {
     document.getElementById('vMatTitle').textContent = mat.title;
@@ -1026,14 +1882,23 @@ function viewActivity(act) {
     switch (act.activity_type) {
         case 'multiple_choice':
             (data.questions || []).forEach((q, qi) => {
-                html += `<div class="mb-3"><strong>Q${qi+1}:</strong> ${q.text}<ul class="mt-1">`;
+                html += `<div class="mb-3">`;
+                if (q.image) {
+                    html += `<div class="mb-2"><img src="${q.image}" class="img-fluid rounded border shadow-sm" style="max-height:160px;"></div>`;
+                }
+                html += `<strong>Q${qi+1}:</strong> ${q.text || ''}<ul class="mt-1">`;
                 (q.options || []).forEach(o => {
-                    html += `<li style="color:${o.is_correct ? '#3b6d11' : 'inherit'}">${o.is_correct ? '✓ ' : ''}${o.text}</li>`;
+                    const optText = o.text || '';
+                    const optImg = o.image ? `<img src="${o.image}" class="rounded border ms-1" style="height:28px;vertical-align:middle;">` : '';
+                    html += `<li style="color:${o.is_correct ? '#3b6d11' : 'inherit'}">${o.is_correct ? '✓ ' : ''}${optText} ${optImg}</li>`;
                 });
                 html += '</ul></div>';
             });
             break;
         case 'true_false':
+            if (data.image) {
+                html += `<div class="mb-2"><img src="${data.image}" class="img-fluid rounded border shadow-sm" style="max-height:160px;"></div>`;
+            }
             html += `<p><strong>Statement:</strong> ${data.statement || ''}</p>`;
             html += `<p><strong>Answer:</strong> <span class="badge bg-success">${(data.correct_answer || '').toUpperCase()}</span></p>`;
             break;
@@ -1045,9 +1910,13 @@ function viewActivity(act) {
         case 'matching':
             (data.sets || [{title: 'Matching Set 1', pairs: data.pairs || []}]).forEach((set, si) => {
                 html += `<div class="fw-semibold small mb-1">${set.title || 'Matching Set ' + (si + 1)}</div>`;
-                html += '<table class="table table-sm table-bordered"><thead><tr><th>Left</th><th>Right</th></tr></thead><tbody>';
-                (set.pairs || []).forEach(p => { html += `<tr><td>${p.left}</td><td>${p.right}</td></tr>`; });
-                html += '</tbody></table>';
+                html += '<div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Left</th><th>Right</th></tr></thead><tbody>';
+                (set.pairs || []).forEach(p => { 
+                    const leftImg = p.left_image ? `<img src="${p.left_image}" class="rounded border ms-1" style="height:26px;">` : '';
+                    const rightImg = p.right_image ? `<img src="${p.right_image}" class="rounded border ms-1" style="height:26px;">` : '';
+                    html += `<tr><td>${p.left || ''} ${leftImg}</td><td>${p.right || ''} ${rightImg}</td></tr>`; 
+                });
+                html += '</tbody></table></div>';
             });
             break;
         case 'drag_drop_sort': case 'sequencing': {
@@ -1055,13 +1924,19 @@ function viewActivity(act) {
             sequenceSets.forEach((set, si) => {
                 const list = set.items || set.steps || [];
                 html += `<div class="fw-semibold small mb-1">${set.title || 'Question ' + (si + 1)}</div>`;
-                list.forEach((item, i) => { html += `<div class="mb-1"><span class="badge bg-secondary me-2">${i+1}</span>${item.text || item}</div>`; });
+                list.forEach((item, i) => { 
+                    const itemText = item.text || item;
+                    const itemImg = item.image ? `<img src="${item.image}" class="rounded border ms-1" style="height:24px;">` : '';
+                    html += `<div class="mb-1"><span class="badge bg-secondary me-2">${i+1}</span>${itemText} ${itemImg}</div>`; 
+                });
             });
             break;
         }
         case 'flashcards':
             (data.cards || []).forEach(c => {
-                html += `<div class="mb-2 p-2 border rounded"><strong>Front:</strong> ${c.front} &nbsp;→&nbsp; <strong>Back:</strong> ${c.back}</div>`;
+                const fImg = c.front_image ? `<img src="${c.front_image}" class="rounded border ms-1" style="height:32px;">` : '';
+                const bImg = c.back_image ? `<img src="${c.back_image}" class="rounded border ms-1" style="height:32px;">` : '';
+                html += `<div class="mb-2 p-2 border rounded"><strong>Front:</strong> ${c.front || ''} ${fImg} &nbsp;→&nbsp; <strong>Back:</strong> ${c.back || ''} ${bImg}</div>`;
             });
             break;
         case 'image_label':
@@ -1073,48 +1948,22 @@ function viewActivity(act) {
     }
 
     body.innerHTML = html;
+
+    const previewBtn = document.getElementById('vActLearnerPreviewBtn');
+    if (previewBtn) {
+        if (act.id && !act.is_f2f) {
+            previewBtn.href = BASE + '/learning/activity/' + act.id;
+            previewBtn.style.display = 'inline-flex';
+        } else {
+            previewBtn.style.display = 'none';
+        }
+    }
+
     new bootstrap.Modal(document.getElementById('viewActivityModal')).show();
 }
 
-function openEditActivity(act) {
-    document.getElementById('editActId').value           = act.id;
-    document.getElementById('editActTitle').value        = act.title;
-    document.getElementById('editActInstructions').value = act.instructions || '';
-    document.getElementById('editActMaxScore').value     = act.max_score || 0;
-    document.getElementById('editActDueDate').value      = act.due_date ? act.due_date.substring(0,10) : '';
-    document.getElementById('editActError').style.display = 'none';
-    new bootstrap.Modal(document.getElementById('editActivityModal')).show();
-}
-
-function submitEditActivity() {
-    const id           = document.getElementById('editActId').value;
-    const title        = document.getElementById('editActTitle').value.trim();
-    const instructions = document.getElementById('editActInstructions').value.trim();
-    const maxScore     = parseInt(document.getElementById('editActMaxScore').value) || 0;
-    const dueDate      = document.getElementById('editActDueDate').value || null;
-    const errEl        = document.getElementById('editActError');
-    errEl.style.display = 'none';
-    if (!title) { errEl.textContent = 'Title is required.'; errEl.style.display = 'block'; return; }
-
-    fetch(`${BASE}/iep/implementation/activity/${id}/edit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, instructions, max_score: maxScore, due_date: dueDate })
-    })
-    .then(r => r.json())
-    .then(resp => {
-        if (!resp.success) { errEl.textContent = resp.message || 'Save failed.'; errEl.style.display = 'block'; return; }
-        bootstrap.Modal.getInstance(document.getElementById('editActivityModal')).hide();
-        const act = resp.activity;
-        const row = document.getElementById('actRow_' + act.id);
-        if (row) {
-            const tds = row.querySelectorAll('td');
-            tds[0].textContent = act.title;
-            tds[3].textContent = act.due_date || '—';
-            tds[4].textContent = act.max_score || 0;
-        }
-    })
-    .catch(err => { errEl.textContent = 'Network error: ' + err.message; errEl.style.display = 'block'; });
+function initEditActSummernote() {
+    // legacy helper stub
 }
 </script>
 
@@ -1236,12 +2085,26 @@ function submitEditActivity() {
 <script>
 'use strict';
 
-const BASE   = '<?php echo addslashes($basePath); ?>';
-const IEP_ID = <?php echo (int)$iep['id']; ?>;
-
 /* ----------------------------------------------------------------
    Helpers
    ---------------------------------------------------------------- */
+function escHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+function escAttr(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '&quot;');
+}
+
 function showToast(icon, title, text) {
     Swal.fire({
         toast: true,
@@ -1404,9 +2267,189 @@ function confirmDeleteLessonPlan(lpId, lpTitle) {
    Materials — open modal by type
    ---------------------------------------------------------------- */
 function openMaterialModal(type) {
+    if (type === 'interactive') {
+        openInteractiveLessonChoiceModal();
+        return;
+    }
     const modalIds = { file: 'matFileModal', link: 'matLinkModal', embed: 'matEmbedModal' };
     const id = modalIds[type];
-    if (id) new bootstrap.Modal(document.getElementById(id)).show();
+    if (id) {
+        let el = document.getElementById(id);
+        if (el) {
+            let modal = bootstrap.Modal.getOrCreateInstance(el);
+            modal.show();
+        }
+    }
+}
+
+function openInteractiveLessonChoiceModal() {
+    const el = document.getElementById('interactiveLessonChoiceModal');
+    if (el) {
+        const select = document.getElementById('interactiveChoiceLpSelect');
+        if (select) {
+            select.value = '';
+            onInteractiveLpSelectChanged(select);
+        }
+        const modal = bootstrap.Modal.getOrCreateInstance(el);
+        modal.show();
+    }
+}
+
+function onInteractiveLpSelectChanged(select) {
+    const infoBox = document.getElementById('interactiveLpSelectedInfoBox');
+    if (!select || !select.value) {
+        if (infoBox) infoBox.style.display = 'none';
+        return;
+    }
+
+    const opt = select.options[select.selectedIndex];
+    const domainLabel = opt.getAttribute('data-domain-label') || 'General';
+    const slideCount = parseInt(opt.getAttribute('data-slides') || '0', 10);
+
+    const domainBadge = document.getElementById('interactiveLpDomainBadge');
+    const slideBadge = document.getElementById('interactiveLpSlideBadge');
+    const promptEl = document.getElementById('interactiveSlideActionPrompt');
+    const clearBtn = document.getElementById('btnStartEmptyInteractiveSlides');
+    const openBtn = document.getElementById('btnOpenInteractiveStudio');
+
+    if (domainBadge) domainBadge.textContent = domainLabel;
+    if (slideBadge) slideBadge.textContent = slideCount > 0 ? (slideCount + ' Slides') : '0 Slides (None yet)';
+
+    if (promptEl) {
+        if (slideCount > 0) {
+            promptEl.innerHTML = `<div class="alert alert-info py-2 px-3 small mb-0"><i class="ti ti-info-circle me-1"></i> This lesson plan currently has <strong>${slideCount} slides</strong>. You can continue editing or clear them to start fresh.</div>`;
+            if (clearBtn) {
+                clearBtn.style.display = 'block';
+                clearBtn.innerHTML = `<i class="ti ti-trash me-1"></i> Clear &amp; Start with Empty Slides (0 Slides)`;
+            }
+            if (openBtn) {
+                openBtn.innerHTML = `<i class="ti ti-presentation me-1"></i> Open Studio (Edit ${slideCount} Slides)`;
+            }
+        } else {
+            promptEl.innerHTML = `<div class="alert alert-warning py-2 px-3 small mb-0"><i class="ti ti-sparkles me-1"></i> <strong>No interactive slides yet</strong> for this lesson plan. Opening the studio will start with an empty slide deck.</div>`;
+            if (clearBtn) clearBtn.style.display = 'none';
+            if (openBtn) {
+                openBtn.innerHTML = `<i class="ti ti-sparkles me-1"></i> Open Studio (Start with Empty Slides)`;
+            }
+        }
+    }
+
+    if (infoBox) infoBox.style.display = 'block';
+}
+
+function openChosenInteractiveStudio() {
+    const select = document.getElementById('interactiveChoiceLpSelect');
+    if (!select || !select.value) {
+        alert('Please select a Lesson Plan first.');
+        return;
+    }
+    window.location.href = BASE + '/iep/implementation/lesson/' + select.value + '/builder';
+}
+
+function startEmptyInteractiveSlides() {
+    const select = document.getElementById('interactiveChoiceLpSelect');
+    if (!select || !select.value) {
+        alert('Please select a Lesson Plan first.');
+        return;
+    }
+    const lpId = select.value;
+    const opt = select.options[select.selectedIndex];
+    const lpTitle = opt ? opt.textContent.trim() : 'Lesson Plan';
+
+    Swal.fire({
+        title: 'Clear Existing Slides?',
+        text: `Are you sure you want to delete the current slides of "${lpTitle}" and start with 0 / empty slides?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#a01422',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, Start with Empty Slides',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`${BASE}/iep/implementation/lesson-plan/${lpId}/pages/clear`, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = `${BASE}/iep/implementation/lesson/${lpId}/builder`;
+                } else {
+                    alert('Could not clear slides: ' + (data.message || 'Error occurred'));
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                window.location.href = `${BASE}/iep/implementation/lesson/${lpId}/builder`;
+            });
+        }
+    });
+}
+
+function toggleNewLessonPlanForm() {
+    const form = document.getElementById('newLessonPlanStepForm');
+    const icon = document.getElementById('toggleNewLpIcon');
+    if (!form) return;
+    const isHidden = form.style.display === 'none';
+    form.style.display = isHidden ? 'block' : 'none';
+    if (icon) {
+        icon.className = isHidden ? 'ti ti-minus-circle me-1.5' : 'ti ti-plus-circle me-1.5';
+    }
+}
+
+function createStepLessonPlanAndOpenStudio() {
+    const titleInput = document.getElementById('newStepLpTitle');
+    const domainInput = document.getElementById('newStepLpDomain');
+    const title = titleInput ? titleInput.value.trim() : '';
+    const domain = domainInput ? domainInput.value.trim() : 'daily_living_skills';
+
+    if (!title) {
+        alert('Please enter a title for the new lesson plan.');
+        if (titleInput) titleInput.focus();
+        return;
+    }
+
+    const btn = document.getElementById('btnCreateStepLp');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creating Lesson Plan...';
+    }
+
+    fetch(BASE + '/iep/implementation/lesson-plan/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+            title: title,
+            pdsp_domain: domain,
+            assignment_type: 'individual',
+            iep_id: <?php echo (int)$iepId; ?>,
+            student_id: <?php echo (int)($iep['student_id'] ?? 0); ?>
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.lesson_plan_id) {
+            window.location.href = BASE + '/iep/implementation/lesson/' + data.lesson_plan_id + '/builder';
+        } else {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ti ti-sparkles me-1"></i> Create Lesson Plan &amp; Open Studio';
+            }
+            alert('Failed to create lesson plan: ' + (data.message || 'Error occurred'));
+        }
+    })
+    .catch(err => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ti ti-sparkles me-1"></i> Create Lesson Plan &amp; Open Studio';
+        }
+        console.error('Create lesson plan error:', err);
+        alert('A network error occurred.');
+    });
 }
 
 /* ----------------------------------------------------------------
@@ -1454,16 +2497,27 @@ function appendMaterialRow(mat) {
 
     const tr = document.createElement('tr');
     tr.id = 'matRow_' + mat.id;
+    const matJson = JSON.stringify(mat).replace(/"/g, '&quot;');
     tr.innerHTML = `
         <td class="text-center">${icon}</td>
-        <td>${escHtml(mat.title)}</td>
+        <td><a href="javascript:void(0)" class="fw-semibold text-decoration-none text-dark" onclick='viewMaterial(${matJson})'>${escHtml(mat.title)}</a></td>
         <td><span class="badge" style="background:${bg};font-size:0.7rem;">${typeLabel}</span></td>
         <td class="text-muted">${escHtml(lpTitle)}</td>
         <td>
-            <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem;"
-                    onclick="confirmDeleteMaterial(${mat.id}, '${escAttr(mat.title)}')">
-                <i class="ti ti-trash me-1"></i>Delete
-            </button>
+            <div class="d-flex gap-1 flex-wrap">
+                <button class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;"
+                        onclick='viewMaterial(${matJson})'>
+                    <i class="ti ti-eye me-1"></i>View
+                </button>
+                <button class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;font-size:0.75rem;"
+                        onclick='openEditMaterial(${matJson})'>
+                    <i class="ti ti-pencil me-1"></i>Edit
+                </button>
+                <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem;"
+                        onclick="confirmDeleteMaterial(${mat.id}, '${escAttr(mat.title)}')">
+                    <i class="ti ti-trash me-1"></i>Delete
+                </button>
+            </div>
         </td>`;
     tbody.appendChild(tr);
 
@@ -1659,6 +2713,7 @@ function confirmDeleteMaterial(matId, matTitle) {
    Activity type selection
    ---------------------------------------------------------------- */
 let selectedActivityType = null;
+let editingActivityId = null;
 
 const activityTypeLabels = {
     multiple_choice: 'Multiple Choice',
@@ -1671,8 +2726,48 @@ const activityTypeLabels = {
     sequencing:      'Sequencing',
 };
 
+function initActivitySummernote() {
+    if (typeof $ !== 'undefined' && $.fn.summernote) {
+        if (!$('#builderInstructions').hasClass('summernote-initialized')) {
+            $('#builderInstructions').summernote({
+                placeholder: 'Instructions for the learner (tables, formatted text, and images supported)...',
+                tabsize: 2,
+                height: 160,
+                toolbar: [
+                    ['style', ['style', 'bold', 'italic', 'underline', 'clear']],
+                    ['font', ['color']],
+                    ['para', ['ul', 'ol', 'paragraph']],
+                    ['table', ['table']],
+                    ['insert', ['link', 'picture']],
+                    ['view', ['fullscreen', 'codeview']]
+                ],
+                callbacks: {
+                    onImageUpload: function(files) {
+                        if (!files || !files.length) return;
+                        for (let i = 0; i < files.length; i++) {
+                            uploadEditorImage(files[i], $(this));
+                        }
+                    }
+                }
+            });
+            $('#builderInstructions').addClass('summernote-initialized');
+        }
+    }
+}
+
 function selectActivityType(type) {
+    editingActivityId = null;
     selectedActivityType = type;
+
+    // Reset save button label & builder header & preview button
+    const saveBtn = document.querySelector('#activityBuilder button[onclick="saveActivity()"]');
+    if (saveBtn) saveBtn.innerHTML = '<i class="ti ti-device-floppy me-1"></i>Save Activity';
+
+    const builderPreviewBtn = document.getElementById('builderLearnerPreviewBtn');
+    if (builderPreviewBtn) {
+        builderPreviewBtn.classList.remove('d-flex');
+        builderPreviewBtn.classList.add('d-none');
+    }
 
     // Update card selection styles
     document.querySelectorAll('.activity-type-card').forEach(c => c.classList.remove('selected'));
@@ -1702,6 +2797,9 @@ function selectActivityType(type) {
     if (type === 'drag_drop_sort') addSortingQuestion();
     if (type === 'flashcards') addFlashcardSet();
     if (type === 'sequencing') addSequenceQuestion();
+
+    // Initialize WYSIWYG editor on instructions field
+    initActivitySummernote();
 
     // Slide builder into view
     const builder = document.getElementById('activityBuilder');
@@ -1740,6 +2838,472 @@ function closeActivityBuilder() {
     document.getElementById('activityBuilder').style.display = 'none';
     document.querySelectorAll('.activity-type-card').forEach(c => c.classList.remove('selected'));
     selectedActivityType = null;
+    editingActivityId = null;
+
+    document.getElementById('builderTypeLabel').textContent = 'Activity Builder';
+    const saveBtn = document.querySelector('#activityBuilder button[onclick="saveActivity()"]');
+    if (saveBtn) saveBtn.innerHTML = '<i class="ti ti-device-floppy me-1"></i>Save Activity';
+
+    const builderPreviewBtn = document.getElementById('builderLearnerPreviewBtn');
+    if (builderPreviewBtn) {
+        builderPreviewBtn.classList.remove('d-flex');
+        builderPreviewBtn.classList.add('d-none');
+    }
+
+    document.getElementById('builderTitle').value = '';
+    document.getElementById('builderDueDate').value = '';
+    document.getElementById('builderMaxScore').value = '10';
+    if (document.getElementById('builderIsF2F')) {
+        document.getElementById('builderIsF2F').checked = false;
+        toggleF2FFields();
+    }
+    if (typeof $ !== 'undefined' && $('#builderInstructions').hasClass('summernote-initialized')) {
+        $('#builderInstructions').summernote('code', '');
+    } else {
+        document.getElementById('builderInstructions').value = '';
+    }
+}
+
+function openEditActivity(act) {
+    editingActivityId = act.id;
+    selectedActivityType = act.activity_type;
+
+    // Highlight corresponding activity type card
+    document.querySelectorAll('.activity-type-card').forEach(c => c.classList.remove('selected'));
+    const card = document.getElementById('actCard_' + act.activity_type);
+    if (card) card.classList.add('selected');
+
+    // Header label
+    const typeLabel = activityTypeLabels[act.activity_type] || act.activity_type;
+    document.getElementById('builderTypeLabel').innerHTML = `<i class="ti ti-edit me-1"></i>Edit Activity: <span class="fw-normal text-muted">${typeLabel}</span>`;
+
+    // Preview as Learner button in builder header
+    const builderPreviewBtn = document.getElementById('builderLearnerPreviewBtn');
+    if (builderPreviewBtn) {
+        if (act.id && !act.is_f2f) {
+            builderPreviewBtn.href = `${BASE}/learning/activity/${act.id}`;
+            builderPreviewBtn.classList.remove('d-none');
+            builderPreviewBtn.classList.add('d-flex');
+        } else {
+            builderPreviewBtn.classList.remove('d-flex');
+            builderPreviewBtn.classList.add('d-none');
+        }
+    }
+
+    // Populate common inputs
+    document.getElementById('builderLessonPlan').value = act.lesson_plan_id || '';
+    document.getElementById('builderTitle').value = act.title || '';
+
+    initActivitySummernote();
+    if (typeof $ !== 'undefined' && $('#builderInstructions').hasClass('summernote-initialized')) {
+        $('#builderInstructions').summernote('code', act.instructions || '');
+    } else {
+        document.getElementById('builderInstructions').value = act.instructions || '';
+    }
+
+    document.getElementById('builderDueDate').value = act.due_date ? act.due_date.substring(0, 10) : '';
+    document.getElementById('builderMaxScore').value = act.max_score || 0;
+
+    const isF2F = !!parseInt(act.is_f2f);
+    if (document.getElementById('builderIsF2F')) {
+        document.getElementById('builderIsF2F').checked = isF2F;
+        toggleF2FFields();
+    }
+
+    const maxScoreWrap = document.getElementById('builderMaxScoreWrap');
+    if (maxScoreWrap && !isF2F) {
+        maxScoreWrap.style.display = act.activity_type === 'flashcards' ? 'none' : '';
+    }
+
+    // Render builder type area & populate content
+    renderBuilderTypeArea(act.activity_type);
+
+    let data = act.activity_data;
+    if (typeof data === 'string') {
+        try { data = JSON.parse(data); } catch(e) { data = {}; }
+    }
+    data = data || {};
+    populateBuilderData(act.activity_type, data);
+
+    // Update Save button text
+    const saveBtn = document.querySelector('#activityBuilder button[onclick="saveActivity()"]');
+    if (saveBtn) saveBtn.innerHTML = '<i class="ti ti-device-floppy me-1"></i>Save Changes';
+
+    // Display builder and smooth scroll
+    const builder = document.getElementById('activityBuilder');
+    builder.style.display = 'block';
+    builder.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function populateBuilderData(type, data) {
+    if (!data) return;
+
+    switch (type) {
+        case 'multiple_choice': {
+            const list = document.getElementById('mcQuestionList');
+            if (list) list.innerHTML = '';
+            const questions = data.questions || [];
+            if (questions.length > 0) {
+                questions.forEach(q => {
+                    addMCQuestion();
+                    const qDiv = document.getElementById('mcQ_' + mcQCount);
+                    if (qDiv) {
+                        const textInp = qDiv.querySelector('.mc-question-text');
+                        if (textInp) textInp.value = q.text || '';
+                        if (q.image) {
+                            const imgInp = qDiv.querySelector('.mc-question-image');
+                            const preview = qDiv.querySelector('.mc-q-img-preview');
+                            if (imgInp) imgInp.value = q.image;
+                            if (preview) {
+                                const img = preview.querySelector('img');
+                                if (img) img.src = q.image;
+                                preview.style.setProperty('display', 'flex', 'important');
+                            }
+                        }
+                        const ptsInp = qDiv.querySelector('.mc-points');
+                        if (ptsInp) ptsInp.value = q.points !== undefined ? q.points : 1;
+
+                        const optsContainer = document.getElementById('mcQ_' + mcQCount + '_opts');
+                        if (optsContainer) {
+                            optsContainer.innerHTML = '';
+                            (q.options || []).forEach(opt => {
+                                addMCOption(optsContainer.id);
+                                const optRows = optsContainer.querySelectorAll('.mc-option-row');
+                                const lastRow = optRows[optRows.length - 1];
+                                if (lastRow) {
+                                    const optText = lastRow.querySelector('.mc-option-text');
+                                    if (optText) optText.value = opt.text || '';
+                                    const optRadio = lastRow.querySelector('.mc-correct-radio');
+                                    if (optRadio) optRadio.checked = !!opt.isCorrect || !!opt.is_correct;
+                                    if (opt.image) {
+                                        const optImgInp = lastRow.querySelector('.mc-option-image');
+                                        const optPreview = lastRow.querySelector('.mc-opt-img-preview');
+                                        if (optImgInp) optImgInp.value = opt.image;
+                                        if (optPreview) {
+                                            const oimg = optPreview.querySelector('img');
+                                            if (oimg) oimg.src = opt.image;
+                                            optPreview.style.setProperty('display', 'flex', 'important');
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+            break;
+        }
+
+        case 'true_false': {
+            const container = document.getElementById('tfStatements');
+            if (container) container.innerHTML = '';
+            const questions = data.questions && data.questions.length > 0
+                ? data.questions
+                : (data.statement ? [{ statement: data.statement, image: data.image, answer: data.answer || data.correct_answer, points: data.points }] : []);
+
+            if (questions.length > 0) {
+                questions.forEach(q => {
+                    addTFStatement();
+                    const rows = document.querySelectorAll('.tf-statement-row');
+                    const lastRow = rows[rows.length - 1];
+                    if (lastRow) {
+                        const stmtInp = lastRow.querySelector('.tf-statement-text');
+                        if (stmtInp) stmtInp.value = q.statement || q.text || '';
+                        if (q.image) {
+                            const imgInp = lastRow.querySelector('.tf-statement-image');
+                            const preview = lastRow.querySelector('.tf-img-preview');
+                            if (imgInp) imgInp.value = q.image;
+                            if (preview) {
+                                const img = preview.querySelector('img');
+                                if (img) img.src = q.image;
+                                preview.style.setProperty('display', 'flex', 'important');
+                            }
+                        }
+                        const ans = String(q.answer !== undefined ? q.answer : (q.correct_answer || 'true')).toLowerCase();
+                        const radios = lastRow.querySelectorAll('.tf-answer-radio');
+                        radios.forEach(r => { if (r.value === ans) r.checked = true; });
+                        const pts = lastRow.querySelector('.tf-points');
+                        if (pts) pts.value = q.points !== undefined ? q.points : 1;
+                    }
+                });
+            }
+            break;
+        }
+
+        case 'fill_in_blanks': {
+            const container = document.getElementById('fibQuestions');
+            if (container) container.innerHTML = '';
+            const mode = data.answer_mode || 'word_bank';
+            document.querySelectorAll('.fib-mode-radio').forEach(r => { if (r.value === mode) r.checked = true; });
+            toggleFibModeFields();
+            const distInp = document.getElementById('fibDistractors');
+            if (distInp) distInp.value = Array.isArray(data.distractors) ? data.distractors.join(', ') : (data.distractors || '');
+
+            const sentences = data.sentences && data.sentences.length > 0
+                ? data.sentences
+                : (data.sentence ? [{ text: data.sentence, answers: data.answers, points: data.points }] : []);
+
+            if (sentences.length > 0) {
+                sentences.forEach(s => {
+                    addFibQuestion();
+                    const rows = document.querySelectorAll('.fib-question-row');
+                    const lastRow = rows[rows.length - 1];
+                    if (lastRow) {
+                        const sentInp = lastRow.querySelector('.fib-sentence');
+                        if (sentInp) {
+                            sentInp.value = s.text || '';
+                            updateFibPreview(sentInp);
+                        }
+                        const ansInputs = lastRow.querySelectorAll('.fib-answer-input');
+                        (s.answers || []).forEach((ans, ai) => {
+                            if (ansInputs[ai]) ansInputs[ai].value = ans;
+                        });
+                        const ptsInp = lastRow.querySelector('.fib-points');
+                        if (ptsInp) ptsInp.value = s.points !== undefined ? s.points : 1;
+                    }
+                });
+            }
+            break;
+        }
+
+        case 'matching': {
+            const container = document.getElementById('matchingSets');
+            if (container) container.innerHTML = '';
+            const sets = data.sets && data.sets.length > 0
+                ? data.sets
+                : [{ title: 'Matching Set 1', pairs: data.pairs || [], points: data.points || 1 }];
+
+            sets.forEach(set => {
+                addMatchingSet();
+                const setEls = document.querySelectorAll('.matching-set');
+                const lastSet = setEls[setEls.length - 1];
+                if (lastSet) {
+                    const titleInp = lastSet.querySelector('.matching-set-title');
+                    if (titleInp) titleInp.value = set.title || '';
+                    const ptsInp = lastSet.querySelector('.matching-points');
+                    if (ptsInp) ptsInp.value = set.points !== undefined ? set.points : 1;
+                    const pairsWrap = lastSet.querySelector('.matching-pairs');
+                    if (pairsWrap) {
+                        pairsWrap.innerHTML = '';
+                        (set.pairs || []).forEach(p => {
+                            addMatchingPair(lastSet.id);
+                            const pairRows = lastSet.querySelectorAll('.matching-pair');
+                            const lastPair = pairRows[pairRows.length - 1];
+                            if (lastPair) {
+                                const leftInp = lastPair.querySelector('.matching-left');
+                                if (leftInp) leftInp.value = p.left || '';
+                                if (p.left_image) {
+                                    const lImgInp = lastPair.querySelector('.matching-left-image');
+                                    const lPrev = lastPair.querySelector('.match-left-preview');
+                                    if (lImgInp) lImgInp.value = p.left_image;
+                                    if (lPrev) {
+                                        const img = lPrev.querySelector('img');
+                                        if (img) img.src = p.left_image;
+                                        lPrev.style.setProperty('display', 'flex', 'important');
+                                    }
+                                }
+                                const rightInp = lastPair.querySelector('.matching-right');
+                                if (rightInp) rightInp.value = p.right || '';
+                                if (p.right_image) {
+                                    const rImgInp = lastPair.querySelector('.matching-right-image');
+                                    const rPrev = lastPair.querySelector('.match-right-preview');
+                                    if (rImgInp) rImgInp.value = p.right_image;
+                                    if (rPrev) {
+                                        const img = rPrev.querySelector('img');
+                                        if (img) img.src = p.right_image;
+                                        rPrev.style.setProperty('display', 'flex', 'important');
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+            break;
+        }
+
+        case 'drag_drop_sort': {
+            const container = document.getElementById('sortingQuestions');
+            if (container) container.innerHTML = '';
+            const sets = data.sets && data.sets.length > 0
+                ? data.sets
+                : [{ title: 'Sorting Question 1', items: data.items || [], points: data.points || 1 }];
+
+            sets.forEach(set => {
+                addSortingQuestion();
+                const setEls = document.querySelectorAll('.sorting-question');
+                const lastSet = setEls[setEls.length - 1];
+                if (lastSet) {
+                    const titleInp = lastSet.querySelector('.sorting-title');
+                    if (titleInp) titleInp.value = set.title || '';
+                    const ptsInp = lastSet.querySelector('.sorting-points');
+                    if (ptsInp) ptsInp.value = set.points !== undefined ? set.points : 1;
+                    const itemsWrap = lastSet.querySelector('.drag-drop-items');
+                    if (itemsWrap) {
+                        itemsWrap.innerHTML = '';
+                        (set.items || []).forEach(item => {
+                            addDragDropItem(lastSet.id);
+                            const itemRows = lastSet.querySelectorAll('.drag-drop-item');
+                            const lastItem = itemRows[itemRows.length - 1];
+                            if (lastItem) {
+                                const txtInp = lastItem.querySelector('.drag-drop-text');
+                                if (txtInp) txtInp.value = item.text || item;
+                                if (item.image) {
+                                    const imgInp = lastItem.querySelector('.drag-drop-image');
+                                    const prev = lastItem.querySelector('.drag-item-preview');
+                                    if (imgInp) imgInp.value = item.image;
+                                    if (prev) {
+                                        const img = prev.querySelector('img');
+                                        if (img) img.src = item.image;
+                                        prev.style.setProperty('display', 'flex', 'important');
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+            break;
+        }
+
+        case 'sequencing': {
+            const container = document.getElementById('sequenceQuestions');
+            if (container) container.innerHTML = '';
+            const sets = data.sets && data.sets.length > 0
+                ? data.sets
+                : [{ title: 'Sequence Question 1', steps: data.steps || [], points: data.points || 1 }];
+
+            sets.forEach(set => {
+                addSequenceQuestion();
+                const setEls = document.querySelectorAll('.sequence-question');
+                const lastSet = setEls[setEls.length - 1];
+                if (lastSet) {
+                    const titleInp = lastSet.querySelector('.sequence-title');
+                    if (titleInp) titleInp.value = set.title || '';
+                    const ptsInp = lastSet.querySelector('.sequence-points');
+                    if (ptsInp) ptsInp.value = set.points !== undefined ? set.points : 1;
+                    const stepsWrap = lastSet.querySelector('.sequence-steps');
+                    if (stepsWrap) {
+                        stepsWrap.innerHTML = '';
+                        (set.steps || []).forEach(step => {
+                            addSequencingStep(lastSet.id);
+                            const stepRows = lastSet.querySelectorAll('.sequencing-step');
+                            const lastStep = stepRows[stepRows.length - 1];
+                            if (lastStep) {
+                                const txtInp = lastStep.querySelector('.sequencing-text');
+                                if (txtInp) txtInp.value = step.text || step;
+                                if (step.image) {
+                                    const imgInp = lastStep.querySelector('.sequencing-image');
+                                    const prev = lastStep.querySelector('.seq-item-preview');
+                                    if (imgInp) imgInp.value = step.image;
+                                    if (prev) {
+                                        const img = prev.querySelector('img');
+                                        if (img) img.src = step.image;
+                                        prev.style.setProperty('display', 'flex', 'important');
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+            break;
+        }
+
+        case 'flashcards': {
+            const container = document.getElementById('flashcardSets');
+            if (container) container.innerHTML = '';
+            const sets = data.sets && data.sets.length > 0
+                ? data.sets
+                : [{ title: 'Flashcard Set 1', cards: data.cards || [] }];
+
+            sets.forEach(set => {
+                addFlashcardSet();
+                const setEls = document.querySelectorAll('.flashcard-set');
+                const lastSet = setEls[setEls.length - 1];
+                if (lastSet) {
+                    const titleInp = lastSet.querySelector('.flashcard-set-title');
+                    if (titleInp) titleInp.value = set.title || '';
+                    const listWrap = lastSet.querySelector('.flashcard-list');
+                    if (listWrap) {
+                        listWrap.innerHTML = '';
+                        (set.cards || []).forEach(c => {
+                            addFlashcard(lastSet.id);
+                            const cardRows = lastSet.querySelectorAll('.flashcard-row');
+                            const lastCard = cardRows[cardRows.length - 1];
+                            if (lastCard) {
+                                const fInp = lastCard.querySelector('.flashcard-front');
+                                if (fInp) fInp.value = c.front || '';
+                                if (c.front_image) {
+                                    const fImgInp = lastCard.querySelector('.flashcard-front-image');
+                                    const fPrev = lastCard.querySelector('.fc-front-preview');
+                                    if (fImgInp) fImgInp.value = c.front_image;
+                                    if (fPrev) {
+                                        const img = fPrev.querySelector('img');
+                                        if (img) img.src = c.front_image;
+                                        fPrev.style.setProperty('display', 'flex', 'important');
+                                    }
+                                }
+                                const bInp = lastCard.querySelector('.flashcard-back');
+                                if (bInp) bInp.value = c.back || '';
+                                if (c.back_image) {
+                                    const bImgInp = lastCard.querySelector('.flashcard-back-image');
+                                    const bPrev = lastCard.querySelector('.fc-back-preview');
+                                    if (bImgInp) bImgInp.value = c.back_image;
+                                    if (bPrev) {
+                                        const img = bPrev.querySelector('img');
+                                        if (img) img.src = c.back_image;
+                                        bPrev.style.setProperty('display', 'flex', 'important');
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+            break;
+        }
+
+        case 'image_label': {
+            const descInp = document.getElementById('imageLabelDescription');
+            if (descInp) descInp.value = data.description || '';
+            const ptsInp = document.getElementById('imageLabelPoints');
+            if (ptsInp) ptsInp.value = data.points || 1;
+            const imgPath = data.image_path || (data.image ? data.image : '');
+            if (imgPath) {
+                const canvas = document.getElementById('imageLabelCanvas');
+                const fullImgUrl = imgPath.startsWith('http') || imgPath.startsWith('data:') ? imgPath : (BASE + '/' + imgPath);
+                canvas.innerHTML = `<img src="${fullImgUrl}" id="imageLabelImg" style="max-width:100%;border-radius:6px;display:block;" alt="Label image">`;
+                document.getElementById('imageLabelPreviewWrap').style.display = '';
+                imageLabelMarkers = [];
+                document.getElementById('imageLabelAnswers').innerHTML = '';
+                const markers = data.markers || data.labels || [];
+                markers.forEach((m, mi) => {
+                    const idx = mi + 1;
+                    imageLabelMarkers.push({ x: m.x, y: m.y, answer: m.answer || '' });
+                    const marker = document.createElement('div');
+                    marker.className = 'label-marker';
+                    marker.style.left = m.x + '%';
+                    marker.style.top  = m.y + '%';
+                    marker.textContent = idx;
+                    canvas.appendChild(marker);
+
+                    const answersDiv = document.getElementById('imageLabelAnswers');
+                    const row = document.createElement('div');
+                    row.className = 'd-flex align-items-center gap-2 mb-2';
+                    row.innerHTML = `
+                        <span class="badge" style="background:#a01422;min-width:24px;">${idx}</span>
+                        <input type="text" class="form-control form-control-sm image-label-answer"
+                               value="${escAttr(m.answer || '')}" data-idx="${mi}" placeholder="Answer for label ${idx}"
+                               oninput="imageLabelMarkers[${mi}].answer = this.value; updateLabelPillsPreview();">`;
+                    answersDiv.appendChild(row);
+                });
+                updateLabelPillsPreview();
+            }
+            break;
+        }
+    }
+    initDragHandles();
 }
 
 /* ----------------------------------------------------------------
@@ -1760,6 +3324,73 @@ function renderBuilderTypeArea(type) {
         case 'sequencing':      area.innerHTML = buildSequencing();      break;
     }
     initDragHandles();
+}
+
+/* ---- Image upload helper for activity items ---- */
+function handleItemImageUpload(fileInput, previewClass) {
+    if (!fileInput.files || !fileInput.files.length) return;
+    const file = fileInput.files[0];
+    const parent = fileInput.closest('.mc-q-image-wrap, .mc-option-row, .tf-image-wrap, .match-item-wrap, .fc-item-wrap, .seq-item-wrap, .drag-item-wrap, .builder-item-row, .border') || fileInput.parentElement.parentElement;
+    const previewContainer = parent.querySelector('.' + previewClass);
+    const hiddenInput = parent.querySelector('input[type="hidden"]');
+
+    const fd = new FormData();
+    fd.append('image', file);
+
+    const label = fileInput.closest('label');
+    const origHtml = label ? label.innerHTML : '';
+    if (label) label.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    fetch(BASE + '/iep/implementation/upload-slide-image', {
+        method: 'POST',
+        body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (label) label.innerHTML = origHtml;
+        if (data.success && data.url) {
+            if (hiddenInput) hiddenInput.value = data.url;
+            if (previewContainer) {
+                const img = previewContainer.querySelector('img');
+                if (img) img.src = data.url;
+                previewContainer.style.setProperty('display', 'flex', 'important');
+            }
+        } else {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (hiddenInput) hiddenInput.value = e.target.result;
+                if (previewContainer) {
+                    const img = previewContainer.querySelector('img');
+                    if (img) img.src = e.target.result;
+                    previewContainer.style.setProperty('display', 'flex', 'important');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    })
+    .catch(err => {
+        if (label) label.innerHTML = origHtml;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            if (hiddenInput) hiddenInput.value = e.target.result;
+            if (previewContainer) {
+                const img = previewContainer.querySelector('img');
+                if (img) img.src = e.target.result;
+                previewContainer.style.setProperty('display', 'flex', 'important');
+            }
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function removeItemImage(btn) {
+    const previewContainer = btn.closest('.d-flex');
+    const parent = previewContainer.parentElement;
+    const hiddenInput = parent.querySelector('input[type="hidden"]');
+    const fileInput = parent.querySelector('input[type="file"]');
+    if (hiddenInput) hiddenInput.value = '';
+    if (fileInput) fileInput.value = '';
+    if (previewContainer) previewContainer.style.setProperty('display', 'none', 'important');
 }
 
 /* ---- Multiple Choice ---- */
@@ -1795,9 +3426,20 @@ function addMCQuestion() {
         </div>
         <input type="text" class="form-control form-control-sm mb-2 mc-question-text"
                placeholder="Enter question text" required>
+        <div class="d-flex align-items-center gap-2 mb-2 mc-q-image-wrap">
+            <label class="btn btn-sm btn-outline-primary py-0 px-2 d-flex align-items-center gap-1 mb-0" style="font-size:0.75rem;cursor:pointer;">
+                <i class="ti ti-photo"></i> <span>Attach Question Image</span>
+                <input type="file" accept="image/*" class="d-none mc-q-image-file" onchange="handleItemImageUpload(this, 'mc-q-img-preview')">
+            </label>
+            <input type="hidden" class="mc-question-image" value="">
+            <div class="mc-q-img-preview d-flex align-items-center gap-1" style="display:none !important;">
+                <img src="" style="height:36px; width:auto; border-radius:4px; border:1px solid #dee2e6; object-fit:cover;">
+                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeItemImage(this)" title="Remove image" style="font-size:0.7rem;"><i class="ti ti-x"></i></button>
+            </div>
+        </div>
         <div class="mb-2">
             <div class="d-flex justify-content-between align-items-center mb-1">
-                <span class="small text-muted">Options (mark correct with radio)</span>
+                <span class="small text-muted">Options (mark correct with radio, optional image per choice)</span>
                 <button type="button" class="btn btn-sm" style="background:#6c757d;color:#fff;border:none;font-size:0.7rem;"
                         onclick="addMCOption('${qId}_opts')">
                     <i class="ti ti-plus me-1"></i>Add Option
@@ -1830,6 +3472,15 @@ function addMCOption(containerId) {
     row.innerHTML = `
         <input type="radio" name="${radioName}" class="form-check-input mc-correct-radio" title="Mark as correct">
         <input type="text" class="form-control form-control-sm mc-option-text" placeholder="Option text">
+        <label class="btn btn-sm btn-outline-secondary py-0 px-2 d-flex align-items-center gap-1 mb-0" style="font-size:0.72rem;cursor:pointer;" title="Attach Choice Image">
+            <i class="ti ti-photo"></i>
+            <input type="file" accept="image/*" class="d-none mc-opt-image-file" onchange="handleItemImageUpload(this, 'mc-opt-img-preview')">
+        </label>
+        <input type="hidden" class="mc-option-image" value="">
+        <div class="mc-opt-img-preview d-flex align-items-center gap-1" style="display:none !important;">
+            <img src="" style="height:28px; width:auto; border-radius:4px; border:1px solid #dee2e6; object-fit:cover;">
+            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeItemImage(this)" title="Remove image" style="font-size:0.65rem;"><i class="ti ti-x"></i></button>
+        </div>
         <button type="button" class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.65rem;"
                 onclick="this.closest('.mc-option-row').remove()">
             <i class="ti ti-x me-1"></i>Remove
@@ -1864,6 +3515,17 @@ function addTFStatement() {
             </button>
         </div>
         <input type="text" class="form-control form-control-sm mb-2 tf-statement-text" placeholder="Enter true/false statement">
+        <div class="d-flex align-items-center gap-2 mb-2 tf-image-wrap">
+            <label class="btn btn-sm btn-outline-primary py-0 px-2 d-flex align-items-center gap-1 mb-0" style="font-size:0.75rem;cursor:pointer;">
+                <i class="ti ti-photo"></i> <span>Attach Statement Image</span>
+                <input type="file" accept="image/*" class="d-none tf-image-file" onchange="handleItemImageUpload(this, 'tf-img-preview')">
+            </label>
+            <input type="hidden" class="tf-statement-image" value="">
+            <div class="tf-img-preview d-flex align-items-center gap-1" style="display:none !important;">
+                <img src="" style="height:36px; width:auto; border-radius:4px; border:1px solid #dee2e6; object-fit:cover;">
+                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeItemImage(this)" title="Remove image" style="font-size:0.7rem;"><i class="ti ti-x"></i></button>
+            </div>
+        </div>
         <div class="d-flex flex-wrap align-items-center gap-3">
             <label class="small fw-semibold mb-0">Correct Answer:</label>
             <label class="form-check-label small"><input class="form-check-input tf-answer-radio" type="radio" name="${id}_answer" value="true" checked> True</label>
@@ -2014,9 +3676,31 @@ function addMatchingPair(setId) {
     row.draggable = true;
     row.innerHTML = `
         <span class="drag-handle"><i class="ti ti-grip-vertical"></i></span>
-        <input type="text" class="form-control form-control-sm matching-left" placeholder="Left item">
+        <div class="d-flex align-items-center gap-1 flex-grow-1 match-item-wrap">
+            <input type="text" class="form-control form-control-sm matching-left" placeholder="Left item text">
+            <label class="btn btn-sm btn-outline-secondary py-0 px-2 mb-0" style="font-size:0.72rem;cursor:pointer;" title="Attach Left Image">
+                <i class="ti ti-photo"></i>
+                <input type="file" accept="image/*" class="d-none" onchange="handleItemImageUpload(this, 'match-left-preview')">
+            </label>
+            <input type="hidden" class="matching-left-image" value="">
+            <div class="match-left-preview d-flex align-items-center gap-1" style="display:none !important;">
+                <img src="" style="height:26px; border-radius:3px; border:1px solid #dee2e6; object-fit:cover;">
+                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeItemImage(this)" style="font-size:0.65rem;"><i class="ti ti-x"></i></button>
+            </div>
+        </div>
         <span class="text-muted small px-1">→</span>
-        <input type="text" class="form-control form-control-sm matching-right" placeholder="Right item">
+        <div class="d-flex align-items-center gap-1 flex-grow-1 match-item-wrap">
+            <input type="text" class="form-control form-control-sm matching-right" placeholder="Right item text">
+            <label class="btn btn-sm btn-outline-secondary py-0 px-2 mb-0" style="font-size:0.72rem;cursor:pointer;" title="Attach Right Image">
+                <i class="ti ti-photo"></i>
+                <input type="file" accept="image/*" class="d-none" onchange="handleItemImageUpload(this, 'match-right-preview')">
+            </label>
+            <input type="hidden" class="matching-right-image" value="">
+            <div class="match-right-preview d-flex align-items-center gap-1" style="display:none !important;">
+                <img src="" style="height:26px; border-radius:3px; border:1px solid #dee2e6; object-fit:cover;">
+                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeItemImage(this)" style="font-size:0.65rem;"><i class="ti ti-x"></i></button>
+            </div>
+        </div>
         <button type="button" class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.65rem;"
                 onclick="this.closest('.matching-pair').remove()">
             <i class="ti ti-x me-1"></i>Remove
@@ -2075,7 +3759,18 @@ function addDragDropItem(setId) {
     row.draggable = true;
     row.innerHTML = `
         <span class="drag-handle"><i class="ti ti-grip-vertical"></i></span>
-        <input type="text" class="form-control form-control-sm drag-drop-text" placeholder="Item text">
+        <div class="d-flex align-items-center gap-1 flex-grow-1 drag-item-wrap">
+            <input type="text" class="form-control form-control-sm drag-drop-text" placeholder="Item text">
+            <label class="btn btn-sm btn-outline-secondary py-0 px-2 mb-0" style="font-size:0.72rem;cursor:pointer;" title="Attach Image">
+                <i class="ti ti-photo"></i>
+                <input type="file" accept="image/*" class="d-none" onchange="handleItemImageUpload(this, 'drag-item-preview')">
+            </label>
+            <input type="hidden" class="drag-drop-image" value="">
+            <div class="drag-item-preview d-flex align-items-center gap-1" style="display:none !important;">
+                <img src="" style="height:26px; border-radius:3px; border:1px solid #dee2e6; object-fit:cover;">
+                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeItemImage(this)" style="font-size:0.65rem;"><i class="ti ti-x"></i></button>
+            </div>
+        </div>
         <button type="button" class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.65rem;"
                 onclick="this.closest('.drag-drop-item').remove()">
             <i class="ti ti-x me-1"></i>Remove
@@ -2252,13 +3947,33 @@ function addFlashcard(setId) {
     row.innerHTML = `
         <div class="flex-grow-1">
             <div class="row g-2">
-                <div class="col-6">
-                    <input type="text" class="form-control form-control-sm flashcard-front"
-                           placeholder="Front (question/term)">
+                <div class="col-6 fc-item-wrap">
+                    <input type="text" class="form-control form-control-sm flashcard-front mb-1" placeholder="Front text (question/term)">
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="btn btn-sm btn-outline-secondary py-0 px-2 mb-0" style="font-size:0.72rem;cursor:pointer;" title="Attach Front Image">
+                            <i class="ti ti-photo me-1"></i><span>Front Image</span>
+                            <input type="file" accept="image/*" class="d-none" onchange="handleItemImageUpload(this, 'fc-front-preview')">
+                        </label>
+                        <input type="hidden" class="flashcard-front-image" value="">
+                        <div class="fc-front-preview d-flex align-items-center gap-1" style="display:none !important;">
+                            <img src="" style="height:28px; border-radius:4px; border:1px solid #dee2e6; object-fit:cover;">
+                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeItemImage(this)" style="font-size:0.65rem;"><i class="ti ti-x"></i></button>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-6">
-                    <input type="text" class="form-control form-control-sm flashcard-back"
-                           placeholder="Back (answer/definition)">
+                <div class="col-6 fc-item-wrap">
+                    <input type="text" class="form-control form-control-sm flashcard-back mb-1" placeholder="Back text (answer/definition)">
+                    <div class="d-flex align-items-center gap-1">
+                        <label class="btn btn-sm btn-outline-secondary py-0 px-2 mb-0" style="font-size:0.72rem;cursor:pointer;" title="Attach Back Image">
+                            <i class="ti ti-photo me-1"></i><span>Back Image</span>
+                            <input type="file" accept="image/*" class="d-none" onchange="handleItemImageUpload(this, 'fc-back-preview')">
+                        </label>
+                        <input type="hidden" class="flashcard-back-image" value="">
+                        <div class="fc-back-preview d-flex align-items-center gap-1" style="display:none !important;">
+                            <img src="" style="height:28px; border-radius:4px; border:1px solid #dee2e6; object-fit:cover;">
+                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeItemImage(this)" style="font-size:0.65rem;"><i class="ti ti-x"></i></button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2319,7 +4034,18 @@ function addSequencingStep(setId) {
     row.draggable = true;
     row.innerHTML = `
         <span class="drag-handle"><i class="ti ti-grip-vertical"></i></span>
-        <input type="text" class="form-control form-control-sm sequencing-text" placeholder="Step text">
+        <div class="d-flex align-items-center gap-1 flex-grow-1 seq-item-wrap">
+            <input type="text" class="form-control form-control-sm sequencing-text" placeholder="Step text">
+            <label class="btn btn-sm btn-outline-secondary py-0 px-2 mb-0" style="font-size:0.72rem;cursor:pointer;" title="Attach Image">
+                <i class="ti ti-photo"></i>
+                <input type="file" accept="image/*" class="d-none" onchange="handleItemImageUpload(this, 'seq-item-preview')">
+            </label>
+            <input type="hidden" class="sequencing-image" value="">
+            <div class="seq-item-preview d-flex align-items-center gap-1" style="display:none !important;">
+                <img src="" style="height:26px; border-radius:3px; border:1px solid #dee2e6; object-fit:cover;">
+                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeItemImage(this)" style="font-size:0.65rem;"><i class="ti ti-x"></i></button>
+            </div>
+        </div>
         <button type="button" class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.65rem;"
                 onclick="this.closest('.sequencing-step').remove()">
             <i class="ti ti-x me-1"></i>Remove
@@ -2395,15 +4121,17 @@ function collectActivityData() {
             const questions = [];
             document.querySelectorAll('#mcQuestionList > div').forEach(qDiv => {
                 const text    = qDiv.querySelector('.mc-question-text')?.value.trim() || '';
+                const image   = qDiv.querySelector('.mc-question-image')?.value.trim() || '';
                 const points  = parseInt(qDiv.querySelector('.mc-points')?.value || '1');
                 const options = [];
                 qDiv.querySelectorAll('.mc-option-row').forEach(optRow => {
                     options.push({
                         text:      optRow.querySelector('.mc-option-text')?.value.trim() || '',
+                        image:     optRow.querySelector('.mc-option-image')?.value.trim() || '',
                         isCorrect: optRow.querySelector('.mc-correct-radio')?.checked || false,
                     });
                 });
-                questions.push({ text, options, points });
+                questions.push({ text, image, options, points });
             });
             data = { questions };
             break;
@@ -2413,16 +4141,18 @@ function collectActivityData() {
             document.querySelectorAll('.tf-statement-row').forEach(row => {
                 questions.push({
                     statement: row.querySelector('.tf-statement-text')?.value.trim() || '',
-                    answer: row.querySelector('.tf-answer-radio:checked')?.value || 'true',
-                    points: parseInt(row.querySelector('.tf-points')?.value || '1'),
+                    image:     row.querySelector('.tf-statement-image')?.value.trim() || '',
+                    answer:    row.querySelector('.tf-answer-radio:checked')?.value || 'true',
+                    points:    parseInt(row.querySelector('.tf-points')?.value || '1'),
                 });
             });
             const first = questions[0] || {};
             data = {
                 questions,
                 statement: first.statement || '',
-                answer: first.answer || 'true',
-                points: first.points || 1,
+                image:     first.image || '',
+                answer:    first.answer || 'true',
+                points:    first.points || 1,
             };
             break;
         }
@@ -2457,8 +4187,10 @@ function collectActivityData() {
                 const pairs = [];
                 set.querySelectorAll('.matching-pair').forEach(row => {
                     pairs.push({
-                        left:  row.querySelector('.matching-left')?.value.trim()  || '',
-                        right: row.querySelector('.matching-right')?.value.trim() || '',
+                        left:        row.querySelector('.matching-left')?.value.trim()        || '',
+                        left_image:  row.querySelector('.matching-left-image')?.value.trim()  || '',
+                        right:       row.querySelector('.matching-right')?.value.trim()       || '',
+                        right_image: row.querySelector('.matching-right-image')?.value.trim() || '',
                     });
                 });
                 sets.push({
@@ -2475,7 +4207,11 @@ function collectActivityData() {
             document.querySelectorAll('.sorting-question').forEach((set, setIndex) => {
                 const items = [];
                 set.querySelectorAll('.drag-drop-item').forEach((row, idx) => {
-                    items.push({ text: row.querySelector('.drag-drop-text')?.value.trim() || '', order: idx + 1 });
+                    items.push({ 
+                        text:  row.querySelector('.drag-drop-text')?.value.trim() || '', 
+                        image: row.querySelector('.drag-drop-image')?.value.trim() || '',
+                        order: idx + 1 
+                    });
                 });
                 sets.push({
                     title: set.querySelector('.sorting-title')?.value.trim() || 'Sorting Question ' + (setIndex + 1),
@@ -2501,8 +4237,10 @@ function collectActivityData() {
                 const cards = [];
                 set.querySelectorAll('.flashcard-row').forEach(row => {
                     cards.push({
-                        front: row.querySelector('.flashcard-front')?.value.trim() || '',
-                        back:  row.querySelector('.flashcard-back')?.value.trim()  || '',
+                        front:       row.querySelector('.flashcard-front')?.value.trim()       || '',
+                        front_image: row.querySelector('.flashcard-front-image')?.value.trim() || '',
+                        back:        row.querySelector('.flashcard-back')?.value.trim()        || '',
+                        back_image:  row.querySelector('.flashcard-back-image')?.value.trim()  || '',
                     });
                 });
                 sets.push({
@@ -2518,7 +4256,11 @@ function collectActivityData() {
             document.querySelectorAll('.sequence-question').forEach((set, setIndex) => {
                 const steps = [];
                 set.querySelectorAll('.sequencing-step').forEach((row, idx) => {
-                    steps.push({ text: row.querySelector('.sequencing-text')?.value.trim() || '', order: idx + 1 });
+                    steps.push({ 
+                        text:  row.querySelector('.sequencing-text')?.value.trim() || '', 
+                        image: row.querySelector('.sequencing-image')?.value.trim() || '',
+                        order: idx + 1 
+                    });
                 });
                 sets.push({
                     title: set.querySelector('.sequence-title')?.value.trim() || 'Sequence Question ' + (setIndex + 1),
@@ -2535,16 +4277,16 @@ function collectActivityData() {
 
 function validateActivityData(type, data) {
     if (type === 'multiple_choice') {
-        const questions = (data.questions || []).filter(q => (q.text || '').trim() !== '');
+        const questions = (data.questions || []).filter(q => (q.text || '').trim() !== '' || (q.image || '').trim() !== '');
         if (!questions.length) return 'Add at least one multiple-choice question.';
         for (const [idx, q] of questions.entries()) {
-            const options = (q.options || []).filter(o => (o.text || '').trim() !== '');
+            const options = (q.options || []).filter(o => (o.text || '').trim() !== '' || (o.image || '').trim() !== '');
             if (options.length < 2) return 'Question ' + (idx + 1) + ' needs at least two options.';
             if (!options.some(o => !!o.isCorrect)) return 'Question ' + (idx + 1) + ' needs one correct answer.';
         }
     }
     if (type === 'true_false') {
-        const questions = (data.questions || []).filter(q => (q.statement || '').trim() !== '');
+        const questions = (data.questions || []).filter(q => (q.statement || '').trim() !== '' || (q.image || '').trim() !== '');
         if (!questions.length) return 'Add at least one true/false statement.';
     }
     if (type === 'fill_in_blanks') {
@@ -2561,7 +4303,7 @@ function validateActivityData(type, data) {
         const sets = data.sets || [{pairs: data.pairs || []}];
         if (!sets.length) return 'Add at least one matching set.';
         for (const [idx, set] of sets.entries()) {
-            const pairs = (set.pairs || []).filter(p => (p.left || '').trim() !== '' && (p.right || '').trim() !== '');
+            const pairs = (set.pairs || []).filter(p => ((p.left || '').trim() !== '' || (p.left_image || '').trim() !== '') && ((p.right || '').trim() !== '' || (p.right_image || '').trim() !== ''));
             if (pairs.length < 1) return 'Matching set ' + (idx + 1) + ' needs at least one complete pair.';
         }
     }
@@ -2569,7 +4311,7 @@ function validateActivityData(type, data) {
         const sets = data.sets || [{items: data.items || []}];
         if (!sets.length) return 'Add at least one sorting question.';
         for (const [idx, set] of sets.entries()) {
-            const items = (set.items || []).filter(i => (i.text || '').trim() !== '');
+            const items = (set.items || []).filter(i => (i.text || '').trim() !== '' || (i.image || '').trim() !== '');
             if (items.length < 2) return 'Sorting question ' + (idx + 1) + ' needs at least two items.';
         }
     }
@@ -2577,7 +4319,7 @@ function validateActivityData(type, data) {
         const sets = data.sets || [{steps: data.steps || []}];
         if (!sets.length) return 'Add at least one sequence question.';
         for (const [idx, set] of sets.entries()) {
-            const steps = (set.steps || []).filter(s => (s.text || '').trim() !== '');
+            const steps = (set.steps || []).filter(s => (s.text || '').trim() !== '' || (s.image || '').trim() !== '');
             if (steps.length < 2) return 'Sequence question ' + (idx + 1) + ' needs at least two steps.';
         }
     }
@@ -2585,13 +4327,14 @@ function validateActivityData(type, data) {
         const sets = data.sets || [{cards: data.cards || []}];
         if (!sets.length) return 'Add at least one flashcard set.';
         for (const [idx, set] of sets.entries()) {
-            const cards = (set.cards || []).filter(c => (c.front || '').trim() !== '' && (c.back || '').trim() !== '');
+            const cards = (set.cards || []).filter(c => ((c.front || '').trim() !== '' || (c.front_image || '').trim() !== '') && ((c.back || '').trim() !== '' || (c.back_image || '').trim() !== ''));
             if (cards.length < 1) return 'Flashcard set ' + (idx + 1) + ' needs at least one complete card.';
         }
     }
     if (type === 'image_label') {
         const fileInput = document.getElementById('imageLabelFile');
-        if (!fileInput || !fileInput.files.length) {
+        const hasExistingImg = !!document.getElementById('imageLabelImg');
+        if ((!fileInput || !fileInput.files.length) && !hasExistingImg) {
             return 'Please upload an image before saving this activity.';
         }
         const labels = (data.labels || []).filter(l => (l.answer || '').trim() !== '');
@@ -2606,7 +4349,14 @@ function validateActivityData(type, data) {
 async function saveActivity() {
     const lpId         = document.getElementById('builderLessonPlan').value;
     const title        = document.getElementById('builderTitle').value.trim();
-    const instructions = document.getElementById('builderInstructions').value.trim();
+    
+    let instructions   = '';
+    if (typeof $ !== 'undefined' && $('#builderInstructions').hasClass('summernote-initialized')) {
+        instructions = $('#builderInstructions').summernote('code');
+    } else {
+        instructions = document.getElementById('builderInstructions').value.trim();
+    }
+
     const dueDate      = document.getElementById('builderDueDate').value || null;
     const isF2F        = document.getElementById('builderIsF2F') && document.getElementById('builderIsF2F').checked ? 1 : 0;
     const maxScore     = (!isF2F && selectedActivityType !== 'flashcards')
@@ -2633,9 +4383,13 @@ async function saveActivity() {
         }
     }
 
-    showLoading('Saving activity…');
+    showLoading(editingActivityId ? 'Updating activity…' : 'Saving activity…');
     try {
         let data;
+        const targetUrl = editingActivityId 
+            ? `${BASE}/iep/implementation/activity/${editingActivityId}/edit` 
+            : `${BASE}/iep/implementation/activity/create`;
+
         if (selectedActivityType === 'image_label') {
             const fileInput = document.getElementById('imageLabelFile');
             const file = fileInput && fileInput.files ? fileInput.files[0] : null;
@@ -2651,9 +4405,9 @@ async function saveActivity() {
             if (file) {
                 formData.append('image_file', file);
             }
-            data = await postForm(BASE + '/iep/implementation/activity/create', formData);
+            data = await postForm(targetUrl, formData);
         } else {
-            data = await postJSON(BASE + '/iep/implementation/activity/create', {
+            data = await postJSON(targetUrl, {
                 lesson_plan_id: parseInt(lpId),
                 title,
                 instructions,
@@ -2667,18 +4421,85 @@ async function saveActivity() {
 
         Swal.close();
         if (data.success) {
-            // Append to activities table
-            appendActivityRow({
-                id:               data.activity_id,
-                title,
+            const lpSel = document.getElementById('builderLessonPlan');
+            let lpTitle = '—';
+            if (lpSel) {
+                const opt = lpSel.querySelector('option[value="' + lpId + '"]');
+                if (opt) lpTitle = opt.textContent.trim();
+            }
+
+            const updatedAct = {
+                id:               editingActivityId || data.activity_id || data.activity?.id,
+                title:            title,
+                instructions:     instructions,
                 activity_type:    selectedActivityType,
+                activity_data:    data.activity?.activity_data || activityData,
                 lesson_plan_id:   parseInt(lpId),
+                lesson_plan_title: lpTitle,
                 due_date:         dueDate,
                 max_score:        maxScore,
                 is_f2f:           isF2F,
-            });
+            };
+
+            const existingRow = document.getElementById('actRow_' + updatedAct.id);
+            if (existingRow && editingActivityId) {
+                const color = actTypeColors[updatedAct.activity_type] || '#6c757d';
+                const typeLabel = activityTypeLabels[updatedAct.activity_type] || updatedAct.activity_type;
+                const tds = existingRow.querySelectorAll('td');
+                if (tds.length >= 6) {
+                    tds[0].textContent = updatedAct.title;
+                    tds[1].innerHTML = `
+                        <span class="badge" style="background:${color};font-size:0.7rem;">${escHtml(typeLabel)}</span>
+                        ${updatedAct.is_f2f ? '<span class="badge bg-success ms-1" style="font-size:0.7rem;">F2F</span>' : ''}
+                    `;
+                    tds[2].textContent = lpTitle;
+                    tds[3].textContent = updatedAct.due_date ? updatedAct.due_date : '—';
+                    tds[4].textContent = updatedAct.is_f2f ? '—' : (updatedAct.max_score || 0);
+                    
+                    const btnWrap = tds[5].querySelector('.action-btn-wrap') || tds[5].querySelector('.d-flex');
+                    if (btnWrap) {
+                        btnWrap.innerHTML = '';
+
+                        if (updatedAct.id && !updatedAct.is_f2f) {
+                            const previewBtn = document.createElement('a');
+                            previewBtn.className = 'btn btn-sm';
+                            previewBtn.target = '_blank';
+                            previewBtn.href = `${BASE}/learning/activity/${updatedAct.id}`;
+                            previewBtn.style.cssText = 'background:#6c5ce7;color:#fff;border:none;font-size:0.75rem;border-radius:6px;text-decoration:none;display:inline-flex;align-items:center;';
+                            previewBtn.innerHTML = '<i class="ti ti-device-gamepad me-1"></i>Preview';
+                            previewBtn.title = "Open Learner's Interactive Preview";
+                            btnWrap.appendChild(previewBtn);
+                        }
+
+                        const viewBtn = document.createElement('button');
+                        viewBtn.className = 'btn btn-sm';
+                        viewBtn.style.cssText = 'background:#1e4072;color:#fff;border:none;font-size:0.75rem;border-radius:6px;';
+                        viewBtn.innerHTML = '<i class="ti ti-eye me-1"></i>View';
+                        viewBtn.onclick = () => viewActivity(updatedAct);
+                        btnWrap.appendChild(viewBtn);
+
+                        const editBtn = document.createElement('button');
+                        editBtn.className = 'btn btn-sm';
+                        editBtn.style.cssText = 'background:#3b6d11;color:#fff;border:none;font-size:0.75rem;border-radius:6px;';
+                        editBtn.innerHTML = '<i class="ti ti-pencil me-1"></i>Edit';
+                        editBtn.onclick = () => openEditActivity(updatedAct);
+                        btnWrap.appendChild(editBtn);
+
+                        const delBtn = document.createElement('button');
+                        delBtn.className = 'btn btn-sm';
+                        delBtn.style.cssText = 'background:#a01422;color:#fff;border:none;font-size:0.75rem;border-radius:6px;';
+                        delBtn.innerHTML = '<i class="ti ti-trash me-1"></i>Delete';
+                        delBtn.onclick = () => confirmDeleteActivity(updatedAct.id, updatedAct.title);
+                        btnWrap.appendChild(delBtn);
+                    }
+                }
+                showToast('success', 'Activity updated successfully!');
+            } else {
+                appendActivityRow(updatedAct);
+                showToast('success', 'Activity saved!');
+            }
+
             closeActivityBuilder();
-            showToast('success', 'Activity saved!');
         } else {
             Swal.fire({ icon: 'error', title: 'Error', text: data.message, confirmButtonColor: '#a01422' });
         }
@@ -2702,11 +4523,12 @@ function appendActivityRow(act) {
 
     // Find lesson plan title
     const lpSel = document.getElementById('builderLessonPlan');
-    let lpTitle = '—';
-    if (lpSel) {
+    let lpTitle = act.lesson_plan_title || '—';
+    if (lpTitle === '—' && lpSel && act.lesson_plan_id) {
         const opt = lpSel.querySelector('option[value="' + act.lesson_plan_id + '"]');
         if (opt) lpTitle = opt.textContent.trim();
     }
+    act.lesson_plan_title = lpTitle;
 
     const tbody = document.getElementById('activitiesTableBody');
     if (!tbody) return;
@@ -2723,11 +4545,43 @@ function appendActivityRow(act) {
         <td class="text-muted">${act.due_date ? escHtml(act.due_date) : '—'}</td>
         <td>${act.is_f2f ? '—' : (act.max_score || 0)}</td>
         <td>
-            <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem;"
-                    onclick="confirmDeleteActivity(${act.id}, '${escAttr(act.title)}')">
-                <i class="ti ti-trash me-1"></i>Delete
-            </button>
+            <div class="d-flex gap-1 flex-wrap action-btn-wrap"></div>
         </td>`;
+
+    const btnWrap = tr.querySelector('.action-btn-wrap');
+    
+    if (act.id && !act.is_f2f) {
+        const previewBtn = document.createElement('a');
+        previewBtn.className = 'btn btn-sm';
+        previewBtn.target = '_blank';
+        previewBtn.href = `${BASE}/learning/activity/${act.id}`;
+        previewBtn.style.cssText = 'background:#6c5ce7;color:#fff;border:none;font-size:0.75rem;border-radius:6px;text-decoration:none;display:inline-flex;align-items:center;';
+        previewBtn.innerHTML = '<i class="ti ti-device-gamepad me-1"></i>Preview';
+        previewBtn.title = "Open Learner's Interactive Preview";
+        btnWrap.appendChild(previewBtn);
+    }
+
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'btn btn-sm';
+    viewBtn.style.cssText = 'background:#1e4072;color:#fff;border:none;font-size:0.75rem;border-radius:6px;';
+    viewBtn.innerHTML = '<i class="ti ti-eye me-1"></i>View';
+    viewBtn.onclick = () => viewActivity(act);
+    btnWrap.appendChild(viewBtn);
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn btn-sm';
+    editBtn.style.cssText = 'background:#3b6d11;color:#fff;border:none;font-size:0.75rem;border-radius:6px;';
+    editBtn.innerHTML = '<i class="ti ti-pencil me-1"></i>Edit';
+    editBtn.onclick = () => openEditActivity(act);
+    btnWrap.appendChild(editBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-sm';
+    delBtn.style.cssText = 'background:#a01422;color:#fff;border:none;font-size:0.75rem;border-radius:6px;';
+    delBtn.innerHTML = '<i class="ti ti-trash me-1"></i>Delete';
+    delBtn.onclick = () => confirmDeleteActivity(act.id, act.title);
+    btnWrap.appendChild(delBtn);
+
     tbody.appendChild(tr);
 
     document.getElementById('activitiesList').style.display = '';

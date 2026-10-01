@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="signGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e4072"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="20" fill="#f8fafc"/>
+  <circle cx="100" cy="100" r="70" fill="url(#signGrad)" opacity="0.1"/>
+  <!-- Animated Hands Icon -->
+  <path d="M75 125 C65 115 60 95 70 85 C80 75 90 85 95 95 C98 80 108 75 115 85 C120 95 118 110 115 120 Z" fill="url(#signGrad)"/>
+  <path d="M125 125 C135 115 140 95 130 85 C120 75 110 85 105 95 C102 80 92 75 85 85 C80 95 82 110 85 120 Z" fill="#0284c7" opacity="0.8"/>
+  <text x="100" y="165" font-family="system-ui, sans-serif" font-size="12" font-weight="bold" fill="#1e4072" text-anchor="middle">FILIPINO SIGN LANGUAGE</text>
+</svg>

@@ -18,19 +18,26 @@ set_exception_handler(function($e) {
 
 // Determine application root (supports both /project/public and /htdocs deployments)
 
-$candidates = [realpath(__DIR__ . '/../'), realpath(__DIR__ . '/')] ;
+$candidates = [];
+if (is_dir(__DIR__ . '/app')) {
+    $candidates[] = __DIR__;
+}
+$parentCandidate = @realpath(__DIR__ . '/../');
+if ($parentCandidate && is_dir($parentCandidate . '/app')) {
+    $candidates[] = $parentCandidate;
+}
+$candidates[] = __DIR__;
+
 $appRoot = null;
 foreach ($candidates as $cand) {
-    if ($cand === false) continue;
-    // Heuristic: project app/ folder must exist
+    if (!$cand) continue;
     if (is_dir($cand . '/app')) {
         $appRoot = rtrim($cand, '/\\') . '/';
         break;
     }
 }
 if ($appRoot === null) {
-    // Fallback to parent directory
-    $appRoot = rtrim(realpath(__DIR__ . '/../') ?: (__DIR__ . '/../'), '/\\') . '/';
+    $appRoot = rtrim(__DIR__, '/\\') . '/';
 }
 
 // Load environment variables from .env file (try app root)
@@ -60,8 +67,8 @@ if (file_exists($autoload1)) {
 }
 
 // Detect base path automatically (MUST be before session start)
-$scriptName = dirname($_SERVER['SCRIPT_NAME']);
-$basePath = $scriptName === '/' ? '' : $scriptName;
+$scriptName = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
+$basePath = ($scriptName === '/' || $scriptName === '.' || $scriptName === '') ? '' : rtrim($scriptName, '/');
 define('BASE_PATH', $basePath);
 
 // Start session

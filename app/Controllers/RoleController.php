@@ -80,9 +80,9 @@ class RoleController {
         // Update session
         $_SESSION['role'] = 'parent';
         $_SESSION['school_id'] = $schoolId;
-        $_SESSION['success'] = 'Welcome! Your target SPED Center has been set. You can now enroll your child.';
+        $_SESSION['success'] = 'Welcome! Your target SPED Center has been set. Please complete the enrollment form below.';
 
-        header('Location: ' . $this->basePath . '/enrollment?school_id=' . $schoolId);
+        header('Location: ' . $this->basePath . '/enroll');
         exit;
     }
 
@@ -241,6 +241,11 @@ class RoleController {
                     }
                 }
             }
+        }
+
+        // Validate that staff upload at least one training certification
+        if ($requestedRole !== 'principal' && empty($uploadedCertifications)) {
+            $errors[] = 'Please upload at least one relevant training certification / seminar certificate (FSL, Inclusive Education, or SPED).';
         }
 
         if (!empty($errors)) {

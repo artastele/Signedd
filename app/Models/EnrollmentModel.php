@@ -113,9 +113,18 @@ class EnrollmentModel {
             $verified_by = isset($data['verified_by']) ? (int)$data['verified_by'] : 'NULL';
             $verified_at = isset($data['verified_at']) ? $this->db->quote($data['verified_at']) : 'NULL';
 
+            $target_school_id = isset($data['target_school_id']) && !empty($data['target_school_id']) ? (int)$data['target_school_id'] : 'NULL';
+            $survey_has_internet = isset($data['survey_has_internet']) ? (int)$data['survey_has_internet'] : 0;
+            $survey_devices = $this->db->quote(is_array($data['survey_devices'] ?? null) ? implode(',', $data['survey_devices']) : ($data['survey_devices'] ?? ''));
+            $survey_willing_online = isset($data['survey_willing_online']) ? (int)$data['survey_willing_online'] : 0;
+            $has_device = (int)($data['has_device'] ?? 0);
+            $willing_digital = (int)($data['willing_digital'] ?? 0);
+            $learning_track = $this->db->quote($data['learning_track'] ?? 'unassigned');
+            $lms_track = $this->db->quote($data['lms_track'] ?? 'unset');
+
             // Build SQL
             $sql = "INSERT INTO enrollment_submissions (
-                parent_id, enrollment_type, school_year, is_draft, status,
+                parent_id, target_school_id, enrollment_type, school_year, is_draft, status,
                 lrn, last_name, first_name, middle_name, extension_name, birth_date, sex, age,
                 birth_place, mother_tongue, is_indigenous_people, indigenous_group, is_4ps_beneficiary, fourps_household_id,
                 disability_visual, disability_hearing, disability_learning, disability_speech,
@@ -133,10 +142,12 @@ class EnrollmentModel {
                 shs_track, shs_strand, shs_semester,
                 modality_modular_print, modality_modular_digital, modality_online,
                 modality_educational_tv, modality_radio, modality_blended, modality_face_to_face,
-                preferred_distance_modality, signature_data, date_signed,
+                preferred_distance_modality, survey_has_internet, survey_devices, survey_willing_online,
+                has_device, willing_digital, learning_track, lms_track,
+                signature_data, date_signed,
                 draft_saved_at, submitted_at, verified_by, verified_at
             ) VALUES (
-                $parent_id, $enrollment_type, $school_year, $is_draft, $status,
+                $parent_id, $target_school_id, $enrollment_type, $school_year, $is_draft, $status,
                 $lrn, $last_name, $first_name, $middle_name, $extension_name, $birth_date, $sex, $age,
                 $birth_place, $mother_tongue, $is_indigenous_people, $indigenous_group, $is_4ps_beneficiary, $fourps_household_id,
                 $disability_visual, $disability_hearing, $disability_learning, $disability_speech,
@@ -154,7 +165,9 @@ class EnrollmentModel {
                 $shs_track, $shs_strand, $shs_semester,
                 $modality_modular_print, $modality_modular_digital, $modality_online,
                 $modality_educational_tv, $modality_radio, $modality_blended, $modality_face_to_face,
-                $preferred_distance_modality, $signature_data, $date_signed,
+                $preferred_distance_modality, $survey_has_internet, $survey_devices, $survey_willing_online,
+                $has_device, $willing_digital, $learning_track, $lms_track,
+                $signature_data, $date_signed,
                 $draft_saved_at, $submitted_at, $verified_by, $verified_at
             )";
 
@@ -191,7 +204,7 @@ class EnrollmentModel {
         
         // List of all valid columns (excluding id, created_at)
         $validColumns = [
-            'parent_id', 'enrollment_type', 'school_year', 'previous_enrollment_id', 'is_draft', 'status',
+            'parent_id', 'target_school_id', 'enrollment_type', 'school_year', 'previous_enrollment_id', 'is_draft', 'status',
             'lrn', 'last_name', 'first_name', 'middle_name', 'extension_name', 'birth_date', 'sex', 'age',
             'birth_place', 'mother_tongue', 'is_indigenous_people', 'indigenous_group', 'is_4ps_beneficiary', 
             'fourps_household_id', 'disability_visual', 'disability_hearing', 'disability_learning', 
@@ -207,8 +220,10 @@ class EnrollmentModel {
             'grade_level_to_enroll', 'is_balik_aral', 'is_pept_passer', 'pept_rating', 'is_als_passer', 
             'als_rating', 'shs_track', 'shs_strand', 'shs_semester', 'modality_modular_print', 
             'modality_modular_digital', 'modality_online', 'modality_educational_tv', 'modality_radio', 
-            'modality_blended', 'modality_face_to_face', 'preferred_distance_modality', 'signature_data', 
-            'date_signed', 'draft_saved_at', 'submitted_at', 'verified_by', 'verified_at', 'last_activity',
+            'modality_blended', 'modality_face_to_face', 'preferred_distance_modality',
+            'survey_has_internet', 'survey_devices', 'survey_willing_online', 'has_device', 'willing_digital',
+            'learning_track', 'lms_track',
+            'signature_data', 'date_signed', 'draft_saved_at', 'submitted_at', 'verified_by', 'verified_at', 'last_activity',
             'learner_account_created', 'lrn'
         ];
         
@@ -278,8 +293,8 @@ class EnrollmentModel {
     public function getDraftByParentId($parentId) {
         $stmt = $this->db->prepare("
             SELECT * FROM enrollment_submissions
-            WHERE parent_id = :parent_id AND is_draft = TRUE
-            ORDER BY draft_saved_at DESC
+            WHERE parent_id = :parent_id AND is_draft = 1 AND status = 'draft'
+            ORDER BY COALESCE(draft_saved_at, updated_at, created_at) DESC, id DESC
             LIMIT 1
         ");
         $stmt->execute(['parent_id' => $parentId]);
@@ -398,7 +413,7 @@ class EnrollmentModel {
      * Update enrollment status
      */
     public function updateStatus($enrollmentId, $status, $verifiedBy = null, $reviewNote = null) {
-        $assignedTeacherClause = ($status === 'verified' && $verifiedBy) ? ", assigned_teacher_id = :verified_by" : "";
+        $assignedTeacherClause = ($status === 'verified' && $verifiedBy) ? ", assigned_teacher_id = :assigned_teacher_id" : "";
         $sql = "UPDATE enrollment_submissions
                 SET status = :status,
                     verified_by = :verified_by,
@@ -407,12 +422,18 @@ class EnrollmentModel {
                     {$assignedTeacherClause}
                 WHERE id = :id";
         
-        return $this->db->prepare($sql)->execute([
+        $params = [
             'status' => $status,
             'verified_by' => $verifiedBy,
             'review_note' => $reviewNote,
             'id' => $enrollmentId
-        ]);
+        ];
+
+        if ($status === 'verified' && $verifiedBy) {
+            $params['assigned_teacher_id'] = $verifiedBy;
+        }
+
+        return $this->db->prepare($sql)->execute($params);
     }
 
     /**
@@ -563,33 +584,54 @@ class EnrollmentModel {
     }
 
     /**
-     * Clean up old drafts (older than 7 days)
+     * Clean up old drafts (older than 7 days) safely
      */
     public function cleanupOldDrafts() {
-        $stmt = $this->db->prepare("
-            DELETE FROM enrollment_submissions
-            WHERE is_draft = TRUE 
-            AND last_activity < DATE_SUB(NOW(), INTERVAL 7 DAY)
-        ");
-        $result = $stmt->execute();
-        $deletedCount = $stmt->rowCount();
-        
-        if ($deletedCount > 0) {
-            error_log("Cleaned up $deletedCount old draft(s)");
+        try {
+            $stmt = $this->db->prepare("
+                DELETE e FROM enrollment_submissions e
+                LEFT JOIN student_records s ON e.id = s.enrollment_id
+                LEFT JOIN pdsp_records p ON e.id = p.enrollment_id
+                LEFT JOIN assessment_records a ON e.id = a.enrollment_id
+                WHERE e.is_draft = TRUE 
+                AND s.id IS NULL
+                AND p.id IS NULL
+                AND a.id IS NULL
+                AND e.last_activity < DATE_SUB(NOW(), INTERVAL 7 DAY)
+            ");
+            $stmt->execute();
+            $deletedCount = $stmt->rowCount();
+            
+            if ($deletedCount > 0) {
+                error_log("Cleaned up $deletedCount old draft(s)");
+            }
+            
+            return $deletedCount;
+        } catch (\Throwable $e) {
+            error_log("cleanupOldDrafts caught: " . $e->getMessage());
+            return 0;
         }
-        
-        return $deletedCount;
     }
 
     /**
-     * Delete draft by parent ID
+     * Delete draft by parent ID safely
      */
     public function deleteDraftByParentId($parentId) {
-        $stmt = $this->db->prepare("
-            DELETE FROM enrollment_submissions
-            WHERE parent_id = :parent_id AND is_draft = TRUE
-        ");
-        return $stmt->execute(['parent_id' => $parentId]);
+        try {
+            $stmt = $this->db->prepare("
+                DELETE e FROM enrollment_submissions e
+                LEFT JOIN student_records s ON e.id = s.enrollment_id
+                LEFT JOIN pdsp_records p ON e.id = p.enrollment_id
+                WHERE e.parent_id = :parent_id 
+                AND e.is_draft = TRUE
+                AND s.id IS NULL
+                AND p.id IS NULL
+            ");
+            return $stmt->execute(['parent_id' => $parentId]);
+        } catch (\Throwable $e) {
+            error_log("deleteDraftByParentId caught: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**

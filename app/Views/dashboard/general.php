@@ -106,106 +106,196 @@ require_once __DIR__ . '/../layouts/header.php';
 
     <?php
     // Dynamic Database Metrics Calculation for General Dashboard Overview
-    $db = Database::getInstance()->getConnection();
-
-    // 1. Active Learners Count from DB
-    $learnersStmt = $db->query("SELECT COUNT(*) as cnt FROM users WHERE role = 'learner'");
-    $activeLearnersCount = $learnersStmt ? (int)$learnersStmt->fetchColumn() : 0;
-
-    // 2. Dynamic Faculty & FSL Certified ratio from DB
-    $genFacultyStmt = $db->query("
-        SELECT 
-            COUNT(*) as total_faculty,
-            SUM(CASE WHEN fsl_cert_path IS NOT NULL AND fsl_cert_path != '' THEN 1 ELSE 0 END) as certified_faculty
-        FROM users 
-        WHERE role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
-    ");
-    $genFacultyData = $genFacultyStmt ? $genFacultyStmt->fetch(PDO::FETCH_ASSOC) : ['total_faculty' => 0, 'certified_faculty' => 0];
-    $genTotalFaculty = (int)($genFacultyData['total_faculty'] ?? 0);
-    $genCertifiedFaculty = (int)($genFacultyData['certified_faculty'] ?? 0);
-    $genFslRatio = $genTotalFaculty > 0 ? round(($genCertifiedFaculty / $genTotalFaculty) * 100, 1) : 0;
-
-    // 3. Dynamic Overall Policy Compliance Rate from DB
-    // Formula: Compliance % = (Number of schools meeting criteria / Total number of DepEd schools) * 100
+    $genTotalLearners = 0;
+    $genDlLearners = 0;
+    $genDlRate = 0;
+    $genTotalFaculty = 0;
+    $genCertifiedFaculty = 0;
+    $genFslRatio = 0;
     $genSchoolsCount = count($registeredSchools);
     $genCompliantCount = 0;
-    if ($genSchoolsCount > 0) {
-        foreach ($registeredSchools as $schItem) {
-            $p1_dll = 12.5; // Lesson Plans (DLL/DLP)
-            $p1_cot = 12.5; // Class Observation Tool (COT)
-            $p2 = 25; // Learning Resources (Materials Used)
-            $p3 = ($genFslRatio >= 75) ? 25 : round(($genFslRatio / 75) * 25, 1);
-            $p4 = !empty($schItem['sip_path']) ? 25 : 0;
-            
-            $schScore = $p1_dll + $p1_cot + $p2 + $p3 + $p4;
-            if ($schScore >= 85) {
-                $genCompliantCount++;
+    $genOverallCompliance = 0;
+
+    try {
+        $db = Database::getInstance()->getConnection();
+
+        // 1. Distance Learning Program Inclusion & Participation Rate (General Objective, Target: >= 85%)
+        $totLearnersStmt = $db->query("SELECT COUNT(*) FROM student_records");
+        $genTotalLearners = $totLearnersStmt ? (int)$totLearnersStmt->fetchColumn() : 0;
+
+        $dlLearnersStmt = $db->query("
+            SELECT COUNT(DISTINCT sr.id) 
+            FROM student_records sr
+            WHERE sr.id IN (SELECT student_id FROM lms_submissions)
+               OR sr.student_id IN (SELECT student_id FROM lms_submissions)
+               OR sr.id IN (SELECT student_id FROM activity_attempt_log)
+               OR sr.student_id IN (SELECT student_id FROM activity_attempt_log)
+               OR sr.id IN (SELECT student_id FROM attendance_records)
+               OR sr.student_id IN (SELECT student_id FROM attendance_records)
+        ");
+        $genDlLearners = $dlLearnersStmt ? (int)$dlLearnersStmt->fetchColumn() : 0;
+        $genDlRate = $genTotalLearners > 0 ? round(($genDlLearners / $genTotalLearners) * 100, 1) : 0;
+
+        // 2. Dynamic Faculty & FSL Certified ratio from DB (Specific Objective 3, Target: >= 75%)
+        $genFacultyStmt = $db->query("
+            SELECT 
+                COUNT(*) as total_faculty,
+                SUM(CASE WHEN fsl_cert_path IS NOT NULL AND fsl_cert_path != '' THEN 1 ELSE 0 END) as certified_faculty
+            FROM users 
+            WHERE role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
+        ");
+        $genFacultyData = $genFacultyStmt ? $genFacultyStmt->fetch(PDO::FETCH_ASSOC) : ['total_faculty' => 0, 'certified_faculty' => 0];
+        $genTotalFaculty = (int)($genFacultyData['total_faculty'] ?? 0);
+        $genCertifiedFaculty = (int)($genFacultyData['certified_faculty'] ?? 0);
+        $genFslRatio = $genTotalFaculty > 0 ? round(($genCertifiedFaculty / $genTotalFaculty) * 100, 1) : 0;
+
+        // 3. Dynamic Overall Policy Compliance Rate from DB (Specific Objective 2, Target: >= 85%)
+        if ($genSchoolsCount > 0) {
+            $cotSchoolStmt = $db->prepare("
+                SELECT COUNT(*) FROM classroom_observations co 
+                JOIN users u ON co.observed_teacher_id = u.id 
+                WHERE u.school_id = :sid AND co.status = 'finalized'
+            ");
+            $lpSchoolStmt = $db->prepare("
+                SELECT (
+                    (SELECT COUNT(*) FROM lesson_plans lp JOIN users u ON lp.created_by = u.id WHERE u.school_id = :sid1 AND lp.status = 'published') +
+                    (SELECT COUNT(*) FROM traditional_iep_documents tid JOIN student_records sr ON tid.student_id = sr.id WHERE sr.school_id = :sid2 AND tid.document_type = 'dll')
+                )
+            ");
+            $resSchoolStmt = $db->prepare("
+                SELECT COUNT(*) FROM (
+                    SELECT lm.id FROM learning_materials lm JOIN users u ON lm.uploaded_by = u.id WHERE u.school_id = :sid1
+                    UNION
+                    SELECT lp.id FROM lesson_plans lp JOIN users u ON lp.created_by = u.id WHERE u.school_id = :sid2
+                ) AS all_res
+            ");
+            $facSchoolStmt = $db->prepare("
+                SELECT 
+                    COUNT(*) as total_faculty,
+                    SUM(CASE WHEN fsl_cert_path IS NOT NULL AND fsl_cert_path != '' THEN 1 ELSE 0 END) as certified_faculty
+                FROM users 
+                WHERE school_id = :sid AND role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
+            ");
+
+            foreach ($registeredSchools as $schItem) {
+                $sid = (int)$schItem['id'];
+                $schCotCount = 0;
+                $schLpCount = 0;
+                $schResCount = 0;
+                $schTotalFac = 0;
+                $schCertFac = 0;
+                try {
+                    $cotSchoolStmt->execute(['sid' => $sid]);
+                    $schCotCount = (int)$cotSchoolStmt->fetchColumn();
+                } catch (\Throwable $e) {}
+
+                try {
+                    $lpSchoolStmt->execute(['sid1' => $sid, 'sid2' => $sid]);
+                    $schLpCount = (int)$lpSchoolStmt->fetchColumn();
+                } catch (\Throwable $e) {}
+
+                try {
+                    $resSchoolStmt->execute(['sid1' => $sid, 'sid2' => $sid]);
+                    $schResCount = (int)$resSchoolStmt->fetchColumn();
+                } catch (\Throwable $e) {}
+
+                try {
+                    $facSchoolStmt->execute(['sid' => $sid]);
+                    $facRow = $facSchoolStmt->fetch(PDO::FETCH_ASSOC);
+                    $schTotalFac = (int)($facRow['total_faculty'] ?? 0);
+                    $schCertFac = (int)($facRow['certified_faculty'] ?? 0);
+                } catch (\Throwable $e) {}
+
+                $schoolFslRatio = $schTotalFac > 0 
+                    ? round(($schCertFac / $schTotalFac) * 100, 1) 
+                    : 0;
+
+                $p1_dll = $schLpCount > 0 ? 12.5 : 0; // Lesson Plans (DLL/DLP)
+                $p1_cot = $schCotCount > 0 ? 12.5 : 0; // Class Observation Tool (COT) MOV - Finalized
+                $p2 = $schResCount > 0 ? 25 : 0; // Learning Resources (Materials Used)
+                $p3 = ($schoolFslRatio >= 75) ? 25 : round(($schoolFslRatio / 75) * 25, 1);
+                $p4 = !empty($schItem['sip_path']) ? 25 : 0;
+                
+                $schScore = $p1_dll + $p1_cot + $p2 + $p3 + $p4;
+                if ($schScore >= 85) {
+                    $genCompliantCount++;
+                }
             }
+            $genOverallCompliance = round(($genCompliantCount / $genSchoolsCount) * 100, 1);
+        } else {
+            $genOverallCompliance = 0;
         }
-        $genOverallCompliance = round(($genCompliantCount / $genSchoolsCount) * 100, 1);
-    } else {
-        $genOverallCompliance = 0;
+    } catch (\Throwable $e) {
+        error_log('General dashboard metrics query error: ' . $e->getMessage());
     }
     ?>
 
-    <!-- 4 Stat Summary KPI Header Cards Row (Compliance & System Overview) -->
+    <!-- 4 Core KPI Summary Cards (General Objective, SO2, SO3, & Registered Schools) -->
     <div class="row g-3 mb-4">
-        <!-- Stat 1: Registered Schools -->
-        <div class="col-xl-3 col-md-6">
+        <!-- Stat 1: Distance Learning Program Inclusion (General Objective) -->
+        <div class="col-xl-3 col-md-6" title="General Objective: Inclusion of learners with special educational needs in distance learning programs to at least 85% participation.">
             <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 4px solid #0d6efd !important; background: #fff;">
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="text-secondary small fw-bold text-uppercase"><i class="bi bi-building text-primary me-1"></i> Registered Schools</span>
-                        <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill small"><?php echo $genSchoolsCount; ?> Active</span>
+                        <span class="text-secondary small fw-bold text-uppercase"><i class="bi bi-laptop text-primary me-1"></i> DL Inclusion</span>
+                        <span class="badge <?php echo $genDlRate >= 85 ? 'bg-primary bg-opacity-10 text-primary' : 'bg-warning bg-opacity-10 text-dark'; ?> rounded-pill small">Target: &ge;85.0%</span>
                     </div>
-                    <div class="h3 fw-bold text-dark mb-0"><?php echo $genSchoolsCount; ?></div>
-                    <div class="small text-muted mt-1" style="font-size: 0.75rem;">Across all DepEd Divisions</div>
+                    <div class="h3 fw-bold <?php echo $genDlRate >= 85 ? 'text-primary' : ($genTotalLearners > 0 ? 'text-danger' : 'text-muted'); ?> mb-0">
+                        <?php echo $genTotalLearners > 0 ? $genDlRate . '%' : '0.0%'; ?>
+                    </div>
+                    <div class="small text-muted mt-1" style="font-size: 0.75rem;">
+                        <?php echo $genDlLearners; ?> of <?php echo $genTotalLearners; ?> Active Distance Learners
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Stat 2: Overall Policy Compliance -->
-        <div class="col-xl-3 col-md-6">
+        <!-- Stat 2: Overall Policy Compliance (Specific Objective 2) -->
+        <div class="col-xl-3 col-md-6" title="Specific Objective 2: Implementation of inclusive content policies for hearing-impaired students to at least 85% compliance across DepEd schools.">
             <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 4px solid #198754 !important; background: #fff;">
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="text-secondary small fw-bold text-uppercase"><i class="bi bi-shield-check text-success me-1"></i> Overall Compliance</span>
-                        <span class="badge <?php echo $genOverallCompliance >= 85 ? 'bg-success bg-opacity-10 text-success' : 'bg-warning bg-opacity-10 text-dark'; ?> rounded-pill small">Target: 85.0%</span>
+                        <span class="text-secondary small fw-bold text-uppercase"><i class="bi bi-shield-check text-success me-1"></i> Policy Compliance</span>
+                        <span class="badge <?php echo $genOverallCompliance >= 85 ? 'bg-success bg-opacity-10 text-success' : 'bg-warning bg-opacity-10 text-dark'; ?> rounded-pill small">Target: &ge;85.0%</span>
                     </div>
                     <div class="h3 fw-bold <?php echo $genOverallCompliance >= 85 ? 'text-success' : ($genSchoolsCount > 0 ? 'text-warning text-dark' : 'text-muted'); ?> mb-0">
                         <?php echo $genSchoolsCount > 0 ? $genOverallCompliance . '%' : '0.0%'; ?>
                     </div>
                     <div class="small text-muted mt-1" style="font-size: 0.75rem;">
-                        <?php echo $genSchoolsCount > 0 ? 'System-Wide Policy Status' : 'No Database Data'; ?>
+                        <?php echo $genSchoolsCount > 0 ? $genCompliantCount . ' of ' . $genSchoolsCount . ' Schools Compliant' : 'No Database Data'; ?>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Stat 3: Needs Action -->
-        <div class="col-xl-3 col-md-6">
+        <!-- Stat 3: FSL Program Adoption (Specific Objective 3) -->
+        <div class="col-xl-3 col-md-6" title="Specific Objective 3: Integration of Filipino Sign Language (FSL) in teacher education programs to at least 75% program adoption.">
             <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 4px solid #ffc107 !important; background: #fff;">
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="text-secondary small fw-bold text-uppercase"><i class="bi bi-exclamation-triangle text-warning me-1"></i> Needs Action</span>
-                        <span class="badge bg-warning bg-opacity-10 text-dark rounded-pill small">Submissions Due</span>
+                        <span class="text-secondary small fw-bold text-uppercase"><i class="bi bi-award-fill text-warning me-1"></i> FSL Adoption</span>
+                        <span class="badge <?php echo $genFslRatio >= 75 ? 'bg-success bg-opacity-10 text-success' : 'bg-warning bg-opacity-10 text-dark'; ?> rounded-pill small">Target: &ge;75.0%</span>
                     </div>
-                    <div class="h3 fw-bold text-dark mb-0"><?php echo isset($pendingRequest) && $pendingRequest ? 1 : 0; ?></div>
-                    <div class="small text-muted mt-1" style="font-size: 0.75rem;">Pending Verifications</div>
+                    <div class="h3 fw-bold <?php echo $genFslRatio >= 75 ? 'text-success' : ($genTotalFaculty > 0 ? 'text-danger' : 'text-muted'); ?> mb-0">
+                        <?php echo $genTotalFaculty > 0 ? $genFslRatio . '%' : '0.0%'; ?>
+                    </div>
+                    <div class="small text-muted mt-1" style="font-size: 0.75rem;">
+                        <?php echo $genCertifiedFaculty; ?> of <?php echo $genTotalFaculty; ?> Certified Faculty
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Stat 4: Active Learners -->
+        <!-- Stat 4: Registered Schools -->
         <div class="col-xl-3 col-md-6">
             <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 4px solid #0dcaf0 !important; background: #fff;">
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="text-secondary small fw-bold text-uppercase"><i class="bi bi-people text-info me-1"></i> Active Learners</span>
-                        <span class="badge bg-info bg-opacity-10 text-dark rounded-pill small">Across all tiers</span>
+                        <span class="text-secondary small fw-bold text-uppercase"><i class="bi bi-building text-info me-1"></i> Registered Schools</span>
+                        <span class="badge bg-info bg-opacity-10 text-dark rounded-pill small"><?php echo $genSchoolsCount; ?> Active</span>
                     </div>
-                    <div class="h3 fw-bold text-dark mb-0"><?php echo number_format($activeLearnersCount); ?></div>
-                    <div class="small text-muted mt-1" style="font-size: 0.75rem;">Total SPED & DHH Enrollees</div>
+                    <div class="h3 fw-bold text-dark mb-0"><?php echo $genSchoolsCount; ?></div>
+                    <div class="small text-muted mt-1" style="font-size: 0.75rem;">Across all DepEd Divisions</div>
                 </div>
             </div>
         </div>

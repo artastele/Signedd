@@ -299,7 +299,7 @@ class IEPMeetingController {
             $imageData = base64_decode($signatureData);
             
             // Create signatures directory
-            $uploadDir = __DIR__ . '/../../public/uploads/signatures/';
+            $uploadDir = function_exists('public_path') ? public_path('uploads/signatures/') : (__DIR__ . '/../../public/uploads/signatures/');
             if (!is_dir($uploadDir)) {
                 mkdir($uploadDir, 0755, true);
             }
@@ -526,7 +526,7 @@ class IEPMeetingController {
             }
             
             // Create upload directory
-            $uploadDir = __DIR__ . '/../../public/uploads/pdsp_signed/';
+            $uploadDir = function_exists('public_path') ? public_path('uploads/pdsp_signed/') : (__DIR__ . '/../../public/uploads/pdsp_signed/');
             if (!is_dir($uploadDir)) {
                 mkdir($uploadDir, 0755, true);
             }
@@ -1032,11 +1032,16 @@ class IEPMeetingController {
                 exit;
             }
             
-            // Get latest finalized assessment for student
+            // Get latest finalized assessment for student (Process 4 Gate)
             require_once __DIR__ . '/../Models/AssessmentModel.php';
             $assessmentModel = new AssessmentModel();
             $assessment = $assessmentModel->getLatest($studentId);
-            $assessmentId = ($assessment && $assessment['status'] === 'finalized') ? $assessment['id'] : null;
+            if (!$assessment || $assessment['status'] !== 'finalized') {
+                $_SESSION['error'] = 'Cannot schedule IEP Meeting: Student must have a finalized Comprehensive Assessment (Process 3).';
+                header('Location: ' . BASE_PATH . '/iep/meetings/schedule');
+                exit;
+            }
+            $assessmentId = $assessment['id'];
             
             // Create meeting
             $meetingData = [
@@ -1535,6 +1540,195 @@ class IEPMeetingController {
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Error submitting PDSP']);
         }
+    }
+
+    /**
+     * Send SignED LMS Invitation to Parent (Stage 2 Dual-Track)
+     */
+    public function sendLmsInvite($meetingId) {
+        $meetingId = (int)$meetingId;
+        $meeting = $this->meetingModel->findById($meetingId);
+        if (!$meeting) {
+            $_SESSION['error'] = 'Meeting not found.';
+            header('Location: ' . BASE_PATH . '/iep/meetings');
+            exit;
+        }
+
+        $studentId = (int)$meeting['student_id'];
+        $db = Database::getInstance()->getConnection();
+
+        // Update student record track & invite status
+        $stmt = $db->prepare("
+            UPDATE student_records 
+            SET learning_track = 'lms',
+                lms_invite_status = 'sent',
+                lms_invited_at = NOW()
+            WHERE id = :id
+        ");
+        $stmt->execute(['id' => $studentId]);
+
+        // Find parent to notify
+        $stmtParent = $db->prepare("
+            SELECT u.id, u.name, u.email 
+            FROM users u
+            JOIN enrollment_submissions es ON u.id = es.parent_id
+            JOIN student_records sr ON es.id = sr.enrollment_id
+            WHERE sr.id = :student_id LIMIT 1
+        ");
+        $stmtParent->execute(['student_id' => $studentId]);
+        $parent = $stmtParent->fetch();
+
+        if ($parent) {
+            require_once __DIR__ . '/../Models/NotificationModel.php';
+            $notifModel = new NotificationModel();
+            $notifModel->create(
+                $parent['id'],
+                'lms_invitation',
+                '📩 SignED LMS Learning Invitation Received',
+                "Maayong adlaw! Ang SPED Teacher nag-invite kanimo nga i-activate ang SignED Interactive LMS digital learning account para kang {$meeting['student_name']}. Palihug tan-awa ug i-accept ang invitation.",
+                ['meeting_id' => $meetingId, 'student_id' => $studentId]
+            );
+        }
+
+        $this->logActivity('lms_invite.sent', 'student_records', $studentId, "Sent SignED LMS invitation to parent.");
+        $_SESSION['success'] = "SignED LMS digital invitation successfully sent to parent!";
+        header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+        exit;
+    }
+
+    /**
+     * Set Learner as SEN Traditional F2F Learner (No LMS account)
+     */
+    public function setTraditionalTrack($meetingId) {
+        $meetingId = (int)$meetingId;
+        $meeting = $this->meetingModel->findById($meetingId);
+        if (!$meeting) {
+            $_SESSION['error'] = 'Meeting not found.';
+            header('Location: ' . BASE_PATH . '/iep/meetings');
+            exit;
+        }
+
+        $studentId = (int)$meeting['student_id'];
+        $db = Database::getInstance()->getConnection();
+
+        $stmt = $db->prepare("
+            UPDATE student_records 
+            SET learning_track = 'traditional',
+                lms_invite_status = 'none'
+            WHERE id = :id
+        ");
+        $stmt->execute(['id' => $studentId]);
+
+        $this->logActivity('track.traditional', 'student_records', $studentId, "Set learner track to SEN Traditional F2F.");
+        $_SESSION['success'] = "Learner marked as SEN Traditional F2F Learner (Record-Keeping IEP Workspace active).";
+        header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+        exit;
+    }
+
+    /**
+     * Parent Accepts SignED LMS Invitation -> Auto-Generate Learner Account
+     */
+    public function acceptLmsInvite($meetingId) {
+        $meetingId = (int)$meetingId;
+        $meeting = $this->meetingModel->findById($meetingId);
+        if (!$meeting) {
+            $_SESSION['error'] = 'Meeting not found.';
+            header('Location: ' . BASE_PATH . '/dashboard');
+            exit;
+        }
+
+        $studentId = (int)$meeting['student_id'];
+        $db = Database::getInstance()->getConnection();
+
+        // Get student details
+        $stmt = $db->prepare("SELECT * FROM student_records WHERE id = :id LIMIT 1");
+        $stmt->execute(['id' => $studentId]);
+        $student = $stmt->fetch();
+
+        if (!$student) {
+            $_SESSION['error'] = 'Student record not found.';
+            header('Location: ' . BASE_PATH . '/dashboard');
+            exit;
+        }
+
+        // Clean names for credential generation
+        // Format: [firstname][lastname]@signed.lms, Password: [lastname]2026
+        $nameParts = explode(',', $student['student_name']);
+        $lastName = trim($nameParts[0] ?? 'Student');
+        $firstName = trim($nameParts[1] ?? 'Learner');
+
+        $cleanLast = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $lastName));
+        $cleanFirst = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $firstName));
+        $username = ($cleanFirst . $cleanLast) . '@signed.lms';
+        $plainPassword = $cleanLast . date('Y');
+        $passwordHash = password_hash($plainPassword, PASSWORD_BCRYPT);
+
+        // Check if user already exists or create new
+        $stmtCheck = $db->prepare("SELECT id FROM users WHERE email = :email LIMIT 1");
+        $stmtCheck->execute(['email' => $username]);
+        $existingUserId = $stmtCheck->fetchColumn();
+
+        if ($existingUserId) {
+            $learnerUserId = (int)$existingUserId;
+        } else {
+            $stmtUser = $db->prepare("
+                INSERT INTO users (name, email, password_hash, role, school_id, email_verified, status)
+                VALUES (:name, :email, :password_hash, 'learner', :school_id, TRUE, 'active')
+            ");
+            $stmtUser->execute([
+                'name'          => $student['student_name'],
+                'email'         => $username,
+                'password_hash' => $passwordHash,
+                'school_id'     => $student['school_id'] ?? 1
+            ]);
+            $learnerUserId = (int)$db->lastInsertId();
+        }
+
+        // Update student record
+        $stmtUpdate = $db->prepare("
+            UPDATE student_records 
+            SET learning_track = 'lms',
+                lms_invite_status = 'accepted',
+                lms_accepted_at = NOW(),
+                learner_user_id = :learner_id
+            WHERE id = :id
+        ");
+        $stmtUpdate->execute([
+            'learner_id' => $learnerUserId,
+            'id'         => $studentId
+        ]);
+
+        // Save generated credentials in session to display to parent
+        $_SESSION['generated_learner_credentials'] = [
+            'student_name' => $student['student_name'],
+            'username'     => $username,
+            'password'     => $plainPassword,
+            'login_url'    => BASE_PATH . '/login'
+        ];
+
+        $_SESSION['success'] = "SignED LMS Invitation Accepted! Learner credentials have been generated.";
+        header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+        exit;
+    }
+
+    /**
+     * Parent Declines LMS Invite
+     */
+    public function declineLmsInvite($meetingId) {
+        $meetingId = (int)$meetingId;
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->prepare("
+            UPDATE student_records sr
+            JOIN iep_meetings im ON sr.id = im.student_id
+            SET sr.learning_track = 'traditional',
+                sr.lms_invite_status = 'declined'
+            WHERE im.id = :mid
+        ");
+        $stmt->execute(['mid' => $meetingId]);
+
+        $_SESSION['success'] = "Response recorded. Learner will participate under Traditional Face-to-Face Instruction.";
+        header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId);
+        exit;
     }
 
     /**

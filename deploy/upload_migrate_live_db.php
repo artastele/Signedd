@@ -44,6 +44,27 @@ try {
         }
     }
 
+    // 4. Add claim_token to student_records table (v65)
+    try {
+        $pdo->exec("ALTER TABLE student_records ADD COLUMN claim_token VARCHAR(64) NULL DEFAULT NULL AFTER lis_synced_at");
+        $pdo->exec("CREATE INDEX idx_student_records_claim_token ON student_records (claim_token)");
+        echo "[SUCCESS] Added claim_token column and index to student_records table.\n";
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'Duplicate column name') !== false) {
+            echo "[INFO] Column claim_token already exists on student_records table.\n";
+        } else {
+            echo "[WARNING] Error adding claim_token: " . $e->getMessage() . "\n";
+        }
+    }
+
+    // 5. Make parent_id NULLABLE on enrollment_submissions table (v65)
+    try {
+        $pdo->exec("ALTER TABLE enrollment_submissions MODIFY parent_id INT NULL DEFAULT NULL");
+        echo "[SUCCESS] Updated enrollment_submissions.parent_id to be NULLABLE.\n";
+    } catch (PDOException $e) {
+        echo "[WARNING] Error modifying enrollment_submissions.parent_id: " . $e->getMessage() . "\n";
+    }
+
     echo "\n--- REMOTE MIGRATION COMPLETE! ---\n";
 
 } catch (Exception $ex) {

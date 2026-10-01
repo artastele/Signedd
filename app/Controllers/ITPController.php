@@ -649,7 +649,7 @@ class ITPController {
             exit;
         }
 
-        $uploadDir = __DIR__ . '/../../public/uploads/signatures/itp/';
+        $uploadDir = function_exists('public_path') ? public_path('uploads/signatures/itp/') : (__DIR__ . '/../../public/uploads/signatures/itp/');
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }

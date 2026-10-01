@@ -56,11 +56,43 @@ class RoleMiddleware {
 
         $userRole = $_SESSION['role'];
 
-        if (!in_array($userRole, $allowedRoles)) {
+        if (!in_array($userRole, (array)$allowedRoles)) {
             self::forbidden();
         }
 
         return true;
+    }
+
+    public static function checkAny($allowedRolesOrPermissions) {
+        if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
+            http_response_code(401);
+            header('Location: /login');
+            exit;
+        }
+
+        $userRole = $_SESSION['role'];
+        if ($userRole === 'admin') {
+            return true;
+        }
+
+        // Check if matching role
+        if (in_array($userRole, (array)$allowedRolesOrPermissions, true)) {
+            return true;
+        }
+
+        // Check permissions
+        $rolePermissions = self::$permissions[$userRole] ?? [];
+        if (in_array('*', $rolePermissions)) {
+            return true;
+        }
+
+        foreach ((array)$allowedRolesOrPermissions as $perm) {
+            if (in_array($perm, $rolePermissions, true)) {
+                return true;
+            }
+        }
+
+        self::forbidden();
     }
 
     private static function forbidden() {

@@ -1,6 +1,24 @@
 # SignED Public .htaccess - Minimal Configuration for Shared Hosting Compatibility
+<FilesMatch "^\.env|composer\.(json|lock)$">
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</FilesMatch>
+
 RewriteEngine On
+
+# Block access to hidden files (.env, .git, etc.)
+RewriteRule (^\.|/\.) - [F]
 
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php [QSA,L]
+
+<IfModule mod_mime.c>
+    AddType video/mp4 .mp4 .mov
+    AddType video/webm .webm
+</IfModule>

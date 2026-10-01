@@ -108,60 +108,90 @@ require_once __DIR__ . '/../layouts/header.php';
                                                     <h6 class="fw-bold text-dark mb-3">
                                                         <i class="bi bi-person-badge me-1 text-primary"></i> Applicant Information
                                                     </h6>
-                                                    <table class="table table-borderless table-sm small mb-0">
-                                                        <tr>
-                                                            <td class="fw-semibold text-muted" style="width:140px;">Full Name</td>
-                                                            <td><?php echo htmlspecialchars($request['user_name']); ?></td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td class="fw-semibold text-muted">Email</td>
-                                                            <td><?php echo htmlspecialchars($request['user_email']); ?></td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td class="fw-semibold text-muted">Applied Role</td>
-                                                            <td>
-                                                                <span class="badge bg-secondary">
-                                                                    <?php echo ucwords(str_replace('_', ' ', $request['requested_role'])); ?>
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                        <?php
-                                                        $docs = json_decode($request['submitted_docs'], true);
-                                                        if ($docs && isset($docs['employee_number']) && !empty($docs['employee_number'])):
-                                                        ?>
-                                                        <tr>
-                                                            <td class="fw-semibold text-muted">Employee / DepEd ID</td>
-                                                            <td><?php echo htmlspecialchars($docs['employee_number']); ?></td>
-                                                        </tr>
-                                                        <?php endif; ?>
-                                                        <?php if ($request['status'] !== 'pending'): ?>
-                                                        <tr>
-                                                            <td class="fw-semibold text-muted">Reviewed By</td>
-                                                            <td><?php echo htmlspecialchars($request['reviewer_name'] ?? 'N/A'); ?></td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td class="fw-semibold text-muted">Review Note</td>
-                                                            <td><?php echo htmlspecialchars($request['review_note'] ?? '—'); ?></td>
-                                                        </tr>
-                                                        <?php endif; ?>
-                                                    </table>
+                                                    <div class="table-responsive">
+                                                        <table class="table table-borderless table-sm small mb-0">
+                                                            <tr>
+                                                                <td class="fw-semibold text-muted" style="width:140px;">Full Name</td>
+                                                                <td><?php echo htmlspecialchars($request['user_name']); ?></td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="fw-semibold text-muted">Email</td>
+                                                                <td><?php echo htmlspecialchars($request['user_email']); ?></td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="fw-semibold text-muted">Applied Role</td>
+                                                                <td>
+                                                                    <span class="badge bg-secondary">
+                                                                        <?php echo ucwords(str_replace('_', ' ', $request['requested_role'])); ?>
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                            <?php
+                                                            $docs = json_decode($request['submitted_docs'], true);
+                                                            if ($docs && isset($docs['employee_number']) && !empty($docs['employee_number'])):
+                                                            ?>
+                                                            <tr>
+                                                                <td class="fw-semibold text-muted">Employee / DepEd ID</td>
+                                                                <td><?php echo htmlspecialchars($docs['employee_number']); ?></td>
+                                                            </tr>
+                                                            <?php endif; ?>
+                                                            <?php if ($request['status'] !== 'pending'): ?>
+                                                            <tr>
+                                                                <td class="fw-semibold text-muted">Reviewed By</td>
+                                                                <td><?php echo htmlspecialchars($request['reviewer_name'] ?? 'N/A'); ?></td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td class="fw-semibold text-muted">Review Note</td>
+                                                                <td><?php echo htmlspecialchars($request['review_note'] ?? '—'); ?></td>
+                                                            </tr>
+                                                            <?php endif; ?>
+                                                        </table>
+                                                    </div>
 
-                                                    <!-- Submitted Documents -->
-                                                    <?php if ($docs && isset($docs['files']) && !empty($docs['files'])): ?>
-                                                        <h6 class="fw-bold text-dark mb-2 mt-3">
-                                                            <i class="bi bi-paperclip me-1 text-primary"></i> Submitted Documents
-                                                        </h6>
-                                                        <div class="d-flex flex-wrap gap-2">
-                                                            <?php foreach ($docs['files'] as $type => $path): ?>
-                                                                <a href="<?php echo $basePath . '/' . $path; ?>" target="_blank"
-                                                                   class="btn btn-sm btn-outline-primary">
-                                                                    <i class="bi bi-file-earmark-arrow-down me-1"></i>
-                                                                    <?php echo ucwords(str_replace('_', ' ', $type)); ?>
-                                                                </a>
-                                                            <?php endforeach; ?>
+                                                    <!-- Relevant Training Certifications & Seminars -->
+                                                    <?php if ($docs && !empty($docs['certifications'])): ?>
+                                                        <div class="mt-3 pt-3 border-top">
+                                                            <h6 class="fw-bold text-dark mb-2">
+                                                                <i class="bi bi-award-fill me-1 text-warning"></i> Training Certifications &amp; Seminars (<?php echo count($docs['certifications']); ?>)
+                                                            </h6>
+                                                            <div class="d-flex flex-column gap-2">
+                                                                <?php foreach ($docs['certifications'] as $cert): ?>
+                                                                    <div class="d-flex justify-content-between align-items-center bg-white p-2 px-3 rounded border shadow-sm">
+                                                                        <div>
+                                                                            <div class="fw-bold text-dark small"><i class="bi bi-patch-check-fill text-success me-1"></i> <?php echo htmlspecialchars($cert['title'] ?: 'Training Certification'); ?></div>
+                                                                            <?php if (!empty($cert['issue_date'])): ?>
+                                                                                <small class="text-muted"><i class="bi bi-calendar3 me-1"></i> Issued: <?php echo date('M j, Y', strtotime($cert['issue_date'])); ?></small>
+                                                                            <?php endif; ?>
+                                                                        </div>
+                                                                        <a href="<?php echo $basePath . '/' . htmlspecialchars($cert['path']); ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-1 px-2.5 text-nowrap" style="font-size: 0.8rem; border-radius: 6px;">
+                                                                            <i class="bi bi-file-earmark-pdf me-1"></i> View Document
+                                                                        </a>
+                                                                    </div>
+                                                                <?php endforeach; ?>
+                                                            </div>
                                                         </div>
-                                                    <?php else: ?>
-                                                        <p class="text-muted small mt-3 mb-0"><i class="bi bi-paperclip me-1"></i>No documents uploaded.</p>
+                                                    <?php endif; ?>
+
+                                                    <!-- Other Submitted Documents -->
+                                                    <?php if ($docs && isset($docs['files']) && !empty($docs['files'])): ?>
+                                                        <div class="mt-3 pt-2">
+                                                            <h6 class="fw-bold text-dark mb-2">
+                                                                <i class="bi bi-paperclip me-1 text-primary"></i> Other Attached Documents
+                                                            </h6>
+                                                            <div class="d-flex flex-wrap gap-2">
+                                                                <?php foreach ($docs['files'] as $type => $path): ?>
+                                                                    <a href="<?php echo $basePath . '/' . htmlspecialchars($path); ?>" target="_blank"
+                                                                       class="btn btn-sm btn-outline-secondary" style="border-radius: 6px; font-size: 0.8rem;">
+                                                                        <i class="bi bi-file-earmark-arrow-down me-1"></i>
+                                                                        <?php echo ucwords(str_replace('_', ' ', $type)); ?>
+                                                                    </a>
+                                                                <?php endforeach; ?>
+                                                            </div>
+                                                        </div>
+                                                    <?php endif; ?>
+
+                                                    <?php if (empty($docs['certifications']) && (empty($docs['files']) || empty($docs['files']))): ?>
+                                                        <p class="text-muted small mt-3 mb-0"><i class="bi bi-paperclip me-1"></i>No additional documents uploaded.</p>
                                                     <?php endif; ?>
                                                 </div>
 

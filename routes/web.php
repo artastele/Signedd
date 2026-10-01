@@ -70,6 +70,12 @@ route('GET', '/auth/google/callback', 'AuthController', 'googleCallback');
 route('GET', '/dashboard', 'DashboardController', 'index');
 route('POST', '/dashboard/dismiss-lrn-notification', 'DashboardController', 'dismissLrnNotification');
 
+// Universal Profile & Account Settings (All Roles)
+route('GET',  '/profile',                 'ProfileController', 'index');
+route('POST', '/profile/update',          'ProfileController', 'updateProfile');
+route('POST', '/profile/upload-avatar',   'ProfileController', 'uploadAvatar');
+route('POST', '/profile/change-password', 'ProfileController', 'changePassword');
+
 // Notifications (AJAX endpoints)
 route('GET', '/notifications/get', 'NotificationController', 'getNotifications');
 route('POST', '/notifications/{id}/read', 'NotificationController', 'markAsRead');
@@ -113,6 +119,7 @@ route('POST', '/role/submit-staff', 'RoleController', 'submitStaffApplication', 
 // ============================================
 
 // Parent Enrollment Routes
+route('GET', '/enroll', 'EnrollmentController', 'create', 'enrollment.submit');
 route('GET', '/enrollment', 'EnrollmentController', 'index', 'enrollment.submit');
 route('GET', '/enrollment/create', 'EnrollmentController', 'create', 'enrollment.submit');
 route('GET', '/enrollment/returning-lookup', 'EnrollmentController', 'returningLookup', 'enrollment.submit');
@@ -169,11 +176,24 @@ route('POST', '/iep/implementation/save-activity',                  'IEPImplemen
 route('POST', '/iep/implementation/delete-material/{id}',           'IEPImplementationController', 'deleteMaterial',    'iep.implement');
 route('GET',  '/iep/implementation/progress/{id}',                  'IEPImplementationController', 'progress',          'iep.implement');
 // Process 6 — new workspace routes
+route('GET',  '/iep/implementation/{id}',                           'IEPImplementationController', 'workspace',         'iep.implement');
 route('GET',  '/iep/implementation/workspace/{id}',                 'IEPImplementationController', 'workspace',         'iep.implement');
 route('POST', '/iep/implementation/lesson-plan/create',             'IEPImplementationController', 'createLessonPlan',  'iep.implement');
 route('POST', '/iep/implementation/lesson-plan/upload-doc',         'IEPImplementationController', 'uploadLessonDoc',   'iep.implement');
 route('POST', '/iep/implementation/lesson-plan/{id}/publish',       'IEPImplementationController', 'publishLessonPlan', 'iep.implement');
 route('POST', '/iep/implementation/lesson-plan/{id}/delete',        'IEPImplementationController', 'deleteLessonPlan',  'iep.implement');
+route('GET',  '/iep/implementation/lesson/{id}/builder',            'IEPImplementationController', 'lessonSlideBuilder', 'iep.implement');
+route('GET',  '/iep/implementation/lesson-plan/{id}/builder',       'IEPImplementationController', 'lessonSlideBuilder', 'iep.implement');
+route('GET',  '/iep/implementation/lesson-plan/{id}/pages',         'IEPImplementationController', 'getLessonPagesJson', 'iep.implement');
+route('POST', '/iep/implementation/lesson-plan/{id}/page/add',      'IEPImplementationController', 'addLessonPage',      'iep.implement');
+route('POST', '/iep/implementation/lesson-plan/page/{id}/update',   'IEPImplementationController', 'updateLessonPage',   'iep.implement');
+route('POST', '/iep/implementation/lesson-plan/{id}/page/delete',   'IEPImplementationController', 'deleteLessonPage',   'iep.implement');
+route('POST', '/iep/implementation/lesson-plan/{id}/pages/clear',  'IEPImplementationController', 'clearLessonPages',   'iep.implement');
+
+route('POST', '/iep/implementation/upload-slide-image',              'IEPImplementationController', 'uploadSlideImage',   'iep.implement');
+route('POST', '/iep/implementation/fsl/upload-sign',                 'IEPImplementationController', 'uploadCustomFslSign','iep.implement');
+
+
 route('POST', '/iep/implementation/material/add',                   'IEPImplementationController', 'addMaterial',       'iep.implement');
 route('POST', '/iep/implementation/activity/create',                'IEPImplementationController', 'addActivity',       'iep.implement');
 route('POST', '/iep/implementation/activity/{id}/delete',           'IEPImplementationController', 'deleteActivity',    'iep.implement');
@@ -186,19 +206,56 @@ route('POST', '/iep/implementation/material/{id}/edit',             'IEPImplemen
 route('POST', '/iep/implementation/activity/{id}/edit',             'IEPImplementationController', 'editActivity',      'iep.implement');
 route('GET',  '/iep/implementation/submission/{id}',                'IEPImplementationController', 'viewSubmission',    'iep.implement');
 route('POST', '/iep/implementation/submission/{id}/confirm-grade', 'IEPImplementationController', 'confirmSubmissionGrade', 'iep.implement');
+route('POST', '/iep/implementation/traditional-doc/upload',        'IEPImplementationController', 'uploadTraditionalDoc', 'iep.implement');
+route('POST', '/iep/implementation/traditional-doc/delete/{id}',   'IEPImplementationController', 'deleteTraditionalDoc', 'iep.implement');
 
 // ============================================
 // LEARNER ROUTES (Process 7)
 // ============================================
 route('GET',  '/learning/dashboard',              'LearningController', 'dashboard',       'learning.access');
 route('GET',  '/learning/lesson/{id}',            'LearningController', 'lessonView',      'learning.access');
+route('POST', '/learning/lesson/{id}/progress',   'LearningController', 'savePageProgress',  'learning.access');
 route('GET',  '/learning/activity/{id}',          'LearningController', 'activityPlay',    'learning.access');
 route('POST', '/learning/activity/{id}/submit',   'LearningController', 'submitActivity',  'learning.access');
 route('GET',  '/learning/progress',               'LearningController', 'progress',        'learning.access');
 
+// Stage 3 FSL Vocabulary & Dictionary Engine
+route('GET',  '/api/fsl/lookup',                  'FSLController', 'lookup');
+route('GET',  '/api/fsl/dictionary',              'FSLController', 'dictionary');
+route('GET',  '/fsl-dictionary',                  'FSLController', 'index');
+
+// Stage 4 Teacher FSL Training Portal & Database Backup
+route('GET',  '/teacher-fsl-training',            'TeacherFSLController', 'index');
+route('GET',  '/teacher-fsl-training/print',      'TeacherFSLController', 'printGuide');
+route('GET',  '/admin/backup-export',             'BackupController', 'exportSql');
+
+// Section Management (Stage 2 — Principal & Admin)
+route('GET',  '/sections',            'SectionController', 'index');
+route('POST', '/sections/store',      'SectionController', 'store');
+route('POST', '/sections/update/{id}', 'SectionController', 'update');
+route('POST', '/sections/delete/{id}', 'SectionController', 'delete');
+
+// Learner Masterlist & Enrollment Registry
+route('GET',  '/masterlist',                    'MasterlistController', 'index');
+route('GET',  '/masterlist/export-register',    'MasterlistController', 'exportSf1');
+route('GET',  '/masterlist/export-attendance',  'MasterlistController', 'exportSf2');
+route('GET',  '/masterlist/export-sf1',         'MasterlistController', 'exportSf1'); // alias
+route('GET',  '/masterlist/export-sf2',         'MasterlistController', 'exportSf2'); // alias
+route('POST', '/masterlist/import-lrn',          'MasterlistController', 'importLrn');
+route('POST', '/masterlist/update-section',     'MasterlistController', 'updateSection');
+route('POST', '/masterlist/bulk-import',         'MasterlistController', 'bulkImport');
+route('GET',  '/masterlist/import-template',    'MasterlistController', 'downloadImportTemplate');
+route('GET',  '/masterlist/get-qr-token',       'MasterlistController', 'getQrToken');
+
+// QR Code Parent Activation & Claim Routes
+route('GET',  '/invite/claim/{token}',          'ParentClaimController', 'claim');
+route('POST', '/invite/activate',               'ParentClaimController', 'activate');
+
 // Steps 16 & 17 — Parent child progress (Process 7)
 route('GET',  '/parent/child-progress',           'LearningController', 'parentChildProgress', 'parent.dashboard');
 route('GET',  '/parent/child-progress/{id}',      'LearningController', 'parentStudentProgress', 'parent.dashboard');
+route('POST', '/parent/update-child-credentials',  'DashboardController', 'updateChildCredentials');
+
 
 // ============================================
 // GUIDANCE ROUTES
@@ -224,14 +281,16 @@ route('POST', '/iep/meetings/pdsp/save', 'IEPMeetingController', 'savePDSP', 'ie
 route('POST', '/iep/meetings/pdsp/submit', 'IEPMeetingController', 'submitPDSP', 'iep.meeting');
 route('POST', '/iep/meetings/pdsp/ai-extract', 'IEPMeetingController', 'aiExtract', 'iep.meeting');
 route('POST', '/iep/meetings/pdsp/upload-signed-document', 'IEPMeetingController', 'uploadSignedDocument', 'iep.meeting');
-route('POST', '/iep/meetings/pdsp/mark-as-signed', 'IEPMeetingController', 'markAsSigned', 'iep.meeting');
-route('GET', '/iep/meetings/schedule', 'IEPMeetingController', 'schedule', 'iep.meeting');
-route('POST', '/iep/meetings/schedule', 'IEPMeetingController', 'createMeeting', 'iep.meeting');
-route('POST', '/iep/meetings/availability', 'IEPMeetingController', 'getAvailability', 'iep.meeting');
 route('GET', '/iep/meetings/{id}', 'IEPMeetingController', 'show', 'iep.meeting');
+route('GET', '/iep-meeting/{id}', 'IEPMeetingController', 'show', 'iep.meeting');
 route('POST', '/iep/meetings/{id}/update', 'IEPMeetingController', 'updateMeeting', 'iep.meeting');
 route('POST', '/iep/meetings/{id}/cancel', 'IEPMeetingController', 'cancelMeeting', 'iep.meeting');
-route('POST', '/iep/meetings/upload-calendar', 'IEPMeetingController', 'uploadCalendar', 'iep.meeting');
+
+// Stage 2 Dual-Track & LMS Invite Handlers
+route('POST', '/iep/meetings/{id}/send-lms-invite', 'IEPMeetingController', 'sendLmsInvite', 'iep.meeting');
+route('POST', '/iep/meetings/{id}/set-traditional-track', 'IEPMeetingController', 'setTraditionalTrack', 'iep.meeting');
+route('POST', '/iep/meetings/{id}/accept-lms-invite', 'IEPMeetingController', 'acceptLmsInvite');
+route('POST', '/iep/meetings/{id}/decline-lms-invite', 'IEPMeetingController', 'declineLmsInvite');
 
 // ============================================
 // PROCESS 5 — IEP Generation
@@ -256,6 +315,7 @@ route('POST', '/iep/submitIEP',                'IEPController', 'submitIEP',    
 route('POST', '/iep/finalize-digital',         'IEPController', 'finalizeDigitalIep', 'iep.create');
 route('POST', '/iep/draft/{id}/delete',        'IEPController', 'deleteDraft',    'iep.create');
 route('GET',  '/iep/print/report-card/{student_id}', 'ReportCardController', 'printReportCard', 'iep.view');
+route('GET',  '/progress-reports/{student_id}/sf9',   'ReportCardController', 'printReportCard', 'iep.view');
 route('GET',  '/iep/print/{id}',               'IEPController', 'printForm',      'iep.view');
 route('GET',  '/iep/ajax/eligible-students',   'IEPController', 'eligibleStudentsJson', 'iep.create');
 route('POST', '/iep/ajax/lesson-plan-upload',  'IEPController', 'uploadLessonPlanDocForIep', 'iep.create');
@@ -270,13 +330,9 @@ route('GET',  '/iep/download/{id}',            'IEPController', 'downloadDocumen
 route('GET',  '/iep/{id}/learning-outcomes/grades',              'TransitionWorkflowController', 'grades', 'progress_report.view');
 route('GET',  '/iep/{id}/learning-outcomes/attendance',          'TransitionWorkflowController', 'attendance', 'progress_report.view');
 // Legacy unified workflow removed — use dedicated module routes below.
-// Process 7–13 module entry points (new dedicated controllers)
-route('GET',  '/iep/{id}/transition-management/readiness',       'TransitionReadinessController', 'index', 'transition_readiness.view');
-route('POST', '/iep/{id}/transition-management/readiness',       'TransitionReadinessController', 'save',  'transition_readiness.create');
+// Process 10–13 Transition Workflow
 route('GET',  '/iep/{id}/transition-readiness',                  'TransitionReadinessController', 'index', 'transition_readiness.view');
 route('POST', '/iep/{id}/transition-readiness',                  'TransitionReadinessController', 'save',  'transition_readiness.create');
-route('GET',  '/iep/{id}/inclusion-planning/itp',                'ITPController', 'index', ['itp.view', 'itp.view_own_child']);
-route('POST', '/iep/{id}/inclusion-planning/itp',                'ITPController', 'save',  'itp.create');
 route('GET',  '/iep/{id}/individual-transition-plan',            'ITPController', 'index', ['itp.view', 'itp.view_own_child']);
 route('POST', '/iep/{id}/individual-transition-plan',            'ITPController', 'save',  'itp.create');
 route('POST', '/iep/{id}/itp/assign',                            'ITPController', 'assignTeam', 'itp.create');
@@ -295,16 +351,8 @@ route('POST', '/iep/{id}/inclusive-iep-itgp/sned-remarks',       'ITGPController
 route('POST', '/iep/{id}/inclusive-iep-itgp/send-back',          'ITGPController', 'sendBackToGenTeacher');
 route('POST', '/iep/{id}/inclusive-iep-itgp/inspect',            'ITGPController', 'inspect');
 route('POST', '/iep/{id}/inclusive-iep-itgp/finalize',           'ITGPController', 'finalize');
-route('GET',  '/iep/{id}/placement-management/notices',          'ClassPlacementController', 'index');
-route('POST', '/iep/{id}/placement-management/notices',          'ClassPlacementController', 'save');
 route('GET',  '/iep/{id}/placement-notice',                      'ClassPlacementController', 'index', 'class_placement.view');
 route('POST', '/iep/{id}/placement-notice',                      'ClassPlacementController', 'save',  'class_placement.confirm');
-
-// Double slash fallbacks for missing IEP ID (graceful redirects instead of raw 404)
-route('GET', '/iep//transition-readiness',                  'TransitionReadinessController', 'index', 'transition_readiness.view');
-route('GET', '/iep//individual-transition-plan',            'ITPController', 'index', 'itp.view');
-route('GET', '/iep//inclusive-iep-itgp',                    'ITGPController', 'index');
-route('GET', '/iep//placement-notice',                      'ClassPlacementController', 'index');
 
 // New cycle
 
@@ -376,10 +424,12 @@ route('GET', '/admin/activity-logs/export', 'AdminController', 'exportActivityLo
 // STUDENT RECORDS (All staff except parent)
 // ============================================
 
-route('GET', '/students', 'StudentController', 'index', 'student.records');
-route('GET', '/students/view/{id}', 'StudentController', 'view', 'student.view');
-route('GET', '/students/edit/{id}', 'StudentController', 'edit', 'student.view');
-route('POST', '/students/edit/{id}', 'StudentController', 'update', 'student.view');
+route('GET',  '/students',                   'StudentController', 'index', 'student.records');
+route('GET',  '/students/view/{id}',          'StudentController', 'view', 'student.view');
+route('GET',  '/students/edit/{id}',          'StudentController', 'edit', 'student.view');
+route('POST', '/students/edit/{id}',          'StudentController', 'update', 'student.view');
+route('POST', '/students/upload-document',    'StudentController', 'uploadDocument');
+route('POST', '/masterlist/upload-document',  'StudentController', 'uploadDocument');
 
 // ============================================
 // PROCESS 9 — CLASSROOM OBSERVATION TOOL (COT)
@@ -401,7 +451,6 @@ route('GET', '/cot/observations/{id}/sign-off', 'ClassroomObservationController'
 route('POST', '/cot/observations/{id}/sign-off', 'ClassroomObservationController', 'signOff');
 
 // Principal Routes
-route('POST', '/principal/enrollment-settings', 'PrincipalController', 'updateEnrollmentSettings');
 route('POST', '/principal/save-guidelines', 'PrincipalController', 'updateEnrollmentSettings');
 route('POST', '/principal/upload-logo', 'PrincipalController', 'uploadLogo');
 

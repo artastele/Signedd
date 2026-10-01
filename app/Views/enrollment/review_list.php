@@ -76,6 +76,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <th>Parent</th>
                                 <th>Type</th>
                                 <th>Grade Level</th>
+                                <th>Survey Recommendation</th>
                                 <th>Submitted</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -83,18 +84,33 @@ require_once __DIR__ . '/../layouts/header.php';
                         </thead>
                         <tbody>
                             <?php foreach ($enrollments as $enrollment): ?>
+                                <?php 
+                                    $isLmsCandidate = (!empty($enrollment['survey_has_internet']) && !empty($enrollment['survey_willing_online']))
+                                                    || (!empty($enrollment['has_device']) && !empty($enrollment['willing_digital']));
+                                ?>
                                 <tr>
                                     <td><?php echo $enrollment['id']; ?></td>
                                     <td>
                                         <strong><?php echo htmlspecialchars($enrollment['first_name'] . ' ' . $enrollment['last_name']); ?></strong>
                                     </td>
-                                    <td><?php echo htmlspecialchars($enrollment['parent_name']); ?></td>
+                                    <td><?php echo htmlspecialchars($enrollment['parent_name'] ?? 'Parent'); ?></td>
                                     <td>
                                         <span class="badge bg-secondary">
                                             <?php echo ucfirst($enrollment['enrollment_type']); ?>
                                         </span>
                                     </td>
                                     <td><?php echo htmlspecialchars($enrollment['grade_level_to_enroll']); ?></td>
+                                    <td>
+                                        <?php if ($isLmsCandidate): ?>
+                                            <span class="badge bg-info text-dark" title="Internet & Device Available, Willing for Online Learning">
+                                                <i class="bi bi-laptop me-1"></i> SignED Candidate
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge bg-light text-secondary border" title="Prefers Face-to-Face / No Online Setup">
+                                                <i class="bi bi-person-workspace me-1"></i> Non-SignED (F2F)
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?php echo $enrollment['submitted_at'] ? date('M j, Y', strtotime($enrollment['submitted_at'])) : 'Draft'; ?></td>
                                     <td>
                                         <?php

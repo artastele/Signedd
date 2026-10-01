@@ -15,14 +15,14 @@ $role = $_SESSION['role'] ?? 'user';
         </button>
         <?php else: ?>
         <!-- Top Pill Navigation for Learner -->
-        <nav class="learner-top-nav">
+        <nav class="learner-top-nav" aria-label="Pangunahing Navigasyon ng Mag-aaral">
             <a href="<?php echo $basePath; ?>/learning/dashboard" class="learner-nav-pill <?php echo isActive('/learning/dashboard') && !isset($_GET['tab']) ? 'active' : ''; ?>">
-                <i class="bi bi-house-heart-fill"></i>
-                <span>Home</span>
+                <i class="ph-bold ph-book-open" aria-hidden="true"></i>
+                <span>Aking Aralin</span>
             </a>
             <a href="<?php echo $basePath; ?>/learning/dashboard?tab=badges" class="learner-nav-pill <?php echo isset($_GET['tab']) && $_GET['tab'] === 'badges' ? 'active' : ''; ?>">
-                <i class="bi bi-trophy-fill"></i>
-                <span>My Badges</span>
+                <i class="ph-bold ph-star" aria-hidden="true"></i>
+                <span>Mga Bituin at Badge</span>
             </a>
         </nav>
         <?php endif; ?>
@@ -72,9 +72,10 @@ $role = $_SESSION['role'] ?? 'user';
                     </div>
                 </li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item" href="<?php echo $role === 'learner' ? $basePath . '/learning/dashboard' : $basePath . '/dashboard'; ?>"><i class="bi bi-house-door"></i> Dashboard</a></li>
+                <li><a class="dropdown-item" href="<?php echo $role === 'learner' ? $basePath . '/learning/dashboard' : $basePath . '/dashboard'; ?>"><i class="bi bi-house-door me-2"></i> Dashboard</a></li>
+                <li><a class="dropdown-item" href="<?php echo $basePath; ?>/profile"><i class="bi bi-person-gear me-2 text-primary"></i> Profile &amp; Settings</a></li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item text-danger" href="<?php echo $basePath; ?>/logout"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                <li><a class="dropdown-item text-danger" href="<?php echo $basePath; ?>/logout"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
             </ul>
         </div>
     </div>

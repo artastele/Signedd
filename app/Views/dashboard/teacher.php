@@ -259,6 +259,320 @@ $myAssignmentData = $teacherAssignModelObj->getByTeacherId($_SESSION['user_id'])
         </div>
     </div>
 
+    <!-- Section: Enrollment Review & Section Roster (Dashboard View) -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-person-lines-fill text-primary fs-5"></i>
+                <h5 class="mb-0 fw-bold text-dark">Enrollment Review &amp; Section Roster</h5>
+            </div>
+            <div class="d-flex gap-2">
+                <ul class="nav nav-pills" id="enrollmentSectionTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active py-1 px-3 fw-semibold small" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending-pane" type="button" role="tab">
+                            <i class="bi bi-clock-history me-1"></i> Pending Review (<?php echo (int)($pendingCount ?? 0); ?>)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-1 px-3 fw-semibold small" id="roster-tab" data-bs-toggle="tab" data-bs-target="#roster-pane" type="button" role="tab">
+                            <i class="bi bi-people me-1"></i> Enrolled Section Roster (<?php echo count($myEnrolledStudents ?? []); ?>)
+                        </button>
+                    </li>
+                </ul>
+                <a href="<?php echo $basePath; ?>/masterlist" class="btn btn-sm btn-outline-dark fw-semibold py-1 px-3">
+                    <i class="bi bi-people-fill me-1"></i> Full Masterlist
+                </a>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="tab-content" id="enrollmentSectionTabsContent">
+                <!-- Tab 1: Pending Applications -->
+                <div class="tab-pane fade show active p-3" id="pending-pane" role="tabpanel">
+                    <?php if (empty($pendingEnrollments)): ?>
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-check2-circle text-success fs-1 d-block mb-1"></i>
+                            <h6 class="fw-bold mb-1">No Pending Applications for Review</h6>
+                            <p class="small text-muted mb-0">All submitted student applications under your school have been verified and processed.</p>
+                        </div>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-3">Applicant Name</th>
+                                        <th>Grade Level</th>
+                                        <th>Parent / Guardian</th>
+                                        <th>Submitted Date</th>
+                                        <th>Status</th>
+                                        <th class="text-end pe-3">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($pendingEnrollments as $app): ?>
+                                        <tr>
+                                            <td class="ps-3 fw-semibold text-dark">
+                                                <i class="bi bi-person-fill text-secondary me-1"></i>
+                                                <?php echo htmlspecialchars($app['student_name'] ?? ($app['first_name'] . ' ' . $app['last_name'])); ?>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary">
+                                                    <?php echo htmlspecialchars($app['grade_level_to_enroll'] ?? $app['grade_level'] ?? 'Kindergarten'); ?>
+                                                </span>
+                                            </td>
+                                            <td class="small text-muted">
+                                                <?php echo htmlspecialchars($app['parent_name'] ?? $app['guardian_name'] ?? 'Parent / Guardian'); ?>
+                                            </td>
+                                            <td class="small text-muted">
+                                                <?php echo !empty($app['created_at']) ? date('M d, Y', strtotime($app['created_at'])) : 'Recent'; ?>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-warning bg-opacity-15 text-dark border border-warning">
+                                                    <i class="bi bi-hourglass-split me-1"></i>Pending Review
+                                                </span>
+                                            </td>
+                                            <td class="text-end pe-3">
+                                                <a href="<?php echo $basePath; ?>/enrollment/review/<?php echo (int)($app['id'] ?? 0); ?>" class="btn btn-sm btn-warning text-dark fw-semibold py-1 px-2.5 shadow-sm">
+                                                    <i class="bi bi-clipboard-check me-1"></i> Review &amp; Verify
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Tab 2: Enrolled Section Roster -->
+                <div class="tab-pane fade p-3" id="roster-pane" role="tabpanel">
+                    <?php if (empty($myEnrolledStudents)): ?>
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-person-slash text-secondary fs-1 d-block mb-1"></i>
+                            <h6 class="fw-bold mb-1">No Enrolled Students in Section Yet</h6>
+                            <p class="small text-muted mb-0">Verified students assigned to your section will automatically appear here.</p>
+                        </div>
+                    <?php else: ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-3">Student Name</th>
+                                        <th>Student ID / LRN</th>
+                                        <th>Grade &amp; Section</th>
+                                        <th>Learning Track</th>
+                                        <th>Disability Category</th>
+                                        <th class="text-end pe-3">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($myEnrolledStudents as $std): ?>
+                                        <?php 
+                                        $hasActiveAccount = !empty($std['learner_user_id']) || (($std['learning_track'] ?? '') === 'lms');
+                                        $isCandidate = (($std['learning_track'] ?? '') === 'candidate')
+                                            || (($std['es_learning_track'] ?? '') === 'candidate')
+                                            || (($std['lms_track'] ?? '') === 'candidate')
+                                            || (!empty($std['survey_has_internet']) && (!empty($std['survey_willing_online']) || !empty($std['willing_digital'])))
+                                            || (!empty($std['has_device']) && !empty($std['willing_digital']))
+                                            || !empty($std['modality_online'])
+                                            || !empty($std['modality_modular_digital']);
+                                        ?>
+                                        <tr>
+                                            <td class="ps-3 fw-semibold text-dark">
+                                                <a href="<?php echo $basePath; ?>/students/view/<?php echo (int)$std['id']; ?>" class="text-primary text-decoration-none">
+                                                    <?php echo htmlspecialchars($std['student_name']); ?>
+                                                </a>
+                                            </td>
+                                            <td class="font-monospace small">
+                                                <?php echo htmlspecialchars($std['lrn'] ?? $std['student_id'] ?? '—'); ?>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary"><?php echo htmlspecialchars($std['current_grade_level'] ?? 'SPED'); ?></span>
+                                                <small class="text-muted ms-1"><?php echo htmlspecialchars($std['section_name'] ?? 'Section A'); ?></small>
+                                            </td>
+                                            <td>
+                                                <?php if ($hasActiveAccount): ?>
+                                                    <span class="badge bg-primary px-2 py-1" title="Active LMS Account">
+                                                        <i class="bi bi-check2-circle me-1"></i>SignED LMS (Active)
+                                                    </span>
+                                                <?php elseif ($isCandidate): ?>
+                                                    <span class="badge bg-info bg-opacity-15 text-info-emphasis border border-info px-2 py-1" title="Recommended for SignED LMS via Digital Survey">
+                                                        <i class="bi bi-laptop me-1"></i>SignED Candidate
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary px-2 py-1">
+                                                        <i class="bi bi-person-workspace me-1"></i>Traditional SEN
+                                                    </span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <span class="small text-secondary"><?php echo htmlspecialchars($std['disability_type'] ?? 'Not Specified'); ?></span>
+                                            </td>
+                                            <td class="text-end pe-3">
+                                                <a href="<?php echo $basePath; ?>/students/view/<?php echo (int)$std['id']; ?>" class="btn btn-sm btn-outline-primary py-1 px-2.5">
+                                                    <i class="bi bi-person-badge me-1"></i> Profile
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section: My Availability & IEP Meeting Schedule Card -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-calendar-check text-primary fs-5"></i>
+                <h5 class="mb-0 fw-bold text-dark">My Availability &amp; Meeting Schedule</h5>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary fw-semibold py-1 px-3" data-bs-toggle="modal" data-bs-target="#availabilityModal">
+                <i class="bi bi-pencil-square me-1"></i> Update Weekly Schedule
+            </button>
+        </div>
+        <div class="card-body p-4">
+            <div class="row g-3 align-items-center">
+                <div class="col-md-7 border-end">
+                    <h6 class="fw-bold text-dark mb-2">Weekly Recurring Availability for IEP Meetings:</h6>
+                    <p class="text-secondary small mb-3">These are the days parents and team members can schedule IEP meetings with you:</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <?php
+                        $weekDayNames = [
+                            0 => 'Sunday',
+                            1 => 'Monday',
+                            2 => 'Tuesday',
+                            3 => 'Wednesday',
+                            4 => 'Thursday',
+                            5 => 'Friday',
+                            6 => 'Saturday'
+                        ];
+                        foreach ($weekDayNames as $dNum => $dName):
+                            $isAvail = !empty($recurringAvailability[$dNum]);
+                        ?>
+                            <div class="px-3 py-2 rounded-3 border text-center <?php echo $isAvail ? 'bg-success bg-opacity-10 border-success text-success' : 'bg-light text-muted border-secondary-subtle'; ?>" style="min-width: 95px;">
+                                <div class="fw-bold small"><?php echo $dName; ?></div>
+                                <div class="small fw-semibold mt-1">
+                                    <?php if ($isAvail): ?>
+                                        <i class="bi bi-check-circle-fill me-1"></i> Available
+                                    <?php else: ?>
+                                        <i class="bi bi-dash-circle me-1"></i> Off
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <div class="col-md-5 ps-md-4">
+                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-calendar-event text-primary me-1"></i> Current Month (<?php echo date('F Y'); ?>)</h6>
+                    <p class="text-secondary small mb-2">Manage meeting availability or add exception dates directly.</p>
+                    <div class="p-3 bg-light rounded-3 border">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small text-muted">Active Available Days:</span>
+                            <span class="badge bg-success"><?php echo count(array_filter($recurringAvailability ?? [])); ?> days / week</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small text-muted">Special Date Exceptions:</span>
+                            <span class="badge bg-secondary"><?php echo count($currentMonthExceptions ?? []); ?> date(s)</span>
+                        </div>
+                        <div class="mt-3 pt-2 border-top text-center">
+                            <a href="<?php echo $basePath; ?>/iep/availability" class="btn btn-sm btn-primary w-100 fw-semibold py-1.5">
+                                <i class="bi bi-calendar3 me-1"></i> Open Full Availability Calendar
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Weekly Availability Edit Modal -->
+    <div class="modal fade" id="availabilityModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content text-dark">
+                <form id="dashboardWeeklyScheduleForm">
+                    <div class="modal-header bg-light">
+                        <h6 class="modal-title fw-bold"><i class="bi bi-calendar-week me-2 text-primary"></i>Update Weekly Availability</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-muted mb-3">Select the days you are regularly available for IEP meetings with parents and specialists:</p>
+                        <div class="row g-2">
+                            <?php foreach ($weekDayNames as $i => $day): 
+                                $checked = !empty($recurringAvailability[$i]);
+                            ?>
+                                <div class="col-6">
+                                    <div class="p-2 border rounded bg-white">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="days[]" value="<?php echo $i; ?>" id="dashDay<?php echo $i; ?>" <?php echo $checked ? 'checked' : ''; ?>>
+                                            <label class="form-check-label fw-semibold text-dark small" for="dashDay<?php echo $i; ?>">
+                                                <?php echo $day; ?>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div id="availSaveStatus" class="mt-3 small" style="display:none;"></div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-sm btn-primary fw-semibold" id="saveAvailBtn">Save Schedule</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('dashboardWeeklyScheduleForm');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const btn = document.getElementById('saveAvailBtn');
+                const statusDiv = document.getElementById('availSaveStatus');
+                const formData = new FormData(form);
+                
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+                
+                fetch('<?php echo $basePath; ?>/iep/availability/save-recurring', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        statusDiv.style.display = 'block';
+                        statusDiv.className = 'alert alert-success py-2 mt-3 small';
+                        statusDiv.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Availability updated successfully!';
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 800);
+                    } else {
+                        statusDiv.style.display = 'block';
+                        statusDiv.className = 'alert alert-danger py-2 mt-3 small';
+                        statusDiv.innerHTML = data.message || 'Failed to update availability.';
+                        btn.disabled = false;
+                        btn.innerHTML = 'Save Schedule';
+                    }
+                })
+                .catch(err => {
+                    statusDiv.style.display = 'block';
+                    statusDiv.className = 'alert alert-danger py-2 mt-3 small';
+                    statusDiv.innerHTML = 'An unexpected error occurred.';
+                    btn.disabled = false;
+                    btn.innerHTML = 'Save Schedule';
+                });
+            });
+        }
+    });
+    </script>
+
     <!-- Quick Actions Cards with Consistent Neat Button Design -->
     <h5 class="fw-bold text-dark mb-3"><i class="bi bi-lightning-charge-fill text-primary me-1"></i> Quick Actions</h5>
     <div class="row g-3 mb-4">

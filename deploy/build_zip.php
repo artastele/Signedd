@@ -38,14 +38,15 @@ $appExclude = [
     '^\\.git', '^\\.vscode', '^\\.idea',
     '^\\.env', '^\\.env\\.',
     '^logs/', '^scratch/',
-    '^signedtest_deploy\\.zip$', '^deploy\\.zip$',
+    '\\.zip$',
     '^composer\\.phar$',
     '^public/',       // handled separately below
     '^deploy/',       // exclude deploy scripts
     '^\\.DS_Store', '^Thumbs\\.db',
     '\\.md$', '\\.sql$',
-    '^signed_', '^composer\\.json$', '^composer\\.lock$',
+    '^signed_', '^signedtest', '^composer\\.json$', '^composer\\.lock$',
     '^\\.htaccess$', '^\\.gitignore$',
+    '\\.backup$', '\\.bak$',
 ];
 
 // -------------------------------------------------------
@@ -117,8 +118,22 @@ $htaccess = <<<'HTACCESS'
 # SignED — InfinityFree .htaccess
 # Routes all requests to index.php
 
+# Block direct web access to sensitive environment/config files
+<FilesMatch "^\.env|composer\.(json|lock)$">
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</FilesMatch>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
+
+    # Block access to hidden files (.env, .git, etc.)
+    RewriteRule (^\.|/\.) - [F]
 
     # Serve existing files/dirs directly (css, js, images, etc.)
     RewriteCond %{REQUEST_FILENAME} -f [OR]
@@ -128,10 +143,15 @@ $htaccess = <<<'HTACCESS'
     # Everything else → index.php
     RewriteRule ^(.*)$ index.php [QSA,L]
 </IfModule>
+
+<IfModule mod_mime.c>
+    AddType video/mp4 .mp4 .mov
+    AddType video/webm .webm
+</IfModule>
 HTACCESS;
 
 $zip->addFromString('.htaccess', $htaccess);
-echo "      [+] Root .htaccess (flat routing)\n";
+echo "      [+] Root .htaccess (flat routing with security protection)\n";
 
 $zip->close();
 
@@ -144,6 +164,6 @@ echo " 1. Go to File Manager → /htdocs\n";
 echo " 2. DELETE everything currently in /htdocs\n";
 echo " 3. Upload signedtest_deploy.zip\n";
 echo " 4. Extract → files land directly in /htdocs root\n";
-echo " 5. phpMyAdmin → Import deploy/config/schema.sql\n";
+echo " 5. phpMyAdmin → Import config/schema.sql\n";
 echo " 6. Visit: http://signedtest.site.je\n\n";
 echo "ZIP: $zipPath\n\n";

@@ -548,7 +548,7 @@ class ClassroomObservationController {
             exit;
         }
 
-        $uploadDir = __DIR__ . '/../../public/uploads/signatures/cot/';
+        $uploadDir = function_exists('public_path') ? public_path('uploads/signatures/cot/') : (__DIR__ . '/../../public/uploads/signatures/cot/');
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }

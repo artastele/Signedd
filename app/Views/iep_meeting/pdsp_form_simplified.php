@@ -213,6 +213,7 @@ require_once __DIR__ . '/../layouts/header.php';
 const basePath = '<?php echo $basePath; ?>';
 const pdspId = '<?php echo $pdsp['id']; ?>';
 const meetingId = '<?php echo $meeting['id']; ?>';
+const studentId = '<?php echo (int)($meeting['student_id'] ?? 0); ?>';
 const pdspStatus = '<?php echo $pdsp['status']; ?>';
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -372,11 +373,19 @@ function proceedWithSubmission() {
                 if (data.success) {
                     Swal.fire({
                         icon: 'success',
-                        title: 'PDSP Submitted!',
-                        text: 'Meeting status has been updated to Completed.',
-                        confirmButtonColor: '#3b6d11'
-                    }).then(() => {
-                        location.reload();
+                        title: 'PDSP Submitted & Meeting Completed!',
+                        text: 'Process 4 is completed. You can now proceed to Process 5: Generate IEP.',
+                        showCancelButton: true,
+                        confirmButtonText: '<i class="bi bi-arrow-right-circle"></i> Proceed to Generate IEP (P5)',
+                        cancelButtonText: 'Stay on Form',
+                        confirmButtonColor: '#3b6d11',
+                        cancelButtonColor: '#6c757d'
+                    }).then((res) => {
+                        if (res.isConfirmed) {
+                            window.location.href = basePath + '/iep/create?student_id=' + studentId;
+                        } else {
+                            location.reload();
+                        }
                     });
                 } else {
                     throw new Error(data.message || 'Submission failed');

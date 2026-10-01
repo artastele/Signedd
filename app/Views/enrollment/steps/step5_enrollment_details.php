@@ -9,170 +9,136 @@
             <div class="row">
                 <!-- Target School -->
                 <div class="col-md-12 mb-3">
-                    <label for="target_school_id" class="form-label">Target School / SPED Center <span class="text-danger">*</span></label>
+                    <label class="form-label fw-bold text-dark"><i class="bi bi-building me-1 text-primary"></i> Target School / SPED Center <span class="badge ms-1" style="background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 0.75rem;"><i class="bi bi-lock-fill me-1 text-secondary"></i>Locked</span></label>
                     <?php
                     require_once __DIR__ . '/../../../Models/SchoolModel.php';
                     $schoolModel = new SchoolModel();
                     $schoolList = $schoolModel->getAllSchools();
-                    $selectedSchoolId = getFormValue('target_school_id') ?: ($_GET['school_id'] ?? $_GET['target_school_id'] ?? null);
+                    
+                    // Auto-resolve school ID from form, URL, session, or user profile
+                    $selectedSchoolId = getFormValue('target_school_id') 
+                        ?: ($_GET['school_id'] ?? $_GET['target_school_id'] ?? ($_SESSION['school_id'] ?? null));
+
+                    if (empty($selectedSchoolId) && !empty($_SESSION['user_id'])) {
+                        $dbUser = Database::getInstance()->getConnection();
+                        $stmtUsr = $dbUser->prepare("SELECT school_id FROM users WHERE id = :uid LIMIT 1");
+                        $stmtUsr->execute(['uid' => $_SESSION['user_id']]);
+                        $selectedSchoolId = $stmtUsr->fetchColumn() ?: null;
+                    }
+
+                    // Fallback to first school in list if available
+                    $selectedSchoolItem = null;
+                    if (!empty($schoolList)) {
+                        if (!empty($selectedSchoolId)) {
+                            foreach ($schoolList as $sch) {
+                                if ((string)$selectedSchoolId === (string)$sch['id']) {
+                                    $selectedSchoolItem = $sch;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!$selectedSchoolItem) {
+                            $selectedSchoolItem = $schoolList[0];
+                        }
+                    }
                     ?>
                     <?php if (empty($schoolList)): ?>
                         <div class="alert alert-warning mb-2 border-warning">
                             <i class="bi bi-exclamation-triangle-fill me-2"></i>
                             <strong>No Registered SPED Centers Available Yet:</strong> Please wait for a School Principal to register your target SPED Center in the system before submitting an enrollment application.
                         </div>
-                        <select class="form-select" id="target_school_id" name="target_school_id" required disabled>
-                            <option value="">-- No Schools Registered Yet --</option>
-                        </select>
+                        <input type="hidden" id="target_school_id" name="target_school_id" value="">
                     <?php else: ?>
-                        <select class="form-select" id="target_school_id" name="target_school_id" required onchange="updateSchoolGuidelinesPreview(this.value)">
-                            <option value="">-- Select Target School --</option>
-                            <?php foreach ($schoolList as $sch): ?>
-                                <?php $sel = ($selectedSchoolId == $sch['id']) ? 'selected' : ''; ?>
-                                <option value="<?php echo htmlspecialchars($sch['id']); ?>" 
-                                        data-guidelines="<?php echo htmlspecialchars($sch['enrollment_guidelines'] ?? 'Official DepEd SPED Enrollment Requirements apply.'); ?>"
-                                        data-announcement="<?php echo htmlspecialchars($sch['enrollment_announcement'] ?? 'Enrollment is open for this school.'); ?>"
-                                        data-sy="<?php echo htmlspecialchars($sch['enrollment_sy'] ?? '2026-2027'); ?>"
-                                        data-status="<?php echo htmlspecialchars(strtoupper($sch['enrollment_status'] ?? 'OPEN')); ?>"
-                                        data-address="<?php echo htmlspecialchars($sch['address'] ?? 'DepEd SPED Center'); ?>"
-                                        data-division="<?php echo htmlspecialchars($sch['division'] ?? 'Division Office'); ?>"
-                                        data-pubmat="<?php echo !empty($sch['pubmat_path']) ? htmlspecialchars($basePath . '/' . ltrim($sch['pubmat_path'], '/')) : ''; ?>"
-                                        data-email="<?php echo htmlspecialchars($sch['contact_email'] ?? ''); ?>"
-                                        data-number="<?php echo htmlspecialchars($sch['contact_number'] ?? ''); ?>"
-                                        data-facebook="<?php echo htmlspecialchars($sch['facebook_page'] ?? ''); ?>"
-                                        <?php echo $sel; ?>>
-                                    <?php echo htmlspecialchars($sch['school_name']); ?> (DepEd ID: <?php echo htmlspecialchars($sch['school_id']); ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <div class="form-text">Select the registered SPED school/center where you wish to submit this enrollment.</div>
+                        <!-- Fully Locked / Readonly Non-clickable School Display -->
+                        <div class="p-3 bg-light rounded-3 border border-secondary border-opacity-25 shadow-sm" style="user-select: none;">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center">
+                                    <div class="rounded-3 me-3 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px; background-color: #e0e7ff; color: #3730a3;">
+                                        <i class="bi bi-building fs-5"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-dark fs-6 mb-0">
+                                            <?php echo htmlspecialchars($selectedSchoolItem['school_name']); ?>
+                                            <span class="badge ms-1" style="background-color: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; font-weight: 600; font-size: 0.75rem;">DepEd ID: <?php echo htmlspecialchars($selectedSchoolItem['school_id']); ?></span>
+                                        </div>
+                                        <div class="small text-muted">
+                                            <i class="bi bi-geo-alt me-1 text-danger"></i>
+                                            <?php echo htmlspecialchars(($selectedSchoolItem['division'] ? $selectedSchoolItem['division'] . ' • ' : '') . ($selectedSchoolItem['address'] ?? 'DepEd SPED Center')); ?>
+                                        </div>
+                                    </div>
+                                </div>
+                                <span class="badge" style="background-color: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; font-weight: 600; font-size: 0.8rem; padding: 6px 10px;">
+                                    <i class="bi bi-check-circle-fill me-1"></i> <?php echo htmlspecialchars(strtoupper($selectedSchoolItem['enrollment_status'] ?? 'OPEN')); ?>
+                                </span>
+                            </div>
+
+                            <!-- Hidden Field for Form Submission -->
+                            <input type="hidden" id="target_school_id" name="target_school_id" value="<?php echo htmlspecialchars($selectedSchoolItem['id']); ?>"
+                                   data-guidelines="<?php echo htmlspecialchars($selectedSchoolItem['enrollment_guidelines'] ?? 'Official DepEd SPED Enrollment Requirements apply.'); ?>"
+                                   data-announcement="<?php echo htmlspecialchars($selectedSchoolItem['enrollment_announcement'] ?? 'Enrollment is open for this school.'); ?>"
+                                   data-sy="<?php echo htmlspecialchars($selectedSchoolItem['enrollment_sy'] ?? '2026-2027'); ?>"
+                                   data-status="<?php echo htmlspecialchars(strtoupper($selectedSchoolItem['enrollment_status'] ?? 'OPEN')); ?>"
+                                   data-address="<?php echo htmlspecialchars($selectedSchoolItem['address'] ?? 'DepEd SPED Center'); ?>"
+                                   data-division="<?php echo htmlspecialchars($selectedSchoolItem['division'] ?? 'Division Office'); ?>"
+                                   data-pubmat="<?php echo !empty($selectedSchoolItem['pubmat_path']) ? htmlspecialchars($basePath . '/' . ltrim($selectedSchoolItem['pubmat_path'], '/')) : ''; ?>"
+                                   data-email="<?php echo htmlspecialchars($selectedSchoolItem['contact_email'] ?? ''); ?>"
+                                   data-number="<?php echo htmlspecialchars($selectedSchoolItem['contact_number'] ?? ''); ?>"
+                                   data-facebook="<?php echo htmlspecialchars($selectedSchoolItem['facebook_page'] ?? ''); ?>">
+                        </div>
+                        <div class="form-text text-muted small mt-1">
+                            <i class="bi bi-shield-lock-fill text-secondary me-1"></i> Target SPED Center is locked and associated with your enrollment profile.
+                        </div>
 
                         <!-- Selected School Guidelines & Details Box -->
-                        <div id="school_guidelines_box" class="mt-3 p-3 bg-light rounded-3 border border-primary border-opacity-25" style="display: none;">
+                        <div id="school_guidelines_box" class="mt-3 p-3 bg-white rounded-3 border border-primary border-opacity-25 shadow-sm">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <h6 class="fw-bold text-primary mb-0">
-                                    <i class="bi bi-info-circle-fill me-1"></i> <span id="preview_school_name">Selected School</span> Guidelines & Details
+                                    <i class="bi bi-info-circle-fill me-1"></i> <?php echo htmlspecialchars($selectedSchoolItem['school_name']); ?> Guidelines & Details
                                 </h6>
-                                <span id="preview_school_status" class="badge bg-success px-2 py-1">OPEN</span>
+                                <span class="badge bg-success px-2 py-1"><?php echo htmlspecialchars(strtoupper($selectedSchoolItem['enrollment_status'] ?? 'OPEN')); ?></span>
                             </div>
-                            <div class="small text-secondary mb-2" id="preview_school_meta">
-                                <i class="bi bi-geo-alt me-1"></i> <span id="preview_school_address">Address</span>
+                            <div class="small text-secondary mb-2">
+                                <i class="bi bi-geo-alt me-1"></i> <?php echo htmlspecialchars(($selectedSchoolItem['division'] ? $selectedSchoolItem['division'] . ' | ' : '') . ($selectedSchoolItem['address'] ?? 'DepEd SPED Center')); ?>
                             </div>
                             
                             <!-- Contact Info Badges -->
-                            <div id="preview_school_contacts" class="d-flex flex-wrap gap-2 mb-2" style="display: none !important;">
-                                <span id="preview_contact_email_badge" class="badge bg-white text-dark border"><i class="bi bi-envelope-fill text-primary me-1"></i><span id="preview_contact_email"></span></span>
-                                <span id="preview_contact_number_badge" class="badge bg-white text-dark border"><i class="bi bi-telephone-fill text-success me-1"></i><span id="preview_contact_number"></span></span>
-                                <a id="preview_facebook_link" href="#" target="_blank" class="badge bg-primary text-white text-decoration-none"><i class="bi bi-facebook me-1"></i>Facebook Page</a>
+                            <?php if (!empty($selectedSchoolItem['contact_email']) || !empty($selectedSchoolItem['contact_number']) || !empty($selectedSchoolItem['facebook_page'])): ?>
+                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                <?php if (!empty($selectedSchoolItem['contact_email'])): ?>
+                                    <span class="badge bg-light text-dark border"><i class="bi bi-envelope-fill text-primary me-1"></i><?php echo htmlspecialchars($selectedSchoolItem['contact_email']); ?></span>
+                                <?php endif; ?>
+                                <?php if (!empty($selectedSchoolItem['contact_number'])): ?>
+                                    <span class="badge bg-light text-dark border"><i class="bi bi-telephone-fill text-success me-1"></i><?php echo htmlspecialchars($selectedSchoolItem['contact_number']); ?></span>
+                                <?php endif; ?>
+                                <?php if (!empty($selectedSchoolItem['facebook_page'])): ?>
+                                    <a href="<?php echo htmlspecialchars($selectedSchoolItem['facebook_page']); ?>" target="_blank" class="badge bg-primary text-white text-decoration-none"><i class="bi bi-facebook me-1"></i>Facebook Page</a>
+                                <?php endif; ?>
                             </div>
+                            <?php endif; ?>
 
                             <!-- Enrollment Pubmat Poster Image -->
-                            <div id="preview_pubmat_container" class="mb-3 text-center" style="display: none;">
+                            <?php if (!empty($selectedSchoolItem['pubmat_path'])): ?>
+                            <div class="mb-3 text-center">
                                 <label class="form-label fw-bold text-dark small d-block text-start mb-1"><i class="bi bi-image me-1 text-primary"></i> Official Enrollment Publicity Poster (Pubmat):</label>
-                                <a id="preview_pubmat_link" href="#" target="_blank">
-                                    <img id="preview_pubmat_img" src="" alt="School Enrollment Pubmat" class="img-fluid rounded border shadow-sm" style="max-height: 380px; object-fit: contain; width: 100%;">
+                                <a href="<?php echo htmlspecialchars($basePath . '/' . ltrim($selectedSchoolItem['pubmat_path'], '/')); ?>" target="_blank">
+                                    <img src="<?php echo htmlspecialchars($basePath . '/' . ltrim($selectedSchoolItem['pubmat_path'], '/')); ?>" alt="School Enrollment Pubmat" class="img-fluid rounded border shadow-sm" style="max-height: 380px; object-fit: contain; width: 100%;">
                                 </a>
                             </div>
+                            <?php endif; ?>
 
-                            <div id="preview_school_announcement_alert" class="alert alert-info py-2 px-3 small mb-2" style="display: none;">
-                                <strong>Notice:</strong> <span id="preview_school_announcement"></span>
+                            <?php if (!empty($selectedSchoolItem['enrollment_announcement'])): ?>
+                            <div class="alert alert-info py-2 px-3 small mb-2">
+                                <strong>Notice:</strong> <?php echo htmlspecialchars($selectedSchoolItem['enrollment_announcement']); ?>
                             </div>
+                            <?php endif; ?>
+
                             <div class="border-top pt-2">
                                 <strong class="small text-dark">Requirements & Policy Guidelines:</strong>
-                                <div id="preview_school_guidelines" class="small text-muted mt-1" style="white-space: pre-line;"></div>
+                                <div class="small text-muted mt-1" style="white-space: pre-line;"><?php echo htmlspecialchars($selectedSchoolItem['enrollment_guidelines'] ?? 'Standard DepEd SPED Enrollment Requirements apply.'); ?></div>
                             </div>
                         </div>
                     <?php endif; ?>
                 </div>
-
-                <script>
-                function updateSchoolGuidelinesPreview(schoolId) {
-                    var box = document.getElementById('school_guidelines_box');
-                    var select = document.getElementById('target_school_id');
-                    if (!select || !schoolId) {
-                        if (box) box.style.display = 'none';
-                        return;
-                    }
-                    var opt = select.options[select.selectedIndex];
-                    if (!opt || !opt.value) {
-                        if (box) box.style.display = 'none';
-                        return;
-                    }
-
-                    document.getElementById('preview_school_name').textContent = opt.text;
-                    document.getElementById('preview_school_status').textContent = opt.getAttribute('data-status') || 'OPEN';
-                    document.getElementById('preview_school_address').textContent = (opt.getAttribute('data-division') ? opt.getAttribute('data-division') + ' | ' : '') + (opt.getAttribute('data-address') || '');
-                    
-                    // Contact Info
-                    var email = opt.getAttribute('data-email');
-                    var num = opt.getAttribute('data-number');
-                    var fb = opt.getAttribute('data-facebook');
-                    var contactsDiv = document.getElementById('preview_school_contacts');
-                    var hasContact = false;
-
-                    if (email) {
-                        document.getElementById('preview_contact_email').textContent = email;
-                        document.getElementById('preview_contact_email_badge').style.display = 'inline-block';
-                        hasContact = true;
-                    } else {
-                        document.getElementById('preview_contact_email_badge').style.display = 'none';
-                    }
-
-                    if (num) {
-                        document.getElementById('preview_contact_number').textContent = num;
-                        document.getElementById('preview_contact_number_badge').style.display = 'inline-block';
-                        hasContact = true;
-                    } else {
-                        document.getElementById('preview_contact_number_badge').style.display = 'none';
-                    }
-
-                    if (fb) {
-                        document.getElementById('preview_facebook_link').href = fb;
-                        document.getElementById('preview_facebook_link').style.display = 'inline-block';
-                        hasContact = true;
-                    } else {
-                        document.getElementById('preview_facebook_link').style.display = 'none';
-                    }
-
-                    if (hasContact) {
-                        contactsDiv.style.setProperty('display', 'flex', 'important');
-                    } else {
-                        contactsDiv.style.setProperty('display', 'none', 'important');
-                    }
-
-                    // Pubmat Poster
-                    var pubmat = opt.getAttribute('data-pubmat');
-                    var pubmatContainer = document.getElementById('preview_pubmat_container');
-                    if (pubmat) {
-                        document.getElementById('preview_pubmat_img').src = pubmat;
-                        document.getElementById('preview_pubmat_link').href = pubmat;
-                        pubmatContainer.style.display = 'block';
-                    } else {
-                        pubmatContainer.style.display = 'none';
-                    }
-
-                    var ann = opt.getAttribute('data-announcement');
-                    var annAlert = document.getElementById('preview_school_announcement_alert');
-                    if (ann) {
-                        document.getElementById('preview_school_announcement').textContent = ann;
-                        annAlert.style.display = 'block';
-                    } else {
-                        annAlert.style.display = 'none';
-                    }
-
-                    var g = opt.getAttribute('data-guidelines');
-                    document.getElementById('preview_school_guidelines').textContent = g || 'Standard DepEd SPED Enrollment Requirements apply.';
-                    
-                    box.style.display = 'block';
-                }
-
-                document.addEventListener('DOMContentLoaded', function() {
-                    var select = document.getElementById('target_school_id');
-                    if (select && select.value) {
-                        updateSchoolGuidelinesPreview(select.value);
-                    }
-                });
-                </script>
 
                 <!-- School Year -->
                 <div class="col-md-6 mb-3">

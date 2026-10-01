@@ -336,6 +336,49 @@ $statusColors = [
                 <span class="badge bg-primary"><?php echo htmlspecialchars($enrollment['preferred_distance_modality']); ?></span>
             </div>
             <?php endif; ?>
+
+            <!-- Digital Readiness & SignED LMS Survey Results (Stage 2) -->
+            <?php 
+                $hasInternet = !empty($enrollment['survey_has_internet']);
+                $devices = !empty($enrollment['survey_devices']) ? $enrollment['survey_devices'] : (!empty($enrollment['has_device']) ? 'Smartphone/Device Available' : 'None');
+                $isWilling = !empty($enrollment['survey_willing_online']) || !empty($enrollment['willing_digital']);
+                $isRecommendedLms = $hasInternet && $isWilling;
+            ?>
+            <div class="mt-4 pt-3 border-top">
+                <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                    <h6 class="fw-bold text-dark mb-0"><i class="bi bi-router text-info me-2"></i>Digital Readiness & SignED Survey Result:</h6>
+                    <?php if ($isRecommendedLms): ?>
+                        <span class="badge bg-info text-dark px-3 py-2 fs-6">
+                            <i class="bi bi-laptop-fill me-1"></i> SignED Candidate
+                        </span>
+                    <?php else: ?>
+                        <span class="badge bg-secondary text-white px-3 py-2 fs-6">
+                            <i class="bi bi-person-workspace me-1"></i> Non-SignED Candidate (Traditional F2F)
+                        </span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-muted d-block">Internet at Home:</small>
+                            <strong><?= $hasInternet ? '<span class="text-success"><i class="bi bi-wifi"></i> Active / Available</span>' : '<span class="text-secondary"><i class="bi bi-wifi-off"></i> None / Weak Signal</span>' ?></strong>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-muted d-block">Available Devices:</small>
+                            <strong><i class="bi bi-phone"></i> <?= htmlspecialchars($devices) ?></strong>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-2 border rounded bg-light">
+                            <small class="text-muted d-block">Parent Willingness:</small>
+                            <strong><?= $isWilling ? '<span class="text-success"><i class="bi bi-check-circle-fill"></i> Willing for Online LMS</span>' : '<span class="text-secondary"><i class="bi bi-dash-circle"></i> Physical / Traditional Only</span>' ?></strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

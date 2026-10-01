@@ -344,8 +344,30 @@ class PrincipalController {
         $startDate   = trim($_POST['enrollment_start_date'] ?? '');
         $endDate     = trim($_POST['enrollment_end_date'] ?? '');
         
+        $docDefs = [
+            'psa_birth_cert' => ['title' => 'PSA Birth Certificate', 'default_on' => true, 'default_req' => true],
+            'medical_record' => ['title' => 'Medical Certificate / Diagnostic Evaluation Report', 'default_on' => true, 'default_req' => false],
+            'pwd_id'         => ['title' => 'Person with Disability (PWD) ID', 'default_on' => true, 'default_req' => false],
+            'sf10'           => ['title' => 'Form 138 / SF10 (Report Card / Permanent Record)', 'default_on' => false, 'default_req' => false],
+            'brgy_cert'      => ['title' => 'Barangay Certificate of Residency', 'default_on' => false, 'default_req' => false],
+        ];
+
+        $guidelinesLines = [];
+        $submittedReqDocs = $_POST['req_docs'] ?? null;
+
+        if (is_array($submittedReqDocs)) {
+            foreach ($docDefs as $key => $meta) {
+                if (!empty($submittedReqDocs[$key]['enabled'])) {
+                    $isReq = ($submittedReqDocs[$key]['status'] ?? 'required') === 'required';
+                    $optTag = $isReq ? 'required' : 'optional';
+                    $suffix = $isReq ? '' : ' (Optional)';
+                    $guidelinesLines[] = "[DOC:{$key}:{$optTag}] {$meta['title']}{$suffix}";
+                }
+            }
+        }
+
+        // Also add custom checklist items if present
         if (isset($_POST['checklist_items']) && is_array($_POST['checklist_items'])) {
-            $cleanItems = [];
             $isOptArray = $_POST['checklist_is_optional'] ?? [];
             foreach ($_POST['checklist_items'] as $idx => $itemVal) {
                 $itemVal = trim($itemVal);
@@ -354,9 +376,12 @@ class PrincipalController {
                 if (isset($isOptArray[$idx]) && (string)$isOptArray[$idx] === '1') {
                     $itemVal .= ' (Optional)';
                 }
-                $cleanItems[] = $itemVal;
+                $guidelinesLines[] = $itemVal;
             }
-            $guidelines = implode("\n", $cleanItems);
+        }
+
+        if (!empty($guidelinesLines)) {
+            $guidelines = implode("\n", $guidelinesLines);
         } else {
             $guidelines = trim($_POST['enrollment_guidelines'] ?? '');
         }
@@ -385,6 +410,31 @@ class PrincipalController {
             if ($schoolId) {
                 $_SESSION['school_id'] = $schoolId; // cache it for future requests
             }
+        }
+
+        // Dedicated SIP Document Upload from Policy Compliance modal
+        if (!empty($_POST['upload_sip_only'])) {
+            if ($schoolId && isset($_FILES['sip_document']) && $_FILES['sip_document']['error'] === UPLOAD_ERR_OK) {
+                require_once __DIR__ . '/../Models/SchoolModel.php';
+                $schoolModel = new SchoolModel();
+                $sipFile = $_FILES['sip_document'];
+                $sipDir = public_path('uploads/role_verification/');
+                if (!is_dir($sipDir)) {
+                    mkdir($sipDir, 0755, true);
+                }
+                $ext = pathinfo($sipFile['name'], PATHINFO_EXTENSION);
+                $fileName = 'sip_' . $schoolId . '_' . time() . '.' . strtolower($ext);
+                if (move_uploaded_file($sipFile['tmp_name'], $sipDir . $fileName)) {
+                    $schoolModel->updateSipPath($schoolId, 'uploads/role_verification/' . $fileName);
+                    $_SESSION['success'] = 'School Improvement Plan (SIP) uploaded successfully! Policy Compliance increased by +25%.';
+                } else {
+                    $_SESSION['error'] = 'Failed to upload SIP document file. Please check folder permissions.';
+                }
+            } else {
+                $_SESSION['error'] = 'Please select a valid SIP document file to upload.';
+            }
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
         }
 
         if ($schoolId) {

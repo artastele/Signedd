@@ -301,11 +301,16 @@ $isFinalized = (!empty($readiness['status']) && $readiness['status'] === 'finali
                         </button>
                     <?php else: ?>
                         <div>
-                            <span class="text-muted small"><i class="bi bi-info-circle me-1"></i>Assessment finalized. Click 'Back to IEPs' to view other records.</span>
+                            <span class="text-muted small"><i class="bi bi-check-circle-fill text-success me-1"></i>Assessment finalized & locked.</span>
                         </div>
-                        <a href="<?= $basePath ?>/iep" class="btn btn-lg btn-outline-secondary px-5" style="border-radius: 8px; font-weight: 600;">
-                            <i class="bi bi-arrow-left me-2"></i>Back to IEP Repository
-                        </a>
+                        <div class="d-flex gap-2">
+                            <a href="<?= $basePath ?>/iep" class="btn btn-outline-secondary px-4" style="border-radius: 8px; font-weight: 600;">
+                                <i class="bi bi-arrow-left me-1"></i>Back to IEPs
+                            </a>
+                            <a href="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/individual-transition-plan" class="btn text-white px-4" style="background-color: #1e4072; border-radius: 8px; font-weight: 600;">
+                                Proceed to Part 5: ITP <i class="bi bi-arrow-right ms-1"></i>
+                            </a>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>

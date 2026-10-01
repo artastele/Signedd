@@ -37,6 +37,9 @@ function findTesseract() {
  * Check if Tesseract is installed and working
  */
 function isTesseractInstalled() {
+    if (!function_exists('exec')) {
+        return false;
+    }
     $tesseractPath = findTesseract();
     
     // Test if tesseract command works
@@ -45,10 +48,10 @@ function isTesseractInstalled() {
     
     if (file_exists($tesseractPath)) {
         // Full path exists, test it
-        exec("\"$tesseractPath\" --version 2>&1", $output, $returnCode);
+        @exec("\"$tesseractPath\" --version 2>&1", $output, $returnCode);
     } else {
         // Try as command (in PATH)
-        exec('tesseract --version 2>&1', $output, $returnCode);
+        @exec('tesseract --version 2>&1', $output, $returnCode);
     }
     
     return ($returnCode === 0);

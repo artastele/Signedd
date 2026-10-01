@@ -3,6 +3,10 @@
 // Last modified: 2026-07-03
 // Part of: SPED LMS — Email Helper (Dual SMTP / Brevo HTTP API)
 
+if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
+    require_once __DIR__ . '/../../vendor/autoload.php';
+}
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -21,7 +25,11 @@ class MailHelper {
     private static function sendMail($toEmail, $toName, $subject, $htmlBody) {
         $apiKey = self::getEnvVar('BREVO_API_KEY');
         if (!empty($apiKey)) {
-            return self::sendMailViaBrevo($toEmail, $toName, $subject, $htmlBody);
+            $sent = self::sendMailViaBrevo($toEmail, $toName, $subject, $htmlBody);
+            if ($sent) {
+                return true;
+            }
+            error_log("Brevo API failed. Attempting fallback to PHPMailer SMTP...");
         }
         return self::sendMailViaPHPMailer($toEmail, $toName, $subject, $htmlBody);
     }
@@ -59,6 +67,7 @@ class MailHelper {
             'content-type: application/json'
         ]);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -102,6 +111,7 @@ class MailHelper {
         try {
             // Server settings
             $mail->isSMTP();
+            $mail->Timeout    = 5;
             $mail->Host       = self::getEnvVar('MAIL_HOST', 'smtp.gmail.com');
             $mail->SMTPAuth   = true;
             $mail->Username   = self::getEnvVar('MAIL_USERNAME');

@@ -1,10 +1,3 @@
-    <!-- All Rights Reserved Footer Bar -->
-    <footer class="py-3 mt-auto bg-light border-top text-center text-muted small">
-        <div class="container-fluid">
-            <span>&copy; <?php echo date('Y'); ?> <strong>SignED</strong> — Special Education Learning Management System (DepEd SPED LMS). All Rights Reserved.</span>
-        </div>
-    </footer>
-
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -63,21 +56,5 @@
     
     <!-- Sidebar Mobile Navigation -->
     <script src="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/js/sidebar.js"></script>
-
-    <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'learner'): 
-        $reqUri = (string)($_SERVER['REQUEST_URI'] ?? '');
-    ?>
-    <!-- Mobile Bottom Navigation Bar for Learner -->
-    <nav class="learner-bottom-nav">
-        <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/learning/dashboard" class="learner-bottom-tab <?php echo ($reqUri !== '' && strpos($reqUri, '/learning/dashboard') !== false && strpos($reqUri, 'tab=badges') === false) ? 'active' : ''; ?>">
-            <i class="bi bi-house-heart-fill"></i>
-            <span>Home</span>
-        </a>
-        <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/learning/dashboard?tab=badges" class="learner-bottom-tab <?php echo ($reqUri !== '' && strpos($reqUri, 'tab=badges') !== false) ? 'active' : ''; ?>">
-            <i class="bi bi-trophy-fill"></i>
-            <span>My Badges</span>
-        </a>
-    </nav>
-    <?php endif; ?>
 </body>
 </html>

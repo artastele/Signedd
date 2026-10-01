@@ -23,21 +23,21 @@ $uniqueId = uniqid('upload_');
 
 <div class="upload-zone-container">
     <!-- Upload Zone (shown when no file uploaded) -->
-    <div class="upload-zone py-3 px-2" id="<?= $uniqueId ?>_zone" style="<?= isset($existingFile) ? 'display: none;' : '' ?>">
+    <div class="upload-zone py-2 px-2" id="<?= $uniqueId ?>_zone" style="<?= isset($existingFile) ? 'display: none;' : '' ?>">
         <div class="upload-zone-content text-center">
-            <i class="bi bi-cloud-arrow-up fs-3 text-secondary mb-1"></i>
-            <p class="upload-hint mb-1 fw-medium" style="font-size: 0.88rem; color: #475569;">Drag and drop or choose a file</p>
-            <p class="upload-formats text-muted mb-2" style="font-size: 0.78rem;">
-                Accepted: <?= str_replace(['.', ','], ['', ', '], strtoupper($acceptedTypes)) ?> • Max <?= $maxSize ?>MB
+            <i class="bi bi-cloud-arrow-up fs-4 text-muted mb-0"></i>
+            <p class="upload-hint mb-0 fw-medium" style="font-size: 0.8rem; color: #475569;">Drag & drop or choose file</p>
+            <p class="upload-formats text-muted mb-1" style="font-size: 0.72rem;">
+                <?= str_replace(['.', ','], ['', ', '], strtoupper($acceptedTypes)) ?> (Max <?= $maxSize ?>MB)
             </p>
             
-            <div class="upload-buttons d-flex gap-2 justify-content-center mt-2">
-                <button type="button" class="btn btn-sm btn-outline-primary py-1 px-3" id="<?= $uniqueId ?>_file_btn">
+            <div class="upload-buttons d-flex gap-1 justify-content-center mt-1">
+                <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2" style="font-size: 0.78rem; border-radius: 6px;" id="<?= $uniqueId ?>_file_btn">
                     <i class="bi bi-folder2-open me-1"></i> Choose File
                 </button>
                 <?php if ($showCamera): ?>
-                    <button type="button" class="btn btn-sm btn-outline-secondary btn-upload-camera py-1 px-3" id="<?= $uniqueId ?>_camera_btn">
-                        <i class="bi bi-camera me-1"></i> Take Photo
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-upload-camera py-1 px-2" style="font-size: 0.78rem; border-radius: 6px;" id="<?= $uniqueId ?>_camera_btn">
+                        <i class="bi bi-camera me-1"></i> Camera
                     </button>
                 <?php endif; ?>
             </div>
@@ -48,6 +48,8 @@ $uniqueId = uniqid('upload_');
                id="<?= $uniqueId ?>_file_input" 
                name="<?= $fieldName ?>" 
                accept="<?= $acceptedTypes ?>" 
+               <?= !empty($isRequiredDoc) ? 'data-required="true"' : 'data-required="false"' ?>
+               data-doc-title="<?= htmlspecialchars($docTitleLabel ?? $fieldName) ?>"
                style="display: none;">
         
         <?php if ($showCamera): ?>
@@ -171,6 +173,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (cameraInput) {
         cameraInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
+                if (fileInput && window.DataTransfer) {
+                    try {
+                        const dt = new DataTransfer();
+                        dt.items.add(e.target.files[0]);
+                        fileInput.files = dt.files;
+                    } catch(err) {}
+                }
                 handleFileSelect(e.target.files[0]);
             }
         });
@@ -192,6 +201,11 @@ document.addEventListener('DOMContentLoaded', function() {
             uploadZone.classList.remove('dragover');
             
             if (e.dataTransfer.files.length > 0) {
+                if (fileInput && window.DataTransfer) {
+                    try {
+                        fileInput.files = e.dataTransfer.files;
+                    } catch(err) {}
+                }
                 handleFileSelect(e.dataTransfer.files[0]);
             }
         });

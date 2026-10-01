@@ -27,6 +27,45 @@ class UserModel {
     }
 
     /**
+     * Find user by student identifier (Student ID or DepEd LRN)
+     */
+    public function findByStudentIdentifier($identifier) {
+        $identifier = trim($identifier);
+        if (empty($identifier)) {
+            return null;
+        }
+
+        try {
+            $stmt = $this->db->prepare("
+                SELECT u.id, u.school_id, u.name, u.email, u.password_hash, u.role, u.status, u.email_verified, u.created_at
+                FROM users u
+                INNER JOIN student_records sr ON sr.learner_user_id = u.id
+                WHERE sr.student_id = :id1 OR sr.lrn = :id2
+                LIMIT 1
+            ");
+            $stmt->execute(['id1' => $identifier, 'id2' => $identifier]);
+            $user = $stmt->fetch();
+            if ($user) {
+                return $user;
+            }
+
+            // Fallback: check enrollment_submissions
+            $stmt2 = $this->db->prepare("
+                SELECT u.id, u.school_id, u.name, u.email, u.password_hash, u.role, u.status, u.email_verified, u.created_at
+                FROM users u
+                INNER JOIN enrollment_submissions es ON es.learner_user_id = u.id
+                WHERE es.lrn = :lrn
+                LIMIT 1
+            ");
+            $stmt2->execute(['lrn' => $identifier]);
+            return $stmt2->fetch();
+        } catch (Throwable $e) {
+            error_log("findByStudentIdentifier error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Find user by ID
      */
     public function findById($id) {

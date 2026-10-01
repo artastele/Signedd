@@ -91,7 +91,7 @@ class AssessmentServiceModel {
             
             // Delete physical file
             if ($result) {
-                $filePath = __DIR__ . '/../../public/uploads/' . $document['file_path'];
+                $filePath = function_exists('public_path') ? public_path('uploads/' . ltrim($document['file_path'], '/')) : (__DIR__ . '/../../public/uploads/' . $document['file_path']);
                 if (file_exists($filePath)) {
                     @unlink($filePath);
                 }

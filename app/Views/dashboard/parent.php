@@ -15,122 +15,345 @@ require_once __DIR__ . '/../layouts/header.php';
 <div class="main-content">
     <h1 class="mb-4">Parent Dashboard</h1>
 
-    <!-- Enrollment Approved Confirmation Cards -->
-    <?php
-    require_once __DIR__ . '/../../Models/StudentModel.php';
-    $parentDashStudentModel = new StudentModel();
-    $verifiedEnrollments = array_filter($enrollments, function($e) {
-        return !empty($e['learner_account_created']);
-    });
-    ?>
+    <!-- Flash Notifications -->
+    <?php if (!empty($_SESSION['success'])): ?>
+        <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm border-0 d-flex align-items-center mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2 fs-5 text-success"></i>
+            <div><?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?></div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <?php endif; ?>
 
-    <?php if (!empty($verifiedEnrollments)): ?>
-        <?php foreach ($verifiedEnrollments as $ve): ?>
-        <?php
-        $veStudentRecord = $parentDashStudentModel->findByEnrollmentId((int)$ve['id']);
-        $veStudentIdCode = $veStudentRecord['student_id'] ?? null;
-        ?>
-        <div class="card mb-4 lrn-confirm-card" id="lrn-card-<?php echo $ve['id']; ?>"
-             style="border: 1px solid #e0e0e0; border-top: 3px solid #a01422; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: opacity 0.6s ease, transform 0.6s ease;">
-            <div class="card-body py-3 px-4">
-                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <?php if (!empty($_SESSION['error'])): ?>
+        <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm border-0 d-flex align-items-center mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2 fs-5 text-danger"></i>
+            <div><?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?></div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <?php endif; ?>
 
-                    <!-- Left: Status + Name -->
+    <!-- Newly Generated Learner Credentials Banner -->
+    <?php if (!empty($_SESSION['generated_learner_credentials'])): ?>
+        <?php $glc = $_SESSION['generated_learner_credentials']; unset($_SESSION['generated_learner_credentials']); ?>
+        <div class="card border-0 shadow-sm rounded-4 mb-4" style="background: linear-gradient(135deg, #1e4072 0%, #0f172a 100%); color: #ffffff;">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div style="width: 42px; height: 42px; background: #f0f7eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <i class="bi bi-patch-check-fill" style="color: #3b6d11; font-size: 1.3rem;"></i>
+                        <div class="rounded-circle bg-warning text-dark d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; font-size: 1.5rem;">
+                            <i class="bi bi-mortarboard-fill"></i>
                         </div>
                         <div>
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <span class="badge" style="background: #3b6d11; font-size: 0.7rem;">Enrolled</span>
-                                <small class="text-muted"><?php echo htmlspecialchars($ve['grade_level_to_enroll'] ?? ''); ?></small>
-                            </div>
-                            <h6 class="mb-0 fw-bold" style="color: #1e4072;">
-                                <?php echo htmlspecialchars($ve['first_name'] . ' ' . $ve['last_name']); ?>
-                            </h6>
+                            <span class="badge bg-warning text-dark fw-bold px-2 py-1 mb-1" style="font-size: 0.72rem;">BAG-ONG NA-LINK NGA ACCOUNT</span>
+                            <h5 class="fw-bold mb-0 text-white">SignED LMS Account ni <?php echo htmlspecialchars($glc['student_name']); ?> kay Andam Na!</h5>
                         </div>
                     </div>
-
-                    <!-- Middle: Student ID -->
-                    <div class="text-center px-4" style="border-left: 1px solid #eee; border-right: 1px solid #eee;">
-                        <small class="text-muted d-block" style="font-size: 0.72rem;">STUDENT ID</small>
-                        <span class="fw-bold" style="color: #a01422; font-size: 1.25rem; letter-spacing: 2px;">
-                            <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($veStudentIdCode)); ?>
-                        </span>
-                        <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">
-                            DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($ve['lrn'] ?? $veStudentRecord['lrn'] ?? null)); ?>
-                        </small>
-                    </div>
-
-                    <!-- Right: Credentials -->
-                    <div style="font-size: 0.83rem;">
-                        <div class="mb-1">
-                            <span class="text-muted">Username:</span>
-                            <strong style="color: #1e4072;"><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($veStudentIdCode)); ?></strong>
-                        </div>
-                        <div class="mb-1">
-                            <span class="text-muted">Password:</span>
-                            <span class="badge" style="background: #a01422; font-size: 0.72rem;">
-                                <i class="bi bi-envelope me-1"></i>Sent to your email
-                            </span>
-                        </div>
-
-                    </div>
-
-                    <!-- Close button -->
-                    <button type="button"
-                            onclick="dismissLrnCard(<?php echo $ve['id']; ?>)"
-                            style="background: none; border: none; color: #bbb; font-size: 1.1rem; cursor: pointer; padding: 0; line-height: 1; align-self: flex-start;"
-                            title="Dismiss">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-
+                    <span class="badge bg-success px-3 py-2 fs-6">Active &amp; Ready</span>
                 </div>
-
-                <!-- Footer: countdown -->
-                <div class="mt-3 pt-2 d-flex align-items-center justify-content-between"
-                     style="border-top: 1px solid #f0f0f0; font-size: 0.78rem; color: #999;">
-                    <span>
-                        <i class="bi bi-info-circle me-1"></i>
-                        Use your Student ID as username. Change the temporary password after first login.
-                    </span>
-                    <span class="lrn-countdown" id="countdown-<?php echo $ve['id']; ?>" style="color: #bbb; white-space: nowrap; margin-left: 12px;">
-                        Closing in 30s
-                    </span>
+                <p class="text-white-50 small mb-3">
+                    Gamita kining mga credentials aron maka-login ang imong anak sa SignED LMS portal sa iyang tablet o computer:
+                </p>
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <div class="p-3 rounded-3" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);">
+                            <small class="text-white-50 d-block" style="font-size: 0.75rem;">USERNAME / STUDENT ID / LRN</small>
+                            <span class="fw-bold text-warning fs-5 font-monospace"><?php echo htmlspecialchars($glc['username']); ?></span>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="p-3 rounded-3" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);">
+                            <small class="text-white-50 d-block" style="font-size: 0.75rem;">DEFAULT PASSWORD</small>
+                            <span class="fw-bold text-white fs-5 font-monospace"><?php echo htmlspecialchars($glc['password']); ?></span>
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-center">
+                        <button type="button" class="btn btn-warning w-100 py-3 fw-bold" onclick="navigator.clipboard.writeText('Username: <?php echo addslashes($glc['username']); ?>\nPassword: <?php echo addslashes($glc['password']); ?>'); alert('Kopyado ang Login Credentials sa bata!');" style="border-radius: 8px;">
+                            <i class="bi bi-clipboard-check me-1"></i> Kopyahin
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
-        <?php endforeach; ?>
     <?php endif; ?>
 
-    <script>
-    (function() {
-        document.querySelectorAll('.lrn-confirm-card').forEach(function(card) {
-            const id = card.id.replace('lrn-card-', '');
-            const countdownEl = document.getElementById('countdown-' + id);
-            let seconds = 30;
-
-            const interval = setInterval(function() {
-                seconds--;
-                if (countdownEl) countdownEl.textContent = 'Closing in ' + seconds + 's';
-                if (seconds <= 0) {
-                    clearInterval(interval);
-                    dismissLrnCard(id);
-                }
-            }, 1000);
-        });
-    })();
-
-    function dismissLrnCard(id) {
-        const card = document.getElementById('lrn-card-' + id);
-        if (!card) return;
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(-8px)';
-        setTimeout(function() {
-            card.style.display = 'none';
-        }, 600);
+    <!-- Permanent Child Learner LMS Accounts & Credentials Section -->
+    <?php
+    require_once __DIR__ . '/../../Helpers/CSRFHelper.php';
+    if (!isset($parentLearners)) {
+        require_once __DIR__ . '/../../Models/MasterlistModel.php';
+        $pMasterModel = new MasterlistModel();
+        $parentLearners = $pMasterModel->getParentLearnerAccounts((int)$_SESSION['user_id']);
     }
-    </script>
+    ?>
+
+    <?php if (!empty($parentLearners)): ?>
+    <div class="card border-0 shadow-sm rounded-4 mb-4" style="background: #ffffff; border: 1px solid #e2e8f0 !important;">
+        <div class="card-header bg-transparent border-0 pt-4 px-4 pb-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <div class="rounded-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px; background: #e8f0fe; color: #1e4072;">
+                    <i class="bi bi-person-badge-fill fs-4"></i>
+                </div>
+                <div>
+                    <h5 class="fw-bold mb-0" style="color: #1e4072; font-size: 1.15rem;">Mga Account sa Akong mga Anak (Learner LMS Accounts)</h5>
+                    <p class="text-muted small mb-0" style="font-size: 0.82rem;">
+                        Permanenteng listahan sa mga login credentials sa imong anak para sa SignED LMS portal.
+                    </p>
+                </div>
+            </div>
+            <span class="badge rounded-pill px-3 py-2" style="background: #f1f5f9; color: #475569; font-weight: 600; font-size: 0.8rem;">
+                <i class="bi bi-mortarboard me-1 text-primary"></i> <?php echo count($parentLearners); ?> <?php echo count($parentLearners) === 1 ? 'Ka Estudyante' : 'Ka mga Estudyante'; ?>
+            </span>
+        </div>
+
+        <div class="card-body p-4 pt-2">
+            <div class="row g-3">
+                <?php foreach ($parentLearners as $pl): ?>
+                <div class="col-lg-6 col-12">
+                    <div class="p-3.5 rounded-3 h-100 d-flex flex-column justify-content-between" style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #1e4072; padding: 18px;">
+                        <div>
+                            <!-- Header: Name & Track -->
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                                <div>
+                                    <h6 class="fw-bold mb-1" style="color: #0f172a; font-size: 1.05rem;">
+                                        <?php echo htmlspecialchars($pl['student_name']); ?>
+                                    </h6>
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <?php if (!empty($pl['section_name'])): ?>
+                                            <span class="badge bg-light text-dark border" style="font-size: 0.72rem; font-weight: 500;">
+                                                <i class="bi bi-door-closed me-1 text-muted"></i><?php echo htmlspecialchars($pl['section_name']); ?>
+                                            </span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($pl['grade_level'])): ?>
+                                            <span class="badge bg-light text-dark border" style="font-size: 0.72rem; font-weight: 500;">
+                                                <?php echo htmlspecialchars($pl['grade_level']); ?>
+                                            </span>
+                                        <?php endif; ?>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style="font-size: 0.72rem; font-weight: 600;">
+                                            <?php echo strtoupper($pl['learning_track']); ?> Track
+                                        </span>
+                                    </div>
+                                </div>
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1.5" style="font-size: 0.75rem;">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Active LMS Account
+                                </span>
+                            </div>
+
+                            <!-- Credentials Box -->
+                            <div class="p-3 rounded-3 mb-3 mt-3" style="background: #ffffff; border: 1px solid #e2e8f0;">
+                                <div class="row g-2 align-items-center">
+                                    <div class="col-sm-7 col-12">
+                                        <small class="text-muted d-block" style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase;">
+                                            Login Username / Identifier:
+                                        </small>
+                                        <div class="d-flex align-items-center gap-2 mt-1">
+                                            <span class="fw-bold text-dark font-monospace" style="font-size: 1.05rem; letter-spacing: 0.5px;">
+                                                <?php echo htmlspecialchars($pl['display_username']); ?>
+                                            </span>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary p-1 lh-1" title="Kopyahon ang username" onclick="navigator.clipboard.writeText('<?php echo addslashes($pl['display_username']); ?>'); alert('Kopyado ang username: <?php echo addslashes($pl['display_username']); ?>');" style="border-radius: 6px;">
+                                                <i class="bi bi-clipboard" style="font-size: 0.8rem;"></i>
+                                            </button>
+                                        </div>
+                                        <?php if ($pl['is_custom_username']): ?>
+                                            <small class="text-success d-block mt-0.5" style="font-size: 0.7rem;">
+                                                <i class="bi bi-check2 me-1"></i>Customized Username
+                                            </small>
+                                        <?php else: ?>
+                                            <small class="text-muted d-block mt-0.5" style="font-size: 0.7rem;">
+                                                (Default Student ID / LRN login)
+                                            </small>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="col-sm-5 col-12">
+                                        <small class="text-muted d-block" style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase;">
+                                            Kasamtangang Password:
+                                        </small>
+                                        <div class="d-flex align-items-center gap-1 mt-1">
+                                            <span class="font-monospace text-muted" style="font-size: 0.95rem;">••••••••</span>
+                                        </div>
+                                        <small class="text-muted d-block mt-0.5" style="font-size: 0.7rem;">
+                                            Default: <code class="text-dark">Learner@<?php echo date('Y'); ?></code>
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <!-- Extra IDs Reference -->
+                                <div class="mt-2 pt-2 border-top d-flex align-items-center justify-content-between flex-wrap gap-2" style="font-size: 0.75rem; color: #64748b;">
+                                    <span>
+                                        <strong>Student ID:</strong> <?php echo htmlspecialchars($pl['student_id'] ?: 'N/A'); ?>
+                                    </span>
+                                    <span>
+                                        <strong>LRN:</strong> <?php echo htmlspecialchars($pl['lrn'] ?: 'Wala pa / Pending'); ?>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Footer Actions -->
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-1">
+                            <small class="text-muted" style="font-size: 0.75rem;">
+                                <i class="bi bi-info-circle me-1"></i>Pwede ra mag log in gamit ang Username o Student ID.
+                            </small>
+                            <div class="d-inline-flex gap-2">
+                                <?php if (!empty($pl['student_record_id'])): ?>
+                                    <button type="button" class="btn btn-outline-success btn-sm px-3 py-1.5" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#uploadParentChildDocModal_<?php echo (int)$pl['student_record_id']; ?>" 
+                                            style="border-radius: 6px; font-weight: 500; font-size: 0.82rem;">
+                                        <i class="bi bi-file-earmark-arrow-up-fill me-1"></i> I-upload ang Dokumento
+                                    </button>
+                                <?php endif; ?>
+                                <button type="button" class="btn btn-outline-primary btn-sm px-3 py-1.5" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#editCredsModal_<?php echo $pl['enrollment_id']; ?>" 
+                                        style="border-radius: 6px; font-weight: 500; font-size: 0.82rem;">
+                                    <i class="bi bi-key-fill me-1"></i> Ilisi ang Credentials
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Edit Credentials Modal for this Learner -->
+                <div class="modal fade" id="editCredsModal_<?php echo $pl['enrollment_id']; ?>" tabindex="-1" aria-labelledby="modalLabel_<?php echo $pl['enrollment_id']; ?>" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content border-0 shadow-lg rounded-4">
+                            <form action="<?php echo BASE_PATH; ?>/parent/update-child-credentials" method="POST">
+                                <input type="hidden" name="_csrf_token" value="<?php echo CSRFHelper::getToken(); ?>">
+                                <input type="hidden" name="child_record_id" value="<?php echo $pl['enrollment_id']; ?>">
+                                <input type="hidden" name="student_record_id" value="<?php echo (int)$pl['student_record_id']; ?>">
+
+                                <div class="modal-header border-0 pb-0 pt-4 px-4">
+                                    <div>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary px-2 py-1 mb-1" style="font-size: 0.75rem; font-weight: 600;">
+                                            SETTINGS SA LOGIN
+                                        </span>
+                                        <h5 class="modal-title fw-bold text-dark" id="modalLabel_<?php echo $pl['enrollment_id']; ?>" style="font-size: 1.15rem;">
+                                            Ilisi ang Credentials ni <?php echo htmlspecialchars($pl['student_name']); ?>
+                                        </h5>
+                                    </div>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+
+                                <div class="modal-body p-4">
+                                    <div class="alert alert-info border-0 rounded-3 small mb-3" style="background: #f0f9ff; color: #0369a1; font-size: 0.8rem;">
+                                        <i class="bi bi-lightbulb me-1 fw-bold"></i>
+                                        <strong>Opsyonal kini:</strong> Mahimo nimong ilisan ang username ug password aron mas dali matiman-an sa bata kon siya na ang mag-log in sa kanyang tablet o computer. Pwede ra gihapon mag log in ang bata gamit ang iyang Student ID (<code><?php echo htmlspecialchars($pl['student_id']); ?></code>).
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small text-secondary mb-1">
+                                            Bag-ong Username o Email:
+                                        </label>
+                                        <input type="text" 
+                                               name="new_username" 
+                                               class="form-control rounded-3" 
+                                               value="<?php echo htmlspecialchars($pl['display_username']); ?>" 
+                                               placeholder="e.g. <?php echo strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $pl['student_name'])); ?>2026"
+                                               minlength="3" 
+                                               maxlength="50" 
+                                               autocomplete="off"
+                                               style="font-size: 0.9rem; padding: 8px 12px;">
+                                        <small class="text-muted" style="font-size: 0.72rem;">
+                                            Pwedeng username (e.g. <code>juan_sped</code>) o personal email. Minimum 3 ka characters.
+                                        </small>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small text-secondary mb-1">
+                                            Bag-ong Password <span class="fw-normal text-muted">(Biyai nga blangko kon dili ilisan)</span>:
+                                        </label>
+                                        <input type="password" 
+                                               name="new_password" 
+                                               class="form-control rounded-3" 
+                                               placeholder="I-type ang bag-ong password (min. 6 chars)" 
+                                               minlength="6"
+                                               autocomplete="new-password"
+                                               style="font-size: 0.9rem; padding: 8px 12px;">
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <label class="form-label fw-bold small text-secondary mb-1">
+                                            Kumpirmaha ang Bag-ong Password:
+                                        </label>
+                                        <input type="password" 
+                                               name="confirm_password" 
+                                               class="form-control rounded-3" 
+                                               placeholder="I-type pag-usab ang bag-ong password" 
+                                               minlength="6"
+                                               autocomplete="new-password"
+                                               style="font-size: 0.9rem; padding: 8px 12px;">
+                                    </div>
+                                </div>
+
+                                <div class="modal-footer border-0 pt-0 px-4 pb-4 gap-2">
+                                    <button type="button" class="btn btn-light px-3 py-2 text-secondary" data-bs-dismiss="modal" style="border-radius: 6px; font-size: 0.875rem; font-weight: 500;">
+                                        Kanselahon
+                                    </button>
+                                    <button type="submit" class="btn btn-primary px-4 py-2" style="border-radius: 6px; font-size: 0.875rem; font-weight: 600;">
+                                        <i class="bi bi-save me-1"></i> I-save ang Bag-ong Credentials
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <?php if (!empty($pl['student_record_id'])): ?>
+                <!-- Upload Documents Modal for Parent's Child -->
+                <div class="modal fade text-start" id="uploadParentChildDocModal_<?php echo (int)$pl['student_record_id']; ?>" tabindex="-1">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px;">
+                            <form method="POST" action="<?php echo BASE_PATH; ?>/students/upload-document" enctype="multipart/form-data">
+                                <input type="hidden" name="student_id" value="<?php echo (int)$pl['student_record_id']; ?>">
+                                <input type="hidden" name="return_to" value="/dashboard">
+                                <div class="modal-header border-bottom py-3">
+                                    <h5 class="modal-title fw-bold text-dark fs-6">
+                                        <i class="bi bi-file-earmark-arrow-up-fill text-primary me-2"></i>I-upload ang Dokumento ni <?php echo htmlspecialchars($pl['student_name']); ?>
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body p-3">
+                                    <p class="small text-muted mb-3">
+                                        I-upload ang daang IEP, medical certificate, clinical diagnosis, o PSA birth certificate para sa imong anak.
+                                    </p>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small text-secondary">Klase sa Dokumento *</label>
+                                        <select name="document_type" class="form-select form-select-sm" required>
+                                            <option value="physical_iep">Daang / Traditional nga IEP Dokumento</option>
+                                            <option value="medical_record">Medical Certificate / Disability Diagnosis</option>
+                                            <option value="assessment_report">Clinical Assessment / Diagnostic Report</option>
+                                            <option value="psa_birth_cert">PSA Birth Certificate</option>
+                                            <option value="pwd_id">Person with Disability (PWD) ID</option>
+                                            <option value="other">DepEd SF10 / Card / Lain nga Dokumento</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small text-secondary">Ngalan sa Dokumento (Title)</label>
+                                        <input type="text" name="title" class="form-control form-control-sm" placeholder="e.g. Grade 1 IEP / Hearing Test Report">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small text-secondary">Dokumento File * <small class="text-muted">(PDF, JPG, PNG, DOC, DOCX up to 15MB)</small></label>
+                                        <input type="file" name="doc_file" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label fw-bold small text-secondary">Mensahe / Pahibalo sa Magtutudlo (Notes)</label>
+                                        <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Opsyonal nga dugang mensahe para sa SPED Teacher..."></textarea>
+                                    </div>
+                                </div>
+                                <div class="modal-footer border-top py-2">
+                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Kanselahon</button>
+                                    <button type="submit" class="btn btn-primary btn-sm px-3" style="border-radius: 6px; font-weight: 600;">
+                                        <i class="bi bi-cloud-arrow-up-fill me-1"></i> I-upload Karon
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    <?php endif; ?>
 
     <!-- Rejected Enrollment Alert (if any) -->
     <?php
@@ -333,7 +556,209 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     <?php endif; ?>
 
+    <!-- Child Learning Progress & Tracking Widget (Process 7 Parent Oversight) -->
+    <?php
+    require_once __DIR__ . '/../../Models/LessonPlanModel.php';
+    require_once __DIR__ . '/../../Models/GamificationModel.php';
+    $parentLpModel = new LessonPlanModel();
+    $parentGamModel = new GamificationModel();
+    $parentDb = Database::getInstance()->getConnection();
 
+    $dashChildrenStmt = $parentDb->prepare("
+        SELECT sr.id AS student_id,
+               sr.student_id AS student_code,
+               sr.student_name,
+               sr.lrn,
+               sr.section_name,
+               COALESCE(es.grade_level_to_enroll, 'SPED Program') AS grade_level,
+               es.status,
+               sch.school_name,
+               u.name AS teacher_name
+        FROM student_records sr
+        JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+        LEFT JOIN schools sch ON sr.school_id = sch.id
+        LEFT JOIN users u ON sr.assigned_teacher_id = u.id
+        WHERE es.parent_id = :pid
+          AND es.status = 'verified'
+        ORDER BY sr.student_name ASC
+    ");
+    $dashChildrenStmt->execute(['pid' => $_SESSION['user_id']]);
+    $parentDashChildren = $dashChildrenStmt->fetchAll(PDO::FETCH_ASSOC);
+    ?>
+
+    <?php if (!empty($parentDashChildren)): ?>
+        <div class="card border-0 shadow-sm mb-4" style="border-radius: 12px; overflow: hidden;">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h5 class="mb-0 fw-bold" style="color: #1e4072;">
+                        <i class="bi bi-graph-up-arrow text-primary me-2"></i> Learner Progress & Tracking 
+                        <span class="d-block d-sm-inline text-muted fst-italic fw-normal" style="font-size: 0.8rem;">(Pagsubaybay sa Pag-uswag ng Mag-aaral)</span>
+                    </h5>
+                    <small class="text-muted">
+                        Monitor story reading, practice activities, and performance scores.
+                        <span class="d-block text-muted fst-italic" style="font-size: 0.75rem;">(Subaybayan ang pagbabasa ng kwento, mga pagsasanay, at marka ng iyong anak.)</span>
+                    </small>
+                </div>
+                <a href="<?php echo BASE_PATH; ?>/parent/child-progress" class="btn btn-outline-primary btn-sm px-3 py-1.5 d-inline-flex align-items-center gap-1" style="border-radius: 8px; font-size: 0.85rem; font-weight: 500;">
+                    <span>View All <small class="fst-italic text-muted" style="font-size: 0.75rem;">(Tingnan Lahat)</small></span>
+                    <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <?php foreach ($parentDashChildren as $child): ?>
+                        <?php
+                        $cSid = (int)$child['student_id'];
+                        $cGam = $parentGamModel->getSummary($cSid);
+                        $cLessons = $parentLpModel->getPublishedForStudent($cSid);
+                        $cTotalLessons = count($cLessons);
+                        $cCompletedLessons = 0;
+                        $cTotalTasks = 0;
+                        $cCompletedTasks = 0;
+                        $cSlidePagesDone = 0;
+                        $cTotalSlidePages = 0;
+
+                        foreach ($cLessons as $cLp) {
+                            $cLpId = (int)$cLp['id'];
+                            $cPages = $parentLpModel->getPagesByLessonPlan($cLpId);
+                            $cProg = $parentLpModel->getPageProgress($cSid, $cLpId);
+                            $cHasSlides = count($cPages) > 0;
+                            $cSlidesDone = !empty($cProg['is_completed']);
+                            $cTotalSlidePages += count($cPages);
+                            $cSlidePagesDone += (int)($cProg['last_page_number'] ?? 0);
+
+                            $cActProg = $parentLpModel->getLessonProgress($cLpId, $cSid);
+                            $cTaskTotal = $cActProg['total'] + ($cHasSlides ? 1 : 0);
+                            $cTaskDone  = $cActProg['completed'] + ($cSlidesDone ? 1 : 0);
+
+                            $cTotalTasks += $cTaskTotal;
+                            $cCompletedTasks += $cTaskDone;
+
+                            if ($cTaskTotal > 0 && $cTaskDone >= $cTaskTotal) {
+                                $cCompletedLessons++;
+                            }
+                        }
+
+                        $cPct = $cTotalTasks > 0 ? round(($cCompletedTasks / $cTotalTasks) * 100) : 0;
+                        ?>
+                        <div class="col-12">
+                            <div class="p-3 bg-light rounded-3 border d-flex align-items-center justify-content-between flex-wrap gap-3">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold fs-4 flex-shrink-0" style="width: 52px; height: 52px; background: linear-gradient(135deg, #1e4072 0%, #3a7bd5 100%);">
+                                        <?php echo mb_substr($child['student_name'], 0, 1); ?>
+                                    </div>
+                                    <div>
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <h6 class="mb-0 fw-bold text-dark" style="font-size: 1.05rem;"><?php echo htmlspecialchars($child['student_name']); ?></h6>
+                                            <span class="badge bg-secondary-subtle text-secondary" style="font-size: 0.72rem;">ID: <?php echo htmlspecialchars($child['student_code']); ?></span>
+                                            <?php if (!empty($child['section_name'])): ?>
+                                                <span class="badge bg-info-subtle text-info-emphasis" style="font-size: 0.72rem;"><?php echo htmlspecialchars($child['section_name']); ?></span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <small class="text-muted d-block" style="font-size: 0.8rem;">
+                                            <i class="bi bi-person-badge text-primary me-1"></i> SPED Teacher: <?php echo htmlspecialchars($child['teacher_name'] ?? 'Assigned Teacher'); ?>
+                                            • <i class="bi bi-book text-success ms-1 me-1"></i> <?php echo htmlspecialchars($child['grade_level']); ?>
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <!-- Quick Metric Chips -->
+                                <div class="d-flex align-items-center gap-3 flex-wrap">
+                                    <div class="px-3 py-1.5 bg-white rounded-2 border text-center shadow-xs">
+                                        <span class="text-warning fw-bold fs-6">⭐ <?php echo (int)($cGam['total_stars'] ?? 0); ?></span>
+                                        <small class="text-muted d-block" style="font-size: 0.72rem;">Stars <em class="fst-italic opacity-75">(Bituin)</em></small>
+                                    </div>
+                                    <div class="px-3 py-1.5 bg-white rounded-2 border text-center shadow-xs">
+                                        <span class="text-primary fw-bold fs-6">🏆 <?php echo (int)($cGam['total_xp'] ?? 0); ?></span>
+                                        <small class="text-muted d-block" style="font-size: 0.72rem;">XP Points <em class="fst-italic opacity-75">(Puntos)</em></small>
+                                    </div>
+                                    <div class="px-3 py-1.5 bg-white rounded-2 border text-center shadow-xs">
+                                        <span class="text-success fw-bold fs-6">✅ <?php echo $cCompletedLessons; ?> / <?php echo $cTotalLessons; ?></span>
+                                        <small class="text-muted d-block" style="font-size: 0.72rem;">Completed Lessons <em class="fst-italic opacity-75">(Natapos na)</em></small>
+                                    </div>
+                                </div>
+
+                                <!-- Progress & Action -->
+                                <div class="d-flex align-items-center gap-3" style="min-width: 260px;">
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex justify-content-between mb-1" style="font-size: 0.75rem;">
+                                            <span class="text-muted">Overall Progress <em class="fst-italic" style="font-size: 0.7rem;">(Pag-unlad)</em></span>
+                                            <span class="fw-bold text-primary"><?php echo $cPct; ?>%</span>
+                                        </div>
+                                        <div class="progress" style="height: 7px; border-radius: 4px;">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo $cPct; ?>%;" aria-valuenow="<?php echo $cPct; ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <button type="button" class="btn btn-outline-success px-2.5 py-1.5 text-nowrap d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#uploadParentDashChildDocModal_<?php echo $cSid; ?>" style="border-radius: 8px; font-size: 0.82rem; font-weight: 500; height: 36px;">
+                                            <i class="bi bi-file-earmark-arrow-up-fill"></i>
+                                            <span>Docs</span>
+                                        </button>
+                                        <a href="<?php echo BASE_PATH; ?>/parent/child-progress/<?php echo $cSid; ?>" class="btn btn-primary px-3 py-1.5 text-nowrap d-flex align-items-center gap-1" style="border-radius: 8px; font-size: 0.85rem; font-weight: 500; height: 36px;">
+                                            <i class="bi bi-bar-chart-line"></i>
+                                            <span>Track <small class="fst-italic opacity-75" style="font-size: 0.75rem;">(Sundan)</small></span>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Upload Documents Modal for Learner in Tracker -->
+                        <div class="modal fade text-start" id="uploadParentDashChildDocModal_<?php echo $cSid; ?>" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content border-0 shadow-lg" style="border-radius: 12px;">
+                                    <form method="POST" action="<?php echo BASE_PATH; ?>/students/upload-document" enctype="multipart/form-data">
+                                        <input type="hidden" name="student_id" value="<?php echo $cSid; ?>">
+                                        <input type="hidden" name="return_to" value="/dashboard">
+                                        <div class="modal-header border-bottom py-3">
+                                            <h5 class="modal-title fw-bold text-dark fs-6">
+                                                <i class="bi bi-file-earmark-arrow-up-fill text-primary me-2"></i>I-upload ang Dokumento ni <?php echo htmlspecialchars($child['student_name']); ?>
+                                            </h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body p-3">
+                                            <p class="small text-muted mb-3">
+                                                I-upload ang daang IEP, medical certificate, clinical evaluation, o PSA birth certificate para sa imong anak.
+                                            </p>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-bold small text-secondary">Klase sa Dokumento *</label>
+                                                <select name="document_type" class="form-select form-select-sm" required>
+                                                    <option value="physical_iep">Daang / Traditional nga IEP Dokumento</option>
+                                                    <option value="medical_record">Medical Certificate / Disability Diagnosis</option>
+                                                    <option value="assessment_report">Clinical Assessment / Diagnostic Report</option>
+                                                    <option value="psa_birth_cert">PSA Birth Certificate</option>
+                                                    <option value="pwd_id">Person with Disability (PWD) ID</option>
+                                                    <option value="other">DepEd SF10 / Card / Lain nga Dokumento</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-bold small text-secondary">Ngalan sa Dokumento (Title)</label>
+                                                <input type="text" name="title" class="form-control form-control-sm" placeholder="e.g. Grade 1 IEP / Hearing Test Report">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-bold small text-secondary">Dokumento File * <small class="text-muted">(PDF, JPG, PNG, DOC, DOCX up to 15MB)</small></label>
+                                                <input type="file" name="doc_file" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label fw-bold small text-secondary">Mensahe / Pahibalo sa Magtutudlo (Notes)</label>
+                                                <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Opsyonal nga dugang mensahe para sa SPED Teacher..."></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-top py-2">
+                                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Kanselahon</button>
+                                            <button type="submit" class="btn btn-primary btn-sm px-3" style="border-radius: 6px; font-weight: 600;">
+                                                <i class="bi bi-cloud-arrow-up-fill me-1"></i> I-upload Karon
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
 
     <!-- Statistics Cards - Clean & Modern -->
     <div class="row g-3 mb-4">
@@ -630,57 +1055,82 @@ require_once __DIR__ . '/../layouts/header.php';
     <!-- Quick Actions Cards -->
     <h5 class="fw-bold text-dark mb-3"><i class="bi bi-lightning-charge-fill text-primary me-1"></i> Quick Actions</h5>
     <div class="row g-3 mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex flex-column justify-content-between text-center p-4">
+                <div class="card-body d-flex flex-column justify-content-between text-center p-3">
                     <div>
-                        <div class="rounded-circle bg-danger bg-opacity-10 p-3 d-inline-flex align-items-center justify-content-center mb-3" style="width: 64px; height: 64px;">
-                            <i class="bi bi-person-plus-fill text-danger fs-2"></i>
+                        <div class="rounded-circle bg-danger bg-opacity-10 p-2.5 d-inline-flex align-items-center justify-content-center mb-2" style="width: 54px; height: 54px;">
+                            <i class="bi bi-person-plus-fill text-danger fs-3"></i>
                         </div>
-                        <h5 class="card-title fw-bold text-dark mb-2" style="font-size: 1.05rem;">Enroll Child</h5>
-                        <p class="text-secondary small mb-3">Submit a new SPED enrollment application for your child.</p>
+                        <h6 class="card-title fw-bold text-dark mb-1" style="font-size: 0.95rem;">Enroll Child</h6>
+                        <p class="text-secondary small mb-3" style="font-size: 0.78rem;">Submit a new SPED enrollment application.</p>
                     </div>
-                    <div class="mt-auto pt-2 w-100">
-                        <a href="<?php echo BASE_PATH; ?>/enrollment" class="btn btn-outline-danger w-100 fw-semibold py-2 text-nowrap">
-                            <i class="bi bi-plus-circle me-1"></i> Enroll Child
+                    <div class="mt-auto pt-1 w-100">
+                        <a href="<?php echo BASE_PATH; ?>/enroll" class="btn btn-outline-danger w-100 py-1.5 text-nowrap" style="border-radius: 8px; font-size: 0.85rem; font-weight: 500;">
+                            <i class="bi bi-plus-circle me-1"></i> Enroll Child <small class="fst-italic opacity-75">(Mag-enroll)</small>
                         </a>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex flex-column justify-content-between text-center p-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100 border-top border-primary border-2">
+                <div class="card-body d-flex flex-column justify-content-between text-center p-3">
                     <div>
-                        <div class="rounded-circle bg-primary bg-opacity-10 p-3 d-inline-flex align-items-center justify-content-center mb-3" style="width: 64px; height: 64px;">
-                            <i class="bi bi-list-check text-primary fs-2"></i>
+                        <div class="rounded-circle bg-primary bg-opacity-10 p-2.5 d-inline-flex align-items-center justify-content-center mb-2" style="width: 54px; height: 54px;">
+                            <i class="bi bi-bar-chart-line-fill text-primary fs-3"></i>
                         </div>
-                        <h5 class="card-title fw-bold text-dark mb-2" style="font-size: 1.05rem;">Enrollment Status</h5>
-                        <p class="text-secondary small mb-3">Track progress and status of all submitted applications.</p>
+                        <h6 class="card-title fw-bold text-dark mb-1" style="font-size: 0.95rem;">
+                            Learning Progress
+                            <small class="text-muted d-block fst-italic fw-normal" style="font-size: 0.72rem;">(Pag-uswag sa Aralin)</small>
+                        </h6>
+                        <p class="text-secondary small mb-3" style="font-size: 0.78rem;">
+                            Track lesson slides, stories, and quiz scores.
+                            <span class="d-block text-muted fst-italic" style="font-size: 0.7rem;">(Sundan ang aralin, kwento, at marka.)</span>
+                        </p>
                     </div>
-                    <div class="mt-auto pt-2 w-100">
-                        <a href="<?php echo BASE_PATH; ?>/enrollment/status" class="btn btn-outline-primary w-100 fw-semibold py-2 text-nowrap">
-                            <i class="bi bi-eye-fill me-1"></i> View All Status
+                    <div class="mt-auto pt-1 w-100">
+                        <a href="<?php echo BASE_PATH; ?>/parent/child-progress" class="btn btn-primary w-100 py-1.5 text-nowrap" style="border-radius: 8px; font-size: 0.85rem; font-weight: 600;">
+                            <i class="bi bi-graph-up me-1"></i> Track Progress <small class="fst-italic opacity-75">(Pag-uswag)</small>
                         </a>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex flex-column justify-content-between text-center p-4">
+                <div class="card-body d-flex flex-column justify-content-between text-center p-3">
                     <div>
-                        <div class="rounded-circle bg-success bg-opacity-10 p-3 d-inline-flex align-items-center justify-content-center mb-3" style="width: 64px; height: 64px;">
-                            <i class="bi bi-diagram-3-fill text-success fs-2"></i>
+                        <div class="rounded-circle bg-warning bg-opacity-10 p-2.5 d-inline-flex align-items-center justify-content-center mb-2" style="width: 54px; height: 54px;">
+                            <i class="bi bi-list-check text-warning fs-3"></i>
                         </div>
-                        <h5 class="card-title fw-bold text-dark mb-2" style="font-size: 1.05rem;">IEP & Transition</h5>
-                        <p class="text-secondary small mb-3">View Individualized Education Plans and progress updates.</p>
+                        <h6 class="card-title fw-bold text-dark mb-1" style="font-size: 0.95rem;">Enrollment Status</h6>
+                        <p class="text-secondary small mb-3" style="font-size: 0.78rem;">Track progress of submitted applications.</p>
                     </div>
-                    <div class="mt-auto pt-2 w-100">
-                        <a href="<?php echo BASE_PATH; ?>/iep" class="btn btn-outline-success w-100 fw-semibold py-2 text-nowrap">
-                            <i class="bi bi-diagram-3 me-1"></i> View IEP Records
+                    <div class="mt-auto pt-1 w-100">
+                        <a href="<?php echo BASE_PATH; ?>/enrollment/status" class="btn btn-outline-primary w-100 py-1.5 text-nowrap" style="border-radius: 8px; font-size: 0.85rem; font-weight: 500;">
+                            <i class="bi bi-eye-fill me-1"></i> View Status <small class="fst-italic opacity-75">(Katayuan)</small>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex flex-column justify-content-between text-center p-3">
+                    <div>
+                        <div class="rounded-circle bg-success bg-opacity-10 p-2.5 d-inline-flex align-items-center justify-content-center mb-2" style="width: 54px; height: 54px;">
+                            <i class="bi bi-diagram-3-fill text-success fs-3"></i>
+                        </div>
+                        <h6 class="card-title fw-bold text-dark mb-1" style="font-size: 0.95rem;">IEP & Transition</h6>
+                        <p class="text-secondary small mb-3" style="font-size: 0.78rem;">View Individualized Education Plans.</p>
+                    </div>
+                    <div class="mt-auto pt-1 w-100">
+                        <a href="<?php echo BASE_PATH; ?>/iep" class="btn btn-outline-success w-100 py-1.5 text-nowrap" style="border-radius: 8px; font-size: 0.85rem; font-weight: 500;">
+                            <i class="bi bi-diagram-3 me-1"></i> View IEP <small class="fst-italic opacity-75">(Tingnan ang IEP)</small>
                         </a>
                     </div>
                 </div>

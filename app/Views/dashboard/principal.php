@@ -7,22 +7,30 @@ require_once __DIR__ . '/../layouts/header.php';
 require_once __DIR__ . '/../../Models/UserModel.php';
 require_once __DIR__ . '/../../Models/RoleRequestModel.php';
 require_once __DIR__ . '/../../Models/TeacherAssignmentModel.php';
+require_once __DIR__ . '/../../Models/SchoolModel.php';
 
 $db = Database::getInstance()->getConnection();
 $userModel = new UserModel();
 $principal = $userModel->findById($_SESSION['user_id']);
 $schoolId = $principal['school_id'] ?? null;
 
+$principalSchoolModel = new SchoolModel();
+$mySchool = $schoolId ? $principalSchoolModel->findById($schoolId) : null;
+
 $facultyMembers = [];
 if ($schoolId) {
-    $stmt = $db->prepare("
-        SELECT id, name, email, role, fsl_cert_path, fsl_cert_issue_date, created_at 
-        FROM users 
-        WHERE school_id = :school_id AND role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
-        ORDER BY name ASC
-    ");
-    $stmt->execute(['school_id' => $schoolId]);
-    $facultyMembers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $stmt = $db->prepare("
+            SELECT id, name, email, role, fsl_cert_path, fsl_cert_issue_date, created_at 
+            FROM users 
+            WHERE school_id = :school_id AND role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
+            ORDER BY name ASC
+        ");
+        $stmt->execute(['school_id' => $schoolId]);
+        $facultyMembers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        $facultyMembers = [];
+    }
 }
 
 $certifiedFacultyCount = count(array_filter($facultyMembers, fn($m) => !empty($m['fsl_cert_path'])));
@@ -30,37 +38,144 @@ $totalFacultyCount = count($facultyMembers);
 
 // Division-Level SNED Program FSL Adoption Rate Calculation
 // Formula: (SNED Programs with FSL Integration / Total SNED Programs in Division) * 100
-$schoolDivision = $principal['division'] ?? ($mySchool['division'] ?? 'Division of Davao City');
-$divStmt = $db->prepare("
-    SELECT 
-        COUNT(DISTINCT s.id) as total_division_schools,
-        COUNT(DISTINCT CASE WHEN u.fsl_cert_path IS NOT NULL AND u.fsl_cert_path != '' THEN s.id ELSE NULL END) as fsl_integrated_schools
-    FROM schools s
-    LEFT JOIN users u ON u.school_id = s.id AND u.role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
-    WHERE s.division = :division OR :division_check = ''
-");
-$divStmt->execute(['division' => $schoolDivision, 'division_check' => $schoolDivision]);
-$divData = $divStmt->fetch(PDO::FETCH_ASSOC);
-
-$totalDivSchools = max(1, (int)($divData['total_division_schools'] ?? 1));
-$fslDivSchools = (int)($divData['fsl_integrated_schools'] ?? 0);
+$schoolDivision = $mySchool['division'] ?? ($principal['division'] ?? 'Division of Davao City');
+$totalDivSchools = 1;
+$fslDivSchools = 0;
+try {
+    $divStmt = $db->prepare("
+        SELECT 
+            COUNT(DISTINCT s.id) as total_division_schools,
+            COUNT(DISTINCT CASE WHEN u.fsl_cert_path IS NOT NULL AND u.fsl_cert_path != '' THEN s.id ELSE NULL END) as fsl_integrated_schools
+        FROM schools s
+        LEFT JOIN users u ON u.school_id = s.id AND u.role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
+        WHERE s.division = :division OR :division_check = ''
+    ");
+    $divStmt->execute(['division' => $schoolDivision, 'division_check' => $schoolDivision]);
+    $divData = $divStmt->fetch(PDO::FETCH_ASSOC);
+    $totalDivSchools = max(1, (int)($divData['total_division_schools'] ?? 1));
+    $fslDivSchools = (int)($divData['fsl_integrated_schools'] ?? 0);
+} catch (\Throwable $e) {}
 
 if ($totalFacultyCount > 0) {
     $fslRatio = round(($certifiedFacultyCount / $totalFacultyCount) * 100, 1);
 } else {
-    $fslRatio = round(($fslDivSchools / $totalDivSchools) * 100, 1);
+    $fslRatio = 0;
 }
 
 // Fetch teacher classroom assignments for this school
 $assignmentModel = new TeacherAssignmentModel();
-$teacherAssignments = $schoolId ? $assignmentModel->getBySchoolId($schoolId) : [];
+$teacherAssignments = [];
+if ($schoolId) {
+    try {
+        $teacherAssignments = $assignmentModel->getBySchoolId($schoolId);
+    } catch (\Throwable $e) {
+        $teacherAssignments = [];
+    }
+}
 
 // Count pending staff applications for this school
 $pendingStaffCount = 0;
 if ($schoolId) {
-    $roleReqModel = new RoleRequestModel();
-    $pendingStaffRequests = $roleReqModel->getPendingByApproverAndSchool('principal', $schoolId);
-    $pendingStaffCount = count($pendingStaffRequests);
+    try {
+        $roleReqModel = new RoleRequestModel();
+        $pendingStaffRequests = $roleReqModel->getPendingByApproverAndSchool('principal', $schoolId);
+        $pendingStaffCount = count($pendingStaffRequests);
+    } catch (\Throwable $e) {
+        $pendingStaffCount = 0;
+    }
+}
+
+// Defaults for School Analytics & Policy Compliance (Specific Objectives 2 & 3)
+$schLearnersTotal = 0;
+$schDlParticipating = 0;
+$schoolDlRate = 0;
+$hasSip = !empty($mySchool['sip_path']);
+$schoolLpCount = 0;
+$schoolDllCount = 0;
+$totalLpDllCount = 0;
+$p1_dll = 0;
+$schoolCotCount = 0;
+$p1_cot = 0;
+$schoolResCount = 0;
+$p2 = 0;
+$p3 = ($fslRatio >= 75) ? 25 : round(($fslRatio / 75) * 25, 1);
+$p4 = $hasSip ? 25 : 0;
+$overallCompliance = 0;
+
+if ($schoolId) {
+    try {
+        // 1. Distance Learning Program Inclusion & Participation Rate (General Objective, Target: >= 85%)
+        $schLearnersStmt = $db->prepare("SELECT COUNT(*) FROM student_records WHERE school_id = :sid");
+        $schLearnersStmt->execute(['sid' => (int)$schoolId]);
+        $schLearnersTotal = (int)$schLearnersStmt->fetchColumn();
+
+        $schDlStmt = $db->prepare("
+            SELECT COUNT(DISTINCT sr.id) 
+            FROM student_records sr
+            WHERE sr.school_id = :sid
+              AND (
+                  sr.id IN (SELECT student_id FROM lms_submissions)
+                  OR sr.student_id IN (SELECT student_id FROM lms_submissions)
+                  OR sr.id IN (SELECT student_id FROM activity_attempt_log)
+                  OR sr.student_id IN (SELECT student_id FROM activity_attempt_log)
+                  OR sr.id IN (SELECT student_id FROM attendance_records)
+                  OR sr.student_id IN (SELECT student_id FROM attendance_records)
+              )
+        ");
+        $schDlStmt->execute(['sid' => (int)$schoolId]);
+        $schDlParticipating = (int)$schDlStmt->fetchColumn();
+        $schoolDlRate = $schLearnersTotal > 0 ? round(($schDlParticipating / $schLearnersTotal) * 100, 1) : 0;
+
+        // Pillar 1a: Dynamically check published lesson plans or DLL documents for school
+        $lpCountStmt = $db->prepare("
+            SELECT COUNT(*) FROM lesson_plans lp
+            JOIN users u ON lp.created_by = u.id
+            WHERE u.school_id = :school_id AND lp.status = 'published'
+        ");
+        $lpCountStmt->execute(['school_id' => (int)$schoolId]);
+        $schoolLpCount = (int)$lpCountStmt->fetchColumn();
+
+        $dllCountStmt = $db->prepare("
+            SELECT COUNT(*) FROM traditional_iep_documents tid
+            JOIN student_records sr ON tid.student_id = sr.id
+            WHERE sr.school_id = :school_id AND tid.document_type = 'dll'
+        ");
+        $dllCountStmt->execute(['school_id' => (int)$schoolId]);
+        $schoolDllCount = (int)$dllCountStmt->fetchColumn();
+        $totalLpDllCount = $schoolLpCount + $schoolDllCount;
+        $p1_dll = $totalLpDllCount > 0 ? 12.5 : 0;
+
+        // Pillar 1b: Dynamically verify FINALIZED COT records
+        $cotCountStmt = $db->prepare("
+            SELECT COUNT(*) 
+            FROM classroom_observations co
+            JOIN users u ON co.observed_teacher_id = u.id
+            WHERE u.school_id = :school_id AND co.status = 'finalized'
+        ");
+        $cotCountStmt->execute(['school_id' => (int)$schoolId]);
+        $schoolCotCount = (int)$cotCountStmt->fetchColumn();
+        $p1_cot = $schoolCotCount > 0 ? 12.5 : 0;
+
+        // Pillar 2: Learning Resources (Materials Used with FSL captions / interactive slides)
+        $resCountStmt = $db->prepare("
+            SELECT COUNT(*) FROM (
+                SELECT lm.id FROM learning_materials lm 
+                JOIN users u ON lm.uploaded_by = u.id 
+                WHERE u.school_id = :sid1
+                UNION
+                SELECT lp.id FROM lesson_plans lp 
+                JOIN users u ON lp.created_by = u.id 
+                WHERE u.school_id = :sid2
+            ) AS all_res
+        ");
+        $resCountStmt->execute(['sid1' => (int)$schoolId, 'sid2' => (int)$schoolId]);
+        $schoolResCount = (int)$resCountStmt->fetchColumn();
+        $p2 = $schoolResCount > 0 ? 25 : 0;
+
+        $overallCompliance = round($p1_dll + $p1_cot + $p2 + $p3 + $p4, 1);
+    } catch (\Throwable $e) {
+        error_log('Principal compliance metrics query error: ' . $e->getMessage());
+    }
 }
 ?>
 
@@ -98,11 +213,6 @@ if ($schoolId) {
     <?php endif; ?>
     
     <!-- Official School Profile & Custom Logo Upload Card -->
-    <?php
-    require_once __DIR__ . '/../../Models/SchoolModel.php';
-    $principalSchoolModel = new SchoolModel();
-    $mySchool = $schoolId ? $principalSchoolModel->findById($schoolId) : null;
-    ?>
     <?php if ($mySchool): ?>
         <?php $myLogoUrl = SchoolModel::getSchoolLogoUrl($mySchool, $basePath); ?>
         <div class="card mb-4 border-0 shadow-sm" style="border-left: 5px solid #a01422 !important; background: #fff;">
@@ -114,7 +224,7 @@ if ($schoolId) {
                         </div>
                         <div class="small fw-bold text-muted">Current School Seal</div>
                     </div>
-                    <div class="col-md-5">
+                    <div class="col-lg-4 col-md-12">
                         <h4 class="fw-bold mb-1" style="color: #a01422;"><?php echo htmlspecialchars($mySchool['school_name']); ?></h4>
                         <div class="small text-muted mb-2">
                             <span class="badge bg-secondary me-1">DepEd School ID: <?php echo htmlspecialchars($mySchool['school_id']); ?></span>
@@ -129,63 +239,80 @@ if ($schoolId) {
                             <i class="bi bi-geo-alt-fill me-1 text-danger"></i> <?php echo htmlspecialchars($mySchool['address'] ?? 'Official Address'); ?>
                         </p>
                     </div>
-                    <!-- School Analytics Summary Cards (FSL Adoption & Policy Compliance) -->
-                    <div class="col-md-5 border-start">
+                    <!-- School Analytics Summary Cards: General Objective, SO2, SO3 -->
+                    <div class="col-lg-6 col-md-12 border-start">
                         <div class="row g-2">
-                            <!-- FSL Program Adoption Rate -->
-                            <div class="col-6 text-center" title="Adoption Rate (%) = (SNED/Primary programs with FSL integration / Total SNED/Primary programs in division) × 100">
-                                <div class="p-2 bg-light rounded-3 border">
-                                    <div class="small fw-bold text-dark mb-1" style="font-size: 0.75rem;">
-                                        <i class="bi bi-award-fill text-warning me-1"></i> FSL Program Adoption
+                            <!-- Card 1: Distance Learning Inclusion (General Objective) -->
+                            <div class="col-4 text-center" title="General Objective: Inclusion of learners with special educational needs in distance learning programs to at least 85% participation.">
+                                <div class="p-2 bg-light rounded-3 border h-100 d-flex flex-column justify-content-between">
+                                    <div>
+                                        <div class="small fw-bold text-dark mb-1" style="font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                            <i class="bi bi-laptop text-primary me-1"></i> DL Inclusion
+                                        </div>
+                                        <div class="h5 fw-bold mb-0 <?php echo $schoolDlRate >= 85 ? 'text-primary' : ($schLearnersTotal > 0 ? 'text-danger' : 'text-muted'); ?>">
+                                            <?php echo $schLearnersTotal > 0 ? $schoolDlRate . '%' : '0%'; ?>
+                                        </div>
+                                        <div class="progress my-1" style="height: 4px;">
+                                            <div class="progress-bar bg-primary" 
+                                                 role="progressbar" 
+                                                 style="width: <?php echo min(100, (float)$schoolDlRate); ?>%;" 
+                                                 aria-valuenow="<?php echo $schoolDlRate; ?>" 
+                                                 aria-valuemin="0" 
+                                                 aria-valuemax="100"></div>
+                                        </div>
                                     </div>
-                                    <div class="h4 fw-bold mb-0 <?php echo $fslRatio >= 75 ? 'text-success' : ($totalFacultyCount > 0 ? 'text-danger' : 'text-muted'); ?>">
-                                        <?php echo $totalFacultyCount > 0 ? $fslRatio . '%' : '0%'; ?>
-                                    </div>
-                                    <div class="progress my-1" style="height: 5px;">
-                                        <div class="progress-bar <?php echo $fslRatio >= 75 ? 'bg-success' : ($totalFacultyCount > 0 ? 'bg-danger' : 'bg-secondary'); ?>" 
-                                             role="progressbar" 
-                                             style="width: <?php echo min(100, (float)$fslRatio); ?>%;" 
-                                             aria-valuenow="<?php echo $fslRatio; ?>" 
-                                             aria-valuemin="0" 
-                                             aria-valuemax="100"></div>
-                                    </div>
-                                    <?php if ($totalFacultyCount > 0): ?>
-                                        <span class="badge <?php echo $fslRatio >= 75 ? 'bg-success' : 'bg-warning text-dark'; ?>" style="font-size: 0.65rem;">
-                                            <?php echo $fslRatio >= 75 ? '✓ Target Met (≥75%)' : '○ Below Target'; ?>
-                                        </span>
-                                    <?php else: ?>
-                                        <span class="badge bg-secondary" style="font-size: 0.65rem;">No Faculty Yet</span>
-                                    <?php endif; ?>
+                                    <span class="badge <?php echo $schoolDlRate >= 85 ? 'bg-primary' : 'bg-warning text-dark'; ?>" style="font-size: 0.62rem;">
+                                        <?php echo $schoolDlRate >= 85 ? '✓ Target (≥85%)' : '○ Below Target'; ?>
+                                    </span>
                                 </div>
                             </div>
-                            <!-- School Policy Compliance Rate -->
-                            <?php 
-                            $hasSip = !empty($mySchool['sip_path']);
-                            $p1_dll = 12.5; // Lesson Plans (DLL/DLP)
-                            $p1_cot = 12.5; // Class Observation Tool (COT)
-                            $p2 = 25; // Learning Resources (Materials Used)
-                            $p3 = ($fslRatio >= 75) ? 25 : round(($fslRatio / 75) * 25, 1); // Faculty Development
-                            $p4 = $hasSip ? 25 : 0; // Physical & Digital Accessibility (SIP)
-                            $overallCompliance = round($p1_dll + $p1_cot + $p2 + $p3 + $p4, 1);
-                            ?>
-                            <div class="col-6 text-center">
-                                <div class="p-2 bg-light rounded-3 border">
-                                    <div class="small fw-bold text-dark mb-1" style="font-size: 0.75rem;">
-                                        <i class="bi bi-shield-check text-primary me-1"></i> Policy Compliance
+
+                            <!-- Card 2: FSL Program Adoption (Specific Objective 3) -->
+                            <div class="col-4 text-center" title="Specific Objective 3: Integration of Filipino Sign Language (FSL) in teacher education programs to at least 75% program adoption.">
+                                <div class="p-2 bg-light rounded-3 border h-100 d-flex flex-column justify-content-between">
+                                    <div>
+                                        <div class="small fw-bold text-dark mb-1" style="font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                            <i class="bi bi-award-fill text-warning me-1"></i> FSL Adoption
+                                        </div>
+                                        <div class="h5 fw-bold mb-0 <?php echo $fslRatio >= 75 ? 'text-success' : ($totalFacultyCount > 0 ? 'text-danger' : 'text-muted'); ?>">
+                                            <?php echo $totalFacultyCount > 0 ? $fslRatio . '%' : '0%'; ?>
+                                        </div>
+                                        <div class="progress my-1" style="height: 4px;">
+                                            <div class="progress-bar <?php echo $fslRatio >= 75 ? 'bg-success' : ($totalFacultyCount > 0 ? 'bg-danger' : 'bg-secondary'); ?>" 
+                                                 role="progressbar" 
+                                                 style="width: <?php echo min(100, (float)$fslRatio); ?>%;" 
+                                                 aria-valuenow="<?php echo $fslRatio; ?>" 
+                                                 aria-valuemin="0" 
+                                                 aria-valuemax="100"></div>
+                                        </div>
                                     </div>
-                                    <div class="h4 fw-bold mb-0 <?php echo $overallCompliance >= 85 ? 'text-success' : 'text-warning text-dark'; ?>">
-                                        <?php echo $overallCompliance; ?>%
+                                    <span class="badge <?php echo $fslRatio >= 75 ? 'bg-success' : 'bg-warning text-dark'; ?>" style="font-size: 0.62rem;">
+                                        <?php echo $fslRatio >= 75 ? '✓ Target (≥75%)' : '○ Below Target'; ?>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Card 3: School Policy Compliance (Specific Objective 2) -->
+                            <div class="col-4 text-center" title="Specific Objective 2: Implementation of inclusive content policies for hearing-impaired students to at least 85% compliance across DepEd schools.">
+                                <div class="p-2 bg-light rounded-3 border h-100 d-flex flex-column justify-content-between">
+                                    <div>
+                                        <div class="small fw-bold text-dark mb-1" style="font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                            <i class="bi bi-shield-check text-success me-1"></i> Compliance
+                                        </div>
+                                        <div class="h5 fw-bold mb-0 <?php echo $overallCompliance >= 85 ? 'text-success' : 'text-warning text-dark'; ?>">
+                                            <?php echo $overallCompliance; ?>%
+                                        </div>
+                                        <div class="progress my-1" style="height: 4px;">
+                                            <div class="progress-bar <?php echo $overallCompliance >= 85 ? 'bg-success' : 'bg-warning'; ?>" 
+                                                 role="progressbar" 
+                                                 style="width: <?php echo min(100, (float)$overallCompliance); ?>%;" 
+                                                 aria-valuenow="<?php echo $overallCompliance; ?>" 
+                                                 aria-valuemin="0" 
+                                                 aria-valuemax="100"></div>
+                                        </div>
                                     </div>
-                                    <div class="progress my-1" style="height: 5px;">
-                                        <div class="progress-bar <?php echo $overallCompliance >= 85 ? 'bg-success' : 'bg-warning'; ?>" 
-                                             role="progressbar" 
-                                             style="width: <?php echo min(100, (float)$overallCompliance); ?>%;" 
-                                             aria-valuenow="<?php echo $overallCompliance; ?>" 
-                                             aria-valuemin="0" 
-                                             aria-valuemax="100"></div>
-                                    </div>
-                                    <span class="badge <?php echo $overallCompliance >= 85 ? 'bg-success' : 'bg-warning text-dark'; ?>" style="font-size: 0.65rem;">
-                                        <?php echo $overallCompliance >= 85 ? '✓ Compliant (≥85%)' : '○ Action Required'; ?>
+                                    <span class="badge <?php echo $overallCompliance >= 85 ? 'bg-success' : 'bg-warning text-dark'; ?>" style="font-size: 0.62rem;">
+                                        <?php echo $overallCompliance >= 85 ? '✓ Compliant (≥85%)' : '○ Action Req.'; ?>
                                     </span>
                                 </div>
                             </div>
@@ -213,10 +340,10 @@ if ($schoolId) {
             <div class="row g-3">
                 <!-- Pillar 1a: Instructional Leadership - Lesson Plans (DLL/DLP) -->
                 <div class="col-md-6 col-lg-4 col-xl-2" style="flex: 0 0 20%; max-width: 20%;">
-                    <div class="p-3 rounded-3 border bg-success bg-opacity-10 border-success h-100">
+                    <div class="p-3 rounded-3 border <?php echo $p1_dll > 0 ? 'bg-success bg-opacity-10 border-success' : 'bg-light border-warning'; ?> h-100">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <span class="fw-bold small text-dark" style="font-size: 0.8rem;">1a. Lesson Plans</span>
-                            <span class="badge bg-success">+12.5%</span>
+                            <span class="badge <?php echo $p1_dll > 0 ? 'bg-success' : 'bg-warning text-dark'; ?>"><?php echo $p1_dll > 0 ? '+12.5%' : '0%'; ?></span>
                         </div>
                         <p class="small text-secondary mb-2" style="font-size: 0.72rem;">
                             <strong>Instructional Leadership:</strong> DLL/DLP includes FSL inclusive strategies for DHH learners.
@@ -224,16 +351,21 @@ if ($schoolId) {
                         <div class="bg-white p-2 rounded border mb-2" style="font-size: 0.68rem;">
                             <strong>MOV:</strong> Lesson Plans (DLL / DLP)
                         </div>
-                        <span class="text-success fw-bold small" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Verified & Active</span>
+                        <?php if ($p1_dll > 0): ?>
+                            <span class="text-success fw-bold small" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Verified & Active (<?php echo $totalLpDllCount; ?> Plan<?php echo $totalLpDllCount > 1 ? 's' : ''; ?>)</span>
+                        <?php else: ?>
+                            <span class="text-warning fw-bold small d-block" style="font-size: 0.75rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i> No Lesson Plans Published</span>
+                            <small class="text-muted d-block" style="font-size: 0.65rem;">Teachers publish via Lesson Builder / DLL.</small>
+                        <?php endif; ?>
                     </div>
                 </div>
 
                 <!-- Pillar 1b: Instructional Leadership - Class Observation Tool (COT) -->
                 <div class="col-md-6 col-lg-4 col-xl-2" style="flex: 0 0 20%; max-width: 20%;">
-                    <div class="p-3 rounded-3 border bg-success bg-opacity-10 border-success h-100">
+                    <div class="p-3 rounded-3 border <?php echo $p1_cot > 0 ? 'bg-success bg-opacity-10 border-success' : 'bg-light border-warning'; ?> h-100">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <span class="fw-bold small text-dark" style="font-size: 0.8rem;">1b. Classroom Observation</span>
-                            <span class="badge bg-success">+12.5%</span>
+                            <span class="badge <?php echo $p1_cot > 0 ? 'bg-success' : 'bg-warning text-dark'; ?>"><?php echo $p1_cot > 0 ? '+12.5%' : '0%'; ?></span>
                         </div>
                         <p class="small text-secondary mb-2" style="font-size: 0.72rem;">
                             <strong>Instructional Leadership:</strong> Classroom teaching observed using COT & inclusive methods.
@@ -241,16 +373,23 @@ if ($schoolId) {
                         <div class="bg-white p-2 rounded border mb-2" style="font-size: 0.68rem;">
                             <strong>MOV:</strong> Class Observation Tool (COT)
                         </div>
-                        <span class="text-success fw-bold small" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Verified & Active</span>
+                        <?php if ($p1_cot > 0): ?>
+                            <a href="<?php echo $basePath; ?>/cot/observations" class="text-success fw-bold small text-decoration-none" style="font-size: 0.75rem;">
+                                <i class="bi bi-check-circle-fill me-1"></i> Verified & Active (<?php echo $schoolCotCount; ?> Record<?php echo $schoolCotCount > 1 ? 's' : ''; ?>)
+                            </a>
+                        <?php else: ?>
+                            <span class="text-warning fw-bold small d-block" style="font-size: 0.75rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i> No Finalized COT Conducted</span>
+                            <a href="<?php echo $basePath; ?>/cot/observations/schedule" class="btn btn-xs btn-outline-primary mt-1" style="font-size: 0.68rem; padding: 2px 6px;">Schedule Observation</a>
+                        <?php endif; ?>
                     </div>
                 </div>
 
                 <!-- Pillar 2: Learning Resources (Materials Used) -->
                 <div class="col-md-6 col-lg-4 col-xl-2" style="flex: 0 0 20%; max-width: 20%;">
-                    <div class="p-3 rounded-3 border bg-success bg-opacity-10 border-success h-100">
+                    <div class="p-3 rounded-3 border <?php echo $p2 > 0 ? 'bg-success bg-opacity-10 border-success' : 'bg-light border-warning'; ?> h-100">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <span class="fw-bold small text-dark" style="font-size: 0.8rem;">2. Learning Resources</span>
-                            <span class="badge bg-success">+25%</span>
+                            <span class="badge <?php echo $p2 > 0 ? 'bg-success' : 'bg-warning text-dark'; ?>"><?php echo $p2 > 0 ? '+25%' : '0%'; ?></span>
                         </div>
                         <p class="small text-secondary mb-2" style="font-size: 0.72rem;">
                             <strong>Materials Used:</strong> Learning materials have FSL captions & used actively by students.
@@ -258,7 +397,12 @@ if ($schoolId) {
                         <div class="bg-white p-2 rounded border mb-2" style="font-size: 0.68rem;">
                             <strong>MOV:</strong> Learning Materials (modules/videos)
                         </div>
-                        <span class="text-success fw-bold small" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Verified & Active</span>
+                        <?php if ($p2 > 0): ?>
+                            <span class="text-success fw-bold small" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Verified & Active (<?php echo $schoolResCount; ?> Resource<?php echo $schoolResCount > 1 ? 's' : ''; ?>)</span>
+                        <?php else: ?>
+                            <span class="text-warning fw-bold small d-block" style="font-size: 0.75rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i> No Learning Resources Active</span>
+                            <small class="text-muted d-block" style="font-size: 0.65rem;">Created via Lesson Slide Builder & Modules.</small>
+                        <?php endif; ?>
                     </div>
                 </div>
 
@@ -661,51 +805,179 @@ $currSettings = $sysModelObj->getEnrollmentSettings();
                         </div>
                     </div>
 
+                    <?php 
+                    $standardDocDefs = [
+                        'psa_birth_cert' => [
+                            'title' => 'PSA Birth Certificate',
+                            'desc'  => 'Official Philippine Statistics Authority birth certificate (DepEd Standard)',
+                            'icon'  => 'bi-file-earmark-text text-danger',
+                            'default_enabled' => true,
+                            'default_required' => true
+                        ],
+                        'medical_record' => [
+                            'title' => 'Medical Certificate / Diagnostic Evaluation Report',
+                            'desc'  => 'Clinical diagnosis, developmental pediatric assessment, or audiogram',
+                            'icon'  => 'bi-hospital text-primary',
+                            'default_enabled' => true,
+                            'default_required' => false
+                        ],
+                        'pwd_id' => [
+                            'title' => 'Person with Disability (PWD) ID',
+                            'desc'  => 'LGU / DSWD issued Persons with Disabilities identification card',
+                            'icon'  => 'bi-person-badge text-warning',
+                            'default_enabled' => true,
+                            'default_required' => false
+                        ],
+                        'sf10' => [
+                            'title' => 'Form 138 / SF10 (Report Card / Permanent Record)',
+                            'desc'  => 'Previous school progress report card / Form 137 / SF10',
+                            'icon'  => 'bi-journal-check text-info',
+                            'default_enabled' => false,
+                            'default_required' => false
+                        ],
+                        'brgy_cert' => [
+                            'title' => 'Barangay Certificate of Residency',
+                            'desc'  => 'Proof of local catchment residence / LGU certification',
+                            'icon'  => 'bi-house-check text-secondary',
+                            'default_enabled' => false,
+                            'default_required' => false
+                        ]
+                    ];
+
+                    $rawGuidelines = $currSettings['guidelines'] ?? "PSA Birth Certificate\nForm 138/SF10 (Report Card)\nMedical / Diagnostic Evaluation Report\nPWD ID (Optional)";
+                    $allLines = array_filter(array_map('trim', explode("\n", $rawGuidelines)));
+
+                    $parsedDocs = [];
+                    $customItems = [];
+                    $hasDocTags = (strpos($rawGuidelines, '[DOC:') !== false);
+
+                    if ($hasDocTags) {
+                        foreach ($allLines as $line) {
+                            if (preg_match('/^\[DOC:([a-z0-9_]+):(required|optional)\]\s*(.*)$/i', $line, $m)) {
+                                $parsedDocs[$m[1]] = [
+                                    'enabled' => true,
+                                    'required' => (strtolower($m[2]) === 'required')
+                                ];
+                            } else {
+                                $customItems[] = $line;
+                            }
+                        }
+                    } else {
+                        // Legacy heuristic fallback
+                        foreach ($standardDocDefs as $k => $d) {
+                            $enabled = false;
+                            $req = $d['default_required'];
+                            foreach ($allLines as $line) {
+                                if ($k === 'psa_birth_cert' && stripos($line, 'PSA') !== false) {
+                                    $enabled = true;
+                                    $req = !preg_match('/\((?:Optional|optional)\)$/i', $line);
+                                } elseif ($k === 'pwd_id' && stripos($line, 'PWD') !== false) {
+                                    $enabled = true;
+                                    $req = !preg_match('/\((?:Optional|optional)\)$/i', $line);
+                                } elseif ($k === 'medical_record' && (stripos($line, 'Medical') !== false || stripos($line, 'Diagnostic') !== false)) {
+                                    $enabled = true;
+                                    $req = !preg_match('/\((?:Optional|optional)\)$/i', $line);
+                                } elseif ($k === 'sf10' && (stripos($line, 'SF10') !== false || stripos($line, '138') !== false)) {
+                                    $enabled = true;
+                                    $req = !preg_match('/\((?:Optional|optional)\)$/i', $line);
+                                } elseif ($k === 'brgy_cert' && stripos($line, 'Barangay') !== false) {
+                                    $enabled = true;
+                                    $req = !preg_match('/\((?:Optional|optional)\)$/i', $line);
+                                }
+                            }
+                            if ($enabled) {
+                                $parsedDocs[$k] = ['enabled' => true, 'required' => $req];
+                            }
+                        }
+                        foreach ($allLines as $line) {
+                            if (
+                                stripos($line, 'PSA') === false && 
+                                stripos($line, 'PWD') === false && 
+                                stripos($line, 'Medical') === false && 
+                                stripos($line, 'SF10') === false && 
+                                stripos($line, '138') === false &&
+                                stripos($line, 'Barangay') === false
+                            ) {
+                                $customItems[] = $line;
+                            }
+                        }
+                    }
+                    ?>
+
+                    <!-- Standard DepEd Document Upload Checklist Card (Directly Controls Parent Step 7) -->
+                    <div class="card border mb-3 rounded-3 shadow-none" style="background-color: #f8fafc;">
+                        <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+                            <span class="fw-bold small text-dark"><i class="bi bi-file-earmark-check-fill text-primary me-1"></i> DepEd SPED Required Document Checklist</span>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.72rem;">Reflects Directly to Parents</span>
+                        </div>
+                        <div class="card-body p-3">
+                            <p class="small text-muted mb-3" style="font-size: 0.8rem;">
+                                I-check ang mga dokumento nga gusto nimong i-require o i-upload sa mga ginikanan sa <strong>Step 7 (Documents)</strong>. Ang mga dokumento nga <u>wala gi-check</u> kay dili motungha sa enrollment form sa ginikanan.
+                            </p>
+                            <div class="d-flex flex-column gap-2">
+                                <?php foreach ($standardDocDefs as $docKey => $docDef): 
+                                    $isEnabled = isset($parsedDocs[$docKey]) ? $parsedDocs[$docKey]['enabled'] : $docDef['default_enabled'];
+                                    $isRequired = isset($parsedDocs[$docKey]) ? $parsedDocs[$docKey]['required'] : $docDef['default_required'];
+                                ?>
+                                <div class="p-2.5 rounded-3 border bg-white d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                    <div class="d-flex align-items-center gap-2.5">
+                                        <input type="checkbox" name="req_docs[<?php echo $docKey; ?>][enabled]" value="1" id="doc_check_<?php echo $docKey; ?>" class="form-check-input mt-0" <?php echo $isEnabled ? 'checked' : ''; ?> onchange="toggleDocStatusSelect('<?php echo $docKey; ?>', this.checked)">
+                                        <label for="doc_check_<?php echo $docKey; ?>" class="form-check-label mb-0" style="cursor: pointer;">
+                                            <span class="fw-semibold text-dark small d-block">
+                                                <i class="<?php echo $docDef['icon']; ?> me-1"></i> <?php echo htmlspecialchars($docDef['title']); ?>
+                                            </span>
+                                            <small class="text-muted d-block" style="font-size: 0.72rem;"><?php echo htmlspecialchars($docDef['desc']); ?></small>
+                                        </label>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <select name="req_docs[<?php echo $docKey; ?>][status]" id="doc_status_<?php echo $docKey; ?>" class="form-select form-select-sm" style="width: 130px; font-size: 0.78rem;" <?php echo !$isEnabled ? 'disabled' : ''; ?>>
+                                            <option value="required" <?php echo $isRequired ? 'selected' : ''; ?>>Required</option>
+                                            <option value="optional" <?php echo !$isRequired ? 'selected' : ''; ?>>Optional</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Additional School Policy Guidelines / Instructions -->
                     <div class="mb-3">
-                        <label class="form-label fw-semibold text-dark mb-1">Requirements Checklist & Policy Guidelines *</label>
-                        <div class="form-text small mb-2">Add each required document or policy item one by one. Parents will see this as an official bulleted checklist.</div>
+                        <label class="form-label fw-semibold text-dark mb-1">Additional Guidelines & Custom Policy Items (Optional)</label>
+                        <div class="form-text small mb-2">Add school-specific rules, enrollment hours, or notes shown as bullet points on the school profile.</div>
                         
                         <div id="checklist_items_wrapper" class="d-flex flex-column gap-2">
                             <?php 
-                            $rawGuidelines = $currSettings['guidelines'] ?? "PSA Birth Certificate\nForm 138/SF10 (Report Card)\nMedical / Diagnostic Evaluation Report\nPWD ID (Optional)";
-                            $guidelinesList = array_filter(array_map('trim', explode("\n", $rawGuidelines)));
-                            if (empty($guidelinesList)) {
-                                $guidelinesList = ["PSA Birth Certificate", "Form 138/SF10 (Report Card)", "Medical / Diagnostic Evaluation Report", "PWD ID (Optional)"];
+                            if (empty($customItems)) {
+                                $customItems = ["Official enrollment hours: 8:00 AM - 5:00 PM, Monday to Friday"];
                             }
-                            foreach ($guidelinesList as $index => $gItem):
+                            foreach ($customItems as $index => $gItem):
                                 $isOptional = (bool) preg_match('/\((?:Optional|optional)\)$/i', $gItem);
                                 $cleanItem = preg_replace('/\s*\((?:Optional|optional)\)$/i', '', preg_replace('/^[\-\*\•\d+\.\s]+/', '', $gItem));
                             ?>
                                 <div class="input-group input-group-sm checklist-item-row">
-                                    <span class="input-group-text bg-light text-success fw-bold"><i class="bi bi-check2-square"></i></span>
-                                    <input type="text" name="checklist_items[]" class="form-control" value="<?php echo htmlspecialchars($cleanItem); ?>" placeholder="e.g. PSA Birth Certificate" required>
-                                    <div class="input-group-text bg-white px-2">
-                                        <div class="form-check mb-0 d-flex align-items-center gap-1">
-                                            <input type="checkbox" class="form-check-input mt-0 optional-checkbox" <?php echo $isOptional ? 'checked' : ''; ?> onchange="syncOptionalHidden(this)">
-                                            <input type="hidden" name="checklist_is_optional[]" value="<?php echo $isOptional ? '1' : '0'; ?>" class="optional-hidden">
-                                            <label class="form-check-label small text-secondary text-nowrap user-select-none" style="cursor: pointer;">Optional</label>
-                                        </div>
-                                    </div>
+                                    <span class="input-group-text bg-light text-secondary fw-bold"><i class="bi bi-info-circle"></i></span>
+                                    <input type="text" name="checklist_items[]" class="form-control" value="<?php echo htmlspecialchars($cleanItem); ?>" placeholder="e.g. Bring hard copies during interview" required>
                                     <button type="button" class="btn btn-outline-danger" onclick="removeChecklistItem(this)"><i class="bi bi-trash"></i></button>
                                 </div>
                             <?php endforeach; ?>
                         </div>
 
                         <button type="button" class="btn btn-sm btn-outline-primary mt-2 fw-semibold" onclick="addChecklistItem()">
-                            <i class="bi bi-plus-circle-fill me-1"></i> Add Requirement Item
+                            <i class="bi bi-plus-circle-fill me-1"></i> Add Custom Policy Item
                         </button>
                     </div>
 
                     <hr class="my-3">
                     <h6 class="fw-bold text-dark mb-3">
-                        <i class="bi bi-file-earmark-pdf-fill me-1 text-danger"></i> Pillar 1 Compliance: School Improvement Plan (SIP) Document
+                        <i class="bi bi-file-earmark-pdf-fill me-1 text-danger"></i> Pillar 4 Compliance: School Improvement Plan (SIP) Document
                     </h6>
                     <div class="mb-3">
                         <label for="sip_document" class="form-label fw-semibold text-dark mb-1">
                             School Improvement Plan (SIP) PDF Document <span class="text-danger">*</span>
                         </label>
                         <input type="file" class="form-control" id="sip_document" name="sip_document" accept="application/pdf,image/*">
-                        <div class="form-text small">Upload your school's official School Improvement Plan (SIP PDF document) for Pillar 1 policy verification.</div>
+                        <div class="form-text small">Upload your school's official School Improvement Plan (SIP PDF document) for Pillar 4 policy verification.</div>
                         <?php if (!empty($mySchool['sip_path'])): ?>
                             <div class="mt-2 p-2 bg-light rounded border d-flex align-items-center justify-content-between">
                                 <span class="small text-success fw-semibold"><i class="bi bi-check-circle-fill me-1"></i> Current SIP Document Uploaded & Verified</span>
@@ -805,6 +1077,7 @@ $currSettings = $sysModelObj->getEnrollmentSettings();
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="<?php echo $basePath; ?>/principal/save-guidelines" enctype="multipart/form-data">
+                <input type="hidden" name="upload_sip_only" value="1">
                 <div class="modal-body p-4">
                     <div class="alert alert-info border-0 bg-info bg-opacity-10 text-dark small mb-3">
                         <i class="bi bi-info-circle-fill text-info me-1"></i>
@@ -830,6 +1103,13 @@ $currSettings = $sysModelObj->getEnrollmentSettings();
 </div>
 
 <script>
+function toggleDocStatusSelect(docKey, isChecked) {
+    const sel = document.getElementById('doc_status_' + docKey);
+    if (sel) {
+        sel.disabled = !isChecked;
+    }
+}
+
 function syncOptionalHidden(chk) {
     const hidden = chk.closest('.form-check').querySelector('.optional-hidden');
     if (hidden) {

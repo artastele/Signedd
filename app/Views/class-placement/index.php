@@ -235,6 +235,18 @@ $activeStep = 13;
                                 <?php endif; ?>
                             </div>
                         </div>
+
+                        <div class="mt-4 d-flex justify-content-center gap-2 flex-wrap">
+                            <a href="<?= $basePath ?>/masterlist" class="btn btn-light text-dark px-4" style="border-radius: 8px; font-weight: 600;">
+                                <i class="bi bi-people-fill me-1"></i> Learner Masterlist
+                            </a>
+                            <a href="<?= $basePath ?>/iep" class="btn btn-outline-light px-4" style="border-radius: 8px; font-weight: 600;">
+                                <i class="bi bi-file-earmark-text me-1"></i> IEP Repository
+                            </a>
+                            <a href="<?= $basePath ?>/dashboard" class="btn btn-outline-light px-4" style="border-radius: 8px; font-weight: 600;">
+                                <i class="bi bi-house me-1"></i> Dashboard
+                            </a>
+                        </div>
                     </div>
                 </div>
             <?php endif; ?>

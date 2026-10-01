@@ -17,6 +17,7 @@ if (!empty($actData['questions']) && $actType === 'true_false') {
         $tfItems[] = [
             'statement' => $question['statement'] ?? $question['question'] ?? '',
             'answer' => $question['answer'] ?? $question['correct_answer'] ?? 'true',
+            'image' => $question['image'] ?? '',
             'points' => $question['points'] ?? ($actData['points'] ?? 1),
         ];
     }
@@ -24,6 +25,7 @@ if (!empty($actData['questions']) && $actType === 'true_false') {
     $tfItems[] = [
         'statement' => $actData['statement'] ?? $actData['question'] ?? '',
         'answer' => $actData['answer'] ?? $actData['correct_answer'] ?? ($actData['questions'][0]['correct_answer'] ?? 'true'),
+        'image' => $actData['image'] ?? ($actData['questions'][0]['image'] ?? ''),
         'points' => $actData['points'] ?? 1,
     ];
 }
@@ -170,6 +172,13 @@ $getOptionText = static function ($option): string {
     return (string)$option;
 };
 
+$getOptionImage = static function ($option): string {
+    if (is_array($option)) {
+        return (string)($option['image'] ?? '');
+    }
+    return '';
+};
+
 $getCorrectMcIndex = static function (array $question): ?int {
     if (isset($question['correct_answer'])) {
         return is_numeric($question['correct_answer']) ? (int)$question['correct_answer'] : null;
@@ -244,7 +253,7 @@ if ($actType === 'drag_drop_sort' || $actType === 'sequencing') {
 }
 
 require_once __DIR__ . '/../layouts/header.php';
-echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
+echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time() . '">';
 ?>
 
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
@@ -252,59 +261,62 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
 
 <div class="main-content learner-quest-page">
     <div class="game-player-shell">
-        <a href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lessonPlanId; ?>" class="mission-back-link">
-            <i class="bi bi-arrow-left"></i> Back to Lesson
+        <a href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lessonPlanId; ?>" class="btn btn-bubble-outline mb-3">
+            <i class="ph-bold ph-arrow-left me-1"></i> Bumalik sa Aralin
         </a>
 
         <section class="game-mission-header">
             <div>
-                <div class="quest-eyebrow">Mission Challenge</div>
+                <div class="quest-eyebrow"><i class="ph-bold ph-game-controller me-1"></i> Pagsasanay</div>
                 <h1><?php echo htmlspecialchars($activity['title'] ?? 'Activity'); ?></h1>
-                <p>Choose carefully, move one challenge at a time, and complete the mission when you are ready.</p>
             </div>
             <div class="game-score-chip" aria-label="Mission summary">
                 <span><?php echo htmlspecialchars($typeLabel); ?></span>
                 <?php if ($hasSub && $earnedScore !== null): ?>
                     <strong><?php echo $earnedScore; ?> / <?php echo max($scoreMax, 0); ?></strong>
                 <?php else: ?>
-                    <strong><?php echo $questionTotal; ?> challenge<?php echo $questionTotal === 1 ? '' : 's'; ?></strong>
+                    <strong><?php echo $questionTotal; ?> gawain</strong>
                 <?php endif; ?>
             </div>
         </section>
 
         <?php if (!empty($activity['instructions'])): ?>
             <section class="game-guide-card">
-                <strong><i class="bi bi-compass"></i> Mission Guide</strong>
-                <p><?php echo nl2br(htmlspecialchars($activity['instructions'])); ?></p>
+                <strong><i class="bi bi-compass"></i> Mission Guide / Mga Panuto</strong>
+                <div class="activity-instructions-rich">
+                    <?php 
+                    $instr = (string)$activity['instructions'];
+                    if (preg_match('/<[a-z][\s\S]*>/i', $instr)) {
+                        echo $instr;
+                    } else {
+                        echo '<p>' . nl2br(htmlspecialchars($instr)) . '</p>';
+                    }
+                    ?>
+                </div>
             </section>
         <?php endif; ?>
 
         <?php if ($hasSub): ?>
-            <section class="mission-complete-card">
-                <div class="complete-badge-mascot">
-                    <?php 
-                    $mascotState = 'cheering';
-                    require __DIR__ . '/../components/mascot.php'; 
-                    ?>
-                </div>
-                <div class="quest-eyebrow">🎉 MISSION ACCOMPLISHED!</div>
-                <h2>Superstar Achievement Unlocked!</h2>
+            <section class="mission-complete-card text-center p-4 bg-white border rounded-4 shadow-sm">
+                <div class="complete-badge-icon mb-2"><i class="ph-bold ph-trophy text-warning" style="font-size: 3.5rem;" aria-hidden="true"></i></div>
+                <div class="quest-eyebrow text-success fw-bold"><i class="ph-bold ph-check-circle me-1"></i> Natapos ang Gawain!</div>
+                <h2 class="fw-bold text-dark mt-2">Napakagaling mo!</h2>
                 <?php if ($earnedScore !== null): ?>
-                    <div class="complete-score"><?php echo $earnedScore; ?> / <?php echo max($scoreMax, 0); ?></div>
-                    <div class="stars-earned" aria-label="<?php echo (int)$starsEarned; ?> stars earned">
+                    <div class="complete-score fw-bold fs-3 text-primary my-2"><?php echo $earnedScore; ?> / <?php echo max($scoreMax, 0); ?></div>
+                    <div class="stars-earned d-flex justify-content-center gap-2 fs-3 my-3" aria-label="<?php echo (int)$starsEarned; ?> stars earned">
                         <?php for ($s = 1; $s <= 3; $s++): ?>
-                            <span class="<?php echo ($starsEarned !== null && $s <= $starsEarned) ? 'earned' : ''; ?>">★</span>
+                            <i class="ph-bold ph-star <?php echo ($starsEarned !== null && $s <= $starsEarned) ? 'text-warning' : 'text-muted'; ?>"></i>
                         <?php endfor; ?>
                     </div>
                 <?php else: ?>
-                    <p class="congrats-text">Great job! Your mission response was saved successfully. Keep shining! 🌟</p>
+                    <p class="congrats-text text-muted my-2">Matagumpay mong naisumite ang iyong sagot!</p>
                 <?php endif; ?>
-                <div class="game-actions center">
-                    <a class="quest-secondary-btn" href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lessonPlanId; ?>">
-                        <i class="bi bi-book-half"></i> Back to Lesson Hub
+                <div class="game-actions center d-flex justify-content-center gap-2 mt-4 flex-wrap">
+                    <a class="btn btn-bubble-outline px-4 py-2 d-flex align-items-center gap-1.5" href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lessonPlanId; ?>">
+                        <i class="ph-bold ph-book-open"></i> <span>Bumalik sa Aralin</span>
                     </a>
-                    <a class="quest-primary-btn" href="<?php echo htmlspecialchars($basePath); ?>/learning/dashboard?tab=badges">
-                        <i class="bi bi-trophy-fill"></i> View My Badges
+                    <a class="btn btn-bubble px-4 py-2 d-flex align-items-center gap-1.5" href="<?php echo htmlspecialchars($basePath); ?>/learning/dashboard?tab=badges">
+                        <i class="ph-bold ph-trophy"></i> <span>Aking mga Bituin</span>
                     </a>
                 </div>
             </section>
@@ -323,12 +335,30 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                         $selected = isset($submittedAnswers[$qi]) ? (int)$submittedAnswers[$qi] : null;
                         $correct = $getCorrectMcIndex($q);
                         $isRight = $correct !== null && $selected !== null && $selected === $correct;
+                        $qImg = $q['image'] ?? '';
                         ?>
                         <article class="review-card <?php echo $correct === null ? '' : ($isRight ? 'is-correct' : 'is-wrong'); ?>">
+                            <?php if (!empty($qImg)): ?>
+                                <div class="mb-2"><img src="<?php echo htmlspecialchars($qImg); ?>" class="img-fluid rounded border" alt="Question illustration" style="max-height: 120px; object-fit: contain;"></div>
+                            <?php endif; ?>
                             <strong><?php echo ($qi + 1) . '. ' . htmlspecialchars($q['text'] ?? $q['question'] ?? 'Question'); ?></strong>
-                            <p>Your answer: <?php echo htmlspecialchars(isset(($q['options'] ?? [])[$selected]) ? $getOptionText(($q['options'] ?? [])[$selected]) : 'No answer'); ?></p>
+                            <p>Your answer: <?php 
+                                $selOpt = ($q['options'] ?? [])[$selected] ?? null;
+                                $selImg = $getOptionImage($selOpt);
+                                if (!empty($selImg)) {
+                                    echo '<img src="' . htmlspecialchars($selImg) . '" class="rounded border me-1" style="max-height: 32px; vertical-align: middle;"> ';
+                                }
+                                echo htmlspecialchars($selOpt !== null ? $getOptionText($selOpt) : 'No answer'); 
+                            ?></p>
                             <?php if ($correct !== null): ?>
-                                <p>Correct answer: <?php echo htmlspecialchars($getOptionText(($q['options'] ?? [])[$correct] ?? '')); ?></p>
+                                <p>Correct answer: <?php 
+                                    $corOpt = ($q['options'] ?? [])[$correct] ?? null;
+                                    $corImg = $getOptionImage($corOpt);
+                                    if (!empty($corImg)) {
+                                        echo '<img src="' . htmlspecialchars($corImg) . '" class="rounded border me-1" style="max-height: 32px; vertical-align: middle;"> ';
+                                    }
+                                    echo htmlspecialchars($corOpt !== null ? $getOptionText($corOpt) : ''); 
+                                ?></p>
                             <?php endif; ?>
                         </article>
                     <?php endforeach; ?>
@@ -338,8 +368,12 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                         $correct = $tfItem['answer'] ?? null;
                         $selected = $submittedAnswers[$ti] ?? ($ti === 0 ? ($submittedAnswers['answer'] ?? null) : null);
                         $isRight = $correct !== null && strtolower((string)$selected) === strtolower((string)$correct);
+                        $tfImg = $tfItem['image'] ?? '';
                         ?>
                         <article class="review-card <?php echo $correct === null ? '' : ($isRight ? 'is-correct' : 'is-wrong'); ?>">
+                            <?php if (!empty($tfImg)): ?>
+                                <div class="mb-2"><img src="<?php echo htmlspecialchars($tfImg); ?>" class="img-fluid rounded border" alt="Statement illustration" style="max-height: 120px; object-fit: contain;"></div>
+                            <?php endif; ?>
                             <strong><?php echo htmlspecialchars($tfItem['statement'] ?? 'True or false challenge'); ?></strong>
                             <p>Your answer: <?php echo htmlspecialchars(ucfirst((string)($selected ?? 'No answer'))); ?></p>
                             <?php if ($correct !== null): ?><p>Correct answer: <?php echo htmlspecialchars(ucfirst((string)$correct)); ?></p><?php endif; ?>
@@ -351,7 +385,17 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                             <strong><?php echo htmlspecialchars($set['title']); ?></strong>
                             <?php foreach (($set['pairs'] ?? []) as $pi => $pair): ?>
                                 <?php $key = $setIndex . '_' . $pi; $selected = $submittedAnswers[$key] ?? ($submittedAnswers[$pi] ?? ''); ?>
-                                <p><?php echo htmlspecialchars($pair['left'] ?? 'Match item'); ?>: <?php echo htmlspecialchars((string)($selected ?: 'No answer')); ?> | Correct: <?php echo htmlspecialchars((string)($pair['right'] ?? '')); ?></p>
+                                <p><?php 
+                                    if (!empty($pair['left_image'] ?? $pair['image'] ?? '')) {
+                                        echo '<img src="' . htmlspecialchars($pair['left_image'] ?? $pair['image']) . '" class="rounded border me-1" style="max-height: 28px; vertical-align: middle;"> ';
+                                    }
+                                    echo htmlspecialchars($pair['left'] ?? 'Match item'); 
+                                ?>: <?php echo htmlspecialchars((string)($selected ?: 'No answer')); ?> | Correct: <?php 
+                                    if (!empty($pair['right_image'] ?? '')) {
+                                        echo '<img src="' . htmlspecialchars($pair['right_image']) . '" class="rounded border me-1" style="max-height: 28px; vertical-align: middle;"> ';
+                                    }
+                                    echo htmlspecialchars((string)($pair['right'] ?? '')); 
+                                ?></p>
                             <?php endforeach; ?>
                         </article>
                     <?php endforeach; ?>
@@ -441,6 +485,36 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                     70% { box-shadow: 0 0 0 12px rgba(30, 64, 114, 0); }
                     100% { box-shadow: 0 0 0 0 rgba(30, 64, 114, 0); }
                 }
+                @keyframes cardShake {
+                    0%, 100% { transform: translateX(0); }
+                    20%, 60% { transform: translateX(-8px); }
+                    40%, 80% { transform: translateX(8px); }
+                }
+                .shake-animation {
+                    animation: cardShake 0.45s ease-in-out;
+                }
+                .attempt-badge {
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    padding: 4px 10px;
+                    border-radius: 999px;
+                    background: #f1f5f9;
+                    color: #475569;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                }
+                .accuracy-score-chip {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 6px 14px;
+                    background: #e0f2fe;
+                    color: #0369a1;
+                    border-radius: 999px;
+                    font-weight: 700;
+                    font-size: 0.9rem;
+                }
                 @media (prefers-reduced-motion: reduce) {
                     * {
                         animation-delay: 0s !important;
@@ -455,6 +529,93 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                     .game-flashcard {
                         transition: none !important;
                     }
+                    .shake-animation {
+                        animation: none !important;
+                    }
+                }
+
+                /* Widescreen & Maximize Space Optimization */
+                .main-content.learner-quest-page {
+                    padding: 1.25rem 2rem !important;
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
+                }
+                .game-player-shell {
+                    max-width: 1240px !important;
+                    width: 100% !important;
+                    margin: 0 auto !important;
+                    padding-bottom: 2rem !important;
+                }
+                .game-mission-header {
+                    padding: 16px 24px !important;
+                    border-radius: 14px !important;
+                    margin-bottom: 12px !important;
+                }
+                .game-guide-card {
+                    padding: 12px 18px !important;
+                    margin-bottom: 12px !important;
+                    border-radius: 12px !important;
+                }
+                .game-progress-panel {
+                    padding: 12px 18px !important;
+                    margin-bottom: 12px !important;
+                    border-radius: 12px !important;
+                }
+                .game-question-card {
+                    padding: 24px 28px !important;
+                    border-radius: 14px !important;
+                    margin-bottom: 14px !important;
+                }
+                .question-title-text {
+                    font-size: 1.25rem !important;
+                    line-height: 1.4 !important;
+                    margin-bottom: 14px !important;
+                }
+                .answer-card-grid {
+                    display: grid !important;
+                    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) !important;
+                    gap: 14px !important;
+                    width: 100% !important;
+                    margin: 14px 0 !important;
+                }
+                @media (min-width: 860px) {
+                    .answer-card-grid {
+                        grid-template-columns: repeat(2, 1fr) !important;
+                    }
+                }
+                @media (max-width: 640px) {
+                    .answer-card-grid {
+                        grid-template-columns: 1fr !important;
+                    }
+                }
+                .game-answer-card, .mc-option-btn, .tf-option-btn {
+                    min-height: 52px !important;
+                    padding: 12px 18px !important;
+                    border-radius: 10px !important;
+                    border: 2px solid #e2e8f0 !important;
+                    background: #ffffff !important;
+                    font-size: 0.95rem !important;
+                    font-weight: 600 !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    gap: 12px !important;
+                    text-align: left !important;
+                    cursor: pointer !important;
+                    transition: all 0.18s ease !important;
+                }
+                .game-navigation .btn,
+                .confirm-answer-btn {
+                    border-radius: 8px !important;
+                    font-size: 0.875rem !important;
+                    font-weight: 600 !important;
+                    padding: 9px 20px !important;
+                }
+                #nextChallengeBtn:disabled,
+                .next-btn-locked {
+                    opacity: 0.45 !important;
+                    cursor: not-allowed !important;
+                    pointer-events: none !important;
+                    filter: grayscale(35%) !important;
                 }
             </style>
 
@@ -472,25 +633,36 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                 <?php if ($actType === 'multiple_choice'): ?>
                     <?php foreach (($actData['questions'] ?? []) as $qi => $q): ?>
                         <article class="game-question-card" data-step="<?php echo $qi; ?>" data-required="choice">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <div class="question-pill">Question Challenge</div>
-                                <button type="button" class="btn btn-sm btn-outline-secondary read-aloud-btn" onclick="readTextAloud(<?php echo htmlspecialchars(json_encode($q['text'] ?? $q['question'] ?? '')); ?>)" title="Read aloud">
-                                    <i class="bi bi-volume-up-fill"></i> Read Aloud
-                                </button>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge bg-primary-subtle text-primary px-3 py-1.5 rounded-pill fw-semibold" style="font-size: 0.85rem;">
+                                    <i class="ph-bold ph-star me-1 text-warning"></i> Tanong <?php echo $qi + 1; ?>
+                                </span>
                             </div>
-                            <h2 class="question-title-text"><?php echo htmlspecialchars($q['text'] ?? $q['question'] ?? 'Question'); ?></h2>
-                            <p class="question-hint">Choose one answer card, then click Confirm Answer.</p>
+                            <h2 class="question-title-text mb-3" style="font-size: 1.35rem; line-height: 1.4;"><?php echo htmlspecialchars($q['text'] ?? $q['question'] ?? 'Question'); ?></h2>
+                            <?php if (!empty($q['image'])): ?>
+                                <div class="text-center my-3">
+                                    <img src="<?php echo htmlspecialchars($q['image']); ?>" class="img-fluid rounded border shadow-sm" alt="Question Image" style="max-height: 240px; max-width: 100%; object-fit: contain; background: #fff;">
+                                </div>
+                            <?php endif; ?>
                             <div class="answer-card-grid mc-card-grid">
                                 <?php foreach (($q['options'] ?? []) as $oi => $opt): ?>
+                                    <?php $optImg = $getOptionImage($opt); ?>
                                     <button type="button" class="game-answer-card mc-option-btn" data-answer="<?php echo $oi; ?>" data-step-index="<?php echo $qi; ?>" onclick="highlightGameChoice(this, <?php echo $qi; ?>, <?php echo $oi; ?>)">
                                         <span class="answer-letter"><?php echo chr(65 + $oi); ?></span>
-                                        <span><?php echo htmlspecialchars($getOptionText($opt)); ?></span>
+                                        <div class="mc-option-content d-flex flex-column align-items-start gap-1 flex-grow-1">
+                                            <?php if (!empty($optImg)): ?>
+                                                <img src="<?php echo htmlspecialchars($optImg); ?>" class="mc-option-image rounded border mb-1" alt="Option <?php echo chr(65 + $oi); ?>" style="max-height: 100px; max-width: 100%; object-fit: contain; background: #fff;">
+                                            <?php endif; ?>
+                                            <?php if ($getOptionText($opt) !== ''): ?>
+                                                <span class="mc-option-text fw-medium"><?php echo htmlspecialchars($getOptionText($opt)); ?></span>
+                                            <?php endif; ?>
+                                        </div>
                                     </button>
                                 <?php endforeach; ?>
                             </div>
-                            <div class="confirm-btn-wrap mt-3 text-center">
+                            <div class="confirm-btn-wrap mt-4 text-center">
                                 <button type="button" class="quest-primary-btn confirm-answer-btn" id="mcConfirmBtn_<?php echo $qi; ?>" disabled onclick="confirmMcChoice(<?php echo $qi; ?>)">
-                                    <i class="bi bi-check2-circle"></i> Confirm Answer
+                                    <i class="ph-bold ph-check-circle me-1"></i> Confirm Answer
                                 </button>
                             </div>
                             <div class="answer-feedback" aria-live="polite"></div>
@@ -499,30 +671,33 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                 <?php elseif ($actType === 'true_false'): ?>
                     <?php foreach ($tfItems as $ti => $tfItem): ?>
                     <article class="game-question-card" data-step="<?php echo $ti; ?>" data-required="choice">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div class="question-pill">True or False</div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary read-aloud-btn" onclick="readTextAloud(<?php echo htmlspecialchars(json_encode($tfItem['statement'] ?? '')); ?>)" title="Read aloud">
-                                <i class="bi bi-volume-up-fill"></i> Read Aloud
-                            </button>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="badge bg-primary-subtle text-primary px-3 py-1.5 rounded-pill fw-semibold" style="font-size: 0.85rem;">
+                                <i class="ph-bold ph-check-square me-1"></i> Tama o Mali? (<?php echo $ti + 1; ?>)
+                            </span>
                         </div>
-                        <h2 class="question-title-text"><?php echo htmlspecialchars($tfItem['statement'] ?? 'Read the statement.'); ?></h2>
-                        <p class="question-hint">Pick the card that feels right, then click Confirm Answer.</p>
+                        <h2 class="question-title-text mb-3" style="font-size: 1.35rem; line-height: 1.4;"><?php echo htmlspecialchars($tfItem['statement'] ?? 'Basahin ang pangungusap.'); ?></h2>
+                        <?php if (!empty($tfItem['image'])): ?>
+                            <div class="text-center my-3">
+                                <img src="<?php echo htmlspecialchars($tfItem['image']); ?>" class="img-fluid rounded border shadow-sm" alt="Statement Image" style="max-height: 240px; max-width: 100%; object-fit: contain; background: #fff;">
+                            </div>
+                        <?php endif; ?>
                         <div class="answer-card-grid two tf-card-grid">
                             <button type="button" class="game-answer-card tf-option-btn true-card" data-answer="true" onclick="highlightTrueFalse(this, 'true', <?php echo $ti; ?>)">
-                                <span class="answer-letter"><i class="bi bi-check-lg"></i></span><span>True</span>
+                                <span class="answer-letter text-success"><i class="ph-bold ph-check"></i></span><span>Tama</span>
                             </button>
                             <button type="button" class="game-answer-card tf-option-btn false-card" data-answer="false" onclick="highlightTrueFalse(this, 'false', <?php echo $ti; ?>)">
-                                <span class="answer-letter"><i class="bi bi-x-lg"></i></span><span>False</span>
+                                <span class="answer-letter text-danger"><i class="ph-bold ph-x"></i></span><span>Mali</span>
                             </button>
                         </div>
-                        <div class="confirm-btn-wrap mt-3 text-center">
+                        <div class="confirm-btn-wrap mt-4 text-center">
                             <button type="button" class="quest-primary-btn confirm-answer-btn" id="tfConfirmBtn_<?php echo $ti; ?>" disabled onclick="confirmTfChoice(<?php echo $ti; ?>)">
-                                <i class="bi bi-check2-circle"></i> Confirm Answer
+                                <i class="ph-bold ph-check-circle me-1"></i> Confirm Answer
                             </button>
                         </div>
                         <?php if (!empty($actData['explanation'])): ?>
                             <div class="did-you-know-explanation mt-3 p-3 bg-light rounded text-start" style="display:none;" id="tfExplanation_<?php echo $ti; ?>">
-                                <strong><i class="bi bi-info-circle-fill text-primary"></i> Did you know?</strong>
+                                <strong><i class="ph-bold ph-lightbulb text-warning me-1"></i> Alam mo ba?</strong>
                                 <p class="mb-0 mt-1"><?php echo htmlspecialchars($actData['explanation']); ?></p>
                             </div>
                         <?php endif; ?>
@@ -539,11 +714,10 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                         shuffle($pillPool);
                     ?>
                         <article class="game-question-card" data-step="<?php echo $si; ?>" data-required="text" data-mode="<?php echo $mode; ?>">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <div class="question-pill">Fill the Blank</div>
-                                <button type="button" class="btn btn-sm btn-outline-secondary read-aloud-btn" onclick="readTextAloud(<?php echo htmlspecialchars(json_encode(str_replace('___', 'blank', $sentence['text'] ?? ''))); ?>)" title="Read aloud">
-                                    <i class="bi bi-volume-up-fill"></i> Read Aloud
-                                </button>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge bg-primary-subtle text-primary px-3 py-1.5 rounded-pill fw-semibold" style="font-size: 0.85rem;">
+                                    <i class="ph-bold ph-pencil-simple me-1"></i> Punan ang Patlang (<?php echo $si + 1; ?>)
+                                </span>
                             </div>
                             <h2 class="question-title-text"><?php echo htmlspecialchars(str_replace('___', '_____', $sentence['text'] ?? 'Complete the sentence.')); ?></h2>
                             
@@ -578,8 +752,13 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                     <?php foreach ($matchingSets as $setIndex => $set): ?>
                         <?php 
                         $pairs = $set['pairs'] ?? []; 
-                        $leftItems = array_column($pairs, 'left');
-                        $rightItems = array_column($pairs, 'right');
+                        $rightItems = [];
+                        foreach ($pairs as $pair) {
+                            $rightItems[] = [
+                                'text' => (string)($pair['right'] ?? ''),
+                                'image' => (string)($pair['right_image'] ?? '')
+                            ];
+                        }
                         shuffle($rightItems);
                         ?>
                         <article class="game-question-card" data-step="<?php echo $setIndex; ?>" data-required="select" id="matchingCard_<?php echo $setIndex; ?>">
@@ -593,8 +772,8 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                                     <label for="match<?php echo $setIndex; ?>_<?php echo $pi; ?>"><?php echo htmlspecialchars($pair['left'] ?? 'Match item'); ?></label>
                                     <select id="match<?php echo $setIndex; ?>_<?php echo $pi; ?>" class="game-select-input matching-select" data-pi="<?php echo $setIndex; ?>_<?php echo $pi; ?>" onchange="syncMatchingDropdownToUI(<?php echo $setIndex; ?>)">
                                         <option value="">Choose a match</option>
-                                        <?php foreach ($rightItems as $right): ?>
-                                            <option value="<?php echo htmlspecialchars((string)$right); ?>"><?php echo htmlspecialchars((string)$right); ?></option>
+                                        <?php foreach ($rightItems as $rItem): ?>
+                                            <option value="<?php echo htmlspecialchars($rItem['text']); ?>"><?php echo htmlspecialchars($rItem['text']); ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                 <?php endforeach; ?>
@@ -608,10 +787,16 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                                     <div class="col-6">
                                         <h4 class="text-center small fw-bold text-uppercase text-secondary mb-3">Terms</h4>
                                         <div class="d-flex flex-column gap-3 left-terms-col">
-                                            <?php foreach ($pairs as $pi => $pair): ?>
-                                                <button type="button" class="btn btn-outline-primary border border-2 text-start p-3 matching-item-card left-card" id="matchCardL_<?php echo $setIndex; ?>_<?php echo $pi; ?>" data-side="left" data-index="<?php echo $pi; ?>" data-text="<?php echo htmlspecialchars($pair['left'], ENT_QUOTES); ?>" onclick="clickMatchingCard(this, <?php echo $setIndex; ?>)" style="font-size:0.95rem; font-weight: 500; min-height: 54px; position: relative;">
+                                            <?php foreach ($pairs as $pi => $pair): 
+                                                $leftText = (string)($pair['left'] ?? '');
+                                                $leftImg = (string)($pair['left_image'] ?? $pair['image'] ?? '');
+                                            ?>
+                                                <button type="button" class="btn btn-outline-primary border border-2 text-start p-3 matching-item-card left-card d-flex align-items-center gap-2" id="matchCardL_<?php echo $setIndex; ?>_<?php echo $pi; ?>" data-side="left" data-index="<?php echo $pi; ?>" data-text="<?php echo htmlspecialchars($leftText, ENT_QUOTES); ?>" onclick="clickMatchingCard(this, <?php echo $setIndex; ?>)" style="font-size:0.95rem; font-weight: 500; min-height: 54px; position: relative;">
                                                     <span class="matching-dot-badge position-absolute top-50 translate-middle-y end-0 me-3" style="width: 12px; height: 12px; border-radius: 50%; display: none;"></span>
-                                                    <?php echo htmlspecialchars($pair['left']); ?>
+                                                    <?php if (!empty($leftImg)): ?>
+                                                        <img src="<?php echo htmlspecialchars($leftImg); ?>" class="rounded border flex-shrink-0" alt="Term image" style="width: 44px; height: 44px; object-fit: cover; background: #fff;">
+                                                    <?php endif; ?>
+                                                    <span class="matching-card-text flex-grow-1"><?php echo htmlspecialchars($leftText); ?></span>
                                                 </button>
                                             <?php endforeach; ?>
                                         </div>
@@ -619,10 +804,18 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                                     <div class="col-6">
                                         <h4 class="text-center small fw-bold text-uppercase text-secondary mb-3">Definitions</h4>
                                         <div class="d-flex flex-column gap-3 right-defs-col">
-                                            <?php foreach ($rightItems as $ri => $rightText): ?>
-                                                <button type="button" class="btn btn-outline-primary border border-2 text-start p-3 matching-item-card right-card" id="matchCardR_<?php echo $setIndex; ?>_<?php echo $ri; ?>" data-side="right" data-index="<?php echo $ri; ?>" data-text="<?php echo htmlspecialchars($rightText, ENT_QUOTES); ?>" onclick="clickMatchingCard(this, <?php echo $setIndex; ?>)" style="font-size:0.95rem; font-weight: 500; min-height: 54px; position: relative;">
+                                            <?php foreach ($rightItems as $ri => $rItem): 
+                                                $rightText = (string)($rItem['text'] ?? '');
+                                                $rightImg = (string)($rItem['image'] ?? '');
+                                            ?>
+                                                <button type="button" class="btn btn-outline-primary border border-2 text-start p-3 matching-item-card right-card d-flex align-items-center gap-2" id="matchCardR_<?php echo $setIndex; ?>_<?php echo $ri; ?>" data-side="right" data-index="<?php echo $ri; ?>" data-text="<?php echo htmlspecialchars($rightText, ENT_QUOTES); ?>" onclick="clickMatchingCard(this, <?php echo $setIndex; ?>)" style="font-size:0.95rem; font-weight: 500; min-height: 54px; position: relative;">
                                                     <span class="matching-dot-badge position-absolute top-50 translate-middle-y start-0 ms-3" style="width: 12px; height: 12px; border-radius: 50%; display: none;"></span>
-                                                    <span class="ps-4 d-inline-block"><?php echo htmlspecialchars($rightText); ?></span>
+                                                    <div class="ps-4 d-flex align-items-center gap-2 flex-grow-1">
+                                                        <?php if (!empty($rightImg)): ?>
+                                                            <img src="<?php echo htmlspecialchars($rightImg); ?>" class="rounded border flex-shrink-0" alt="Definition image" style="width: 44px; height: 44px; object-fit: cover; background: #fff;">
+                                                        <?php endif; ?>
+                                                        <span class="matching-card-text"><?php echo htmlspecialchars($rightText); ?></span>
+                                                    </div>
                                                 </button>
                                             <?php endforeach; ?>
                                         </div>
@@ -645,7 +838,8 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                     foreach ($items as $ii => $item) {
                         $shuffledItems[] = [
                             'index' => $ii,
-                            'text' => is_array($item) ? ($item['text'] ?? $item['label'] ?? '') : $item
+                            'text' => is_array($item) ? ($item['text'] ?? $item['label'] ?? '') : $item,
+                            'image' => is_array($item) ? ($item['image'] ?? '') : '',
                         ];
                     }
                     shuffle($shuffledItems);
@@ -659,13 +853,14 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                             <?php foreach ($shuffledItems as $sItem): 
                                 $itemText = htmlspecialchars($sItem['text']);
                                 $origIdx = $sItem['index'];
+                                $itemImg = $sItem['image'];
                             ?>
                                 <li class="game-sort-item drag-item border rounded p-3 mb-2 bg-white d-flex align-items-center justify-content-between" draggable="true" data-index="<?php echo $origIdx; ?>" tabindex="0" onkeydown="handleSortKeyboard(event, this, <?php echo $setIndex; ?>)">
                                     <div class="d-flex align-items-center gap-3">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary read-aloud-btn" onclick="readTextAloud('<?php echo htmlspecialchars($itemText, ENT_QUOTES); ?>')" title="Read aloud" style="padding: 2px 6px;">
-                                            <i class="bi bi-volume-up-fill"></i>
-                                        </button>
-                                        <span class="drag-handle-icon" style="cursor: grab;"><i class="bi bi-grip-vertical text-muted"></i></span>
+                                        <span class="drag-handle-icon" style="cursor: grab;"><i class="ph-bold ph-dots-six-vertical text-muted"></i></span>
+                                        <?php if (!empty($itemImg)): ?>
+                                            <img src="<?php echo htmlspecialchars($itemImg); ?>" class="rounded border flex-shrink-0" alt="Step item" style="width: 44px; height: 44px; object-fit: cover; background: #fff;">
+                                        <?php endif; ?>
                                         <span class="item-text-label"><?php echo $itemText; ?></span>
                                     </div>
                                     <div class="accessible-sort-buttons d-flex gap-1">
@@ -806,15 +1001,32 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
 
                     <?php $flashStep = 0; ?>
                     <?php foreach ($flashcardSets as $setIndex => $set): ?>
-                        <?php foreach (($set['cards'] ?? []) as $ci => $card): ?>
+                        <?php foreach (($set['cards'] ?? []) as $ci => $card): 
+                            $fImg = $card['front_image'] ?? $card['image'] ?? '';
+                            $bImg = $card['back_image'] ?? '';
+                        ?>
                         <article class="game-question-card" data-step="<?php echo $flashStep; ?>" data-required="view" id="flashcardArticle_<?php echo $flashStep; ?>">
                             <div class="question-pill">Flashcard Mission</div>
                             <h2><?php echo htmlspecialchars($set['title'] ?? ('Flashcard Set ' . ($setIndex + 1))); ?></h2>
                             
-                            <div class="game-flashcard-shell position-relative mx-auto mb-3" style="max-width: 400px; height: 260px; perspective: 1000px;">
-                                <div class="game-flashcard w-100 h-100 position-relative text-center border border-2 rounded p-4 d-flex align-items-center justify-content-center fs-3 fw-bold bg-white shadow-sm" onclick="flipFlashcard(this, <?php echo $flashStep; ?>)" style="cursor: pointer; transition: transform 0.6s; transform-style: preserve-3d; user-select: none;">
-                                    <span class="front position-absolute w-100 h-100 d-flex align-items-center justify-content-center p-3" style="backface-visibility: hidden;"><?php echo htmlspecialchars($card['front'] ?? ''); ?></span>
-                                    <span class="back position-absolute w-100 h-100 d-flex align-items-center justify-content-center p-3" style="backface-visibility: hidden; transform: rotateY(180deg);"><?php echo htmlspecialchars($card['back'] ?? ''); ?></span>
+                            <div class="game-flashcard-shell position-relative mx-auto mb-3" style="max-width: 480px; min-height: 280px; perspective: 1000px;">
+                                <div class="game-flashcard w-100 h-100 position-relative text-center border border-2 rounded p-4 d-flex align-items-center justify-content-center bg-white shadow-sm" onclick="flipFlashcard(this, <?php echo $flashStep; ?>)" style="cursor: pointer; min-height: 280px; transition: transform 0.6s; transform-style: preserve-3d; user-select: none;">
+                                    <div class="front position-absolute w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3" style="backface-visibility: hidden; top: 0; left: 0;">
+                                        <?php if (!empty($fImg)): ?>
+                                            <img src="<?php echo htmlspecialchars($fImg); ?>" class="img-fluid rounded mb-2" alt="Flashcard front" style="max-height: 140px; max-width: 100%; object-fit: contain;">
+                                        <?php endif; ?>
+                                        <?php if (!empty($card['front'])): ?>
+                                            <span class="fs-4 fw-bold"><?php echo htmlspecialchars($card['front']); ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="back position-absolute w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3" style="backface-visibility: hidden; transform: rotateY(180deg); top: 0; left: 0;">
+                                        <?php if (!empty($bImg)): ?>
+                                            <img src="<?php echo htmlspecialchars($bImg); ?>" class="img-fluid rounded mb-2" alt="Flashcard back" style="max-height: 140px; max-width: 100%; object-fit: contain;">
+                                        <?php endif; ?>
+                                        <?php if (!empty($card['back'])): ?>
+                                            <span class="fs-4 fw-bold text-primary"><?php echo htmlspecialchars($card['back']); ?></span>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -845,29 +1057,32 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
                 <?php endif; ?>
 
                 <article class="game-question-card final-screen" data-step="<?php echo $questionTotal; ?>" data-required="final">
-                    <div class="complete-badge"><i class="bi bi-stars"></i></div>
-                    <div class="quest-eyebrow">Mission Review</div>
-                    <h2>Ready to submit?</h2>
-                    <p>You answered <strong id="answeredCount">0</strong> of <strong><?php echo $questionTotal; ?></strong> challenges.</p>
+                    <div class="complete-badge text-warning"><i class="ph-bold ph-star fs-1"></i></div>
+                    <div class="quest-eyebrow text-primary fw-bold small text-uppercase">Mission Review</div>
+                    <h2 class="fw-bold text-dark mt-1">Ready to submit?</h2>
+                    <p class="text-secondary">You answered <strong id="answeredCount">0</strong> of <strong><?php echo $questionTotal; ?></strong> challenges.</p>
                     <p id="frontendScorePreview" class="frontend-score-preview"></p>
                     <div id="missionReviewList" class="mission-review-list"></div>
-                    <div class="stars-earned">
-                        <span class="earned">★</span><span class="earned">★</span><span class="earned">★</span>
+                    <div class="stars-earned d-flex justify-content-center gap-2 fs-3 my-3">
+                        <i class="ph-bold ph-star text-warning"></i><i class="ph-bold ph-star text-warning"></i><i class="ph-bold ph-star text-warning"></i>
                     </div>
-                    <div class="game-actions center">
-                        <button type="button" class="quest-primary-btn" id="submitBtn" onclick="submitAnswers()">
-                            <i class="bi bi-send-check"></i> Submit Mission
+                    <div class="game-actions center d-flex justify-content-center gap-2 mt-4 flex-wrap">
+                        <button type="button" class="btn btn-bubble px-4 py-2" id="submitBtn" onclick="submitAnswers()">
+                            <i class="ph-bold ph-paper-plane-tilt me-1"></i> <span>Ipasa ang Gawain</span>
                         </button>
-                        <a class="quest-secondary-btn" href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lessonPlanId; ?>">
-                            <i class="bi bi-arrow-left"></i> Back to Lessons
+                        <a class="btn btn-bubble-outline px-4 py-2" href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lessonPlanId; ?>">
+                            <i class="ph-bold ph-arrow-left me-1"></i> <span>Bumalik sa Aralin</span>
                         </a>
                     </div>
                 </article>
             </section>
 
-            <nav class="game-navigation" aria-label="Challenge navigation">
-                <button type="button" class="quest-secondary-btn" id="backChallengeBtn" onclick="goChallenge(-1)">
-                    <i class="bi bi-arrow-left"></i> Back
+            <nav class="game-navigation d-flex justify-content-between align-items-center mt-3" aria-label="Challenge navigation">
+                <button type="button" class="btn btn-bubble-outline px-4 py-2" id="backChallengeBtn" onclick="goChallenge(-1)">
+                    <i class="ph-bold ph-arrow-left me-1"></i> <span>Nakaraan</span>
+                </button>
+                <button type="button" class="btn btn-bubble px-4 py-2" id="nextChallengeBtn" onclick="goChallenge(1)">
+                    <span>Susunod</span> <i class="ph-bold ph-arrow-right ms-1"></i>
                 </button>
             </nav>
 
@@ -876,6 +1091,7 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css">';
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
 const BASE = <?php echo json_encode($basePath); ?>;
 const ACTIVITY_ID = <?php echo $actId; ?>;
@@ -889,7 +1105,32 @@ const mcAnswers = {};
 const tfAnswers = {};
 const checkedSteps = {};
 const frontendResults = {};
-const AUTO_ADVANCE_MS = 2000;
+const attemptCounts = {};
+const AUTO_ADVANCE_MS = 1800;
+
+function getItemAccuracy(attempts) {
+    if (!attempts || attempts <= 1) return 100;
+    if (attempts === 2) return 75;
+    if (attempts === 3) return 50;
+    return 25;
+}
+
+function calculateOverallAccuracy() {
+    let totalAcc = 0;
+    for (let step = 0; step < TOTAL_STEPS; step++) {
+        const attempts = attemptCounts[step] || 1;
+        totalAcc += getItemAccuracy(attempts);
+    }
+    return Math.round(totalAcc / Math.max(1, TOTAL_STEPS));
+}
+
+function triggerShakeCard(card) {
+    if (!card || isMotionReduced) return;
+    card.classList.remove('shake-animation');
+    void card.offsetWidth;
+    card.classList.add('shake-animation');
+    setTimeout(() => card.classList.remove('shake-animation'), 500);
+}
 
 // Programmatic Web Audio Tone Synthesizer
 function playAudioTone(isCorrect) {
@@ -942,17 +1183,6 @@ function playAudioTone(isCorrect) {
     }
 }
 
-// Web Speech API Read-Aloud
-function readTextAloud(text) {
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const cleanText = text.replace(/___/g, 'blank');
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.lang = 'en-US';
-        window.speechSynthesis.speak(utterance);
-    }
-}
-
 // Levenshtein helper for spelling hint
 function getLevenshteinDistance(a, b) {
     const matrix = [];
@@ -1001,7 +1231,81 @@ function countAnswered() {
     return Object.keys(checkedSteps).length;
 }
 
+function isStepAnswered(step) {
+    if (checkedSteps[step]) return true;
+
+    if (ACTIVITY_TYPE === 'multiple_choice') {
+        return mcSelectedAnswers[step] !== undefined || mcAnswers[step] !== undefined;
+    }
+    
+    if (ACTIVITY_TYPE === 'true_false') {
+        return tfSelectedAnswers[step] !== undefined || tfAnswers[step] !== undefined;
+    }
+    
+    if (ACTIVITY_TYPE === 'fill_in_blanks') {
+        const card = getCardForStep(step);
+        if (!card) return false;
+        const input = card.querySelector('.fib-input');
+        if (input && input.value.trim().length > 0) return true;
+        const slot = card.querySelector('.fib-blank-slot');
+        if (slot && !slot.classList.contains('text-muted') && slot.textContent.trim().length > 0) return true;
+        return false;
+    }
+    
+    if (ACTIVITY_TYPE === 'matching') {
+        const card = document.getElementById('matchingCard_' + step) || getCardForStep(step);
+        if (!card) return false;
+        const leftCards = card.querySelectorAll('.left-card');
+        if (leftCards.length === 0) return true;
+        const conns = matchingConnections[step] || {};
+        return Object.keys(conns).length >= leftCards.length;
+    }
+    
+    if (ACTIVITY_TYPE === 'image_label') {
+        const totalLabels = document.querySelectorAll('.label-dot-pin, .game-label-pin').length;
+        if (totalLabels === 0) return true;
+        return Object.keys(imageLabelAnswers).length >= totalLabels;
+    }
+
+    return true;
+}
+
 function goChallenge(offset) {
+    if (offset > 0) {
+        if (currentStep < TOTAL_STEPS && !isStepAnswered(currentStep)) {
+            const card = getCardForStep(currentStep);
+            if (card) triggerShakeCard(card);
+            Swal.fire({
+                icon: 'info',
+                title: 'Sagutin muna ang tanong',
+                text: 'Pumili o maglagay muna ng sagot bago magpatuloy sa susunod.',
+                confirmButtonColor: '#0284c7',
+                confirmButtonText: 'Sige'
+            });
+            return;
+        }
+
+        // Auto-check on Next if answered but not yet checked
+        if (currentStep < TOTAL_STEPS && !checkedSteps[currentStep]) {
+            if (ACTIVITY_TYPE === 'multiple_choice' && mcSelectedAnswers[currentStep] !== undefined) {
+                confirmMcChoice(currentStep);
+                if (!checkedSteps[currentStep]) {
+                    return; // Incorrect answer; allow learner to retry on this question
+                }
+            } else if (ACTIVITY_TYPE === 'true_false' && tfSelectedAnswers[currentStep] !== undefined) {
+                confirmTfChoice(currentStep);
+                if (!checkedSteps[currentStep]) {
+                    return;
+                }
+            } else if (ACTIVITY_TYPE === 'fill_in_blanks') {
+                checkTextAnswer(currentStep);
+                if (!checkedSteps[currentStep]) {
+                    return;
+                }
+            }
+        }
+    }
+
     currentStep = Math.max(0, Math.min(TOTAL_STEPS, currentStep + offset));
     updateGameStage();
 }
@@ -1017,12 +1321,24 @@ function updateGameStage() {
     const mood = document.getElementById('challengeMood');
     const fill = document.getElementById('gameProgressFill');
     const backBtn = document.getElementById('backChallengeBtn');
+    const nextBtn = document.getElementById('nextChallengeBtn');
     const answered = document.getElementById('answeredCount');
 
-    if (counter) counter.textContent = isFinal ? 'Final Review' : 'Question ' + (currentStep + 1) + ' of ' + TOTAL_STEPS;
-    if (mood) mood.textContent = isFinal ? 'Mission complete!' : getFriendlyPrompt();
+    if (counter) counter.textContent = isFinal ? 'Panghuling Pagsusuri' : 'Tanong ' + (currentStep + 1) + ' ng ' + TOTAL_STEPS;
+    if (mood) mood.textContent = isFinal ? 'Magaling! Tapos na ang mga tanong!' : getFriendlyPrompt();
     if (fill) fill.style.width = Math.min(100, Math.round((countAnswered() / TOTAL_STEPS) * 100)) + '%';
     if (backBtn) backBtn.disabled = currentStep === 0;
+    if (nextBtn) {
+        if (isFinal) {
+            nextBtn.style.display = 'none';
+        } else {
+            nextBtn.style.display = 'inline-flex';
+            const answeredState = isStepAnswered(currentStep);
+            nextBtn.disabled = !answeredState;
+            nextBtn.classList.toggle('next-btn-locked', !answeredState);
+            nextBtn.title = answeredState ? 'Pumunta sa susunod na tanong' : 'Pumili muna ng sagot para makapagpatuloy';
+        }
+    }
     if (answered) answered.textContent = countAnswered();
     if (isFinal) buildMissionReview();
     
@@ -1043,7 +1359,7 @@ function updateGameStage() {
 }
 
 function getFriendlyPrompt() {
-    const prompts = ['Choose your answer', 'Great choice!', 'Keep going!', 'Almost there!'];
+    const prompts = ['Piliin ang iyong sagot', 'Magaling!', 'Ipagpatuloy!', 'Malapit na matapos!'];
     return prompts[Math.min(currentStep, prompts.length - 1)];
 }
 
@@ -1077,7 +1393,7 @@ function setFeedback(step, status, title, desc, nextText) {
         icon = 'bi-check-circle-fill';
     } else if (status === 'wrong') {
         alertClass = 'alert-danger';
-        icon = 'bi-x-circle-fill';
+        icon = 'bi-exclamation-circle-fill';
     }
     
     feedbackDiv.innerHTML = `
@@ -1119,12 +1435,31 @@ let mcSelectedAnswers = {};
 function highlightGameChoice(el, qi, oi) {
     if (checkedSteps[qi]) return;
     const card = getCardForStep(qi);
-    card.querySelectorAll('.mc-option-btn').forEach(btn => btn.classList.remove('selected'));
+    
+    // Clear previous selection and incorrect markings for retry
+    card.querySelectorAll('.mc-option-btn').forEach(btn => {
+        btn.classList.remove('selected');
+        btn.classList.remove('is-wrong');
+        const badge = btn.querySelector('.status-badge');
+        if (badge) badge.remove();
+    });
+    
     el.classList.add('selected');
     mcAnswers[qi] = oi;
     mcSelectedAnswers[qi] = oi;
+    
     const confirmBtn = document.getElementById('mcConfirmBtn_' + qi);
-    if (confirmBtn) confirmBtn.disabled = false;
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = `<i class="bi bi-check2-circle"></i> Confirm Answer`;
+    }
+
+    const nextBtn = document.getElementById('nextChallengeBtn');
+    if (nextBtn) {
+        nextBtn.disabled = false;
+        nextBtn.classList.remove('next-btn-locked');
+        nextBtn.title = 'Pumunta sa susunod na tanong';
+    }
 }
 
 function confirmMcChoice(qi) {
@@ -1135,46 +1470,78 @@ function confirmMcChoice(qi) {
 }
 
 function checkChoiceStep(step, selectedIndex) {
-    checkedSteps[step] = true;
     const card = getCardForStep(step);
     const correct = FEEDBACK_DATA.multiple_choice?.[step]?.correct;
-    const correctText = FEEDBACK_DATA.multiple_choice?.[step]?.correctText || '';
-    const selectedText = card.querySelector('.game-answer-card[data-answer="' + selectedIndex + '"] span:last-child')?.textContent.trim() || String(selectedIndex);
-    let status = 'saved';
+    const selectedCard = card.querySelector('.game-answer-card[data-answer="' + selectedIndex + '"]');
+    const selectedText = selectedCard?.querySelector('.mc-option-text')?.textContent.trim() 
+        || selectedCard?.querySelector('span:last-child')?.textContent.trim() 
+        || String(selectedIndex);
 
-    card.querySelectorAll('.game-answer-card').forEach(function(answerCard) {
-        const value = parseInt(answerCard.dataset.answer, 10);
-        answerCard.classList.add('locked');
-        if (value === selectedIndex) answerCard.classList.add('selected');
-        if (correct !== null && correct !== undefined) {
-            if (value === parseInt(correct, 10)) {
-                answerCard.classList.add('is-correct');
-                labelCard(answerCard, value === selectedIndex ? 'Correct!' : 'Correct answer', 'bi-check-circle-fill');
-            } else if (value === selectedIndex) {
-                answerCard.classList.add('is-wrong');
-                labelCard(answerCard, 'Try again', 'bi-x-circle-fill');
-            }
-        } else if (value === selectedIndex) {
-            answerCard.classList.add('is-saved');
-            labelCard(answerCard, 'Answer saved', 'bi-bookmark-check-fill');
-        }
-    });
+    attemptCounts[step] = (attemptCounts[step] || 0) + 1;
+    const currentAttempt = attemptCounts[step];
 
     if (correct !== null && correct !== undefined) {
-        status = parseInt(correct, 10) === selectedIndex ? 'correct' : 'wrong';
-        playAudioTone(status === 'correct');
-        frontendResults[step] = {status: status, selected: selectedText, correct: parseInt(correct, 10), correctText: correctText};
-        setFeedback(step, status === 'correct' ? 'correct' : 'wrong',
-            status === 'correct' ? 'Correct!' : 'Try again',
-            status === 'correct' ? 'You chose the correct card.' : 'Correct answer: ' + correctText,
-            step >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+        const isCorrect = parseInt(correct, 10) === selectedIndex;
+        
+        if (isCorrect) {
+            checkedSteps[step] = true;
+            playAudioTone(true);
+            
+            // Mark correct
+            card.querySelectorAll('.game-answer-card').forEach(c => c.classList.add('locked'));
+            if (selectedCard) {
+                selectedCard.classList.add('is-correct');
+                labelCard(selectedCard, 'Correct!', 'bi-check-circle-fill');
+            }
+            
+            const acc = getItemAccuracy(currentAttempt);
+            frontendResults[step] = {
+                status: 'correct',
+                selected: selectedText,
+                attempts: currentAttempt,
+                accuracy: acc
+            };
+            
+            const attemptText = currentAttempt === 1 
+                ? '⭐ 1st Try! Perfect accuracy (100%)' 
+                : `Solved in ${currentAttempt} attempts (${acc}% accuracy)`;
+            
+            setFeedback(step, 'correct', 'Correct!', attemptText,
+                step >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+            
+            const confirmBtn = document.getElementById('mcConfirmBtn_' + step);
+            if (confirmBtn) confirmBtn.disabled = true;
+            
+            lockStep(step);
+            updateGameStage();
+            autoAdvance(step);
+        } else {
+            // Cisco-style: Wrong answer -> Do NOT reveal correct answer! Allow retry
+            playAudioTone(false);
+            triggerShakeCard(card);
+            
+            if (selectedCard) {
+                selectedCard.classList.add('is-wrong');
+                labelCard(selectedCard, 'Try again', 'bi-x-circle-fill');
+            }
+            
+            setFeedback(step, 'wrong', 'Not quite right', 
+                'That answer is incorrect. Pick another choice and try again!', 
+                `Attempt ${currentAttempt} • Choose another card to retry`);
+            
+            const confirmBtn = document.getElementById('mcConfirmBtn_' + step);
+            if (confirmBtn) {
+                confirmBtn.innerHTML = `<i class="bi bi-arrow-repeat"></i> Try Again`;
+            }
+        }
     } else {
-        frontendResults[step] = {status: 'saved', selected: selectedText, correct: null, correctText: ''};
+        checkedSteps[step] = true;
+        frontendResults[step] = {status: 'saved', selected: selectedText, attempts: 1, accuracy: 100};
         setFeedback(step, 'saved', 'Answer saved!', 'Your answer was saved for the mission.', step >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+        lockStep(step);
+        updateGameStage();
+        autoAdvance(step);
     }
-    lockStep(step);
-    updateGameStage();
-    autoAdvance(step);
 }
 
 // Activity 2: True / False
@@ -1182,12 +1549,30 @@ const tfSelectedAnswers = {};
 function highlightTrueFalse(el, val, ti) {
     if (checkedSteps[ti]) return;
     const card = getCardForStep(ti);
-    card.querySelectorAll('.tf-option-btn').forEach(btn => btn.classList.remove('selected'));
+    
+    card.querySelectorAll('.tf-option-btn').forEach(btn => {
+        btn.classList.remove('selected');
+        btn.classList.remove('is-wrong');
+        const badge = btn.querySelector('.status-badge');
+        if (badge) badge.remove();
+    });
+    
     el.classList.add('selected');
     tfAnswers[ti] = val;
     tfSelectedAnswers[ti] = val;
+    
     const confirmBtn = document.getElementById('tfConfirmBtn_' + ti);
-    if (confirmBtn) confirmBtn.disabled = false;
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = `<i class="bi bi-check2-circle"></i> Confirm Answer`;
+    }
+
+    const nextBtn = document.getElementById('nextChallengeBtn');
+    if (nextBtn) {
+        nextBtn.disabled = false;
+        nextBtn.classList.remove('next-btn-locked');
+        nextBtn.title = 'Pumunta sa susunod na tanong';
+    }
 }
 
 function confirmTfChoice(ti) {
@@ -1195,46 +1580,80 @@ function confirmTfChoice(ti) {
     const val = tfSelectedAnswers[ti];
     if (val === undefined) return;
     checkTrueFalseStep(val, ti);
-    const exp = document.getElementById('tfExplanation_' + ti);
-    if (exp) exp.style.display = 'block';
 }
 
 function checkTrueFalseStep(value, step) {
-    checkedSteps[step] = true;
-    const correct = FEEDBACK_DATA.true_false?.[step];
     const card = getCardForStep(step);
-    card.querySelectorAll('.game-answer-card').forEach(function(answerCard) {
-        const answer = String(answerCard.dataset.answer || '').toLowerCase();
-        answerCard.classList.add('locked');
-        if (correct) {
-            if (answer === correct) {
-                answerCard.classList.add('is-correct');
-                labelCard(answerCard, answer === value ? 'Correct!' : 'Correct answer', 'bi-check-circle-fill');
-            } else if (answer === value) {
-                answerCard.classList.add('is-wrong');
-                labelCard(answerCard, 'Try again', 'bi-x-circle-fill');
-            }
-        } else if (answer === value) {
-            answerCard.classList.add('is-saved');
-            labelCard(answerCard, 'Answer saved', 'bi-bookmark-check-fill');
-        }
-    });
+    const correct = FEEDBACK_DATA.true_false?.[step];
+    const selectedCard = card.querySelector(`.game-answer-card[data-answer="${value}"]`);
+
+    attemptCounts[step] = (attemptCounts[step] || 0) + 1;
+    const currentAttempt = attemptCounts[step];
 
     if (correct) {
         const isCorrect = String(value).toLowerCase() === correct;
-        playAudioTone(isCorrect);
-        frontendResults[step] = {status: isCorrect ? 'correct' : 'wrong', selected: value, correct: correct, correctText: correct};
-        setFeedback(step, isCorrect ? 'correct' : 'wrong',
-            isCorrect ? 'Correct!' : 'Try again',
-            isCorrect ? 'You chose the correct card.' : 'Correct answer: ' + correct,
-            step >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+        
+        if (isCorrect) {
+            checkedSteps[step] = true;
+            playAudioTone(true);
+            
+            card.querySelectorAll('.game-answer-card').forEach(c => c.classList.add('locked'));
+            if (selectedCard) {
+                selectedCard.classList.add('is-correct');
+                labelCard(selectedCard, 'Correct!', 'bi-check-circle-fill');
+            }
+            
+            const exp = document.getElementById('tfExplanation_' + step);
+            if (exp) exp.style.display = 'block';
+            
+            const acc = getItemAccuracy(currentAttempt);
+            frontendResults[step] = {
+                status: 'correct',
+                selected: value,
+                attempts: currentAttempt,
+                accuracy: acc
+            };
+            
+            const attemptText = currentAttempt === 1 
+                ? '⭐ 1st Try! Perfect accuracy (100%)' 
+                : `Solved in ${currentAttempt} attempts (${acc}% accuracy)`;
+            
+            setFeedback(step, 'correct', 'Correct!', attemptText,
+                step >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+            
+            const confirmBtn = document.getElementById('tfConfirmBtn_' + step);
+            if (confirmBtn) confirmBtn.disabled = true;
+            
+            lockStep(step);
+            updateGameStage();
+            autoAdvance(step);
+        } else {
+            // Cisco-style: Wrong answer -> Do NOT reveal correct answer! Allow retry
+            playAudioTone(false);
+            triggerShakeCard(card);
+            
+            if (selectedCard) {
+                selectedCard.classList.add('is-wrong');
+                labelCard(selectedCard, 'Try again', 'bi-x-circle-fill');
+            }
+            
+            setFeedback(step, 'wrong', 'Not quite right', 
+                'Incorrect statement assessment. Think carefully and try again!', 
+                `Attempt ${currentAttempt} • Select the other option to retry`);
+            
+            const confirmBtn = document.getElementById('tfConfirmBtn_' + step);
+            if (confirmBtn) {
+                confirmBtn.innerHTML = `<i class="bi bi-arrow-repeat"></i> Try Again`;
+            }
+        }
     } else {
-        frontendResults[step] = {status: 'saved', selected: value, correct: null, correctText: ''};
+        checkedSteps[step] = true;
+        frontendResults[step] = {status: 'saved', selected: value, attempts: 1, accuracy: 100};
         setFeedback(step, 'saved', 'Answer saved!', 'Your answer was saved for the mission.', step >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+        lockStep(step);
+        updateGameStage();
+        autoAdvance(step);
     }
-    lockStep(step);
-    updateGameStage();
-    autoAdvance(step);
 }
 
 // Activity 3: Fill in the Blanks (Word Bank & Free Type)
@@ -1291,7 +1710,10 @@ function placeWordInSlot(word, si) {
     hiddenInput.value = word;
     slot.innerHTML = `<span class="badge rounded-pill bg-primary text-white p-2" style="cursor: pointer; min-height: 38px; display: inline-flex; align-items: center;" onclick="event.stopPropagation(); removeWordFromSlot(${si})">${escapeHtml(word)} <i class="bi bi-x-circle-fill ms-2"></i></span>`;
     slot.classList.remove('text-muted');
+    slot.style.borderColor = '';
+    slot.style.backgroundColor = '';
     hideWordInPool(word, si);
+    updateGameStage();
 }
 
 function removeWordFromSlot(si) {
@@ -1306,6 +1728,9 @@ function removeWordFromSlot(si) {
     hiddenInput.value = '';
     slot.innerHTML = 'Drag word here or tap to highlight slot';
     slot.classList.add('text-muted');
+    slot.style.borderColor = '';
+    slot.style.backgroundColor = '';
+    updateGameStage();
 }
 
 function hideWordInPool(word, si) {
@@ -1338,13 +1763,13 @@ function checkFibAnswer(si) {
 
 function checkTextAnswer(step) {
     if (checkedSteps[step]) return;
-    const input = document.querySelector('.game-question-card[data-step="' + step + '"] .fib-input');
+    const card = getCardForStep(step);
+    const input = card ? card.querySelector('.fib-input') : null;
     const value = input ? input.value.trim() : '';
     if (!value) {
         Swal.fire({icon:'info',title:'Choose/Type an answer first',text:'Fill the blank before checking.',confirmButtonColor:'#1e4072'});
         return;
     }
-    checkedSteps[step] = true;
     
     // Hide spelling hint
     const hint = document.getElementById('spellingHint_' + step);
@@ -1356,7 +1781,7 @@ function checkTextAnswer(step) {
         return String(answer).trim().toLowerCase() === normalized;
     });
     
-    const isFreeType = document.querySelector(`.game-question-card[data-step="${step}"]`).dataset.mode === 'free_type';
+    const isFreeType = card ? card.dataset.mode === 'free_type' : false;
     let isFuzzy = false;
     if (!match && isFreeType && accepted.length > 0) {
         isFuzzy = accepted.some(function(correct) {
@@ -1365,45 +1790,78 @@ function checkTextAnswer(step) {
         });
     }
     
-    const status = accepted.length > 0 ? ((match || isFuzzy) ? 'correct' : 'wrong') : 'saved';
-    playAudioTone(status === 'correct');
-    
-    frontendResults[step] = {status: status, selected: value, correct: accepted, correctText: accepted.join(' / ')};
-    
-    const correctValStr = accepted.join(' / ');
-    setFeedback(step, status,
-        status === 'correct' ? 'Correct!' : 'Try again',
-        status === 'wrong' ? 'Correct answer: ' + correctValStr : (status === 'correct' ? (isFuzzy ? 'Correct! (Close enough spelling)' : 'Your answer matches.') : 'Your answer was saved.'),
-        step >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
-    
-    // Visually show correct/incorrect in the Word Bank slot or Free Type text input
-    if (isFreeType) {
-        if (input) {
-            input.disabled = true;
-            input.style.borderColor = status === 'correct' ? '#28a745' : '#dc3545';
-            input.style.backgroundColor = status === 'correct' ? '#e8f5e9' : '#ffebee';
+    attemptCounts[step] = (attemptCounts[step] || 0) + 1;
+    const currentAttempt = attemptCounts[step];
+    const isSuccess = match || isFuzzy;
+
+    if (isSuccess || accepted.length === 0) {
+        checkedSteps[step] = true;
+        playAudioTone(true);
+        
+        const acc = getItemAccuracy(currentAttempt);
+        frontendResults[step] = {
+            status: 'correct',
+            selected: value,
+            attempts: currentAttempt,
+            accuracy: acc
+        };
+        
+        if (isFreeType) {
+            if (input) {
+                input.disabled = true;
+                input.style.borderColor = '#28a745';
+                input.style.backgroundColor = '#e8f5e9';
+            }
+        } else {
+            const slot = document.getElementById('fibSlot_' + step);
+            if (slot) {
+                slot.style.borderColor = '#28a745';
+                slot.style.backgroundColor = '#e8f5e9';
+                const textSpan = slot.querySelector('span');
+                if (textSpan) {
+                    textSpan.className = 'badge rounded-pill bg-success text-white p-2';
+                }
+            }
         }
+        
+        const attemptText = currentAttempt === 1 
+            ? '⭐ 1st Try! Perfect accuracy (100%)' 
+            : `Solved in ${currentAttempt} attempts (${acc}% accuracy)`;
+        
+        setFeedback(step, 'correct', 'Correct!', 
+            isFuzzy ? 'Correct! (Close enough spelling)' : attemptText,
+            step >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+        
+        lockStep(step);
+        updateGameStage();
+        autoAdvance(step);
     } else {
-        const slot = document.getElementById('fibSlot_' + step);
-        if (slot) {
-            slot.style.borderColor = status === 'correct' ? '#28a745' : '#dc3545';
-            slot.style.backgroundColor = status === 'correct' ? '#e8f5e9' : '#ffebee';
-            const textSpan = slot.querySelector('span');
-            if (textSpan) {
-                textSpan.className = status === 'correct' ? 'badge rounded-pill bg-success text-white p-2' : 'badge rounded-pill bg-danger text-white p-2';
+        // Cisco-style: Wrong answer -> Do NOT reveal correct answer! Allow retry
+        playAudioTone(false);
+        triggerShakeCard(card);
+        
+        if (isFreeType) {
+            if (input) {
+                input.style.borderColor = '#dc3545';
+                input.style.backgroundColor = '#ffebee';
+                input.focus();
             }
-            if (status === 'wrong') {
-                const correctHint = document.createElement('div');
-                correctHint.className = 'small text-success fw-bold mt-2';
-                correctHint.innerHTML = `<i class="bi bi-check-circle-fill"></i> Correct: ${escapeHtml(correctValStr)}`;
-                slot.parentNode.appendChild(correctHint);
+        } else {
+            const slot = document.getElementById('fibSlot_' + step);
+            if (slot) {
+                slot.style.borderColor = '#dc3545';
+                slot.style.backgroundColor = '#ffebee';
+                const textSpan = slot.querySelector('span');
+                if (textSpan) {
+                    textSpan.className = 'badge rounded-pill bg-danger text-white p-2';
+                }
             }
         }
+        
+        setFeedback(step, 'wrong', 'Not quite right', 
+            'That word does not fit the blank. Remove it or type another answer to retry!', 
+            `Attempt ${currentAttempt} • Try another word`);
     }
-    
-    lockStep(step);
-    updateGameStage();
-    autoAdvance(step);
 }
 
 // Activity 4: Matching SVG Connect the Dots
@@ -1440,13 +1898,19 @@ function clickMatchingCard(el, setIndex) {
         if (leftCard) {
             leftCard.style.borderColor = ''; leftCard.style.color = '';
             leftCard.classList.remove('selected-left');
+            leftCard.classList.remove('is-wrong');
             const dot = leftCard.querySelector('.matching-dot-badge');
             if (dot) dot.style.display = 'none';
+            const badge = leftCard.querySelector('.status-badge');
+            if (badge) badge.remove();
         }
         if (rightCard) {
             rightCard.style.borderColor = ''; rightCard.style.color = '';
+            rightCard.classList.remove('is-wrong');
             const dot = rightCard.querySelector('.matching-dot-badge');
             if (dot) dot.style.display = 'none';
+            const badge = rightCard.querySelector('.status-badge');
+            if (badge) badge.remove();
         }
         
         const select = document.getElementById(`match${setIndex}_${existing.leftIdx}`);
@@ -1484,6 +1948,7 @@ function clickMatchingCard(el, setIndex) {
         selectedLeftCard.style.borderColor = pairColor;
         selectedLeftCard.style.color = pairColor;
         selectedLeftCard.classList.remove('selected-left');
+        selectedLeftCard.classList.remove('is-wrong');
         const leftDot = selectedLeftCard.querySelector('.matching-dot-badge');
         if (leftDot) {
             leftDot.style.backgroundColor = pairColor;
@@ -1492,6 +1957,7 @@ function clickMatchingCard(el, setIndex) {
         
         el.style.borderColor = pairColor;
         el.style.color = pairColor;
+        el.classList.remove('is-wrong');
         const rightDot = el.querySelector('.matching-dot-badge');
         if (rightDot) {
             rightDot.style.backgroundColor = pairColor;
@@ -1514,6 +1980,7 @@ function checkMatchingComplete(setIndex) {
     if (saveBtn) {
         saveBtn.disabled = (connectionsCount < leftCardsCount);
     }
+    updateGameStage();
 }
 
 function drawMatchingLines(setIndex) {
@@ -1556,66 +2023,79 @@ function drawMatchingLines(setIndex) {
 
 function confirmMatchingStep(setIndex) {
     if (checkedSteps[setIndex]) return;
-    checkedSteps[setIndex] = true;
     
+    const card = getCardForStep(setIndex);
     const correctAnswers = FEEDBACK_DATA.matching?.[setIndex] || {};
     const connections = matchingConnections[setIndex] || {};
+    
+    attemptCounts[setIndex] = (attemptCounts[setIndex] || 0) + 1;
+    const currentAttempt = attemptCounts[setIndex];
     
     let allCorrect = true;
     const leftCards = document.querySelectorAll(`#matchingCard_${setIndex} .left-card`);
     
-    leftCards.forEach(card => {
-        const leftIdx = parseInt(card.dataset.index, 10);
+    leftCards.forEach(lCard => {
+        const leftIdx = parseInt(lCard.dataset.index, 10);
         const conn = connections[leftIdx];
         const correctVal = correctAnswers[leftIdx];
         const submittedVal = conn ? conn.rightText : '';
         
         const rightCard = conn ? document.getElementById(`matchCardR_${setIndex}_${conn.rightIdx}`) : null;
-        
         let isPairCorrect = (submittedVal && correctVal && submittedVal.trim().toLowerCase() === correctVal.trim().toLowerCase());
+        
         if (!isPairCorrect) {
             allCorrect = false;
-        }
-        
-        card.classList.add('locked');
-        if (rightCard) rightCard.classList.add('locked');
-        
-        if (isPairCorrect) {
-            card.classList.add('is-correct');
-            if (rightCard) rightCard.classList.add('is-correct');
-            labelCard(card, 'Correct!', 'bi-check-circle-fill');
-        } else {
-            card.classList.add('is-wrong');
+            lCard.classList.add('is-wrong');
             if (rightCard) rightCard.classList.add('is-wrong');
-            labelCard(card, 'Try again', 'bi-x-circle-fill');
-            
-            const correctHint = document.createElement('div');
-            correctHint.className = 'small text-success fw-bold mt-1';
-            correctHint.innerHTML = `<i class="bi bi-check-circle-fill"></i> Match: ${escapeHtml(correctVal)}`;
-            card.appendChild(correctHint);
+            labelCard(lCard, 'Try again', 'bi-x-circle-fill');
+        } else {
+            lCard.classList.remove('is-wrong');
+            lCard.classList.add('is-correct');
+            if (rightCard) {
+                rightCard.classList.remove('is-wrong');
+                rightCard.classList.add('is-correct');
+            }
+            labelCard(lCard, 'Correct!', 'bi-check-circle-fill');
         }
     });
     
-    playAudioTone(allCorrect);
-    
-    frontendResults[setIndex] = {
-        status: allCorrect ? 'correct' : 'wrong',
-        selected: getSelectedAnswerText(setIndex),
-        correct: null,
-        correctText: ''
-    };
-    
-    setFeedback(setIndex, allCorrect ? 'correct' : 'wrong',
-        allCorrect ? 'Correct!' : 'Try again',
-        allCorrect ? 'All pairs are matched correctly!' : 'The correct matches are highlighted.',
-        currentStep >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+    if (allCorrect) {
+        checkedSteps[setIndex] = true;
+        playAudioTone(true);
         
-    const saveBtn = document.getElementById('saveMatchingBtn_' + setIndex);
-    if (saveBtn) saveBtn.disabled = true;
-    
-    lockStep(setIndex);
-    updateGameStage();
-    autoAdvance(setIndex);
+        leftCards.forEach(c => c.classList.add('locked'));
+        document.querySelectorAll(`#matchingCard_${setIndex} .right-card`).forEach(c => c.classList.add('locked'));
+        
+        const acc = getItemAccuracy(currentAttempt);
+        frontendResults[setIndex] = {
+            status: 'correct',
+            selected: getSelectedAnswerText(setIndex),
+            attempts: currentAttempt,
+            accuracy: acc
+        };
+        
+        const attemptText = currentAttempt === 1 
+            ? '⭐ 1st Try! All pairs matched correctly (100%)' 
+            : `All pairs matched in ${currentAttempt} attempts (${acc}% accuracy)`;
+        
+        setFeedback(setIndex, 'correct', 'Correct!', attemptText,
+            currentStep >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+            
+        const saveBtn = document.getElementById('saveMatchingBtn_' + setIndex);
+        if (saveBtn) saveBtn.disabled = true;
+        
+        lockStep(setIndex);
+        updateGameStage();
+        autoAdvance(setIndex);
+    } else {
+        // Cisco-style: Do NOT reveal correct answers! Allow disconnect & reconnect
+        playAudioTone(false);
+        triggerShakeCard(card);
+        
+        setFeedback(setIndex, 'wrong', 'Some pairs are incorrect', 
+            'Review the pairs marked in red. Tap to disconnect and reconnect them!', 
+            `Attempt ${currentAttempt} • Tap cards to adjust connections`);
+    }
 }
 
 function syncMatchingDropdownToUI(setIndex) {
@@ -1746,81 +2226,91 @@ function handleSortKeyboard(event, item, setIndex) {
 
 function confirmOrderStep(setIndex) {
     if (checkedSteps[setIndex]) return;
-    checkedSteps[setIndex] = true;
     
     const card = getCardForStep(setIndex);
     const list = document.getElementById('dragList_' + setIndex);
     const items = Array.from(list.querySelectorAll('.drag-item'));
-    const submittedOrder = items.map(item => parseInt(item.dataset.index, 10));
-    
     const correctOrder = FEEDBACK_DATA.order?.[setIndex] || [];
     const tolerance = parseInt(FEEDBACK_DATA.tolerance?.[setIndex] || 0, 10);
+    
+    attemptCounts[setIndex] = (attemptCounts[setIndex] || 0) + 1;
+    const currentAttempt = attemptCounts[setIndex];
     
     let wrongCount = 0;
     items.forEach((item, idx) => {
         const origIndex = parseInt(item.dataset.index, 10);
-        item.classList.add('locked');
-        item.setAttribute('draggable', 'false');
-        item.querySelectorAll('button, span[style]').forEach(el => el.disabled = true);
-        
         const isPosCorrect = (origIndex === correctOrder[idx]);
         if (!isPosCorrect) {
             wrongCount++;
-            item.classList.add('is-wrong');
-            labelCard(item, 'Needs practice', 'bi-x-circle-fill');
-        } else {
-            item.classList.add('is-correct');
-            labelCard(item, 'Correct!', 'bi-check-circle-fill');
         }
     });
     
     const isCorrect = (wrongCount <= tolerance);
-    playAudioTone(isCorrect);
     
-    frontendResults[setIndex] = {
-        status: isCorrect ? 'correct' : 'wrong',
-        selected: getSelectedAnswerText(setIndex),
-        correct: null,
-        correctText: ''
-    };
-    
-    const correctOrderStr = correctOrder.map(cIdx => {
-        return FEEDBACK_DATA.original_items?.[setIndex]?.[cIdx] || '';
-    }).join(' ➔ ');
-    
-    setFeedback(setIndex, isCorrect ? 'correct' : 'wrong',
-        isCorrect ? 'Correct!' : 'Try again',
-        isCorrect ? 'The sequence is correct.' : 'Correct order: ' + correctOrderStr,
-        currentStep >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+    if (isCorrect) {
+        checkedSteps[setIndex] = true;
+        playAudioTone(true);
         
-    if (ACTIVITY_TYPE === 'sequencing') {
-        const timeline = document.getElementById('timelineView_' + setIndex);
-        if (timeline) {
-            timeline.style.display = 'block';
-            const flow = timeline.querySelector('.timeline-steps-flow');
-            if (flow) {
-                flow.innerHTML = '';
-                correctOrder.forEach((cIdx, idx) => {
-                    const stepText = FEEDBACK_DATA.original_items?.[setIndex]?.[cIdx] || '';
-                    const stepEl = document.createElement('div');
-                    stepEl.className = 'timeline-step-card p-3 border rounded bg-white text-center';
-                    stepEl.style.minWidth = '145px';
-                    stepEl.innerHTML = `
-                        <div class="badge bg-primary rounded-circle mb-2" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">${idx + 1}</div>
-                        <div class="small fw-semibold text-wrap">${escapeHtml(stepText)}</div>
-                    `;
-                    flow.appendChild(stepEl);
-                });
+        items.forEach((item, idx) => {
+            item.classList.add('locked');
+            item.setAttribute('draggable', 'false');
+            item.querySelectorAll('button, span[style]').forEach(el => el.disabled = true);
+            item.classList.add('is-correct');
+            labelCard(item, 'Correct!', 'bi-check-circle-fill');
+        });
+        
+        const acc = getItemAccuracy(currentAttempt);
+        frontendResults[setIndex] = {
+            status: 'correct',
+            selected: getSelectedAnswerText(setIndex),
+            attempts: currentAttempt,
+            accuracy: acc
+        };
+        
+        const attemptText = currentAttempt === 1 
+            ? '⭐ 1st Try! Perfect order (100%)' 
+            : `Order solved in ${currentAttempt} attempts (${acc}% accuracy)`;
+        
+        setFeedback(setIndex, 'correct', 'Correct!', attemptText,
+            currentStep >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+            
+        if (ACTIVITY_TYPE === 'sequencing') {
+            const timeline = document.getElementById('timelineView_' + setIndex);
+            if (timeline) {
+                timeline.style.display = 'block';
+                const flow = timeline.querySelector('.timeline-steps-flow');
+                if (flow) {
+                    flow.innerHTML = '';
+                    correctOrder.forEach((cIdx, idx) => {
+                        const stepText = FEEDBACK_DATA.original_items?.[setIndex]?.[cIdx] || '';
+                        const stepEl = document.createElement('div');
+                        stepEl.className = 'timeline-step-card p-3 border rounded bg-white text-center';
+                        stepEl.style.minWidth = '145px';
+                        stepEl.innerHTML = `
+                            <div class="badge bg-primary rounded-circle mb-2" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">${idx + 1}</div>
+                            <div class="small fw-semibold text-wrap">${escapeHtml(stepText)}</div>
+                        `;
+                        flow.appendChild(stepEl);
+                    });
+                }
             }
         }
+        
+        const saveBtn = card.querySelector('.check-answer-btn');
+        if (saveBtn) saveBtn.disabled = true;
+        
+        lockStep(setIndex);
+        updateGameStage();
+        autoAdvance(setIndex);
+    } else {
+        // Cisco-style: Wrong order -> Do NOT reveal correct order! Allow rearranging
+        playAudioTone(false);
+        triggerShakeCard(card);
+        
+        setFeedback(setIndex, 'wrong', 'Order is not quite right', 
+            'The cards are not in the correct sequence yet. Drag or use the arrows to rearrange!', 
+            `Attempt ${currentAttempt} • Rearrange the cards and click Save Order again`);
     }
-    
-    const saveBtn = card.querySelector('.check-answer-btn');
-    if (saveBtn) saveBtn.disabled = true;
-    
-    lockStep(setIndex);
-    updateGameStage();
-    autoAdvance(setIndex);
 }
 
 // Activity 7: Image Labeling
@@ -1882,12 +2372,15 @@ function assignLabelToPin(pinIndex, text) {
     input.value = text;
     imageLabelAnswers[pinIndex] = text;
     
+    pin.classList.remove('is-wrong');
     const textLabel = pin.querySelector('.assigned-text-label');
     if (textLabel) {
         textLabel.textContent = text;
+        textLabel.className = 'assigned-text-label position-absolute bg-primary text-white border border-2 border-white rounded px-2 py-1 small';
         textLabel.style.display = 'block';
     }
     hideLabelInPool(text);
+    updateGameStage();
 }
 
 function removeLabelFromPin(pinIndex) {
@@ -1903,11 +2396,13 @@ function removeLabelFromPin(pinIndex) {
     input.value = '';
     delete imageLabelAnswers[pinIndex];
     
+    pin.classList.remove('is-wrong');
     const textLabel = pin.querySelector('.assigned-text-label');
     if (textLabel) {
         textLabel.textContent = '';
         textLabel.style.display = 'none';
     }
+    updateGameStage();
 }
 
 function hideLabelInPool(text) {
@@ -1959,13 +2454,20 @@ function clickLabelFallbackCard(el) {
         const rightCard = document.getElementById(`labelCardR_${existing.rightIdx}`);
         if (leftCard) {
             leftCard.style.borderColor = ''; leftCard.style.color = '';
+            leftCard.classList.remove('selected-left');
+            leftCard.classList.remove('is-wrong');
             const dot = leftCard.querySelector('.matching-dot-badge');
             if (dot) dot.style.display = 'none';
+            const badge = leftCard.querySelector('.status-badge');
+            if (badge) badge.remove();
         }
         if (rightCard) {
             rightCard.style.borderColor = ''; rightCard.style.color = '';
+            rightCard.classList.remove('is-wrong');
             const dot = rightCard.querySelector('.matching-dot-badge');
             if (dot) dot.style.display = 'none';
+            const badge = rightCard.querySelector('.status-badge');
+            if (badge) badge.remove();
         }
         const input = document.getElementById('label' + existing.leftIdx);
         if (input) input.value = '';
@@ -1994,10 +2496,12 @@ function clickLabelFallbackCard(el) {
         selectedFallbackLeftCard.style.borderColor = pairColor;
         selectedFallbackLeftCard.style.color = pairColor;
         selectedFallbackLeftCard.classList.remove('selected-left');
+        selectedFallbackLeftCard.classList.remove('is-wrong');
         const leftDot = selectedFallbackLeftCard.querySelector('.matching-dot-badge');
         if (leftDot) { leftDot.style.backgroundColor = pairColor; leftDot.style.display = 'block'; }
         
         el.style.borderColor = pairColor; el.style.color = pairColor;
+        el.classList.remove('is-wrong');
         const rightDot = el.querySelector('.matching-dot-badge');
         if (rightDot) { rightDot.style.backgroundColor = pairColor; rightDot.style.display = 'block'; }
         
@@ -2011,6 +2515,7 @@ function clickLabelFallbackCard(el) {
 function confirmLabelsStep() {
     if (checkedSteps[0]) return;
     
+    const card = getCardForStep(0);
     const inputs = document.querySelectorAll('.label-input');
     let allAnswered = true;
     inputs.forEach(input => {
@@ -2022,7 +2527,9 @@ function confirmLabelsStep() {
         return;
     }
     
-    checkedSteps[0] = true;
+    attemptCounts[0] = (attemptCounts[0] || 0) + 1;
+    const currentAttempt = attemptCounts[0];
+    
     const correctAnswers = FEEDBACK_DATA.image_label || {};
     let allCorrect = true;
     
@@ -2037,60 +2544,75 @@ function confirmLabelsStep() {
         const fbCard = document.getElementById('labelCardL_' + idx);
         
         if (pin) {
-            pin.classList.add('locked');
             if (isPinCorrect) {
+                pin.classList.remove('is-wrong');
                 pin.classList.add('is-correct');
-                if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-                    pin.style.transition = 'transform 0.3s ease-out';
-                    pin.style.transform = 'translate(-50%, -50%) scale(1.2)';
-                    setTimeout(() => { pin.style.transform = 'translate(-50%, -50%) scale(1)'; }, 300);
-                }
                 pin.style.boxShadow = '0 0 15px #28a745';
+                const textLabel = pin.querySelector('.assigned-text-label');
+                if (textLabel) {
+                    textLabel.className = 'assigned-text-label position-absolute bg-success text-white border border-2 border-white rounded px-2 py-1 small';
+                }
             } else {
                 pin.classList.add('is-wrong');
                 pin.style.boxShadow = '0 0 15px #dc3545';
                 const textLabel = pin.querySelector('.assigned-text-label');
                 if (textLabel) {
-                    textLabel.innerHTML = `<i class="bi bi-x-circle-fill"></i> ${escapeHtml(input.value)} <br><i class="bi bi-check-circle-fill"></i> ${escapeHtml(correctAnswers[idx])}`;
                     textLabel.className = 'assigned-text-label position-absolute bg-danger text-white border border-2 border-white rounded px-2 py-1 small';
-                    textLabel.style.display = 'block';
                 }
             }
         }
         
         if (fbCard) {
-            fbCard.classList.add('locked');
             if (isPinCorrect) {
+                fbCard.classList.remove('is-wrong');
                 fbCard.classList.add('is-correct');
                 labelCard(fbCard, 'Correct!', 'bi-check-circle-fill');
             } else {
                 fbCard.classList.add('is-wrong');
                 labelCard(fbCard, 'Try again', 'bi-x-circle-fill');
-                const correctHint = document.createElement('div');
-                correctHint.className = 'small text-success fw-bold mt-1';
-                correctHint.innerHTML = `<i class="bi bi-check-circle-fill"></i> Correct: ${escapeHtml(correctAnswers[idx])}`;
-                fbCard.appendChild(correctHint);
             }
         }
     });
     
-    playAudioTone(allCorrect);
-    
-    frontendResults[0] = {
-        status: allCorrect ? 'correct' : 'wrong',
-        selected: getSelectedAnswerText(0),
-        correct: null,
-        correctText: ''
-    };
-    
-    setFeedback(0, allCorrect ? 'correct' : 'wrong',
-        allCorrect ? 'Correct!' : 'Try again',
-        allCorrect ? 'All labels are matched correctly!' : 'The correct labels are highlighted.',
-        currentStep >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+    if (allCorrect) {
+        checkedSteps[0] = true;
+        playAudioTone(true);
         
-    lockStep(0);
-    updateGameStage();
-    autoAdvance(0);
+        inputs.forEach(input => {
+            const idx = parseInt(input.dataset.li, 10);
+            const pin = document.getElementById('labelPin_' + idx);
+            const fbCard = document.getElementById('labelCardL_' + idx);
+            if (pin) pin.classList.add('locked');
+            if (fbCard) fbCard.classList.add('locked');
+        });
+        
+        const acc = getItemAccuracy(currentAttempt);
+        frontendResults[0] = {
+            status: 'correct',
+            selected: getSelectedAnswerText(0),
+            attempts: currentAttempt,
+            accuracy: acc
+        };
+        
+        const attemptText = currentAttempt === 1 
+            ? '⭐ 1st Try! All labels correct (100%)' 
+            : `All labels matched in ${currentAttempt} attempts (${acc}% accuracy)`;
+        
+        setFeedback(0, 'correct', 'Correct!', attemptText,
+            currentStep >= TOTAL_STEPS - 1 ? 'Mission review loading...' : 'Next question starting...');
+            
+        lockStep(0);
+        updateGameStage();
+        autoAdvance(0);
+    } else {
+        // Cisco-style: Wrong labels -> Do NOT reveal correct answers! Allow re-assigning
+        playAudioTone(false);
+        triggerShakeCard(card);
+        
+        setFeedback(0, 'wrong', 'Some labels are incorrect', 
+            'Review the pins or cards marked in red. Click a pin to remove its label and try another!', 
+            `Attempt ${currentAttempt} • Adjust your labels and save again`);
+    }
 }
 
 // Activity 8: Flashcards
@@ -2171,9 +2693,11 @@ function assessFlashcard(step, confidence) {
         if (hint) hint.textContent = 'Click the card to flip it and reveal the back.';
     }
     
+    flashcardPasses[step] = (flashcardPasses[step] || 0) + 1;
+    attemptCounts[step] = flashcardPasses[step];
+    
     if (confidence === 1) {
         flashcardConfidence[step] = 1;
-        flashcardPasses[step] = (flashcardPasses[step] || 0) + 1;
         const idxInOrder = flashcardOrder.indexOf(step);
         if (idxInOrder > -1) {
             flashcardOrder.splice(idxInOrder, 1);
@@ -2202,8 +2726,8 @@ function assessFlashcard(step, confidence) {
         frontendResults[0] = {
             status: 'saved',
             selected: `Confidence XP: ${xp}`,
-            correct: null,
-            correctText: ''
+            attempts: 1,
+            accuracy: Math.round(rate * 100)
         };
         
         currentStep = TOTAL_STEPS;
@@ -2273,7 +2797,8 @@ function getQuestionTitle(step) {
 
 function getSelectedAnswerText(step) {
     if (ACTIVITY_TYPE === 'multiple_choice') {
-        const selected = getCardForStep(step)?.querySelector('.game-answer-card.selected span:last-child');
+        const selected = getCardForStep(step)?.querySelector('.game-answer-card.selected .mc-option-text')
+            || getCardForStep(step)?.querySelector('.game-answer-card.selected span:last-child');
         return selected ? selected.textContent.trim() : 'No answer';
     }
     if (ACTIVITY_TYPE === 'true_false') {
@@ -2314,26 +2839,55 @@ function buildMissionReview() {
 
     let correctCount = 0;
     let knownCount = 0;
+    let totalAttempts = 0;
     let html = '';
+    
+    const overallAccuracy = calculateOverallAccuracy();
+
     for (let step = 0; step < TOTAL_STEPS; step++) {
-        const result = frontendResults[step] || {status: 'saved', selected: getSelectedAnswerText(step), correctText: ''};
+        const result = frontendResults[step] || {status: 'saved', selected: getSelectedAnswerText(step), attempts: 1, accuracy: 100};
+        const attempts = attemptCounts[step] || 1;
+        totalAttempts += attempts;
+        const itemAcc = getItemAccuracy(attempts);
+        
         if (result.status === 'correct' || result.status === 'wrong') knownCount++;
         if (result.status === 'correct') correctCount++;
+        
         const label = result.status === 'correct'
-            ? '<span class="review-state correct"><i class="bi bi-check-circle-fill"></i> Correct</span>'
+            ? `<span class="review-state correct"><i class="bi bi-check-circle-fill"></i> Passed (${attempts} attempt${attempts > 1 ? 's' : ''})</span>`
             : result.status === 'wrong'
                 ? '<span class="review-state wrong"><i class="bi bi-x-circle-fill"></i> Needs practice</span>'
                 : '<span class="review-state saved"><i class="bi bi-bookmark-check-fill"></i> Saved</span>';
-        const correction = result.status === 'wrong' && result.correctText
-            ? '<p>Correct answer: ' + escapeHtml(String(result.correctText)) + '</p>'
-            : '';
-        html += '<article class="mission-review-item ' + result.status + '"><strong>' + escapeHtml(getQuestionTitle(step)) + '</strong><p>Your answer: ' + escapeHtml(String(result.selected ?? getSelectedAnswerText(step))) + '</p>' + correction + label + '</article>';
+        
+        const attemptNote = `<div class="d-flex align-items-center gap-2 mt-1"><span class="badge bg-light text-dark border"><i class="bi bi-arrow-repeat me-1"></i> Attempts: <strong>${attempts}</strong></span><span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-bullseye me-1"></i> Accuracy: <strong>${itemAcc}%</strong></span></div>`;
+
+        html += `<article class="mission-review-item ${result.status}">
+            <strong>${escapeHtml(getQuestionTitle(step))}</strong>
+            <p class="mb-1">Your answer: ${escapeHtml(String(result.selected ?? getSelectedAnswerText(step)))}</p>
+            ${attemptNote}
+            ${label}
+        </article>`;
     }
-    list.innerHTML = html;
+    
+    // Overall Accuracy Card
+    const accuracyCard = `
+        <div class="alert alert-info border-primary d-flex align-items-center justify-content-between p-3 rounded-3 mb-3 text-start">
+            <div class="d-flex align-items-center gap-3">
+                <div class="badge bg-primary rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                    <i class="bi bi-bullseye fs-4 text-white"></i>
+                </div>
+                <div>
+                    <strong class="d-block text-dark fs-6">Overall Accuracy: ${overallAccuracy}%</strong>
+                    <span class="small text-muted">Completed all ${TOTAL_STEPS} challenges across ${totalAttempts} total attempt${totalAttempts > 1 ? 's' : ''}</span>
+                </div>
+            </div>
+            <div class="badge bg-primary fs-5 p-2 px-3 rounded-pill">${overallAccuracy}%</div>
+        </div>
+    `;
+
+    list.innerHTML = accuracyCard + html;
     if (preview) {
-        preview.textContent = knownCount > 0
-            ? 'Preview score: ' + correctCount + ' of ' + knownCount + ' checked here. Backend scoring is final.'
-            : 'Answers saved. Backend scoring is final.';
+        preview.textContent = `All challenges solved! Overall accuracy: ${overallAccuracy}%. Backend scoring will finalize the mission.`;
     }
 }
 
@@ -2353,7 +2907,10 @@ function submitAnswers() {
     Swal.fire({title:'Submitting mission...', allowOutsideClick:false, didOpen:function(){ Swal.showLoading(); }});
     
     const payload = {
-        answers: collectAnswers()
+        answers: collectAnswers(),
+        attempts: attemptCounts,
+        accuracy_percentage: calculateOverallAccuracy(),
+        total_attempts: Object.values(attemptCounts).reduce((a, b) => a + b, 0)
     };
     
     fetch(BASE + '/learning/activity/' + ACTIVITY_ID + '/submit', {
@@ -2386,21 +2943,35 @@ function showResult(data) {
     if (nav) nav.style.display = 'none';
     if (!area) return;
 
-    let scoreHtml = '<p class="congrats-text">Great job! Your mission was sent to your teacher. Keep shining! 🌟</p>';
+    let scoreHtml = '<p class="congrats-text text-muted my-3">Great job! Your mission was sent to your teacher. Keep learning!</p>';
+    let remedialBanner = '';
+
     if (data.auto_score !== null && data.auto_score !== undefined) {
         const max = data.max_score || 1;
-        const pct = Math.round((data.auto_score / max) * 100);
+        const pct = data.score_percentage !== undefined ? data.score_percentage : Math.round((data.auto_score / max) * 100);
         const stars = pct >= 90 ? 3 : (pct >= 70 ? 2 : 1);
         let starHtml = '';
-        for (let i = 1; i <= 3; i++) starHtml += '<span class="' + (i <= stars ? 'earned' : '') + '">★</span>';
-        scoreHtml = '<div class="complete-score">' + data.auto_score + ' / ' + max + '</div><div class="stars-earned">' + starHtml + '</div><p class="congrats-text">' + (data.message || 'Mission complete!') + '</p>';
+        for (let i = 1; i <= 3; i++) starHtml += '<i class="ph-bold ph-star ' + (i <= stars ? 'text-warning' : 'text-muted') + ' fs-3 mx-1"></i>';
+        
+        let accHtml = '';
+        if (data.accuracy_percentage !== undefined) {
+            accHtml = '<div class="badge bg-primary-subtle text-primary p-2 px-3 rounded-pill my-2 fs-6"><i class="ph-bold ph-target me-1"></i> Accuracy Rating: ' + data.accuracy_percentage + '%</div>';
+        }
+
+        if (data.needs_remediation) {
+            remedialBanner = '<div class="alert alert-warning text-dark border-warning p-3 rounded-3 my-3 text-start"><h6 class="fw-bold mb-1"><i class="ph-bold ph-arrow-counter-clockwise me-1"></i> Remedial Recommended</h6><p class="small mb-0">' + (data.message || 'Score is below 70%. We recommend reviewing the lesson or remedial materials before proceeding.') + '</p></div>';
+        }
+
+        scoreHtml = '<div class="complete-score fw-bold fs-3 text-primary my-2">' + data.auto_score + ' / ' + max + ' (' + pct + '%)</div>' + accHtml + '<div class="stars-earned my-3">' + starHtml + '</div>' + remedialBanner + '<p class="congrats-text text-muted">' + (data.message || 'Mission complete!') + '</p>';
     }
 
     // Add confetti particles inside the page!
-    triggerConfettiEffect();
+    if (!data.needs_remediation) {
+        triggerConfettiEffect();
+    }
 
     area.style.display = 'block';
-    area.innerHTML = '<section class="mission-complete-card"><div class="complete-badge-mascot"><svg class="mascot-svg mascot-cheering animated-mascot" viewBox="0 0 200 200" width="160" height="160"><defs><radialGradient id="mascotGradCheer" cx="45%" cy="35%" r="60%"><stop offset="0%" stop-color="#FFEC94"></stop><stop offset="60%" stop-color="#FFD93D"></stop><stop offset="100%" stop-color="#FF9A3D"></stop></radialGradient><radialGradient id="cheekGradCheer" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#FF6B9D" stop-opacity="0.6"></stop><stop offset="100%" stop-color="#FF6B9D" stop-opacity="0"></stop></radialGradient></defs><ellipse cx="100" cy="178" rx="55" ry="8" fill="#e2e8f0"></ellipse><g class="mascot-body-group"><circle cx="100" cy="105" r="62" fill="url(#mascotGradCheer)" stroke="#243042" stroke-width="7"></circle><path d="M 60,160 C 50,160 45,170 55,176 C 65,182 80,175 75,164 Z" fill="#FF9A3D" stroke="#243042" stroke-width="6"></path><path d="M 140,160 C 150,160 155,170 145,176 C 135,182 120,175 125,164 Z" fill="#FF9A3D" stroke="#243042" stroke-width="6"></path><circle cx="62" cy="118" r="10" fill="url(#cheekGradCheer)"></circle><circle cx="138" cy="118" r="10" fill="url(#cheekGradCheer)"></circle><ellipse cx="76" cy="98" rx="8" ry="12" fill="#243042"></ellipse><circle cx="73" cy="93" r="3.5" fill="#FFFFFF"></circle><ellipse cx="124" cy="98" rx="8" ry="12" fill="#243042"></ellipse><circle cx="121" cy="93" r="3.5" fill="#FFFFFF"></circle><path d="M 88,116 C 88,132 112,132 112,116 Z" fill="#FF6B6B" stroke="#243042" stroke-width="5"></path></g><path class="cheering-hand" d="M 45,95 C 32,80 20,70 12,80 C 4,90 20,105 35,110 Z" fill="#FFFFFF" stroke="#243042" stroke-width="6"></path><path class="cheering-hand" d="M 155,95 C 168,80 180,70 188,80 C 196,90 180,105 165,110 Z" fill="#FFFFFF" stroke="#243042" stroke-width="6"></path></svg></div><div class="quest-eyebrow">🎉 MISSION ACCOMPLISHED!</div><h2>Superstar Achievement Unlocked!</h2>' + scoreHtml + '<div class="game-actions center"><a class="quest-secondary-btn" href="' + BASE + '/learning/lesson/' + LESSON_PLAN_ID + '"><i class="bi bi-book-half"></i> Back to Lesson Hub</a><a class="quest-primary-btn" href="' + BASE + '/learning/dashboard?tab=badges"><i class="bi bi-trophy-fill"></i> View My Badges</a></div></section>';
+    area.innerHTML = '<section class="mission-complete-card text-center p-4 bg-white border rounded-4 shadow-sm"><div class="complete-badge-icon mb-3"><i class="ph-bold ph-trophy text-warning" style="font-size: 3.8rem;" aria-hidden="true"></i></div><div class="quest-eyebrow text-success fw-bold"><i class="ph-bold ph-check-circle me-1"></i> ' + (data.needs_remediation ? 'MISSION COMPLETED (REMEDIATION)' : 'MISSION ACCOMPLISHED!') + '</div><h2 class="fw-bold text-dark mt-2">' + (data.needs_remediation ? 'Practice Makes Progress!' : 'Superstar Achievement Unlocked!') + '</h2>' + scoreHtml + '<div class="game-actions center d-flex justify-content-center gap-2 mt-4 flex-wrap"><a class="btn btn-bubble-outline px-4 py-2 d-flex align-items-center gap-1.5" href="' + BASE + '/learning/lesson/' + LESSON_PLAN_ID + '"><i class="ph-bold ph-book-open"></i> <span>Back to Lesson Hub</span></a><a class="btn btn-bubble px-4 py-2 d-flex align-items-center gap-1.5" href="' + BASE + '/learning/dashboard?tab=badges"><i class="ph-bold ph-trophy"></i> <span>View My Badges</span></a></div></section>';
 }
 
 function triggerConfettiEffect() {

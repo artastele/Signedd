@@ -5,8 +5,9 @@
 
 $pageTitle = 'IEP Repository - SignED';
 require_once __DIR__ . '/../layouts/header.php';
-$role     = $_SESSION['role'];
-$basePath = BASE_PATH;
+require_once __DIR__ . '/../../Middleware/RoleMiddleware.php';
+$role     = $_SESSION['role'] ?? 'sped_teacher';
+$basePath = defined('BASE_PATH') ? BASE_PATH : '';
 $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','locked'=>'#a01422'];
 ?>
 <body data-logged-in="true">
@@ -147,6 +148,12 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                                    class="btn btn-sm btn-outline-secondary">
                                     <i class="bi bi-printer me-1"></i>Print
                                 </a>
+                                <?php if (in_array($iep['status'], ['approved', 'signed', 'locked']) && RoleMiddleware::hasPermission('iep.implement')): ?>
+                                <a href="<?php echo $basePath; ?>/iep/implementation/workspace/<?php echo (int)$iep['id']; ?>"
+                                   class="btn btn-sm btn-primary">
+                                    <i class="bi bi-laptop me-1"></i>Workspace
+                                </a>
+                                <?php endif; ?>
                                 <?php endif; ?>
                                 <?php if (RoleMiddleware::hasPermission('progress_report.view') || RoleMiddleware::hasPermission('progress_report.view_own_child')): ?>
                                 <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/learning-outcomes/grades"

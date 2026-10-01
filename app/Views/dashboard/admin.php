@@ -85,11 +85,69 @@ $pendingCount = count($pendingRoleRequests);
 
     $compliantSchoolsCount = 0;
     if ($totalSchoolsCount > 0) {
+        $cotSchoolStmt = $db->prepare("
+            SELECT COUNT(*) FROM classroom_observations co 
+            JOIN users u ON co.observed_teacher_id = u.id 
+            WHERE u.school_id = :sid AND co.status = 'finalized'
+        ");
+        $lpSchoolStmt = $db->prepare("
+            SELECT (
+                (SELECT COUNT(*) FROM lesson_plans lp JOIN users u ON lp.created_by = u.id WHERE u.school_id = :sid1 AND lp.status = 'published') +
+                (SELECT COUNT(*) FROM traditional_iep_documents tid JOIN student_records sr ON tid.student_id = sr.id WHERE sr.school_id = :sid2 AND tid.document_type = 'dll')
+            )
+        ");
+        $resSchoolStmt = $db->prepare("
+            SELECT COUNT(*) FROM (
+                SELECT lm.id FROM learning_materials lm JOIN users u ON lm.uploaded_by = u.id WHERE u.school_id = :sid1
+                UNION
+                SELECT lp.id FROM lesson_plans lp JOIN users u ON lp.created_by = u.id WHERE u.school_id = :sid2
+            ) AS all_res
+        ");
+        $facSchoolStmt = $db->prepare("
+            SELECT 
+                COUNT(*) as total_faculty,
+                SUM(CASE WHEN fsl_cert_path IS NOT NULL AND fsl_cert_path != '' THEN 1 ELSE 0 END) as certified_faculty
+            FROM users 
+            WHERE school_id = :sid AND role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
+        ");
+
         foreach ($allSysSchools as $schItem) {
-            $p1_dll = 12.5; // Lesson Plans (DLL/DLP)
-            $p1_cot = 12.5; // Class Observation Tool (COT)
-            $p2 = 25; // Learning Resources (Materials Used)
-            $p3 = ($systemFslAdoptionRate >= 75) ? 25 : round(($systemFslAdoptionRate / 75) * 25, 1);
+            $sid = (int)$schItem['id'];
+            $schCotCount = 0;
+            $schLpCount = 0;
+            $schResCount = 0;
+            $schTotalFac = 0;
+            $schCertFac = 0;
+            try {
+                $cotSchoolStmt->execute(['sid' => $sid]);
+                $schCotCount = (int)$cotSchoolStmt->fetchColumn();
+            } catch (\Throwable $e) {}
+
+            try {
+                $lpSchoolStmt->execute(['sid1' => $sid, 'sid2' => $sid]);
+                $schLpCount = (int)$lpSchoolStmt->fetchColumn();
+            } catch (\Throwable $e) {}
+
+            try {
+                $resSchoolStmt->execute(['sid1' => $sid, 'sid2' => $sid]);
+                $schResCount = (int)$resSchoolStmt->fetchColumn();
+            } catch (\Throwable $e) {}
+
+            try {
+                $facSchoolStmt->execute(['sid' => $sid]);
+                $facRow = $facSchoolStmt->fetch(PDO::FETCH_ASSOC);
+                $schTotalFac = (int)($facRow['total_faculty'] ?? 0);
+                $schCertFac = (int)($facRow['certified_faculty'] ?? 0);
+            } catch (\Throwable $e) {}
+
+            $schoolFslRatio = $schTotalFac > 0 
+                ? round(($schCertFac / $schTotalFac) * 100, 1) 
+                : 0;
+
+            $p1_dll = $schLpCount > 0 ? 12.5 : 0; // Lesson Plans (DLL/DLP)
+            $p1_cot = $schCotCount > 0 ? 12.5 : 0; // Class Observation Tool (COT) MOV
+            $p2 = $schResCount > 0 ? 25 : 0; // Learning Resources (Materials Used)
+            $p3 = ($schoolFslRatio >= 75) ? 25 : round(($schoolFslRatio / 75) * 25, 1);
             $p4 = !empty($schItem['sip_path']) ? 25 : 0;
             
             $schScore = $p1_dll + $p1_cot + $p2 + $p3 + $p4;
@@ -101,69 +159,115 @@ $pendingCount = count($pendingRoleRequests);
     } else {
         $systemOverallComplianceRate = 0;
     }
+
+    // 3. Dynamic Distance Learning Inclusion & Participation Rate (General Objective)
+    // Formula: (Active Distance Learning & LMS Learners / Total Enrolled SPED Learners) * 100
+    $totLearnersStmt = $db->query("SELECT COUNT(*) FROM student_records");
+    $totalSysLearners = $totLearnersStmt ? (int)$totLearnersStmt->fetchColumn() : 0;
+    
+    $participatingLearnersStmt = $db->query("
+        SELECT COUNT(DISTINCT student_id) 
+        FROM (
+            SELECT student_id FROM lms_submissions
+            UNION
+            SELECT student_id FROM activity_attempt_log
+            UNION
+            SELECT student_id FROM attendance_records WHERE source = 'auto'
+        ) active_dl
+    ");
+    $participatingSysLearners = $participatingLearnersStmt ? (int)$participatingLearnersStmt->fetchColumn() : 0;
+    $systemDistanceLearningRate = $totalSysLearners > 0 ? round(($participatingSysLearners / $totalSysLearners) * 100, 1) : 0;
     ?>
 
-    <!-- System Policy Compliance & FSL Program Adoption Analytics Header Cards -->
+    <!-- Core Research Objectives Performance Overview (General Objective, SO2, SO3) -->
     <div class="row g-3 mb-4">
-        <!-- Card 1: Overall Policy Compliance Rate -->
-        <div class="col-md-6">
-            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 5px solid #198754 !important; background: #fff;">
-                <div class="card-body p-4">
+        <!-- Card 1: General Objective — Distance Learning Program Inclusion & Participation -->
+        <div class="col-lg-4 col-md-12">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 5px solid #0d6efd !important; background: #fff;">
+                <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.5px;">
-                            <i class="bi bi-shield-check text-success fs-5 me-2"></i> Overall Policy Compliance Rate
+                        <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.3px; font-size: 0.76rem;">
+                            <i class="bi bi-laptop text-primary fs-6 me-1"></i> Distance Learning Inclusion
+                        </span>
+                        <span class="badge <?php echo $systemDistanceLearningRate >= 85 ? 'bg-success' : 'bg-warning text-dark'; ?> px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
+                            <?php echo $systemDistanceLearningRate >= 85 ? '✓ Target Met (≥85%)' : '○ Action Required'; ?>
+                        </span>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2 mb-2">
+                        <h2 class="fw-bold text-primary mb-0">
+                            <?php echo $totalSysLearners > 0 ? $systemDistanceLearningRate . '%' : '0.0%'; ?>
+                        </h2>
+                        <span class="text-muted small">Target: &ge; 85.0% Participation</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 6px;">
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: <?php echo min(100, $systemDistanceLearningRate); ?>%;"></div>
+                    </div>
+                    <div class="small text-muted" style="font-size: 0.72rem; line-height: 1.3;">
+                        <strong>General Objective:</strong> <?php echo $participatingSysLearners; ?> of <?php echo $totalSysLearners; ?> enrolled SPED learners actively participating in distance learning & LMS.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: Specific Objective 2 — Inclusive Content Policy Compliance Rate -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 5px solid #198754 !important; background: #fff;">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.3px; font-size: 0.76rem;">
+                            <i class="bi bi-shield-check text-success fs-6 me-1"></i> Policy Compliance Rate
                         </span>
                         <?php if ($totalSchoolsCount > 0): ?>
-                            <span class="badge <?php echo $systemOverallComplianceRate >= 85 ? 'bg-success' : 'bg-warning text-dark'; ?> px-3 py-1 rounded-pill small">
-                                <?php echo $systemOverallComplianceRate >= 85 ? '✓ Compliant (≥85.0%)' : '○ Action Required'; ?>
+                            <span class="badge <?php echo $systemOverallComplianceRate >= 85 ? 'bg-success' : 'bg-warning text-dark'; ?> px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
+                                <?php echo $systemOverallComplianceRate >= 85 ? '✓ Compliant (≥85%)' : '○ Action Required'; ?>
                             </span>
                         <?php else: ?>
-                            <span class="badge bg-secondary px-3 py-1 rounded-pill small">No Schools Registered</span>
+                            <span class="badge bg-secondary px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">No Schools</span>
                         <?php endif; ?>
                     </div>
                     <div class="d-flex align-items-baseline gap-2 mb-2">
                         <h2 class="fw-bold text-success mb-0">
                             <?php echo $totalSchoolsCount > 0 ? $systemOverallComplianceRate . '%' : '0.0%'; ?>
                         </h2>
-                        <span class="text-muted small">Target: 85.0% System-Wide</span>
+                        <span class="text-muted small">Target: &ge; 85.0% Across Schools</span>
                     </div>
-                    <div class="progress mb-2" style="height: 7px;">
+                    <div class="progress mb-2" style="height: 6px;">
                         <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo min(100, $systemOverallComplianceRate); ?>%;"></div>
                     </div>
-                    <div class="small text-muted">
-                        Computed across <?php echo $totalSchoolsCount; ?> registered SPED school<?php echo $totalSchoolsCount === 1 ? '' : 's'; ?> based on 4 Compliance Pillars.
+                    <div class="small text-muted" style="font-size: 0.72rem; line-height: 1.3;">
+                        <strong>Objective 2:</strong> Verified across <?php echo $totalSchoolsCount; ?> school<?php echo $totalSchoolsCount === 1 ? '' : 's'; ?> based on 4 Compliance Pillars &amp; MOVs.
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Card 2: FSL Program Adoption Rate -->
-        <div class="col-md-6">
+        <!-- Card 3: Specific Objective 3 — FSL Program Adoption Rate -->
+        <div class="col-lg-4 col-md-6">
             <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 5px solid #a01422 !important; background: #fff;">
-                <div class="card-body p-4">
+                <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.5px;">
-                            <i class="bi bi-award-fill text-warning fs-5 me-2"></i> FSL Program Adoption Rate
+                        <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.3px; font-size: 0.76rem;">
+                            <i class="bi bi-award-fill text-warning fs-6 me-1"></i> FSL Program Adoption Rate
                         </span>
                         <?php if ($totalSysFaculty > 0): ?>
-                            <span class="badge <?php echo $systemFslAdoptionRate >= 75 ? 'bg-success' : 'bg-warning text-dark'; ?> px-3 py-1 rounded-pill small">
-                                <?php echo $systemFslAdoptionRate >= 75 ? '✓ Target Met (≥75.0%)' : '○ Below Target'; ?>
+                            <span class="badge <?php echo $systemFslAdoptionRate >= 75 ? 'bg-success' : 'bg-warning text-dark'; ?> px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
+                                <?php echo $systemFslAdoptionRate >= 75 ? '✓ Target Met (≥75%)' : '○ Below Target'; ?>
                             </span>
                         <?php else: ?>
-                            <span class="badge bg-secondary px-3 py-1 rounded-pill small">No Faculty Records</span>
+                            <span class="badge bg-secondary px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">No Faculty</span>
                         <?php endif; ?>
                     </div>
                     <div class="d-flex align-items-baseline gap-2 mb-2">
                         <h2 class="fw-bold mb-0 <?php echo $systemFslAdoptionRate >= 75 ? 'text-success' : 'text-danger'; ?>">
                             <?php echo $totalSysFaculty > 0 ? $systemFslAdoptionRate . '%' : '0.0%'; ?>
                         </h2>
-                        <span class="text-muted small">Target: 75.0% Certified Faculty</span>
+                        <span class="text-muted small">Target: &ge; 75.0% Certified Faculty</span>
                     </div>
-                    <div class="progress mb-2" style="height: 7px;">
+                    <div class="progress mb-2" style="height: 6px;">
                         <div class="progress-bar <?php echo $systemFslAdoptionRate >= 75 ? 'bg-success' : 'bg-danger'; ?>" role="progressbar" style="width: <?php echo min(100, $systemFslAdoptionRate); ?>%;"></div>
                     </div>
-                    <div class="small text-muted">
-                        <?php echo $certifiedSysFaculty; ?> of <?php echo $totalSysFaculty; ?> registered SPED & General teachers hold verified training certificates.
+                    <div class="small text-muted" style="font-size: 0.72rem; line-height: 1.3;">
+                        <strong>Objective 3:</strong> <?php echo $certifiedSysFaculty; ?> of <?php echo $totalSysFaculty; ?> registered faculty certified in FSL &amp; verified via COT observations.
                     </div>
                 </div>
             </div>

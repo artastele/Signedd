@@ -47,6 +47,17 @@ class StudentModel {
      */
     public function createStudentRecord($enrollmentId, $verifiedBy) {
         try {
+            // Check if student record already exists for this enrollment
+            $existing = $this->findByEnrollmentId($enrollmentId);
+            if ($existing) {
+                return [
+                    'id' => (int)$existing['id'],
+                    'student_id' => $existing['student_id'],
+                    'lrn' => $existing['lrn'],
+                    'name' => $existing['student_name']
+                ];
+            }
+
             $stmt = $this->db->prepare("
                 SELECT * FROM enrollment_submissions
                 WHERE id = :id
@@ -71,13 +82,26 @@ class StudentModel {
             $targetSchoolId = $enrollment['target_school_id'] ?? null;
             $assignedTeacherId = $verifiedBy;
 
+            // Determine learning track from digital survey (internet connection, willingness, devices, online modalities)
+            $hasInternet = !empty($enrollment['survey_has_internet']);
+            $willingOnline = !empty($enrollment['survey_willing_online']) || !empty($enrollment['willing_digital']);
+            $hasDevice = !empty($enrollment['has_device']);
+            $hasActiveAccount = !empty($enrollment['learner_user_id']);
+            if ($hasActiveAccount || (($enrollment['learning_track'] ?? '') === 'lms')) {
+                $learningTrack = 'lms';
+            } elseif ($isSignEDRecommended) {
+                $learningTrack = 'candidate';
+            } else {
+                $learningTrack = 'traditional';
+            }
+
             $stmt = $this->db->prepare("
                 INSERT INTO student_records (
                     enrollment_id, school_id, assigned_teacher_id, student_id, lrn, student_name, date_of_birth,
-                    disability_type, psa_number, pwd_id_number, verified_by
+                    disability_type, psa_number, pwd_id_number, verified_by, learning_track
                 ) VALUES (
                     :enrollment_id, :school_id, :assigned_teacher_id, :student_id, :lrn, :student_name, :date_of_birth,
-                    :disability_type, :psa_number, :pwd_id_number, :verified_by
+                    :disability_type, :psa_number, :pwd_id_number, :verified_by, :learning_track
                 )
             ");
 
@@ -105,15 +129,30 @@ class StudentModel {
                 'disability_type' => $disabilityType,
                 'psa_number' => null,
                 'pwd_id_number' => null,
-                'verified_by' => $verifiedBy
+                'verified_by' => $verifiedBy,
+                'learning_track' => $learningTrack
             ]);
 
             if (!$result) {
                 throw new Exception("Failed to create student record");
             }
 
-            $recordId = $this->db->lastInsertId();
+            $recordId = (int)$this->db->lastInsertId();
             error_log("Created student record ID: $recordId with Student ID: $studentIdCode");
+
+            // Auto-assign to next available Round-Robin Section if sections exist
+            try {
+                require_once __DIR__ . '/SectionModel.php';
+                $secModel = new SectionModel();
+                $gradeToEnroll = $enrollment['grade_level_to_enroll'] ?? 'SPED';
+                $nextSection = $secModel->getNextRoundRobinSection($targetSchoolId, $gradeToEnroll);
+                if ($nextSection) {
+                    $secModel->assignStudentToSection($recordId, (int)$nextSection['id']);
+                    error_log("Assigned student ID: $recordId to Section: {$nextSection['section_name']}");
+                }
+            } catch (Throwable $secErr) {
+                error_log("Section round-robin assignment notice: " . $secErr->getMessage());
+            }
 
             return [
                 'id' => $recordId,
@@ -491,6 +530,14 @@ class StudentModel {
                 es.grade_level_to_enroll as current_grade_level,
                 es.status as enrollment_status,
                 es.parent_id,
+                es.learning_track as es_learning_track,
+                es.lms_track,
+                es.survey_has_internet,
+                es.survey_willing_online,
+                es.has_device,
+                es.willing_digital,
+                es.modality_online,
+                es.modality_modular_digital,
                 u.name as parent_name,
                 u.email as parent_email
             FROM student_records sr
@@ -548,15 +595,27 @@ class StudentModel {
             SELECT 
                 sr.*,
                 es.parent_id,
-                es.grade_level_to_enroll as current_grade_level,
-                es.school_year as latest_school_year,
+                COALESCE(es.grade_level_to_enroll, ta.grade_level, 'SPED Program') as current_grade_level,
+                COALESCE(es.school_year, '2026-2027') as latest_school_year,
                 es.status as enrollment_status,
+                es.grade_level_to_enroll,
+                s.school_name,
+                s.school_id as school_code,
                 u.name as parent_name,
                 u.email as parent_email,
-                u.contact_number
+                u.contact_number,
+                teacher.name as assigned_teacher_name,
+                teacher.name as adviser_name,
+                COALESCE(sr.section_name, sec.section_name, ta.section_name, 'Maligaya') as section_name,
+                ta.grade_level as teacher_grade_level,
+                ta.section_name as teacher_section_name
             FROM student_records sr
             LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
             LEFT JOIN users u ON es.parent_id = u.id
+            LEFT JOIN schools s ON (sr.school_id = s.id OR es.target_school_id = s.id)
+            LEFT JOIN users teacher ON (sr.assigned_teacher_id = teacher.id OR sr.verified_by = teacher.id)
+            LEFT JOIN sections sec ON sr.section_id = sec.id
+            LEFT JOIN teacher_assignments ta ON (sr.assigned_teacher_id = ta.teacher_id)
             WHERE sr.id = :id
             LIMIT 1
         ");
@@ -623,10 +682,21 @@ class StudentModel {
                 es.school_year,
                 es.enrollment_type,
                 u.name as parent_name,
-                u.email as parent_email
+                u.email as parent_email,
+                s.school_name,
+                s.school_id as school_code,
+                s.division as school_division,
+                s.address as school_address,
+                teacher.name as assigned_teacher_name,
+                COALESCE(sec_adviser.name, teacher.name, '') as adviser_name,
+                sec.section_name
             FROM student_records sr
             JOIN enrollment_submissions es ON sr.enrollment_id = es.id
             LEFT JOIN users u ON es.parent_id = u.id
+            LEFT JOIN schools s ON (sr.school_id = s.id OR es.target_school_id = s.id)
+            LEFT JOIN users teacher ON (sr.assigned_teacher_id = teacher.id OR es.assigned_teacher_id = teacher.id OR sr.verified_by = teacher.id)
+            LEFT JOIN sections sec ON sr.section_id = sec.id
+            LEFT JOIN users sec_adviser ON sec.adviser_teacher_id = sec_adviser.id
             WHERE sr.id = :id
             LIMIT 1
         ");

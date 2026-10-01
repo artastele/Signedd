@@ -147,7 +147,8 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">School</label>
-                        <input type="text" class="form-control" name="school" id="school" value="">
+                        <input type="text" class="form-control auto-fill-field" name="school" id="school" 
+                               value="<?php echo htmlspecialchars($studentData['school_name'] ?? ''); ?>">
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">School Year <span class="text-danger">*</span></label>
@@ -171,8 +172,9 @@ require_once __DIR__ . '/../layouts/header.php';
 
                 <div class="row">
                     <div class="col-md-12 mb-3">
-                        <label class="form-label">Name of Adviser</label>
-                        <input type="text" class="form-control" name="adviser_name" id="adviser_name" value="">
+                        <label class="form-label">Name of Adviser / SPED Teacher</label>
+                        <input type="text" class="form-control auto-fill-field" name="adviser_name" id="adviser_name" 
+                               value="<?php echo htmlspecialchars($studentData['adviser_name'] ?? $studentData['assigned_teacher_name'] ?? ''); ?>">
                     </div>
                 </div>
 

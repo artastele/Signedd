@@ -184,6 +184,110 @@
     background-color: #f5f5f5;
 }
 
+/* Learner layout has no sidebar — ensure zero left margin and full width */
+body.learner-layout-active .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* ============================================
+   GLOBAL COLLAPSIBLE SIDEBAR WITH ARROW TOGGLE
+   ============================================ */
+.sidebar {
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.main-content {
+    transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.topbar {
+    transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+body.sidebar-collapsed .sidebar {
+    transform: translateX(-100%) !important;
+}
+
+body.sidebar-collapsed .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+body.sidebar-collapsed .topbar {
+    left: 0 !important;
+    width: 100% !important;
+}
+
+.sidebar-collapse-arrow {
+    position: fixed;
+    top: 72px;
+    left: calc(var(--sidebar-width) - 16px);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #ffffff;
+    color: #1e4072;
+    border: 2px solid #cbd5e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1060;
+    transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1), transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+    font-size: 1rem;
+    padding: 0;
+    outline: none;
+}
+
+.sidebar-collapse-arrow:hover {
+    background: #f8fafc;
+    color: #a01422;
+    border-color: #94a3b8;
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.sidebar-collapse-arrow:focus-visible {
+    box-shadow: 0 0 0 3px rgba(30, 64, 114, 0.35);
+}
+
+body.sidebar-collapsed .sidebar {
+    transform: translateX(-100%) !important;
+}
+
+body.sidebar-collapsed .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+body.sidebar-collapsed .topbar {
+    left: 0 !important;
+    width: 100% !important;
+}
+
+body.sidebar-collapsed .sidebar-collapse-arrow {
+    left: 14px !important;
+    background: #1e4072 !important;
+    color: #ffffff !important;
+    border-color: #1e4072 !important;
+    box-shadow: 0 4px 14px rgba(30, 64, 114, 0.4) !important;
+}
+
+body.sidebar-collapsed .sidebar-collapse-arrow:hover {
+    background: #a01422 !important;
+    border-color: #a01422 !important;
+    color: #ffffff !important;
+}
+
+@media (max-width: 991.98px) {
+    .sidebar-collapse-arrow {
+        display: none !important;
+    }
+}
+
 /* ============================================
    SPLIT-SCREEN AUTH LAYOUT (Login/Register)
    ============================================ */
@@ -470,21 +574,45 @@
    BADGES
    ============================================ */
 
-.badge.bg-primary {
+.badge.bg-primary:not([class*="bg-opacity-"]) {
     background-color: #a01422 !important;
+    color: #ffffff !important;
 }
 
-.badge.bg-secondary {
+.badge.bg-secondary:not([class*="bg-opacity-"]) {
     background-color: #1e4072 !important;
+    color: #ffffff !important;
 }
 
-.badge.bg-success {
+.badge.bg-success:not([class*="bg-opacity-"]) {
     background-color: #3b6d11 !important;
+    color: #ffffff !important;
 }
 
-.badge.bg-warning {
+.badge.bg-warning:not([class*="bg-opacity-"]) {
     background-color: #f59e0b !important;
-    color: #2c2c2c;
+    color: #2c2c2c !important;
+}
+
+/* Badges with opacity (soft / subtle badge styling) */
+.badge.bg-primary.bg-opacity-10 {
+    background-color: rgba(160, 20, 34, 0.1) !important;
+}
+
+.badge.bg-secondary.bg-opacity-10 {
+    background-color: rgba(30, 64, 114, 0.1) !important;
+}
+
+.badge.bg-success.bg-opacity-10 {
+    background-color: rgba(59, 109, 17, 0.1) !important;
+}
+
+.badge.bg-warning.bg-opacity-10 {
+    background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+.badge.bg-info.bg-opacity-10 {
+    background-color: rgba(13, 202, 240, 0.12) !important;
 }
 
 /* ============================================
@@ -591,6 +719,13 @@
     z-index: 999;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
+
+/* Learner layout has no sidebar — topbar starts at left edge */
+body.learner-layout-active .topbar {
+    left: 0 !important;
+    width: 100% !important;
+}
+
 
 .topbar-left {
     flex: 1;
@@ -1547,6 +1682,130 @@
         width: 100%;
         margin: 0 !important;
     }
+/* ============================================================
+   STAGE 3: FSL HIGHLIGHTED VOCABULARY & HIGH-CONTRAST ACCESSIBILITY
+   ============================================================ */
+.fsl-word,
+.fsl-chip,
+button.fsl-word,
+a.fsl-word {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    background: #fef3c7 !important;
+    color: #78350f !important;
+    border: 2px solid #f59e0b !important;
+    border-radius: 9999px !important;
+    padding: 6px 16px !important;
+    font-weight: 700 !important;
+    font-size: 0.92rem !important;
+    cursor: pointer !important;
+    text-decoration: none !important;
+    box-shadow: 0 3px 0 #d97706, 0 3px 8px rgba(217, 119, 6, 0.15) !important;
+    transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    vertical-align: middle !important;
+    line-height: 1.3 !important;
 }
+
+.fsl-word:hover,
+.fsl-chip:hover,
+button.fsl-word:hover,
+a.fsl-word:hover {
+    background: #fde68a !important;
+    color: #451a03 !important;
+    border-color: #d97706 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 5px 0 #b45309, 0 6px 14px rgba(217, 119, 6, 0.25) !important;
+}
+
+.fsl-word:active,
+.fsl-chip:active,
+button.fsl-word:active,
+a.fsl-word:active {
+    transform: translateY(2px) !important;
+    box-shadow: 0 1px 0 #b45309 !important;
+}
+
+.fsl-word::after {
+    content: "\e580";
+    font-family: "Phosphor-Bold" !important;
+    font-size: 0.95em;
+    color: #d97706;
+    margin-left: 4px;
+    vertical-align: -0.05em;
+    display: inline-block;
+}
+
+
+/* High Contrast Theme */
+body.high-contrast {
+    background-color: #090d16 !important;
+    color: #f8fafc !important;
+}
+
+body.high-contrast .card,
+body.high-contrast .modal-content {
+    background-color: #111827 !important;
+    border-color: #374151 !important;
+    color: #f8fafc !important;
+}
+
+body.high-contrast .card-header,
+body.high-contrast .modal-header,
+body.high-contrast .modal-footer {
+    background-color: #1f2937 !important;
+    border-color: #374151 !important;
+    color: #f8fafc !important;
+}
+
+body.high-contrast .table {
+    color: #f8fafc !important;
+    border-color: #374151 !important;
+}
+
+body.high-contrast .form-control,
+body.high-contrast .form-select {
+    background-color: #1f2937 !important;
+    color: #ffffff !important;
+    border-color: #4b5563 !important;
+}
+
+body.high-contrast .fsl-word {
+    background: #fbbf24 !important;
+    color: #000000 !important;
+    border-bottom: 3px solid #f97316 !important;
+    font-weight: 700 !important;
+}
+
+body.high-contrast .text-muted {
+    color: #9ca3af !important;
+}
+
+/* ── Phosphor Icons Styling (SignED SPED LMS) ── */
+:root {
+    --signed-crimson: #a01422;
+    --signed-navy: #1e4072;
+    --signed-navy-light: #2563eb;
+    --signed-gold: #d97706;
+    --signed-green: #16a34a;
+}
+
+.ph-bold, .ph, [class^="ph-"], [class*=" ph-"] {
+    font-family: "Phosphor-Bold" !important;
+    speak: never;
+    font-style: normal;
+    font-weight: normal;
+    font-variant: normal;
+    text-transform: none;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: -0.125em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
 
 

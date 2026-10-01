@@ -4,12 +4,14 @@
 // Part of: SPED LMS — IEP Model (domains, core, header overrides, repository)
 
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/StudentModel.php';
 
 class IEPModel {
     private $db;
 
     public function __construct() {
         $this->db = Database::getInstance()->getConnection();
+        $this->ensurePartOneSaveSchema();
     }
 
     /**
@@ -561,25 +563,684 @@ class IEPModel {
     // ============================================================
 
     /**
-     * Get students eligible for new IEP (have signed PDSP, no active IEP draft)
+     * Get students eligible for new IEP (have signed PDSP or enrolled/invited without active draft)
      */
     public function getEligibleStudents($teacherId) {
         $stmt = $this->db->prepare("
             SELECT DISTINCT sr.id, sr.student_name, sr.lrn,
-                   pr.created_at as pdsp_signed_at
+                   COALESCE(pr.created_at, sr.created_at) as pdsp_signed_at
             FROM student_records sr
-            JOIN iep_meetings im ON sr.id = im.student_id
-            JOIN pdsp_records pr ON im.id = pr.meeting_id
-            WHERE pr.status = 'signed'
-            AND sr.id NOT IN (
+            LEFT JOIN iep_meetings im ON sr.id = im.student_id
+            LEFT JOIN pdsp_records pr ON im.id = pr.meeting_id AND pr.status = 'signed'
+            WHERE sr.id NOT IN (
                 SELECT student_id FROM iep_records 
                 WHERE status IN ('draft') 
-                AND YEAR(created_at) = YEAR(NOW())
+                AND school_year = CONCAT(YEAR(NOW()), '-', YEAR(NOW()) + 1)
             )
-            ORDER BY pr.created_at DESC
+            ORDER BY sr.student_name ASC
         ");
         $stmt->execute();
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Ensure baseline meeting and PDSP record exists for an enrolled/invited learner
+     */
+    public function ensureBaselinePdspForStudent(int $studentId, int $userId): array {
+        // 1. Check if meeting already exists
+        $stmtM = $this->db->prepare("SELECT id FROM iep_meetings WHERE student_id = :sid ORDER BY id DESC LIMIT 1");
+        $stmtM->execute(['sid' => $studentId]);
+        $meetingId = $stmtM->fetchColumn();
+
+        if (!$meetingId) {
+            $assessmentId = null;
+            try {
+                $stmtA = $this->db->prepare("SELECT id FROM assessment_records WHERE student_id = :sid ORDER BY id DESC LIMIT 1");
+                $stmtA->execute(['sid' => $studentId]);
+                $assessmentId = $stmtA->fetchColumn() ?: null;
+
+                if (!$assessmentId) {
+                    $insA = $this->db->prepare("
+                        INSERT INTO assessment_records (
+                            student_id, assessed_by, conducted_by, status, version,
+                            section_a_data, services_checked, screening_types,
+                            created_at, updated_at
+                        ) VALUES (
+                            :sid, :uid, :uid, 'finalized', 1,
+                            '{}', '[]', '[]',
+                            NOW(), NOW()
+                        )
+                    ");
+                    $insA->execute(['sid' => $studentId, 'uid' => $userId]);
+                    $assessmentId = (int)$this->db->lastInsertId();
+                }
+            } catch (\Throwable $e) {
+                error_log("Baseline assessment notice: " . $e->getMessage());
+            }
+
+            // Absolute fallback to guarantee foreign key iep_meetings_ibfk_2 is satisfied
+            if (!$assessmentId) {
+                $assessmentId = (int)$this->db->query("SELECT id FROM assessment_records ORDER BY id ASC LIMIT 1")->fetchColumn() ?: 1;
+            }
+
+            $stmtInsM = $this->db->prepare("
+                INSERT INTO iep_meetings (
+                    student_id, assessment_id, scheduled_by, meeting_date,
+                    status, agenda, created_at, updated_at
+                ) VALUES (
+                    :sid, :aid, :uid, NOW(),
+                    'completed', 'Baseline IEP & assessment record initialized for enrolled/invited learner', NOW(), NOW()
+                )
+            ");
+            $stmtInsM->execute([
+                'sid' => $studentId,
+                'aid' => $assessmentId,
+                'uid' => $userId
+            ]);
+            $meetingId = (int)$this->db->lastInsertId();
+        }
+
+        // 2. Check if PDSP record exists
+        $stmtP = $this->db->prepare("SELECT id, status FROM pdsp_records WHERE student_id = :sid ORDER BY id DESC LIMIT 1");
+        $stmtP->execute(['sid' => $studentId]);
+        $pdsp = $stmtP->fetch(PDO::FETCH_ASSOC);
+
+        if (!$pdsp) {
+            $stmtInsP = $this->db->prepare("
+                INSERT INTO pdsp_records (meeting_id, student_id, filled_by, status, created_at, updated_at)
+                VALUES (:mid, :sid, :uid, 'signed', NOW(), NOW())
+            ");
+            $stmtInsP->execute([
+                'mid' => $meetingId,
+                'sid' => $studentId,
+                'uid' => $userId
+            ]);
+            $pdspId = (int)$this->db->lastInsertId();
+            $pdsp = ['id' => $pdspId, 'status' => 'signed'];
+        } else {
+            if ($pdsp['status'] !== 'signed') {
+                $this->db->prepare("UPDATE pdsp_records SET status = 'signed' WHERE id = :id")->execute(['id' => $pdsp['id']]);
+                $pdsp['status'] = 'signed';
+            }
+        }
+
+        // 3. Ensure baseline domains exist in pdsp_domains using DepEd Baseline Template
+        $stmtDom = $this->db->prepare("SELECT COUNT(*) FROM pdsp_domains WHERE pdsp_id = :pid");
+        $stmtDom->execute(['pid' => $pdsp['id']]);
+        if ((int)$stmtDom->fetchColumn() === 0) {
+            $student = (new StudentModel())->findById($studentId);
+            $tplKey = self::resolveTemplateKeyFromDisability($student['disability_type'] ?? '');
+            $templates = self::getDepEdBaselineTemplates();
+            $tpl = $templates[$tplKey] ?? $templates['general_sped'];
+
+            $stmtInsDom = $this->db->prepare("
+                INSERT INTO pdsp_domains (pdsp_id, domain_name, skills_description, educational_recommendation, mastered, q1_level, created_at)
+                VALUES (:pid, :name, :desc, :rec, 0, 'Developing', NOW())
+            ");
+            foreach ($tpl['domains'] as $d) {
+                $stmtInsDom->execute([
+                    'pid'  => $pdsp['id'],
+                    'name' => $d['name'],
+                    'desc' => $d['desc'],
+                    'rec'  => $d['recommendation'] ?? null,
+                ]);
+            }
+        }
+
+        return $pdsp;
+    }
+
+    /**
+     * DepEd SPED Baseline Templates for Quick-Fill & Mid-Year Record Ingestion
+     */
+    public static function getDepEdBaselineTemplates(): array {
+        return [
+            'hearing_impairment' => [
+                'name' => 'Deaf / Hard of Hearing (FSL & Visual Literacy Focus)',
+                'category' => 'hearing_impairment',
+                'domains' => [
+                    [
+                        'name' => 'Communication & Language',
+                        'desc' => 'Demonstrates receptive and expressive mastery of 50+ basic Filipino Sign Language (FSL) survival signs, fingerspelling alphabet, and conversational visual turn-taking.',
+                        'recommendation' => 'Provide structured FSL video modules, real-time visual prompts, and ensure well-lit direct line-of-sight during instruction.',
+                    ],
+                    [
+                        'name' => 'Cognitive / Academics',
+                        'desc' => 'Matches printed vocabulary words with corresponding FSL sign graphics and real-world objects; performs functional single-digit addition with visual counters.',
+                        'recommendation' => 'Utilize visual flashcards, illustrated graphic organizers, and bilingual-bicultural DepEd learning sheets.',
+                    ],
+                    [
+                        'name' => 'Socio-Emotional & Behavioral',
+                        'desc' => 'Actively engages in collaborative peer activities, demonstrates positive Deaf identity, and uses appropriate visual attention-getting techniques (gentle wave/tap).',
+                        'recommendation' => 'Incorporate social stories on deaf culture, inclusive cooperative games, and positive reinforcement.',
+                    ],
+                    [
+                        'name' => 'Motor & Physical Development',
+                        'desc' => 'Exhibits fine-motor finger dexterity and hand coordination necessary for precise fingerspelling handshapes and spatial signing clarity.',
+                        'recommendation' => 'Conduct finger-aerobics, clay sculpting, and bilateral hand dexterity drills.',
+                    ],
+                    [
+                        'name' => 'Daily Living & Adaptive Skills',
+                        'desc' => 'Recognizes visual safety cues (flashing alarms, exit signs, visual schedules) and independently organizes personal learning tablet and materials.',
+                        'recommendation' => 'Maintain visual color-coded labels in the classroom and emergency visual cue cards.',
+                    ],
+                ],
+                'steps' => [
+                    'Master everyday FSL conversational greetings and classroom survival vocabulary.',
+                    'Identify and associate 20 core sight words with FSL sign illustrations.',
+                    'Demonstrate visual numeracy: count and match numbers 1–20 using sign language support.',
+                ],
+                'starter_plans' => [
+                    [
+                        'title' => 'FSL Basics: Everyday Greetings and Classroom Signs',
+                        'domain' => 'communication_language',
+                        'assignment_type' => 'all',
+                    ],
+                    [
+                        'title' => 'Visual Sight Words & Word-Sign Association',
+                        'domain' => 'perceptuo_cognitive',
+                        'assignment_type' => 'all',
+                    ],
+                    [
+                        'title' => 'Functional Math: Counting and Money with Sign Support',
+                        'domain' => 'perceptuo_cognitive',
+                        'assignment_type' => 'all',
+                    ],
+                ],
+            ],
+            'autism_spectrum' => [
+                'name' => 'Autism Spectrum Disorder (Structured Routines & Sensory Focus)',
+                'category' => 'autism_spectrum',
+                'domains' => [
+                    [
+                        'name' => 'Communication & Language',
+                        'desc' => 'Uses Picture Exchange Communication (PECS) or functional 2-word phrase prompts to express basic requests ("I want ___") and respond to greetings.',
+                        'recommendation' => 'Employ high-contrast PECS cards, predictable verbal cues, and wait-time for processing.',
+                    ],
+                    [
+                        'name' => 'Cognitive / Academics',
+                        'desc' => 'Independently completes 3-step structured task-box activities; sorts objects by color, shape, and size with 80% accuracy.',
+                        'recommendation' => 'Break instructions into discrete trials with visual step-by-step strip schedules.',
+                    ],
+                    [
+                        'name' => 'Socio-Emotional & Behavioral',
+                        'desc' => 'Tolerates activity transitions using visual countdown timers; accesses calm-down sensory corner independently when experiencing sensory overload.',
+                        'recommendation' => 'Provide predictable schedules, sensory breaks, and avoid sudden auditory overstimulation.',
+                    ],
+                    [
+                        'name' => 'Motor & Physical Development',
+                        'desc' => 'Engages in sensory-motor integration activities; demonstrates functional pincer grasp during tracing and sorting tasks.',
+                        'recommendation' => 'Utilize weighted blankets/vests as prescribed, textured sensory manipulatives, and gross-motor obstacle courses.',
+                    ],
+                    [
+                        'name' => 'Daily Living & Adaptive Skills',
+                        'desc' => 'Follows 4-step visual hygiene routine (handwashing, wiping table); packs and unpacks personal bag independently.',
+                        'recommendation' => 'Affix visual sequence strips near handwashing stations and cubbies.',
+                    ],
+                ],
+                'steps' => [
+                    'Follow daily classroom transitions using individualized visual schedule strips.',
+                    'Express requests and choices using functional PECS cards or 2-word phrases.',
+                    'Complete table-top sorting and matching tasks for 15 consecutive minutes.',
+                ],
+                'starter_plans' => [
+                    [
+                        'title' => 'Visual Schedule Navigation and Daily Routine Mastery',
+                        'domain' => 'daily_living_skills',
+                        'assignment_type' => 'all',
+                    ],
+                    [
+                        'title' => 'Functional Object Sorting and Categorization',
+                        'domain' => 'perceptuo_cognitive',
+                        'assignment_type' => 'all',
+                    ],
+                    [
+                        'title' => 'Self-Regulation and Calm-Down Strategies',
+                        'domain' => 'socio_emotional',
+                        'assignment_type' => 'all',
+                    ],
+                ],
+            ],
+            'intellectual_disability' => [
+                'name' => 'Intellectual Disability / Developmental Delay (Functional Life Skills Focus)',
+                'category' => 'intellectual_disability',
+                'domains' => [
+                    [
+                        'name' => 'Communication & Language',
+                        'desc' => 'States full name, age, and basic personal info; follows 2-step verbal directions in classroom activities.',
+                        'recommendation' => 'Use repetition, simplified language, visual modeling, and immediate positive reinforcement.',
+                    ],
+                    [
+                        'name' => 'Cognitive / Academics',
+                        'desc' => 'Recognizes community helpers, common survival signs (STOP, EXIT), and identifies basic numbers 1–10.',
+                        'recommendation' => 'Focus on concrete, functional life academics rather than abstract concepts.',
+                    ],
+                    [
+                        'name' => 'Socio-Emotional & Behavioral',
+                        'desc' => 'Interacts cooperatively during circle time; shares learning toys and practices polite social greetings.',
+                        'recommendation' => 'Implement peer buddy system and structured turn-taking activities.',
+                    ],
+                    [
+                        'name' => 'Motor & Physical Development',
+                        'desc' => 'Coordinates hand-eye movement for safety scissor cutting and threading large beads; maintains body balance.',
+                        'recommendation' => 'Incorporate adaptive scissors, playdough modeling, and balance beam games.',
+                    ],
+                    [
+                        'name' => 'Daily Living & Adaptive Skills',
+                        'desc' => 'Practices independent self-care (buttoning, feeding, hand sanitizing) and recognizes personal belongings.',
+                        'recommendation' => 'Step-by-step task analysis with prompt fading technique.',
+                    ],
+                ],
+                'steps' => [
+                    'State full personal identity details and identify school authority figures.',
+                    'Recognize and respond to critical community safety signs (STOP, EXIT, CR).',
+                    'Demonstrate independent personal grooming and classroom bag organization.',
+                ],
+                'starter_plans' => [
+                    [
+                        'title' => 'All About Me: Personal Identity and Emergency Information',
+                        'domain' => 'communication_language',
+                        'assignment_type' => 'all',
+                    ],
+                    [
+                        'title' => 'Functional Community Signs and Safety Awareness',
+                        'domain' => 'perceptuo_cognitive',
+                        'assignment_type' => 'all',
+                    ],
+                    [
+                        'title' => 'Self-Care Routine and Hygiene Independence',
+                        'domain' => 'daily_living_skills',
+                        'assignment_type' => 'all',
+                    ],
+                ],
+            ],
+            'learning_disability' => [
+                'name' => 'Learning Disability / ADHD (Academic Strategies & Focus)',
+                'category' => 'learning_disability',
+                'domains' => [
+                    [
+                        'name' => 'Communication & Language',
+                        'desc' => 'Retells grade-level short stories in proper sequence; explains comprehension answers clearly in oral discussion.',
+                        'recommendation' => 'Provide graphic organizers, audio-supported reading, and sentence starter frames.',
+                    ],
+                    [
+                        'name' => 'Cognitive / Academics',
+                        'desc' => 'Applies phonetic decoding strategies to unfamiliar words; solves two-digit addition and subtraction using visual counters.',
+                        'recommendation' => 'Use multisensory (VAKT) reading methods and chunked math problem sets.',
+                    ],
+                    [
+                        'name' => 'Socio-Emotional & Behavioral',
+                        'desc' => 'Sustains attention on individual seatwork for 15-20 minutes; utilizes personal self-monitoring checklist.',
+                        'recommendation' => 'Incorporate active movement breaks, timer-based focus blocks, and desk checklists.',
+                    ],
+                    [
+                        'name' => 'Motor & Physical Development',
+                        'desc' => 'Maintains ergonomic posture and comfortable pencil grip during extended handwriting tasks.',
+                        'recommendation' => 'Provide pencil grips, slant boards, and handwriting warm-up stretches.',
+                    ],
+                    [
+                        'name' => 'Daily Living & Adaptive Skills',
+                        'desc' => 'Tracks assignment deadlines using an LMS planner or notebook; keeps desk clutter-free.',
+                        'recommendation' => 'Reinforce organizational routines at the start and end of every class period.',
+                    ],
+                ],
+                'steps' => [
+                    'Apply phonics decoding strategies to read grade-level decodable passages.',
+                    'Utilize visual organizers and counters to solve functional arithmetic problems.',
+                    'Maintain on-task attention for 20 minutes using an individualized task checklist.',
+                ],
+                'starter_plans' => [
+                    [
+                        'title' => 'Phonological Decoding and Sight Word Fluency',
+                        'domain' => 'communication_language',
+                        'assignment_type' => 'all',
+                    ],
+                    [
+                        'title' => 'Visual Problem Solving in Arithmetic Operations',
+                        'domain' => 'perceptuo_cognitive',
+                        'assignment_type' => 'all',
+                    ],
+                    [
+                        'title' => 'Self-Regulation and Task Management Strategies',
+                        'domain' => 'socio_emotional',
+                        'assignment_type' => 'all',
+                    ],
+                ],
+            ],
+            'speech_impairment' => [
+                'name' => 'Speech & Language Impairment (Articulation & Expression Focus)',
+                'category' => 'speech_impairment',
+                'domains' => [
+                    [
+                        'name' => 'Communication & Language',
+                        'desc' => 'Accurately produces target consonant sounds in words and short phrases; initiates conversation with peers with increased intelligibility.',
+                        'recommendation' => 'Use tactile speech cues, mirror articulation modeling, and pacing boards.',
+                    ],
+                    [
+                        'name' => 'Cognitive / Academics',
+                        'desc' => 'Demonstrates sound-symbol correspondence for targeted phonemes; constructs complete 4-word grammatical sentences.',
+                        'recommendation' => 'Color-coded syntactic word cards and visual vocabulary associations.',
+                    ],
+                    [
+                        'name' => 'Socio-Emotional & Behavioral',
+                        'desc' => 'Demonstrates confidence in oral participation without anxiety; uses repair strategies when misunderstood.',
+                        'recommendation' => 'Praise communication attempts over perfect articulation; create low-pressure speaking circles.',
+                    ],
+                    [
+                        'name' => 'Motor & Physical Development',
+                        'desc' => 'Demonstrates controlled breath support and oral-motor coordination (lip rounding, tongue elevation) during speech games.',
+                        'recommendation' => 'Incorporate straw-blowing, bubble drills, and fun tongue gym exercises.',
+                    ],
+                    [
+                        'name' => 'Daily Living & Adaptive Skills',
+                        'desc' => 'Confidently expresses personal needs, orders food, and reports emergencies clearly to school personnel.',
+                        'recommendation' => 'Conduct functional role-play activities simulating everyday communication settings.',
+                    ],
+                ],
+                'steps' => [
+                    'Produce targeted phonemes with 80% accuracy in structured word drills.',
+                    'Formulate complete 4-word descriptive sentences using picture prompts.',
+                    'Initiate and maintain a 3-turn communicative exchange with a peer.',
+                ],
+                'starter_plans' => [
+                    [
+                        'title' => 'Target Phoneme Articulation and Word Drills',
+                        'domain' => 'communication_language',
+                        'assignment_type' => 'all',
+                    ],
+                    [
+                        'title' => 'Sentence Building with Visual Picture Prompts',
+                        'domain' => 'communication_language',
+                        'assignment_type' => 'all',
+                    ],
+                    [
+                        'title' => 'Functional Role-Play: Expressing Needs and Requests',
+                        'domain' => 'daily_living_skills',
+                        'assignment_type' => 'all',
+                    ],
+                ],
+            ],
+            'general_sped' => [
+                'name' => 'General DepEd SPED Baseline (Comprehensive Inclusive Framework)',
+                'category' => 'general_sped',
+                'domains' => [
+                    [
+                        'name' => 'Cognitive / Academics',
+                        'desc' => 'Demonstrates foundational functional literacy and numeracy skills aligned with individualized DepEd SPED curriculum pacing.',
+                        'recommendation' => 'Provide differentiated learning materials, multi-sensory instruction, and extended time accommodations.',
+                    ],
+                    [
+                        'name' => 'Communication & Language',
+                        'desc' => 'Expresses thoughts and questions effectively using augmentative or verbal communication modes; understands instructional directions.',
+                        'recommendation' => 'Use multimodal communication aids, visual demonstrations, and comprehension checks.',
+                    ],
+                    [
+                        'name' => 'Socio-Emotional & Behavioral',
+                        'desc' => 'Engages in respectful and collaborative classroom behavior; participates willingly in group activities.',
+                        'recommendation' => 'Positive behavior support framework, peer modeling, and clear classroom expectations.',
+                    ],
+                    [
+                        'name' => 'Motor & Physical Development',
+                        'desc' => 'Participates in gross and fine motor coordination activities according to physical capabilities and health allowances.',
+                        'recommendation' => 'Adapted physical education activities, assistive tools, and ergonomic seating.',
+                    ],
+                    [
+                        'name' => 'Daily Living & Adaptive Skills',
+                        'desc' => 'Maintains personal independence in daily routines, tool management, and classroom navigation.',
+                        'recommendation' => 'Consistent daily routine structure and visual reminders.',
+                    ],
+                ],
+                'steps' => [
+                    'Demonstrate mastery of core foundational functional literacy skills.',
+                    'Participate actively in collaborative inclusive classroom activities.',
+                    'Maintain consistent daily routines and independent learning habits.',
+                ],
+                'starter_plans' => [
+                    [
+                        'title' => 'Foundational Literacy and Vocabulary Development',
+                        'domain' => 'perceptuo_cognitive',
+                        'assignment_type' => 'all',
+                    ],
+                    [
+                        'title' => 'Functional Numeracy and Everyday Problem Solving',
+                        'domain' => 'perceptuo_cognitive',
+                        'assignment_type' => 'all',
+                    ],
+                    [
+                        'title' => 'Cooperative Learning and Social Engagement',
+                        'domain' => 'socio_emotional',
+                        'assignment_type' => 'all',
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Resolve template key from student's disability type
+     */
+    public static function resolveTemplateKeyFromDisability(?string $disability): string {
+        $d = strtolower($disability ?? '');
+        if (str_contains($d, 'deaf') || str_contains($d, 'hearing') || str_contains($d, 'fsl') || str_contains($d, 'pangdungog') || str_contains($d, 'bungol')) {
+            return 'hearing_impairment';
+        }
+        if (str_contains($d, 'autism') || str_contains($d, 'asd') || str_contains($d, 'asperger')) {
+            return 'autism_spectrum';
+        }
+        if (str_contains($d, 'intellectual') || str_contains($d, 'down') || str_contains($d, 'delay') || str_contains($d, 'mental') || str_contains($d, 'panghunahuna')) {
+            return 'intellectual_disability';
+        }
+        if (str_contains($d, 'learning') || str_contains($d, 'adhd') || str_contains($d, 'dyslexia') || str_contains($d, 'attention')) {
+            return 'learning_disability';
+        }
+        if (str_contains($d, 'speech') || str_contains($d, 'language') || str_contains($d, 'sulti') || str_contains($d, 'communication')) {
+            return 'speech_impairment';
+        }
+        return 'general_sped';
+    }
+
+    /**
+     * Fast-Track Provisioning of IEP & Implementation Workspace from Uploaded Document
+     */
+    public function provisionFastTrackIep(
+        int $studentId,
+        int $userId,
+        string $schoolYear = '2026-2027',
+        string $templateKey = '',
+        string $uploadedDocPath = '',
+        bool $createStarterLps = true
+    ): array {
+        $templates = self::getDepEdBaselineTemplates();
+        if (empty($templateKey) || !isset($templates[$templateKey])) {
+            $student = (new StudentModel())->findById($studentId);
+            $templateKey = self::resolveTemplateKeyFromDisability($student['disability_type'] ?? '');
+        }
+        $tpl = $templates[$templateKey] ?? $templates['general_sped'];
+
+        // 1. Ensure meeting
+        $stmtM = $this->db->prepare("SELECT id FROM iep_meetings WHERE student_id = :sid ORDER BY id DESC LIMIT 1");
+        $stmtM->execute(['sid' => $studentId]);
+        $meetingId = $stmtM->fetchColumn();
+        if (!$meetingId) {
+            $assessmentId = null;
+            try {
+                $stmtA = $this->db->prepare("SELECT id FROM assessment_records WHERE student_id = :sid ORDER BY id DESC LIMIT 1");
+                $stmtA->execute(['sid' => $studentId]);
+                $assessmentId = $stmtA->fetchColumn() ?: null;
+
+                if (!$assessmentId) {
+                    $insA = $this->db->prepare("
+                        INSERT INTO assessment_records (
+                            student_id, assessed_by, conducted_by, status, version,
+                            section_a_data, services_checked, screening_types,
+                            created_at, updated_at
+                        ) VALUES (
+                            :sid, :uid, :uid, 'finalized', 1,
+                            '{}', '[]', '[]',
+                            NOW(), NOW()
+                        )
+                    ");
+                    $insA->execute(['sid' => $studentId, 'uid' => $userId]);
+                    $assessmentId = (int)$this->db->lastInsertId();
+                }
+            } catch (\Throwable $e) {
+                error_log("Baseline assessment notice: " . $e->getMessage());
+            }
+
+            // Absolute fallback to guarantee foreign key iep_meetings_ibfk_2 is satisfied
+            if (!$assessmentId) {
+                $assessmentId = (int)$this->db->query("SELECT id FROM assessment_records ORDER BY id ASC LIMIT 1")->fetchColumn() ?: 1;
+            }
+
+            $stmtInsM = $this->db->prepare("
+                INSERT INTO iep_meetings (
+                    student_id, assessment_id, scheduled_by, meeting_date,
+                    status, agenda, created_at, updated_at
+                ) VALUES (
+                    :sid, :aid, :uid, NOW(),
+                    'completed', 'Mid-Year SY 2026-2027 Ingestion: Baseline initialized from uploaded records', NOW(), NOW()
+                )
+            ");
+            $stmtInsM->execute([
+                'sid' => $studentId,
+                'aid' => $assessmentId,
+                'uid' => $userId
+            ]);
+            $meetingId = (int)$this->db->lastInsertId();
+        }
+
+        // 2. Ensure PDSP record
+        $stmtP = $this->db->prepare("SELECT id, status FROM pdsp_records WHERE student_id = :sid ORDER BY id DESC LIMIT 1");
+        $stmtP->execute(['sid' => $studentId]);
+        $pdsp = $stmtP->fetch(PDO::FETCH_ASSOC);
+        if (!$pdsp) {
+            $stmtInsP = $this->db->prepare("
+                INSERT INTO pdsp_records (meeting_id, student_id, filled_by, status, signed_document_path, completed_at, created_at, updated_at)
+                VALUES (:mid, :sid, :uid, 'signed', :doc, NOW(), NOW(), NOW())
+            ");
+            $stmtInsP->execute([
+                'mid' => $meetingId,
+                'sid' => $studentId,
+                'uid' => $userId,
+                'doc' => !empty($uploadedDocPath) ? $uploadedDocPath : null,
+            ]);
+            $pdspId = (int)$this->db->lastInsertId();
+        } else {
+            $pdspId = (int)$pdsp['id'];
+            $upSql = "UPDATE pdsp_records SET status = 'signed', completed_at = IFNULL(completed_at, NOW())";
+            $upParams = ['id' => $pdspId];
+            if (!empty($uploadedDocPath)) {
+                $upSql .= ", signed_document_path = :doc";
+                $upParams['doc'] = $uploadedDocPath;
+            }
+            $upSql .= " WHERE id = :id";
+            $this->db->prepare($upSql)->execute($upParams);
+        }
+
+        // 3. Ensure PDSP domains with template content
+        $stmtDomCheck = $this->db->prepare("SELECT COUNT(*) FROM pdsp_domains WHERE pdsp_id = :pid");
+        $stmtDomCheck->execute(['pid' => $pdspId]);
+        if ((int)$stmtDomCheck->fetchColumn() === 0) {
+            $stmtInsDom = $this->db->prepare("
+                INSERT INTO pdsp_domains (pdsp_id, domain_name, skills_description, educational_recommendation, mastered, q1_level, created_at)
+                VALUES (:pid, :name, :desc, :rec, 0, 'Developing', NOW())
+            ");
+            foreach ($tpl['domains'] as $d) {
+                $stmtInsDom->execute([
+                    'pid'  => $pdspId,
+                    'name' => $d['name'],
+                    'desc' => $d['desc'],
+                    'rec'  => $d['recommendation'] ?? null,
+                ]);
+            }
+        }
+
+        // 4. Ensure IEP record with status = 'signed' so workspace is directly unlocked
+        $stmtIep = $this->db->prepare("
+            SELECT id, status FROM iep_records 
+            WHERE student_id = :sid AND school_year = :sy 
+            ORDER BY id DESC LIMIT 1
+        ");
+        $stmtIep->execute(['sid' => $studentId, 'sy' => $schoolYear]);
+        $iepRec = $stmtIep->fetch(PDO::FETCH_ASSOC);
+
+        if (!$iepRec) {
+            $reEvalDate = date('Y-m-d', strtotime('+1 year'));
+            $stmtInsIep = $this->db->prepare("
+                INSERT INTO iep_records (student_id, pdsp_id, drafted_by, school_year, status, signed_document_path, re_evaluation_date, created_at, updated_at)
+                VALUES (:sid, :pid, :uid, :sy, 'signed', :doc, :reeval, NOW(), NOW())
+            ");
+            $stmtInsIep->execute([
+                'sid'    => $studentId,
+                'pid'    => $pdspId,
+                'uid'    => $userId,
+                'sy'     => $schoolYear,
+                'doc'    => !empty($uploadedDocPath) ? $uploadedDocPath : null,
+                'reeval' => $reEvalDate,
+            ]);
+            $iepId = (int)$this->db->lastInsertId();
+        } else {
+            $iepId = (int)$iepRec['id'];
+            if ($iepRec['status'] !== 'signed' && $iepRec['status'] !== 'locked') {
+                $this->db->prepare("UPDATE iep_records SET status = 'signed', pdsp_id = :pid, updated_at = NOW() WHERE id = :id")
+                    ->execute(['id' => $iepId, 'pid' => $pdspId]);
+            }
+        }
+
+        // 5. Seed IEP domains & steps
+        $this->seedIepDomainsFromPdspIfEmpty($iepId, $pdspId);
+
+        // Seed steps if empty
+        $stmtStepsCount = $this->db->prepare("SELECT COUNT(*) FROM iep_steps WHERE iep_id = :iep_id");
+        $stmtStepsCount->execute(['iep_id' => $iepId]);
+        if ((int)$stmtStepsCount->fetchColumn() === 0 && !empty($tpl['steps'])) {
+            $stmtInsStep = $this->db->prepare("
+                INSERT INTO iep_steps (iep_id, step_number, step_domain, step_objective, duration_lp, instructional_evaluation, observation_unlocked, created_at)
+                VALUES (:iep_id, :num, :dom, :obj, '4 Weeks', 'Quarterly Mastery Assessment Checklist', 1, NOW())
+            ");
+            $snum = 1;
+            foreach ($tpl['steps'] as $stepObj) {
+                $stmtInsStep->execute([
+                    'iep_id' => $iepId,
+                    'num'    => $snum++,
+                    'dom'    => $tpl['domains'][($snum - 2) % count($tpl['domains'])]['name'] ?? 'Cognitive / Academics',
+                    'obj'    => $stepObj,
+                ]);
+            }
+        }
+
+        // 6. If starter lesson plans requested, create them if none exist yet
+        $lpsCreated = 0;
+        if ($createStarterLps) {
+            $stmtLpCount = $this->db->prepare("SELECT COUNT(*) FROM lesson_plans WHERE iep_id = :iep_id");
+            $stmtLpCount->execute(['iep_id' => $iepId]);
+            if ((int)$stmtLpCount->fetchColumn() === 0 && !empty($tpl['starter_plans'])) {
+                $stmtInsLp = $this->db->prepare("
+                    INSERT INTO lesson_plans (iep_id, student_id, created_by, title, pdsp_domain, assignment_type, status, created_at, updated_at)
+                    VALUES (:iep_id, :sid, :uid, :title, :dom, :atype, 'published', NOW(), NOW())
+                ");
+                foreach ($tpl['starter_plans'] as $sp) {
+                    $stmtInsLp->execute([
+                        'iep_id' => $iepId,
+                        'sid'    => $studentId,
+                        'uid'    => $userId,
+                        'title'  => $sp['title'],
+                        'dom'    => $sp['domain'],
+                        'atype'  => $sp['assignment_type'] ?? 'all',
+                    ]);
+                    $lpsCreated++;
+                }
+            }
+        }
+
+        return [
+            'iep_id'       => $iepId,
+            'pdsp_id'      => $pdspId,
+            'meeting_id'   => $meetingId,
+            'template_key' => $templateKey,
+            'template_name'=> $tpl['name'],
+            'lps_created'  => $lpsCreated,
+        ];
     }
 
     /**

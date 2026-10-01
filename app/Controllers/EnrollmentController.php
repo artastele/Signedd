@@ -24,27 +24,9 @@ class EnrollmentController {
      * Show enrollment type selection
      */
     public function index() {
-        if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'parent') {
-            $_SESSION['error'] = 'You must be logged in as a parent to enroll.';
-            header('Location: ' . $this->basePath . '/login');
-            exit;
-        }
-
-        $userId = $_SESSION['user_id'];
-        
-        // Clean up old drafts (7+ days)
-        $this->enrollmentModel->cleanupOldDrafts();
-        
-        // Check for existing draft
-        $draft = $this->enrollmentModel->getDraftByParentId($userId);
-        
-        // Check for previous enrollment (for returning students)
-        $previousEnrollment = $this->enrollmentModel->getLatestByParentId($userId);
-
-        // Pass basePath to view
-        $basePath = $this->basePath;
-
-        require_once __DIR__ . '/../Views/enrollment/index.php';
+        // Redundant landing page bypassed: redirect directly to the streamlined enrollment form
+        header('Location: ' . $this->basePath . '/enroll');
+        exit;
     }
 
     /**
@@ -387,6 +369,13 @@ class EnrollmentController {
     }
 
     /**
+     * Alias for reviewList
+     */
+    public function review() {
+        return $this->reviewList();
+    }
+
+    /**
      * SPED Teacher / Principal: List pending school pool enrollments for review
      */
     public function reviewList() {
@@ -479,51 +468,91 @@ class EnrollmentController {
             $studentModel = new StudentModel();
             $studentData = $studentModel->createStudentRecord($enrollmentId, $userId);
             
-            // 4. Create learner account with credentials
-            $accountData = $studentModel->createLearnerAccount(
-                $studentData['id'],
-                $studentData['student_id'],
-                $enrollment
-            );
-            
-            // 5. Mark enrollment as verified and learner account created
-            $this->enrollmentModel->updateStatus($enrollmentId, 'verified', $userId);
-            $this->enrollmentModel->markLearnerAccountCreated($enrollmentId);
+            // 4. Check if SignED Learner Account should be created
+            $createAccount = isset($_POST['create_learner_account']) 
+                ? (bool)$_POST['create_learner_account'] 
+                : ((!empty($enrollment['survey_has_internet']) && !empty($enrollment['survey_willing_online'])) || (!empty($enrollment['has_device']) && !empty($enrollment['willing_digital'])));
 
-            // 6. Notify parent - enrollment fully approved with credentials
-            $this->notificationModel->create(
-                $enrollment['parent_id'],
-                'enrollment_approved',
-                'Enrollment Approved! ✅',
-                "Enrollment approved for {$enrollment['first_name']} {$enrollment['last_name']}. Student ID: {$studentData['student_id']}. Temporary password: {$accountData['temp_password']}",
-                ['enrollment_id' => $enrollmentId, 'student_id' => $studentData['id']]
-            );
-
-            // 7. Send email notification with credentials
-            if (class_exists('MailHelper')) {
-                $credentialsHtml = "
-                    <h2>Enrollment Approved! 🎉</h2>
-                    <p>Your enrollment application for <strong>{$enrollment['first_name']} {$enrollment['last_name']}</strong> has been fully approved!</p>
-                    
-                    <div style='background-color: #f0f8ff; padding: 20px; border-left: 4px solid #1e4072; margin: 20px 0;'>
-                        <h3 style='color: #1e4072; margin-top: 0;'>Learner Login Credentials</h3>
-                        <p><strong>Student ID (Username):</strong> <code style='background: #fff; padding: 5px 10px; border-radius: 3px;'>{$studentData['student_id']}</code></p>
-                        <p><strong>Temporary Password:</strong> <code style='background: #fff; padding: 5px 10px; border-radius: 3px;'>{$accountData['temp_password']}</code></p>
-                        <p style='color: #a01422; margin-top: 15px;'><strong>⚠️ Important:</strong> Please change this password after first login.</p>
-                    </div>
-                    
-                    <p>The learner can now log in to the SPED LMS portal using these credentials.</p>
-                ";
-                
-                MailHelper::sendNotification(
-                    $enrollment['parent_email'],
-                    $enrollment['parent_name'] ?? 'Parent',
-                    'Enrollment Approved - SPED LMS',
-                    $credentialsHtml
+            if ($createAccount) {
+                // Create learner account with credentials
+                $accountData = $studentModel->createLearnerAccount(
+                    $studentData['id'],
+                    $studentData['student_id'],
+                    $enrollment
                 );
+                
+                // Mark learner account created
+                $this->enrollmentModel->markLearnerAccountCreated($enrollmentId);
+
+                // Notify parent with login credentials
+                $this->notificationModel->create(
+                    $enrollment['parent_id'],
+                    'enrollment_approved',
+                    'Enrollment Approved! ✅',
+                    "Enrollment approved for {$enrollment['first_name']} {$enrollment['last_name']}. Student ID: {$studentData['student_id']}. SignED Learner temporary password: {$accountData['temp_password']}",
+                    ['enrollment_id' => $enrollmentId, 'student_id' => $studentData['id']]
+                );
+
+                // Send email notification with credentials
+                if (class_exists('MailHelper')) {
+                    $credentialsHtml = "
+                        <h2>Enrollment Approved! 🎉</h2>
+                        <p>Your enrollment application for <strong>{$enrollment['first_name']} {$enrollment['last_name']}</strong> has been fully approved!</p>
+                        
+                        <div style='background-color: #f0f8ff; padding: 20px; border-left: 4px solid #1e4072; margin: 20px 0;'>
+                            <h3 style='color: #1e4072; margin-top: 0;'>SignED Learner Login Credentials</h3>
+                            <p><strong>Student ID (Username):</strong> <code style='background: #fff; padding: 5px 10px; border-radius: 3px;'>{$studentData['student_id']}</code></p>
+                            <p><strong>Temporary Password:</strong> <code style='background: #fff; padding: 5px 10px; border-radius: 3px;'>{$accountData['temp_password']}</code></p>
+                            <p style='color: #a01422; margin-top: 15px;'><strong>⚠️ Important:</strong> Please change this password after first login.</p>
+                        </div>
+                        
+                        <p>The learner can now log in to the SignED LMS portal using these credentials.</p>
+                    ";
+                    
+                    MailHelper::sendNotification(
+                        $enrollment['parent_email'],
+                        $enrollment['parent_name'] ?? 'Parent',
+                        'Enrollment Approved - SignED LMS',
+                        $credentialsHtml
+                    );
+                }
+
+                $_SESSION['success'] = "Enrollment approved! SignED Learner account created. Student ID: {$studentData['student_id']}, Password: {$accountData['temp_password']}";
+            } else {
+                // Traditional / Face-to-Face Track without digital LMS account
+                $this->notificationModel->create(
+                    $enrollment['parent_id'],
+                    'enrollment_approved',
+                    'Enrollment Approved! ✅',
+                    "Enrollment approved for {$enrollment['first_name']} {$enrollment['last_name']}. Official Student ID: {$studentData['student_id']}. Track: Traditional / Face-to-Face SPED Instruction.",
+                    ['enrollment_id' => $enrollmentId, 'student_id' => $studentData['id']]
+                );
+
+                if (class_exists('MailHelper')) {
+                    $approvedHtml = "
+                        <h2>Enrollment Approved! 🎉</h2>
+                        <p>Your enrollment application for <strong>{$enrollment['first_name']} {$enrollment['last_name']}</strong> has been approved!</p>
+                        <div style='background-color: #f0fdf4; padding: 20px; border-left: 4px solid #16a34a; margin: 20px 0;'>
+                            <h3 style='color: #16a34a; margin-top: 0;'>Official Student Information</h3>
+                            <p><strong>Student ID:</strong> <code style='background: #fff; padding: 5px 10px; border-radius: 3px;'>{$studentData['student_id']}</code></p>
+                            <p><strong>Learning Track:</strong> Traditional / Face-to-Face SPED Instruction</p>
+                        </div>
+                        <p>Your assigned SPED teacher will contact you regarding classroom orientation, diagnostic assessment, and IEP scheduling.</p>
+                    ";
+                    
+                    MailHelper::sendNotification(
+                        $enrollment['parent_email'],
+                        $enrollment['parent_name'] ?? 'Parent',
+                        'Enrollment Approved - SPED Center',
+                        $approvedHtml
+                    );
+                }
+
+                $_SESSION['success'] = "Enrollment approved! Official Student ID: {$studentData['student_id']} (Traditional / Face-to-Face Track).";
             }
 
-            $_SESSION['success'] = "Enrollment approved! Learner account created. Student ID: {$studentData['student_id']}, Password: {$accountData['temp_password']}";
+            // 5. Mark enrollment as verified
+            $this->enrollmentModel->updateStatus($enrollmentId, 'verified', $userId);
 
         } catch (Exception $e) {
             error_log('Approve enrollment error: ' . $e->getMessage());
@@ -861,6 +890,15 @@ class EnrollmentController {
             'modality_blended' => isset($post['modality_blended']) ? 1 : 0,
             'modality_face_to_face' => isset($post['modality_face_to_face']) ? 1 : 0,
             'preferred_distance_modality' => $post['preferred_distance_modality'] ?? null,
+
+            // Digital Readiness & SignED LMS Survey (Stage 2)
+            'survey_has_internet'   => isset($post['survey_has_internet']) ? (int)$post['survey_has_internet'] : 0,
+            'survey_devices'        => isset($post['survey_devices']) ? (is_array($post['survey_devices']) ? implode(',', $post['survey_devices']) : $post['survey_devices']) : null,
+            'survey_willing_online' => isset($post['survey_willing_online']) ? (int)$post['survey_willing_online'] : 0,
+            
+            // Legacy / Alias fields
+            'has_device'      => (isset($post['survey_devices']) && !empty($post['survey_devices']) && !in_array('None', (array)$post['survey_devices'])) ? 1 : 0,
+            'willing_digital' => isset($post['survey_willing_online']) ? (int)$post['survey_willing_online'] : 0,
             
             // Signature
             'signature_data' => $post['signature_data'] ?? null,
@@ -878,7 +916,7 @@ class EnrollmentController {
      * Handle document uploads
      */
     private function handleDocumentUploads($enrollmentId) {
-        $uploadDir = __DIR__ . '/../../public/uploads/enrollment/';
+        $uploadDir = function_exists('public_path') ? public_path('uploads/enrollment/') : (__DIR__ . '/../../public/uploads/enrollment/');
         
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
@@ -886,9 +924,11 @@ class EnrollmentController {
 
         $documentTypes = [
             'psa_birth_cert' => 'PSA Birth Certificate',
-            'pwd_id' => 'PWD ID',
+            'pwd_id'         => 'PWD ID',
             'medical_record' => 'Medical Record',
-            'beef_form' => 'BEEF Form'
+            'sf10'           => 'Form 138 / SF10',
+            'brgy_cert'      => 'Barangay Certificate',
+            'beef_form'      => 'BEEF Form'
         ];
 
         foreach ($documentTypes as $type => $label) {

@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS role_documents (
 
 CREATE TABLE IF NOT EXISTS enrollment_submissions (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    parent_id INT NOT NULL,
+    parent_id INT NULL,
     target_school_id INT NULL,
     assigned_teacher_id INT NULL,
     enrollment_type ENUM('new','transfer','returning') NOT NULL,
@@ -1939,3 +1939,129 @@ ALTER TABLE student_quarterly_ratings
 INSERT IGNORE INTO db_version (version) VALUES (62);
 
 -- END MIGRATION: v62
+
+-- ============================================
+-- MIGRATION: v63 - Dual-Track, Sections, LIS Sync & Profiles
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `sections` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `school_id` INT NULL,
+    `section_name` VARCHAR(100) NOT NULL,
+    `grade_level` VARCHAR(50) NOT NULL DEFAULT 'SPED',
+    `room_number` VARCHAR(50) NULL,
+    `max_capacity` INT NOT NULL DEFAULT 15,
+    `current_count` INT NOT NULL DEFAULT 0,
+    `adviser_teacher_id` INT NULL,
+    `school_year` VARCHAR(20) NOT NULL DEFAULT '2026-2027',
+    `status` ENUM('active', 'archived') NOT NULL DEFAULT 'active',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX (`school_id`),
+    INDEX (`adviser_teacher_id`),
+    INDEX (`grade_level`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `student_records` 
+    ADD COLUMN IF NOT EXISTS `section_name` VARCHAR(100) NULL,
+    ADD COLUMN IF NOT EXISTS `track_strand` VARCHAR(100) NULL,
+    ADD COLUMN IF NOT EXISTS `lis_status` ENUM('pending', 'synced', 'error') DEFAULT 'pending',
+    ADD COLUMN IF NOT EXISTS `lis_synced_at` DATETIME NULL,
+    ADD COLUMN IF NOT EXISTS `section_id` INT NULL,
+    ADD COLUMN IF NOT EXISTS `learning_track` ENUM('unassigned', 'lms', 'traditional') NOT NULL DEFAULT 'unassigned',
+    ADD COLUMN IF NOT EXISTS `lms_invite_status` ENUM('none', 'sent', 'accepted', 'declined') NOT NULL DEFAULT 'none',
+    ADD COLUMN IF NOT EXISTS `lms_invited_at` DATETIME NULL,
+    ADD COLUMN IF NOT EXISTS `lms_accepted_at` DATETIME NULL,
+    ADD COLUMN IF NOT EXISTS `learner_user_id` INT NULL;
+
+ALTER TABLE `enrollment_submissions`
+    ADD COLUMN IF NOT EXISTS `survey_has_internet` TINYINT(1) NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS `survey_devices` VARCHAR(255) NULL,
+    ADD COLUMN IF NOT EXISTS `survey_willing_online` TINYINT(1) NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS `learning_track` ENUM('unassigned', 'lms', 'traditional') NOT NULL DEFAULT 'unassigned',
+    ADD COLUMN IF NOT EXISTS `section_id` INT NULL,
+    ADD COLUMN IF NOT EXISTS `lms_invite_status` ENUM('none', 'sent', 'accepted', 'declined') NOT NULL DEFAULT 'none',
+    ADD COLUMN IF NOT EXISTS `learner_user_id` INT NULL;
+
+ALTER TABLE `users`
+    ADD COLUMN IF NOT EXISTS `profile_photo` VARCHAR(255) NULL,
+    ADD COLUMN IF NOT EXISTS `phone_number` VARCHAR(50) NULL,
+    ADD COLUMN IF NOT EXISTS `bio` TEXT NULL;
+
+CREATE TABLE IF NOT EXISTS `traditional_iep_documents` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `student_id` INT NOT NULL,
+    `uploaded_by` INT NOT NULL,
+    `document_type` ENUM('dll', 'physical_iep', 'assessment_report', 'progress_note', 'other') NOT NULL,
+    `title` VARCHAR(255) NOT NULL,
+    `file_path` VARCHAR(255) NOT NULL,
+    `file_size` INT NULL,
+    `school_year` VARCHAR(20) NOT NULL DEFAULT '2026-2027',
+    `quarter` VARCHAR(20) NULL,
+    `notes` TEXT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX (`student_id`),
+    INDEX (`uploaded_by`),
+    INDEX (`document_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `lis_sync_logs` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `sync_type` ENUM('sf1_export', 'sf2_export', 'sf2_import') NOT NULL,
+    `filename` VARCHAR(255) NOT NULL,
+    `records_count` INT DEFAULT 0,
+    `performed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`user_id`) REFERENCES users(`id`) ON DELETE CASCADE,
+    INDEX `idx_sync_type` (`sync_type`),
+    INDEX `idx_performed_at` (`performed_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (63);
+
+-- END MIGRATION: v63
+
+-- ============================================
+-- MIGRATION: v64 - FSL Vocabulary & Teacher Training Modules
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS `fsl_vocabulary` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `word` VARCHAR(100) NOT NULL,
+    `category` VARCHAR(100) NOT NULL DEFAULT 'General',
+    `video_path` VARCHAR(255) NULL,
+    `gif_path` VARCHAR(255) NULL,
+    `thumbnail_path` VARCHAR(255) NULL,
+    `description` TEXT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX (`word`),
+    INDEX (`category`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `teacher_fsl_modules` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `title` VARCHAR(150) NOT NULL,
+    `category` VARCHAR(100) NOT NULL DEFAULT 'Classroom Commands',
+    `video_path` VARCHAR(255) NULL,
+    `gif_path` VARCHAR(255) NULL,
+    `description` TEXT NULL,
+    `tips` TEXT NULL,
+    `display_order` INT NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX (`category`),
+    INDEX (`display_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (64);
+
+-- END MIGRATION: v64
+
+-- MIGRATION: v65 — Add claim_token to student_records for QR Parent Invite & allow NULL parent_id on bulk import
+ALTER TABLE `student_records` ADD COLUMN IF NOT EXISTS `claim_token` VARCHAR(64) NULL DEFAULT NULL AFTER `lis_synced_at`;
+ALTER TABLE `enrollment_submissions` MODIFY `parent_id` INT NULL DEFAULT NULL;
+
+INSERT IGNORE INTO db_version (version) VALUES (65);
+
+-- END MIGRATION: v65
+

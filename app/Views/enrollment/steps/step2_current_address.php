@@ -23,7 +23,7 @@
                 <!-- Province -->
                 <div class="col-md-4 mb-3">
                     <label for="current_province" class="form-label">Province</label>
-                    <select class="form-select" id="current_province" name="current_province">
+                    <select class="form-select" id="current_province" name="current_province" data-initial-value="<?php echo htmlspecialchars(getFormValue('current_province')); ?>">
                         <option value="">Loading...</option>
                     </select>
                 </div>
@@ -31,7 +31,7 @@
                 <!-- City/Municipality -->
                 <div class="col-md-4 mb-3">
                     <label for="current_city" class="form-label">City / Municipality</label>
-                    <select class="form-select" id="current_city" name="current_city">
+                    <select class="form-select" id="current_city" name="current_city" data-initial-value="<?php echo htmlspecialchars(getFormValue('current_city')); ?>">
                         <option value="">Select province first</option>
                     </select>
                 </div>
@@ -39,7 +39,7 @@
                 <!-- Barangay -->
                 <div class="col-md-4 mb-3">
                     <label for="current_barangay" class="form-label">Barangay</label>
-                    <select class="form-select" id="current_barangay" name="current_barangay">
+                    <select class="form-select" id="current_barangay" name="current_barangay" data-initial-value="<?php echo htmlspecialchars(getFormValue('current_barangay')); ?>">
                         <option value="">Select city first</option>
                     </select>
                 </div>
@@ -87,7 +87,7 @@
                     <!-- Province -->
                     <div class="col-md-4 mb-3">
                         <label for="permanent_province" class="form-label">Province</label>
-                        <select class="form-select" id="permanent_province" name="permanent_province">
+                        <select class="form-select" id="permanent_province" name="permanent_province" data-initial-value="<?php echo htmlspecialchars(getFormValue('permanent_province')); ?>">
                             <option value="">Loading...</option>
                         </select>
                     </div>
@@ -95,7 +95,7 @@
                     <!-- City/Municipality -->
                     <div class="col-md-4 mb-3">
                         <label for="permanent_city" class="form-label">City / Municipality</label>
-                        <select class="form-select" id="permanent_city" name="permanent_city">
+                        <select class="form-select" id="permanent_city" name="permanent_city" data-initial-value="<?php echo htmlspecialchars(getFormValue('permanent_city')); ?>">
                             <option value="">Select province first</option>
                         </select>
                     </div>
@@ -103,7 +103,7 @@
                     <!-- Barangay -->
                     <div class="col-md-4 mb-3">
                         <label for="permanent_barangay" class="form-label">Barangay</label>
-                        <select class="form-select" id="permanent_barangay" name="permanent_barangay">
+                        <select class="form-select" id="permanent_barangay" name="permanent_barangay" data-initial-value="<?php echo htmlspecialchars(getFormValue('permanent_barangay')); ?>">
                             <option value="">Select city first</option>
                         </select>
                     </div>
@@ -129,38 +129,6 @@
                     fields.style.display = checkbox.checked ? 'none' : 'block';
                 }
             }
-
-            // Pre-fill address if data exists
-            document.addEventListener('DOMContentLoaded', async function() {
-                const currentProvince = '<?php echo htmlspecialchars(getFormValue('current_province')); ?>';
-                const currentCity = '<?php echo htmlspecialchars(getFormValue('current_city')); ?>';
-                const currentBarangay = '<?php echo htmlspecialchars(getFormValue('current_barangay')); ?>';
-                
-                if (currentProvince) {
-                    await loadProvinces('current_province', currentProvince);
-                    if (currentCity) {
-                        await loadCities(currentProvince, 'current_city', 'current_barangay', currentCity);
-                        if (currentBarangay) {
-                            await loadBarangays(currentProvince, currentCity, 'current_barangay', currentBarangay);
-                        }
-                    }
-                }
-
-                const sameAsCurrent = document.getElementById('same_as_current_address')?.checked;
-                const permanentProvince = '<?php echo htmlspecialchars(getFormValue('permanent_province')); ?>';
-                const permanentCity = '<?php echo htmlspecialchars(getFormValue('permanent_city')); ?>';
-                const permanentBarangay = '<?php echo htmlspecialchars(getFormValue('permanent_barangay')); ?>';
-                
-                if (permanentProvince && !sameAsCurrent) {
-                    await loadProvinces('permanent_province', permanentProvince);
-                    if (permanentCity) {
-                        await loadCities(permanentProvince, 'permanent_city', 'permanent_barangay', permanentCity);
-                        if (permanentBarangay) {
-                            await loadBarangays(permanentProvince, permanentCity, 'permanent_barangay', permanentBarangay);
-                        }
-                    }
-                }
-            });
             </script>
         </div>
     </div>

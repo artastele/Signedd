@@ -14,12 +14,11 @@ require_once __DIR__ . '/../layouts/header.php';
 
 <div class="main-content">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>
-            <i class="bi bi-calendar-plus text-primary"></i> 
-            Schedule IEP Meeting
+        <h1 class="h3 mb-0 text-dark">
+            <i class="bi bi-calendar-plus text-primary me-2"></i> Schedule IEP Meeting
         </h1>
-        <a href="<?php echo $basePath; ?>/iep/meetings" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Meetings
+        <a href="<?php echo $basePath; ?>/iep/meetings" class="btn btn-sm btn-outline-secondary px-3 py-2" style="border-radius: 6px; font-weight: 500;">
+            <i class="bi bi-arrow-left me-1"></i> Back to Meetings
         </a>
     </div>
 
@@ -54,8 +53,9 @@ require_once __DIR__ . '/../layouts/header.php';
                                             $scheduleRec = $scheduleStudentModel->findById($scheduleFk);
                                             $scheduleCodeCache[$scheduleFk] = $scheduleRec['student_id'] ?? null;
                                         }
+                                        $isSelectedStudent = (isset($_GET['student_id']) && (int)$_GET['student_id'] === $scheduleFk);
                                         ?>
-                                        <option value="<?php echo $student['id']; ?>">
+                                        <option value="<?php echo $student['id']; ?>" <?php echo $isSelectedStudent ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($student['student_name']); ?> 
                                         (Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($scheduleCodeCache[$scheduleFk] ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?>)
                                         </option>
@@ -152,12 +152,12 @@ require_once __DIR__ . '/../layouts/header.php';
                         </div>
 
                         <!-- Submit -->
-                        <div class="d-flex justify-content-between">
-                            <a href="<?php echo $basePath; ?>/iep/meetings" class="btn btn-secondary">
-                                <i class="bi bi-x-circle"></i> Cancel
+                        <div class="d-flex justify-content-between pt-2">
+                            <a href="<?php echo $basePath; ?>/iep/meetings" class="btn btn-sm btn-outline-secondary px-3 py-2" style="border-radius: 6px; font-weight: 500;">
+                                <i class="bi bi-x-circle me-1"></i> Cancel
                             </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-calendar-check"></i> Schedule Meeting
+                            <button type="submit" class="btn btn-sm btn-primary px-4 py-2" style="border-radius: 6px; font-weight: 500;">
+                                <i class="bi bi-calendar-check me-1"></i> Schedule Meeting
                             </button>
                         </div>
                     </form>

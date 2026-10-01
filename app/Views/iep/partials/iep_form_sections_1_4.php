@@ -24,14 +24,14 @@ if (!empty($dob)) {
     }
 }
 
-$hLearnerName = $iep['header_learner_name'] ?? $fullNameDefault;
-$hAge         = $iep['header_learner_age'] ?? $ageDefault;
-$hStudentId   = $iep['header_student_id'] ?? ($studentData['student_id'] ?? '');
-$hLrn         = $iep['header_lrn'] ?? ($studentData['lrn'] ?? '');
-$hSection     = $iep['header_section'] ?? '';
-$hTeacher     = $iep['header_teacher_name'] ?? ($iep['drafted_by_name'] ?? '');
-$hSchool      = $iep['header_school_name'] ?? '';
-$hGrade       = $iep['header_grade_level'] ?? ($studentData['grade_level_to_enroll'] ?? '');
+$hLearnerName = !empty(trim((string)($iep['header_learner_name'] ?? ''))) ? $iep['header_learner_name'] : $fullNameDefault;
+$hAge         = !empty(trim((string)($iep['header_learner_age'] ?? ''))) ? $iep['header_learner_age'] : $ageDefault;
+$hStudentId   = !empty(trim((string)($iep['header_student_id'] ?? ''))) ? $iep['header_student_id'] : ($studentData['student_id'] ?? '');
+$hLrn         = trim((string) (!empty(trim((string)($iep['header_lrn'] ?? ''))) ? $iep['header_lrn'] : ($studentData['lrn'] ?? '')));
+$hSection     = !empty(trim((string)($iep['header_section'] ?? ''))) ? $iep['header_section'] : ($studentData['section_name'] ?? ($studentData['teacher_section_name'] ?? 'Maligaya'));
+$hTeacher     = !empty(trim((string)($iep['header_teacher_name'] ?? ''))) ? $iep['header_teacher_name'] : ($iep['drafted_by_name'] ?? ($studentData['adviser_name'] ?? ($studentData['assigned_teacher_name'] ?? '')));
+$hSchool      = !empty(trim((string)($iep['header_school_name'] ?? ''))) ? $iep['header_school_name'] : ($studentData['school_name'] ?? '');
+$hGrade       = !empty(trim((string)($iep['header_grade_level'] ?? ''))) ? $iep['header_grade_level'] : ($studentData['current_grade_level'] ?? ($studentData['teacher_grade_level'] ?? ($studentData['grade_level_to_enroll'] ?? 'SPED Program')));
 
 $core = $iepCore ?? ['developmental_domain' => '', 'priority_needs' => '', 'terminal_objectives' => ''];
 $domainList = array_column($iepDomains ?? [], 'domain_name');

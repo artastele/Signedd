@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%">
+  <defs>
+    <linearGradient id="grad_teacher" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e4072"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="240" rx="20" fill="#f0f7ff" stroke="#bae6fd" stroke-width="2"/>
+  <circle cx="120" cy="100" r="60" fill="url(#grad_teacher)" opacity="0.12"/>
+  <text x="120" y="115" font-size="54" text-anchor="middle">👩‍🏫</text>
+  <text x="120" y="175" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="bold" fill="#1e4072" text-anchor="middle">TEACHER / GURO</text>
+  <text x="120" y="200" font-family="system-ui, -apple-system, sans-serif" font-size="10.5" fill="#64748b" text-anchor="middle">FSL Sign: Both hands near forehead moving forward + person ending</text>
+</svg>
