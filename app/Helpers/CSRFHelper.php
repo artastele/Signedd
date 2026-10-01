@@ -140,7 +140,7 @@ class CSRFHelper {
         } catch (Exception $e) {
             error_log('CSRF token validation failed: ' . $e->getMessage());
             // In development, allow if DB is down
-            if (getenv('APP_ENV') === 'development') {
+            if (env('APP_ENV') === 'development') {
                 error_log('CSRF validation skipped in development mode');
                 return true;
             }
@@ -215,7 +215,7 @@ class CSRFHelper {
         $token = $_POST['_csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
         
         // Check environment
-        $appEnv = getenv('APP_ENV');
+        $appEnv = env('APP_ENV');
         error_log("CSRF: APP_ENV = " . ($appEnv ?: 'not set'));
 
         // In development mode, be more lenient but still try to validate

@@ -9,10 +9,34 @@ require_once __DIR__ . '/../layouts/header.php';
     <div class="container-fluid py-3">
         <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
             <div>
-                <h4 class="mb-1" style="color:#1e4072;"><?php echo ($role ?? '') === 'parent' ? 'Progress Reports' : 'Grades'; ?></h4>
-                <p class="text-muted mb-0"><?php echo ($role ?? '') === 'parent' ? "View your child's quarterly progress reports and sign off on remarks." : 'Manage student grades in a dedicated process page.'; ?></p>
+                <h4 class="mb-1" style="color:#1e4072;"><?php echo ($role ?? '') === 'parent' ? 'Progress Reports' : 'Progress Reports & Tracker'; ?></h4>
+                <p class="text-muted mb-0"><?php echo ($role ?? '') === 'parent' ? "View your child's quarterly progress reports and sign off on remarks." : 'Manage student grades, SF9 progress reports, LMS learner tracking, and attendance.'; ?></p>
             </div>
         </div>
+
+        <?php if (($role ?? '') !== 'parent'): ?>
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body p-2">
+                    <ul class="nav nav-pills gap-2">
+                        <li class="nav-item">
+                            <a class="nav-link active fw-semibold py-1.5 px-3" href="<?php echo $basePath; ?>/progress-reports">
+                                <i class="bi bi-file-earmark-bar-graph me-1"></i> SF9 Progress Reports &amp; Grades
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark fw-semibold py-1.5 px-3" href="<?php echo $basePath; ?>/iep/implementation/progress-tracker">
+                                <i class="bi bi-bar-chart-line me-1"></i> LMS Learner Progress Tracker
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark fw-semibold py-1.5 px-3" href="<?php echo $basePath; ?>/attendance-log">
+                                <i class="bi bi-calendar-check me-1"></i> Attendance Register
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <?php if (!empty($success)): ?>
             <div class="alert alert-success py-2"><?php echo htmlspecialchars($success); ?></div>

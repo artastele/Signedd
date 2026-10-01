@@ -431,6 +431,33 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
             </div>
             <?php endif; ?>
+
+            <!-- Digital Readiness & SignED Candidate Survey Result -->
+            <?php 
+                $hasInternet = !empty($enrollment['survey_has_internet']);
+                $devices = !empty($enrollment['survey_devices']) ? $enrollment['survey_devices'] : (!empty($enrollment['has_device']) ? 'Smartphone/Device Available' : 'None');
+                $isWilling = !empty($enrollment['survey_willing_online']) || !empty($enrollment['willing_digital']);
+                $isSignEDCandidate = $hasInternet && $isWilling;
+            ?>
+            <div style="margin-top: 15px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <strong style="font-size: 0.85rem; color: #1e293b;">Digital Readiness & SignED Preparedness Survey:</strong>
+                    <?php if ($isSignEDCandidate): ?>
+                        <span style="background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-size: 0.75rem; font-weight: 600; padding: 3px 8px; border-radius: 4px;">
+                            <i class="bi bi-laptop me-1"></i> SignED Candidate
+                        </span>
+                    <?php else: ?>
+                        <span style="background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 0.75rem; font-weight: 600; padding: 3px 8px; border-radius: 4px;">
+                            <i class="bi bi-person-workspace me-1"></i> Non-SignED Candidate (Traditional F2F)
+                        </span>
+                    <?php endif; ?>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; font-size: 0.8rem;">
+                    <div><span style="color: #64748b;">Internet Access:</span> <strong><?= $hasInternet ? '<span style="color: #16a34a;">Yes (Available)</span>' : '<span style="color: #64748b;">No</span>' ?></strong></div>
+                    <div><span style="color: #64748b;">Available Devices:</span> <strong><?= htmlspecialchars($devices) ?></strong></div>
+                    <div><span style="color: #64748b;">Online Learning Willingness:</span> <strong><?= $isWilling ? '<span style="color: #16a34a;">Yes (Willing)</span>' : '<span style="color: #64748b;">Physical Only</span>' ?></strong></div>
+                </div>
+            </div>
         </div>
 
         <!-- Section 8: Documents & Signature -->
@@ -514,42 +541,116 @@ require_once __DIR__ . '/../layouts/header.php';
 
     <!-- Floating Action Buttons (No Print) -->
     <?php if ($enrollment['status'] === 'pending'): ?>
+    <?php 
+        $isSignEDCand = (!empty($enrollment['survey_has_internet']) && !empty($enrollment['survey_willing_online']))
+                     || (!empty($enrollment['has_device']) && !empty($enrollment['willing_digital']));
+    ?>
     <div class="action-buttons no-print">
-        <form method="POST" action="<?php echo $basePath; ?>/enrollment/approve/<?php echo $enrollment['id']; ?>" 
-              onsubmit="return confirm('Approve this enrollment?');" style="display: inline;">
-            <button type="submit" class="btn btn-success btn-lg">
-                <i class="bi bi-check-circle-fill"></i> Approve
-            </button>
-        </form>
+        <button type="button" class="btn btn-success btn-lg" data-bs-toggle="modal" data-bs-target="#approveModal">
+            <i class="bi bi-check-circle-fill me-1"></i> Approve & Claim Learner
+        </button>
         
         <button type="button" class="btn btn-danger btn-lg" 
                 data-bs-toggle="modal" data-bs-target="#rejectModal">
-            <i class="bi bi-x-circle-fill"></i> Reject
+            <i class="bi bi-x-circle-fill me-1"></i> Reject
         </button>
+    </div>
+
+    <!-- Approve Modal -->
+    <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-success text-white py-3">
+                    <h5 class="modal-title fs-6 fw-bold" id="approveModalLabel">
+                        <i class="bi bi-check-circle-fill me-2"></i> Approve & Verify Enrollment
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="<?php echo $basePath; ?>/enrollment/approve/<?php echo $enrollment['id']; ?>">
+                    <div class="modal-body p-4">
+                        <div class="d-flex align-items-center mb-3 p-3 bg-light rounded-3 border">
+                            <div class="rounded-circle bg-success bg-opacity-10 text-success d-flex align-items-center justify-content-center me-3" style="width: 44px; height: 44px; flex-shrink: 0;">
+                                <i class="bi bi-person-check fs-4"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold text-dark fs-6"><?php echo htmlspecialchars($enrollment['first_name'] . ' ' . $enrollment['last_name']); ?></div>
+                                <div class="small text-muted">Grade Level: <strong><?php echo htmlspecialchars($enrollment['grade_level_to_enroll']); ?></strong> • SY: <strong><?php echo htmlspecialchars($enrollment['school_year']); ?></strong></div>
+                            </div>
+                        </div>
+
+                        <!-- Candidate Status Alert -->
+                        <?php if ($isSignEDCand): ?>
+                            <div class="p-3 mb-3 rounded-3 border" style="background-color: #f0fdf4; border-color: #bbf7d0 !important;">
+                                <div class="d-flex align-items-center justify-content-between mb-1">
+                                    <strong class="text-success small"><i class="bi bi-laptop me-1"></i> SignED Candidate (Digital LMS Ready)</strong>
+                                    <span class="badge" style="background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; font-size: 0.7rem;">Recommended</span>
+                                </div>
+                                <p class="small text-muted mb-0" style="font-size: 0.8rem;">
+                                    This learner has internet & device access at home and is prepared for interactive SignED LMS learning modules.
+                                </p>
+                            </div>
+                        <?php else: ?>
+                            <div class="p-3 mb-3 rounded-3 border" style="background-color: #f8fafc; border-color: #e2e8f0 !important;">
+                                <div class="d-flex align-items-center justify-content-between mb-1">
+                                    <strong class="text-secondary small"><i class="bi bi-person-workspace me-1"></i> Non-SignED Candidate (Traditional F2F)</strong>
+                                    <span class="badge" style="background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 0.7rem;">Physical Class</span>
+                                </div>
+                                <p class="small text-muted mb-0" style="font-size: 0.8rem;">
+                                    This learner is recommended for classroom face-to-face instruction and printed SPED modules.
+                                </p>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Account Generation Toggle Option -->
+                        <div class="p-3 rounded-3 border bg-white shadow-sm">
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" role="switch" id="create_learner_account" name="create_learner_account" value="1" <?= $isSignEDCand ? 'checked' : '' ?> style="cursor: pointer; width: 2.5em; height: 1.25em;">
+                                <label class="form-check-label fw-bold text-dark ms-2 small" for="create_learner_account" style="cursor: pointer;">
+                                    Generate SignED Learner Account & Credentials
+                                </label>
+                            </div>
+                            <div class="form-text text-muted mt-2 ps-4" style="font-size: 0.75rem;">
+                                <?php if ($isSignEDCand): ?>
+                                    Generates an internal Student ID & temporary password and emails credentials to the parent for LMS login.
+                                <?php else: ?>
+                                    Leave unchecked if the student will only attend physical classes without online LMS portal access.
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light py-2 px-3">
+                        <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-bs-dismiss="modal" style="border-radius: 6px;">Cancel</button>
+                        <button type="submit" class="btn btn-success btn-sm px-3 fw-semibold" style="border-radius: 6px;">
+                            <i class="bi bi-check-lg me-1"></i> Confirm & Approve
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <!-- Reject Modal -->
     <div class="modal fade" id="rejectModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">Reject Enrollment</h5>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white py-3">
+                    <h5 class="modal-title fs-6 fw-bold">Reject Enrollment</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="POST" action="<?php echo $basePath; ?>/enrollment/reject/<?php echo $enrollment['id']; ?>">
-                    <div class="modal-body">
+                    <div class="modal-body p-4">
                         <div class="mb-3">
-                            <label for="rejection_reason" class="form-label">
-                                <strong>Reason for Rejection <span class="text-danger">*</span></strong>
+                            <label for="rejection_reason" class="form-label small fw-bold">
+                                Reason for Rejection <span class="text-danger">*</span>
                             </label>
                             <textarea class="form-control" id="rejection_reason" 
-                                      name="rejection_reason" rows="5" required
+                                      name="rejection_reason" rows="4" required
                                       placeholder="Explain what needs to be corrected..."></textarea>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-danger">Reject Enrollment</button>
+                    <div class="modal-footer bg-light py-2 px-3">
+                        <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-bs-dismiss="modal" style="border-radius: 6px;">Cancel</button>
+                        <button type="submit" class="btn btn-danger btn-sm px-3 fw-semibold" style="border-radius: 6px;">Reject Enrollment</button>
                     </div>
                 </form>
             </div>

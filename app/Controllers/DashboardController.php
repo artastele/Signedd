@@ -26,14 +26,33 @@ class DashboardController {
         // Route to appropriate dashboard based on role
         switch ($role) {
             case 'admin':
+                require_once __DIR__ . '/../Models/UserModel.php';
+                require_once __DIR__ . '/../Models/RoleRequestModel.php';
+                require_once __DIR__ . '/../Models/SchoolModel.php';
+
+                $userModelObj = new UserModel();
+                $roleReqModelObj = new RoleRequestModel();
+                $schoolModelObj = new SchoolModel();
+
+                $userAnalytics = $userModelObj->getUserRoleAnalytics();
+                $pendingRoleRequests = $roleReqModelObj->getPendingByApprover('admin');
+                $approvedSchoolsCount = count($schoolModelObj->getAllSchools());
+
                 require_once __DIR__ . '/../Views/dashboard/admin.php';
                 break;
             case 'parent':
-                // Fetch enrollment data for parent
+                // Fetch enrollment data and registered schools for parent
                 require_once __DIR__ . '/../Models/EnrollmentModel.php';
+                require_once __DIR__ . '/../Models/SchoolModel.php';
+                require_once __DIR__ . '/../Models/MasterlistModel.php';
                 $enrollmentModel = new EnrollmentModel();
-                $enrollments = $enrollmentModel->getEnrollmentsWithStats($userId);
-                $stats = $enrollmentModel->getParentStats($userId);
+                $schoolModelObj  = new SchoolModel();
+                $masterlistModel = new MasterlistModel();
+
+                $enrollments    = $enrollmentModel->getEnrollmentsWithStats($userId);
+                $stats          = $enrollmentModel->getParentStats($userId);
+                $allSchools     = $schoolModelObj->getAllSchools();
+                $parentLearners = $masterlistModel->getParentLearnerAccounts($userId);
                 
                 require_once __DIR__ . '/../Views/dashboard/parent.php';
                 break;
@@ -42,19 +61,40 @@ class DashboardController {
                 header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/learning/dashboard');
                 exit;
             case 'sped_teacher':
-                // Fetch pending enrollments for SPED teacher
+                // Fetch pending enrollments for SPED teacher (school pool)
+                require_once __DIR__ . '/../Models/UserModel.php';
                 require_once __DIR__ . '/../Models/EnrollmentModel.php';
+                require_once __DIR__ . '/../Models/StudentModel.php';
+                require_once __DIR__ . '/../Models/IEPMeetingModel.php';
+
+                $userModel = new UserModel();
+                $currentUser = $userModel->findById($userId);
+                $schoolId = $currentUser['school_id'] ?? null;
+
                 $enrollmentModel = new EnrollmentModel();
-                $pendingEnrollments = $enrollmentModel->getPending();
+                $pendingEnrollments = $enrollmentModel->getPendingPoolForSchool($schoolId);
                 $pendingCount = count($pendingEnrollments);
-                $verifiedStudentsCount = 0;
+
+                $studentModel = new StudentModel();
+                $myEnrolledStudents = $studentModel->getByTeacher($userId);
+                $verifiedStudentsCount = count($myEnrolledStudents);
+
+                $iepMeetingModel = new IEPMeetingModel();
+                $recurringAvailability = $iepMeetingModel->getRecurringAvailability($userId);
+                $currentMonthExceptions = $iepMeetingModel->getExceptions($userId, date('Y-m-01'), date('Y-m-t'));
+
                 $assessmentsDoneCount = 0;
                 $activeIepsCount = 0;
 
                 try {
                     require_once __DIR__ . '/../../config/db.php';
                     $db = Database::getInstance()->getConnection();
-                    $verifiedStudentsCount = (int) $db->query("SELECT COUNT(*) FROM student_records")->fetchColumn();
+                    if ($verifiedStudentsCount === 0) {
+                        $stmt = $db->prepare("SELECT COUNT(*) FROM student_records WHERE assigned_teacher_id = :teacher_id OR verified_by = :teacher_id_check");
+                        $stmt->execute(['teacher_id' => $userId, 'teacher_id_check' => $userId]);
+                        $verifiedStudentsCount = (int) $stmt->fetchColumn();
+                    }
+
                     $assessmentsDoneCount = (int) $db->query("SELECT COUNT(*) FROM assessment_records WHERE status IN ('finalized', 'approved')")->fetchColumn();
                     $activeIepsCount = (int) $db->query("SELECT COUNT(*) FROM iep_records WHERE status IN ('signed', 'signing')")->fetchColumn();
                 } catch (PDOException $e) {
@@ -107,6 +147,9 @@ class DashboardController {
             case 'general':
             case 'user':
             default:
+                require_once __DIR__ . '/../Models/SystemSettingsModel.php';
+                $sysModel = new SystemSettingsModel();
+                $enrollmentSettings = $sysModel->getEnrollmentSettings();
                 require_once __DIR__ . '/../Views/dashboard/general.php';
                 break;
         }
@@ -141,4 +184,62 @@ class DashboardController {
         echo json_encode(['success' => true, 'message' => 'Notification dismissed']);
         exit;
     }
+
+    /**
+     * Update a child's LMS login credentials (username and/or password) by the parent.
+     */
+    public function updateChildCredentials() {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+
+        if (empty($_SESSION['user_id'])) {
+            header('Location: ' . $basePath . '/login');
+            exit;
+        }
+
+        // Verify CSRF
+        require_once __DIR__ . '/../Helpers/CSRFHelper.php';
+        try {
+            CSRFHelper::verify();
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Invalid session or token expired. Please try again.';
+            header('Location: ' . $basePath . '/dashboard');
+            exit;
+        }
+
+        $parentId = (int)$_SESSION['user_id'];
+        $childRecordId = (int)($_POST['child_record_id'] ?? $_POST['student_record_id'] ?? 0);
+        $newUsername = trim($_POST['new_username'] ?? '');
+        $newPassword = $_POST['new_password'] ?? '';
+        $confirmPassword = $_POST['confirm_password'] ?? '';
+
+        if (!$childRecordId) {
+            $_SESSION['error'] = 'Palihug pagpili og bata nga i-update.';
+            header('Location: ' . $basePath . '/dashboard');
+            exit;
+        }
+
+        if (!empty($newPassword) && $newPassword !== $confirmPassword) {
+            $_SESSION['error'] = 'Ang mga password wala magkatugma (Passwords do not match).';
+            header('Location: ' . $basePath . '/dashboard');
+            exit;
+        }
+
+        require_once __DIR__ . '/../Models/MasterlistModel.php';
+        $masterlistModel = new MasterlistModel();
+        $result = $masterlistModel->updateChildCredentials($parentId, $childRecordId, $newUsername, $newPassword);
+
+        if ($result['success']) {
+            $_SESSION['success'] = $result['message'];
+        } else {
+            $_SESSION['error'] = $result['message'];
+        }
+
+        header('Location: ' . $basePath . '/dashboard');
+        exit;
+    }
 }
+

@@ -14,7 +14,7 @@ require_once __DIR__ . '/../layouts/header.php';
 
 <div class="main-content">
     <h1 class="mb-4">
-        <i class="bi bi-clipboard-check text-primary"></i> Review Enrollments
+        <i class="bi bi-clipboard-check text-primary"></i> School Enrollment Pool
     </h1>
 
     <!-- Statistics Cards -->
@@ -28,7 +28,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <div class="card border-warning">
                 <div class="card-body">
                     <h5 class="card-title text-warning">
-                        <i class="bi bi-clock-history"></i> Pending Review
+                        <i class="bi bi-clock-history"></i> Pending School Pool
                     </h5>
                     <h2 class="mb-0"><?php echo count($pending); ?></h2>
                 </div>
@@ -38,7 +38,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <div class="card border-success">
                 <div class="card-body">
                     <h5 class="card-title text-success">
-                        <i class="bi bi-check-circle"></i> Verified
+                        <i class="bi bi-check-circle"></i> Verified / Claimed
                     </h5>
                     <h2 class="mb-0"><?php echo count($verified); ?></h2>
                 </div>
@@ -59,12 +59,12 @@ require_once __DIR__ . '/../layouts/header.php';
     <!-- Enrollments Table -->
     <div class="card">
         <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="bi bi-list-ul"></i> All Enrollments</h5>
+            <h5 class="mb-0"><i class="bi bi-list-ul"></i> Pending Applications Pool</h5>
         </div>
         <div class="card-body">
             <?php if (empty($enrollments)): ?>
                 <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> No enrollments found.
+                    <i class="bi bi-info-circle"></i> No pending enrollments in your school's pool.
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
@@ -76,6 +76,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <th>Parent</th>
                                 <th>Type</th>
                                 <th>Grade Level</th>
+                                <th>Survey Recommendation</th>
                                 <th>Submitted</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -83,18 +84,33 @@ require_once __DIR__ . '/../layouts/header.php';
                         </thead>
                         <tbody>
                             <?php foreach ($enrollments as $enrollment): ?>
+                                <?php 
+                                    $isLmsCandidate = (!empty($enrollment['survey_has_internet']) && !empty($enrollment['survey_willing_online']))
+                                                    || (!empty($enrollment['has_device']) && !empty($enrollment['willing_digital']));
+                                ?>
                                 <tr>
                                     <td><?php echo $enrollment['id']; ?></td>
                                     <td>
                                         <strong><?php echo htmlspecialchars($enrollment['first_name'] . ' ' . $enrollment['last_name']); ?></strong>
                                     </td>
-                                    <td><?php echo htmlspecialchars($enrollment['parent_name']); ?></td>
+                                    <td><?php echo htmlspecialchars($enrollment['parent_name'] ?? 'Parent'); ?></td>
                                     <td>
                                         <span class="badge bg-secondary">
                                             <?php echo ucfirst($enrollment['enrollment_type']); ?>
                                         </span>
                                     </td>
                                     <td><?php echo htmlspecialchars($enrollment['grade_level_to_enroll']); ?></td>
+                                    <td>
+                                        <?php if ($isLmsCandidate): ?>
+                                            <span class="badge bg-info text-dark" title="Internet & Device Available, Willing for Online Learning">
+                                                <i class="bi bi-laptop me-1"></i> SignED Candidate
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge bg-light text-secondary border" title="Prefers Face-to-Face / No Online Setup">
+                                                <i class="bi bi-person-workspace me-1"></i> Non-SignED (F2F)
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?php echo $enrollment['submitted_at'] ? date('M j, Y', strtotime($enrollment['submitted_at'])) : 'Draft'; ?></td>
                                     <td>
                                         <?php
@@ -113,7 +129,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <td>
                                         <a href="<?php echo $basePath; ?>/enrollment/review/<?php echo $enrollment['id']; ?>" 
                                            class="btn btn-sm btn-primary">
-                                            <i class="bi bi-eye"></i> Review
+                                            <i class="bi bi-person-plus"></i> Review & Claim
                                         </a>
                                     </td>
                                 </tr>

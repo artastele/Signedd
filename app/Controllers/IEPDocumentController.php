@@ -376,7 +376,7 @@ class IEPDocumentController {
             }
             
             // Save file
-            $uploadDir = __DIR__ . '/../../public/uploads/iep_p2/';
+            $uploadDir = function_exists('public_path') ? public_path('uploads/iep_p2/') : (__DIR__ . '/../../public/uploads/iep_p2/');
             if (!is_dir($uploadDir)) {
                 mkdir($uploadDir, 0755, true);
             }
@@ -661,7 +661,7 @@ class IEPDocumentController {
             }
             
             // Save file
-            $uploadDir = __DIR__ . '/../../public/uploads/iep_p3/';
+            $uploadDir = function_exists('public_path') ? public_path('uploads/iep_p3/') : (__DIR__ . '/../../public/uploads/iep_p3/');
             if (!is_dir($uploadDir)) {
                 mkdir($uploadDir, 0755, true);
             }

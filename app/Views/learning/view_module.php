@@ -5,11 +5,8 @@
 
 $pageTitle = htmlspecialchars($material['material_name']) . ' - SignED';
 require_once __DIR__ . '/../layouts/header.php';
+echo '<link rel="stylesheet" href="' . (defined('BASE_PATH') ? BASE_PATH : '') . '/css/learner.css">';
 ?>
-
-<link rel="stylesheet" href="<?php echo $basePath; ?>/css/learner.css">
-
-<body data-logged-in="true" class="learner-page">
 
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
@@ -17,11 +14,11 @@ require_once __DIR__ . '/../layouts/header.php';
 <div class="main-content learner-content">
     <!-- Header -->
     <div class="module-viewer-header">
-        <a href="<?php echo $basePath; ?>/learning/modules" class="btn-cartoon btn-back">
-            <i class="bi bi-arrow-left"></i> Back to Modules
+        <a href="<?php echo $basePath; ?>/learning/modules" class="btn btn-outline-secondary rounded-2 px-3 fw-semibold">
+            <i class="ph-bold ph-arrow-left me-1"></i> Back to Modules
         </a>
-        <div class="timer-display">
-            <i class="bi bi-clock"></i>
+        <div class="timer-display d-flex align-items-center gap-1 text-muted">
+            <i class="ph-bold ph-clock"></i>
             <span id="timer">00:00</span>
         </div>
     </div>
@@ -29,18 +26,20 @@ require_once __DIR__ . '/../layouts/header.php';
     <!-- Module Content Card -->
     <div class="card cartoon-card module-viewer-card">
         <div class="card-body">
-            <div class="module-viewer-icon">📖</div>
-            <h2 class="module-viewer-title"><?php echo htmlspecialchars($material['material_name']); ?></h2>
+            <div class="module-viewer-icon text-center mb-3">
+                <i class="ph-bold ph-book-open text-primary" style="font-size: 2.5rem;" aria-hidden="true"></i>
+            </div>
+            <h2 class="module-viewer-title text-center fw-bold text-dark"><?php echo htmlspecialchars($material['material_name']); ?></h2>
             
             <?php if ($material['description']): ?>
-                <div class="module-description">
+                <div class="module-description my-3 text-secondary">
                     <?php echo nl2br(htmlspecialchars($material['description'])); ?>
                 </div>
             <?php endif; ?>
 
             <!-- File Viewer -->
             <?php if ($material['file_path']): ?>
-                <div class="file-viewer">
+                <div class="file-viewer my-4">
                     <?php
                     $fileExt = strtolower(pathinfo($material['file_path'], PATHINFO_EXTENSION));
                     // Use direct file path (no encryption)
@@ -50,13 +49,13 @@ require_once __DIR__ . '/../layouts/header.php';
                     <?php if (in_array($fileExt, ['pdf'])): ?>
                         <div class="pdf-viewer">
                             <iframe src="<?php echo $fileUrl; ?>" 
-                                    width="100%" 
-                                    height="600px" 
-                                    style="border: none; border-radius: 15px;">
+                                     width="100%" 
+                                     height="600px" 
+                                     style="border: none; border-radius: 15px;">
                             </iframe>
                         </div>
                     <?php elseif (in_array($fileExt, ['jpg', 'jpeg', 'png', 'gif'])): ?>
-                        <div class="image-viewer">
+                        <div class="image-viewer text-center">
                             <img src="<?php echo $fileUrl; ?>" 
                                  alt="<?php echo htmlspecialchars($material['material_name']); ?>"
                                  class="img-fluid"
@@ -72,13 +71,13 @@ require_once __DIR__ . '/../layouts/header.php';
                             </video>
                         </div>
                     <?php else: ?>
-                        <div class="file-download">
-                            <div class="download-icon">📥</div>
-                            <p>Download this file to view it</p>
+                        <div class="file-download text-center py-4">
+                            <i class="ph-bold ph-download-simple text-primary" style="font-size: 3rem; display: block; margin-bottom: 12px;" aria-hidden="true"></i>
+                            <p class="text-muted">Download this file to view it</p>
                             <a href="<?php echo $fileUrl; ?>" 
                                download 
-                               class="btn-cartoon btn-download">
-                                Download File 📥
+                               class="btn btn-primary rounded-2 px-4 py-2 fw-semibold">
+                                <i class="ph-bold ph-download-simple me-1"></i> Download File
                             </a>
                         </div>
                     <?php endif; ?>
@@ -86,15 +85,15 @@ require_once __DIR__ . '/../layouts/header.php';
             <?php endif; ?>
 
             <!-- Progress Info -->
-            <div class="progress-info">
+            <div class="progress-info my-3 text-center">
                 <?php if ($progress['status'] === 'completed'): ?>
-                    <div class="completion-badge">
-                        <i class="bi bi-check-circle-fill"></i>
-                        You completed this module!
+                    <div class="completion-badge p-3 bg-success-subtle text-success rounded-3 border border-success-subtle">
+                        <i class="ph-bold ph-check-circle fs-4 me-1"></i>
+                        <strong>You completed this module!</strong>
                         <?php if ($progress['stars_earned'] > 0): ?>
                             <div class="mt-2">
                                 <?php for ($i = 0; $i < $progress['stars_earned']; $i++): ?>
-                                    <i class="bi bi-star-fill" style="color: var(--kid-yellow); font-size: 2rem;"></i>
+                                    <i class="ph-bold ph-star text-warning" style="font-size: 1.5rem;"></i>
                                 <?php endfor; ?>
                             </div>
                         <?php endif; ?>
@@ -104,12 +103,12 @@ require_once __DIR__ . '/../layouts/header.php';
 
             <!-- Complete Button -->
             <?php if ($progress['status'] !== 'completed'): ?>
-                <button id="completeBtn" class="btn-cartoon btn-complete">
-                    Mark as Complete! ✓
+                <button id="completeBtn" class="btn btn-success w-100 fw-bold py-2 rounded-3 d-flex align-items-center justify-content-center gap-1">
+                    <i class="ph-bold ph-check-circle"></i> Mark as Complete!
                 </button>
             <?php else: ?>
-                <a href="<?php echo $basePath; ?>/learning/modules" class="btn-cartoon btn-next">
-                    Next Module 🚀
+                <a href="<?php echo $basePath; ?>/learning/modules" class="btn btn-primary w-100 fw-bold py-2 rounded-3 d-flex align-items-center justify-content-center gap-1">
+                    <span>Next Module</span> <i class="ph-bold ph-arrow-right"></i>
                 </a>
             <?php endif; ?>
         </div>
@@ -260,7 +259,7 @@ if (completeBtn) {
             .then(data => {
                 if (data.success) {
                     // Show success animation
-                    alert(`🎉 Great job! You earned ${data.stars_earned} star${data.stars_earned > 1 ? 's' : ''}!`);
+                    alert(`Great job! You earned ${data.stars_earned} star${data.stars_earned > 1 ? 's' : ''}!`);
                     location.reload();
                 } else {
                     alert('Error: ' + data.message);

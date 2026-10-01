@@ -175,6 +175,47 @@ class ProgressReportController {
         $basePath = $this->basePath;
         $role = $this->userRole;
 
+        // Fetch LMS progress & mastery statistics to inform the teacher when rating SF9
+        $lmsStats = [
+            'total_xp' => 0,
+            'total_stars' => 0,
+            'completed_activities' => 0,
+            'total_activities' => 0,
+            'avg_score' => 0
+        ];
+        try {
+            $dbConn = Database::getInstance()->getConnection();
+            $xpStmt = $dbConn->prepare("SELECT COALESCE(SUM(points), 0) FROM learner_points WHERE student_id = ?");
+            $xpStmt->execute([$studentId]);
+            $lmsStats['total_xp'] = (int)$xpStmt->fetchColumn();
+
+            $starsStmt = $dbConn->prepare("SELECT COALESCE(SUM(stars), 0) FROM activity_stars WHERE student_id = ?");
+            $starsStmt->execute([$studentId]);
+            $lmsStats['total_stars'] = (int)$starsStmt->fetchColumn();
+
+            $actStmt = $dbConn->prepare("
+                SELECT COUNT(*) as completed, COALESCE(AVG((g.score / NULLIF(g.max_score, 0)) * 100), 0) as avg_score
+                FROM lms_grades g
+                JOIN lms_submissions s ON g.submission_id = s.id
+                WHERE s.student_id = ? AND g.is_complete = 1
+            ");
+            $actStmt->execute([$studentId]);
+            $res = $actStmt->fetch(PDO::FETCH_ASSOC);
+            $lmsStats['completed_activities'] = (int)($res['completed'] ?? 0);
+            $lmsStats['avg_score'] = round((float)($res['avg_score'] ?? 0));
+
+            $totActStmt = $dbConn->prepare("
+                SELECT COUNT(DISTINCT a.id) 
+                FROM lms_activities a
+                JOIN lesson_plans lp ON a.lesson_plan_id = lp.id
+                WHERE lp.student_id = ? OR lp.iep_id = ?
+            ");
+            $totActStmt->execute([$studentId, (int)($iep['id'] ?? 0)]);
+            $lmsStats['total_activities'] = (int)$totActStmt->fetchColumn();
+        } catch (\Throwable $e) {
+            error_log('Error loading LMS stats for progress report: ' . $e->getMessage());
+        }
+
         if ($this->userRole === 'parent') {
             $pdspRecordId = $this->model->getPdspRecordIdForStudent($studentId);
             $ratings = [];
@@ -242,6 +283,8 @@ class ProgressReportController {
             require_once __DIR__ . '/../Views/progress-reports/parent_view.php';
             exit;
         }
+
+        $recommendations = $this->model->getRecommendedSf9Ratings($studentId);
 
         require_once __DIR__ . '/../Views/progress-reports/show.php';
     }
@@ -458,15 +501,24 @@ class ProgressReportController {
         }
 
         $docPath = $report['document_path'] ?? null;
-        if (!empty($_FILES['signed_document']['name'])) {
-            $dir = __DIR__ . '/../../public/uploads/progress_reports/';
-            if (!is_dir($dir)) {
-                mkdir($dir, 0777, true);
+        if (!empty($_FILES['signed_document']['name']) && $_FILES['signed_document']['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES['signed_document'];
+            $allowedExts = ['pdf', 'docx', 'doc', 'jpg', 'jpeg', 'png'];
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+            if (!in_array($ext, $allowedExts) || $file['size'] > 10 * 1024 * 1024) {
+                $_SESSION['error'] = 'Invalid file. Please upload a PDF, Word document, or Image under 10MB.';
+                header('Location: ' . $this->basePath . '/progress-reports/' . $report['student_id'] . '?tab=report');
+                exit;
             }
-            $ext = pathinfo($_FILES['signed_document']['name'], PATHINFO_EXTENSION);
+
+            $dir = function_exists('public_path') ? public_path('uploads/progress_reports/') : (__DIR__ . '/../../public/uploads/progress_reports/');
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
             $filename = 'progress_report_' . $reportId . '_' . time() . '.' . $ext;
-            if (move_uploaded_file($_FILES['signed_document']['tmp_name'], $dir . $filename)) {
-                $docPath = '/uploads/progress_reports/' . $filename;
+            if (move_uploaded_file($file['tmp_name'], $dir . $filename)) {
+                $docPath = 'uploads/progress_reports/' . $filename;
             }
         }
 

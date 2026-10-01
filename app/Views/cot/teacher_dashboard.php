@@ -16,6 +16,26 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     </div>
 
+    <!-- DepEd Policy Compliance & FSL Adoption MOV Info Card -->
+    <div class="card border-0 shadow-sm mb-4" style="background: linear-gradient(135deg, #f0fdf4 0%, #e6fcf5 100%); border-left: 5px solid #198754 !important; border-radius: 8px;">
+        <div class="card-body p-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="p-2 rounded-circle bg-success text-white">
+                    <i class="bi bi-shield-check fs-4"></i>
+                </div>
+                <div>
+                    <h6 class="mb-1 fw-bold text-dark">DepEd Policy Compliance &amp; FSL Adoption — Means of Verification (MOV)</h6>
+                    <p class="mb-0 small text-secondary">
+                        Ang pag-acknowledge ug pagpirma sa imong COT resulta nagpamatuod sa aktwal nga <strong>FSL Program Adoption</strong> sa klase ug nagtuman sa <strong>Pillar 1b: Instructional Leadership (+12.5% MOV)</strong> sa School Compliance.
+                    </p>
+                </div>
+            </div>
+            <span class="badge bg-success px-3 py-2 fw-semibold" style="font-size: 0.8rem; border-radius: 6px;">
+                <i class="bi bi-check2-circle me-1"></i> Pillar 1b (+12.5% MOV)
+            </span>
+        </div>
+    </div>
+
     <?php if (!empty($success)): ?>
         <div class="alert alert-success alert-dismissible fade show">
             <?= htmlspecialchars($success) ?>

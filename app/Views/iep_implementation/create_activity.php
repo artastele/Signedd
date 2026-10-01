@@ -1,11 +1,34 @@
 <?php
 // DO NOT ALTER WITHOUT APPROVAL — Process 6
-// Last modified: 2026-05-05
+// Last modified: 2026-05-13
 // Part of: SignED — Activity Builder
 
 $pageTitle = 'Create Activity - SignED';
 require_once __DIR__ . '/../layouts/header.php';
 ?>
+
+<!-- Summernote Lite (Rich Text / WYSIWYG Editor for Activity Instructions) -->
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
+<style>
+.note-editor.note-frame {
+    border-radius: 8px !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+}
+.note-toolbar {
+    background-color: #f8fafc !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    border-top-left-radius: 8px !important;
+    border-top-right-radius: 8px !important;
+    padding: 6px !important;
+}
+.note-btn {
+    border-radius: 4px !important;
+    font-size: 0.8rem !important;
+}
+</style>
 
 <body data-logged-in="true">
 
@@ -46,8 +69,11 @@ require_once __DIR__ . '/../layouts/header.php';
 
                         <!-- Instructions -->
                         <div class="mb-4">
-                            <label class="form-label fw-bold">Instructions</label>
-                            <textarea id="instructions" class="form-control" rows="3"></textarea>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label fw-bold mb-0">Instructions / Mga Panuto</label>
+                                <span class="badge bg-light text-primary border" style="font-size:0.75rem;"><i class="bi bi-fonts me-1"></i>WYSIWYG: Tables &amp; Images Supported</span>
+                            </div>
+                            <textarea id="instructions" class="form-control" rows="4" placeholder="Instructions for the learner (tables, formatted text, and images supported)..."></textarea>
                         </div>
 
                         <!-- Dynamic Activity Builder -->
@@ -307,13 +333,76 @@ function buildDragDropForm() {
     return `<div class="alert alert-info">Drag & Drop builder - Coming soon!</div>`;
 }
 
+// Initialize Summernote for instructions
+$(document).ready(function() {
+    if (typeof $ !== 'undefined' && $.fn.summernote) {
+        $('#instructions').summernote({
+            placeholder: 'Instructions for the learner (tables, formatted text, and images supported)...',
+            tabsize: 2,
+            height: 180,
+            toolbar: [
+                ['style', ['style', 'bold', 'italic', 'underline', 'clear']],
+                ['font', ['color']],
+                ['para', ['ul', 'ol', 'paragraph']],
+                ['table', ['table']],
+                ['insert', ['link', 'picture']],
+                ['view', ['fullscreen', 'codeview']]
+            ],
+            callbacks: {
+                onImageUpload: function(files) {
+                    if (!files || !files.length) return;
+                    for (let i = 0; i < files.length; i++) {
+                        uploadActivityInstructionsImage(files[i], $(this));
+                    }
+                }
+            }
+        });
+    }
+});
+
+function uploadActivityInstructionsImage(file, $editor) {
+    const fd = new FormData();
+    fd.append('image', file);
+
+    fetch('<?php echo $basePath; ?>/iep/implementation/upload-slide-image', {
+        method: 'POST',
+        body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.url) {
+            $editor.summernote('insertImage', data.url);
+        } else {
+            const reader = new FileReader();
+            reader.onloadend = function() {
+                $editor.summernote('insertImage', reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    })
+    .catch(err => {
+        const reader = new FileReader();
+        reader.onloadend = function() {
+            $editor.summernote('insertImage', reader.result);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
 // Form submission
 document.getElementById('activityForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
     const activityType = document.getElementById('activityType').value;
     const activityName = document.getElementById('activityName').value;
-    const instructions = document.getElementById('instructions').value;
+    
+    let instructions = '';
+    if (typeof $ !== 'undefined' && $('#instructions').hasClass('summernote-initialized') || (typeof $ !== 'undefined' && $.fn.summernote && $('#instructions').next('.note-editor').length)) {
+        instructions = $('#instructions').summernote('code');
+    } else {
+        instructions = document.getElementById('instructions').value;
+    }
+    
     const assignTo = Array.from(document.getElementById('assignTo').selectedOptions).map(opt => opt.value);
     const isAssignment = document.getElementById('isAssignment').checked;
     const dueDate = document.getElementById('dueDate').value;

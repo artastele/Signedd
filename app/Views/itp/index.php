@@ -791,7 +791,15 @@ $activeStep = 11;
                                 <div class="p-3 border rounded-3 bg-light text-center py-4" style="border-left: 4px solid #1e4072 !important;">
                                     <i class="bi bi-lock-fill text-success" style="font-size: 2rem;"></i>
                                     <h6 class="mt-2 font-weight-bold text-success">This ITP is Finalized</h6>
-                                    <p class="text-muted small mb-0">Completed on: <?= date('F d, Y h:i A', strtotime($itp['finalized_at'])) ?></p>
+                                    <p class="text-muted small mb-3">Completed on: <?= date('F d, Y h:i A', strtotime($itp['finalized_at'])) ?></p>
+                                    <div class="d-flex justify-content-center gap-2">
+                                        <a href="<?= $basePath ?>/iep" class="btn btn-outline-secondary px-4" style="border-radius: 8px; font-weight: 600;">
+                                            <i class="bi bi-arrow-left me-1"></i>Back to IEPs
+                                        </a>
+                                        <a href="<?= $basePath ?>/iep/<?= intval($iep['id']) ?>/inclusive-iep-itgp" class="btn text-white px-4" style="background-color: #1e4072; border-radius: 8px; font-weight: 600;">
+                                            Proceed to Part 6: Inclusive IEP (ITGP) <i class="bi bi-arrow-right ms-1"></i>
+                                        </a>
+                                    </div>
                                 </div>
                             <?php elseif ($isReadinessNotReady): ?>
                                 <div class="p-3 border rounded-3 bg-light text-center py-4" style="border-left: 4px solid #ffc107 !important;">

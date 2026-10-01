@@ -20,6 +20,28 @@ require_once __DIR__ . '/../layouts/sidebar.php';
             </div>
         </div>
 
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body p-2">
+                <ul class="nav nav-pills gap-2">
+                    <li class="nav-item">
+                        <a class="nav-link text-dark fw-semibold py-1.5 px-3" href="<?php echo $basePath ?? (defined('BASE_PATH') ? BASE_PATH : ''); ?>/progress-reports">
+                            <i class="bi bi-file-earmark-bar-graph me-1"></i> SF9 Progress Reports &amp; Grades
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active fw-semibold py-1.5 px-3" href="<?php echo $basePath ?? (defined('BASE_PATH') ? BASE_PATH : ''); ?>/iep/implementation/progress-tracker">
+                            <i class="bi bi-bar-chart-line me-1"></i> LMS Learner Progress Tracker
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-dark fw-semibold py-1.5 px-3" href="<?php echo $basePath ?? (defined('BASE_PATH') ? BASE_PATH : ''); ?>/attendance-log">
+                            <i class="bi bi-calendar-check me-1"></i> Attendance Register
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
         <?php if (empty($learners)): ?>
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center py-5">
@@ -106,9 +128,12 @@ require_once __DIR__ . '/../layouts/sidebar.php';
                                     </div>
                                 </div>
                             </div>
-                            <div class="card-footer bg-white border-top-0 pt-0 pb-3 text-center">
-                                <a href="<?php echo $basePath; ?>/iep/implementation/workspace/<?php echo $learner['iep_id']; ?>" class="btn btn-sm w-100" style="background:#1e4072;color:#fff;">
+                            <div class="card-footer bg-white border-top-0 pt-0 pb-3 text-center d-flex flex-column gap-1.5">
+                                <a href="<?php echo $basePath; ?>/iep/implementation/workspace/<?php echo $learner['iep_id']; ?>" class="btn btn-sm w-100 fw-semibold" style="background:#1e4072;color:#fff; border-radius: 6px;">
                                     <i class="ti ti-arrow-right me-1"></i>Go to Workspace
+                                </a>
+                                <a href="<?php echo $basePath; ?>/progress-reports/<?php echo (int)$learner['student_id']; ?>" class="btn btn-sm btn-outline-primary w-100 fw-semibold" style="border-radius: 6px;">
+                                    <i class="bi bi-file-earmark-bar-graph me-1"></i>SF9 Report Card
                                 </a>
                             </div>
                         </div>

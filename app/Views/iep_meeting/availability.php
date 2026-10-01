@@ -81,48 +81,50 @@ if ($nextMonth > 12) { $nextMonth = 1; $nextYear++; }
                 <span><span style="color:#ffc107;">■</span> Today</span>
             </div>
 
-            <table class="table table-bordered mb-0" style="table-layout:fixed;">
-                <thead>
-                    <tr>
-                        <?php foreach (['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] as $d): ?>
-                        <th class="text-center py-2" style="background:#f5f5f5;"><?php echo $d; ?></th>
+            <div class="table-responsive">
+                <table class="table table-bordered mb-0" style="table-layout:fixed; min-width: 600px;">
+                    <thead>
+                        <tr>
+                            <?php foreach (['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] as $d): ?>
+                            <th class="text-center py-2" style="background:#f5f5f5;"><?php echo $d; ?></th>
+                            <?php endforeach; ?>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($calendarData as $week): ?>
+                        <tr>
+                            <?php foreach ($week as $day): ?>
+                            <?php if ($day === null): ?>
+                                <td style="background:#fafafa;height:90px;"></td>
+                            <?php else: ?>
+                                <td class="calendar-day p-1"
+                                    style="height:90px;vertical-align:top;cursor:pointer;position:relative;
+                                           background:<?php echo $day['is_available'] ? '#e7f1ff' : '#f8f9fa'; ?>;
+                                           border-left:3px solid <?php echo $day['is_available'] ? '#1e4072' : '#dee2e6'; ?>;
+                                           <?php echo $day['is_today'] ? 'outline:2px solid #ffc107;' : ''; ?>"
+                                    onclick="openDayModal('<?php echo $day['date']; ?>', <?php echo $day['is_available'] ? 'true' : 'false'; ?>, '<?php echo htmlspecialchars(addslashes($day['note'] ?? ''), ENT_QUOTES); ?>')">
+                                    <div class="fw-bold" style="font-size:15px;"><?php echo $day['day']; ?></div>
+                                    <?php if ($day['is_exception']): ?>
+                                        <div style="position:absolute;top:4px;right:4px;color:#a01422;font-size:10px;">●</div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($day['iep_meeting'])): ?>
+                                        <div class="mt-1 p-1 rounded small" style="background:#e8f5e9;color:#3b6d11;font-size:0.7rem;line-height:1.2;">
+                                            <i class="bi bi-calendar-event"></i>
+                                            <?php echo htmlspecialchars($day['iep_meeting']); ?>
+                                        </div>
+                                    <?php elseif (!empty($day['note'])): ?>
+                                        <div class="mt-1 p-1 rounded small" style="background:#fff3cd;color:#856404;font-size:0.7rem;line-height:1.2;">
+                                            <?php echo htmlspecialchars($day['note']); ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </td>
+                            <?php endif; ?>
+                            <?php endforeach; ?>
+                        </tr>
                         <?php endforeach; ?>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($calendarData as $week): ?>
-                    <tr>
-                        <?php foreach ($week as $day): ?>
-                        <?php if ($day === null): ?>
-                            <td style="background:#fafafa;height:90px;"></td>
-                        <?php else: ?>
-                            <td class="calendar-day p-1"
-                                style="height:90px;vertical-align:top;cursor:pointer;position:relative;
-                                       background:<?php echo $day['is_available'] ? '#e7f1ff' : '#f8f9fa'; ?>;
-                                       border-left:3px solid <?php echo $day['is_available'] ? '#1e4072' : '#dee2e6'; ?>;
-                                       <?php echo $day['is_today'] ? 'outline:2px solid #ffc107;' : ''; ?>"
-                                onclick="openDayModal('<?php echo $day['date']; ?>', <?php echo $day['is_available'] ? 'true' : 'false'; ?>, '<?php echo htmlspecialchars(addslashes($day['note'] ?? ''), ENT_QUOTES); ?>')">
-                                <div class="fw-bold" style="font-size:15px;"><?php echo $day['day']; ?></div>
-                                <?php if ($day['is_exception']): ?>
-                                    <div style="position:absolute;top:4px;right:4px;color:#a01422;font-size:10px;">●</div>
-                                <?php endif; ?>
-                                <?php if (!empty($day['iep_meeting'])): ?>
-                                    <div class="mt-1 p-1 rounded small" style="background:#e8f5e9;color:#3b6d11;font-size:0.7rem;line-height:1.2;">
-                                        <i class="bi bi-calendar-event"></i>
-                                        <?php echo htmlspecialchars($day['iep_meeting']); ?>
-                                    </div>
-                                <?php elseif (!empty($day['note'])): ?>
-                                    <div class="mt-1 p-1 rounded small" style="background:#fff3cd;color:#856404;font-size:0.7rem;line-height:1.2;">
-                                        <?php echo htmlspecialchars($day['note']); ?>
-                                    </div>
-                                <?php endif; ?>
-                            </td>
-                        <?php endif; ?>
-                        <?php endforeach; ?>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 

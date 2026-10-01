@@ -60,6 +60,11 @@ require_once __DIR__ . '/../layouts/header.php';
                     onclick="window.print()">
                 <i class="bi bi-printer me-1"></i>Print
             </button>
+            <?php if (in_array($iep['status'], ['approved', 'signed', 'locked']) && RoleMiddleware::hasPermission('iep.implement')): ?>
+            <a href="<?php echo $basePath; ?>/iep/implementation/workspace/<?php echo (int)$iep['id']; ?>" class="btn btn-sm btn-primary">
+                <i class="bi bi-laptop me-1"></i>Open Learning Workspace
+            </a>
+            <?php endif; ?>
             <?php if (!$readOnly && !$isLocked): ?>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="btnSaveDraft">
                 <i class="bi bi-floppy me-1"></i>Save Draft
@@ -120,31 +125,31 @@ require_once __DIR__ . '/../layouts/header.php';
                 <div class="col-md-3">
                     <label class="form-label fw-semibold">Section</label>
                     <input type="text" class="form-control" id="f_section"
-                           value="" placeholder="Enter section"
+                           value="<?php echo htmlspecialchars($studentData['section_name'] ?? ($studentData['teacher_section_name'] ?? 'Maligaya')); ?>" placeholder="Enter section"
                            <?php echo $readOnly ? 'readonly' : ''; ?>>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Name of Teacher</label>
                     <input type="text" class="form-control" id="f_teacher_name"
-                           value="<?php echo htmlspecialchars($_SESSION['user_name'] ?? ''); ?>"
+                           value="<?php echo htmlspecialchars($iep['drafted_by_name'] ?? ($studentData['adviser_name'] ?? ($studentData['assigned_teacher_name'] ?? ($_SESSION['user_name'] ?? '')))); ?>"
                            <?php echo $readOnly ? 'readonly' : ''; ?>>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">School</label>
                     <input type="text" class="form-control" id="f_school"
-                           value="" placeholder="Enter school name"
+                           value="<?php echo htmlspecialchars($studentData['school_name'] ?? 'Piedad Central Elementary School'); ?>" placeholder="Enter school name"
                            <?php echo $readOnly ? 'readonly' : ''; ?>>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fw-semibold">School Year</label>
                     <input type="text" class="form-control" id="f_school_year" name="school_year"
-                           value="<?php echo htmlspecialchars($iep['school_year'] ?? ''); ?>"
+                           value="<?php echo htmlspecialchars($iep['school_year'] ?? '2026-2027'); ?>"
                            <?php echo $readOnly ? 'readonly' : ''; ?>>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fw-semibold">Grade Level</label>
                     <input type="text" class="form-control" id="f_grade_level"
-                           value="<?php echo htmlspecialchars($studentData['grade_level'] ?? ''); ?>"
+                           value="<?php echo htmlspecialchars($studentData['current_grade_level'] ?? ($studentData['teacher_grade_level'] ?? 'SPED Program')); ?>"
                            <?php echo $readOnly ? 'readonly' : ''; ?>>
                 </div>
             </div>

@@ -5,11 +5,8 @@
 
 $pageTitle = htmlspecialchars($material['material_name']) . ' - SignED';
 require_once __DIR__ . '/../layouts/header.php';
+echo '<link rel="stylesheet" href="' . (defined('BASE_PATH') ? BASE_PATH : '') . '/css/learner.css">';
 ?>
-
-<link rel="stylesheet" href="<?php echo $basePath; ?>/css/learner.css">
-
-<body data-logged-in="true" class="learner-page">
 
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
@@ -17,8 +14,8 @@ require_once __DIR__ . '/../layouts/header.php';
 <div class="main-content learner-content">
     <!-- Header -->
     <div class="module-viewer-header">
-        <a href="<?php echo $basePath; ?>/learning/assignments" class="btn-cartoon btn-back">
-            <i class="bi bi-arrow-left"></i> Back to Assignments
+        <a href="<?php echo $basePath; ?>/learning/assignments" class="btn btn-outline-secondary rounded-2 px-3 fw-semibold">
+            <i class="ph-bold ph-arrow-left me-1"></i> Back to Assignments
         </a>
         <?php if ($material['due_date']): ?>
             <?php
@@ -26,11 +23,11 @@ require_once __DIR__ . '/../layouts/header.php';
             ?>
             <div class="due-date-badge <?php echo $daysLeft <= 3 ? 'urgent' : ''; ?>">
                 <?php if ($daysLeft < 0): ?>
-                    ⚠️ Overdue
+                    <i class="ph-bold ph-warning text-danger me-1"></i> Overdue
                 <?php elseif ($daysLeft == 0): ?>
-                    🔥 Due Today
+                    <i class="ph-bold ph-clock-countdown text-danger me-1"></i> Due Today
                 <?php else: ?>
-                    📅 <?php echo $daysLeft; ?> day<?php echo $daysLeft != 1 ? 's' : ''; ?> left
+                    <i class="ph-bold ph-calendar me-1"></i> <?php echo $daysLeft; ?> day<?php echo $daysLeft != 1 ? 's' : ''; ?> left
                 <?php endif; ?>
             </div>
         <?php endif; ?>
@@ -39,20 +36,20 @@ require_once __DIR__ . '/../layouts/header.php';
     <!-- Assignment Content Card -->
     <div class="card cartoon-card assignment-viewer-card">
         <div class="card-body">
-            <div class="assignment-viewer-icon">📝</div>
+            <div class="assignment-viewer-icon"><i class="ph-bold ph-file-text text-primary" style="font-size: 2.5rem;" aria-hidden="true"></i></div>
             <h2 class="assignment-viewer-title"><?php echo htmlspecialchars($material['material_name']); ?></h2>
             
             <!-- Points Badge -->
             <?php if ($material['points']): ?>
                 <div class="points-badge">
-                    🏆 Worth <?php echo $material['points']; ?> points
+                    <i class="ph-bold ph-trophy text-warning me-1"></i> Worth <?php echo $material['points']; ?> points
                 </div>
             <?php endif; ?>
 
             <!-- Description -->
             <?php if ($material['description']): ?>
                 <div class="assignment-description">
-                    <h5>📋 Instructions:</h5>
+                    <h5><i class="ph-bold ph-clipboard-text me-1 text-primary"></i> Instructions:</h5>
                     <?php echo nl2br(htmlspecialchars($material['description'])); ?>
                 </div>
             <?php endif; ?>
@@ -60,11 +57,11 @@ require_once __DIR__ . '/../layouts/header.php';
             <!-- Attached File -->
             <?php if ($material['file_path']): ?>
                 <div class="attached-file">
-                    <h5>📎 Attached File:</h5>
+                    <h5><i class="ph-bold ph-paperclip me-1 text-secondary"></i> Attached File:</h5>
                     <a href="<?php echo $basePath; ?>/<?php echo $material['file_path']; ?>" 
                        target="_blank"
-                       class="btn-cartoon btn-view-file">
-                        View File 👀
+                       class="btn btn-outline-primary rounded-2 px-3 fw-semibold">
+                        <i class="ph-bold ph-arrow-square-out me-1"></i> View File
                     </a>
                 </div>
             <?php endif; ?>
@@ -73,7 +70,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <?php if ($submission): ?>
                 <div class="submission-status">
                     <div class="status-header">
-                        <i class="bi bi-check-circle-fill"></i>
+                        <i class="ph-bold ph-check-circle text-success fs-4 me-1"></i>
                         <h4>Your Submission</h4>
                     </div>
                     
@@ -94,15 +91,15 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <strong>Uploaded File:</strong>
                                 <a href="<?php echo $basePath; ?>/<?php echo $submission['file_path']; ?>" 
                                    target="_blank"
-                                   class="btn-cartoon btn-view-submission">
-                                    View Your File 📄
+                                   class="btn btn-outline-secondary rounded-2 px-3 fw-semibold">
+                                    <i class="ph-bold ph-file-text me-1"></i> View Your File
                                 </a>
                             </div>
                         <?php endif; ?>
                         
                         <?php if ($submission['grade'] !== null): ?>
                             <div class="grade-display">
-                                <div class="grade-icon">⭐</div>
+                                <div class="grade-icon"><i class="ph-bold ph-star text-warning" style="font-size: 2rem;"></i></div>
                                 <div class="grade-text">
                                     <h3><?php echo $submission['grade']; ?> / <?php echo $material['points']; ?></h3>
                                     <p>Great work!</p>
@@ -119,7 +116,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             <?php endif; ?>
                         <?php else: ?>
                             <div class="pending-grade">
-                                <i class="bi bi-hourglass-split"></i>
+                                <i class="ph-bold ph-hourglass me-1"></i>
                                 Waiting for teacher to grade...
                             </div>
                         <?php endif; ?>
@@ -128,7 +125,7 @@ require_once __DIR__ . '/../layouts/header.php';
             <?php else: ?>
                 <!-- Submission Form -->
                 <div class="submission-form">
-                    <h5>✍️ Submit Your Work:</h5>
+                    <h5><i class="ph-bold ph-pencil-simple me-1 text-primary"></i> Submit Your Work:</h5>
                     
                     <form id="submissionForm" enctype="multipart/form-data">
                         <input type="hidden" name="material_id" value="<?php echo $material['id']; ?>">
@@ -153,20 +150,20 @@ require_once __DIR__ . '/../layouts/header.php';
                                        class="file-input"
                                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
                                 <div class="upload-placeholder">
-                                    <i class="bi bi-cloud-upload" style="font-size: 3rem; color: var(--kid-blue);"></i>
+                                    <i class="ph-bold ph-cloud-arrow-up" style="font-size: 3rem; color: #1e40af;"></i>
                                     <p>Click or drag file here</p>
                                     <small>PDF, Word, or Image files</small>
                                 </div>
                                 <div class="file-preview" style="display: none;">
-                                    <i class="bi bi-file-earmark"></i>
+                                    <i class="ph-bold ph-file"></i>
                                     <span class="file-name"></span>
-                                    <button type="button" class="btn-remove-file">✕</button>
+                                    <button type="button" class="btn-remove-file"><i class="ph-bold ph-x"></i></button>
                                 </div>
                             </div>
                         </div>
                         
-                        <button type="submit" class="btn-cartoon btn-submit">
-                            Submit Assignment! 🚀
+                        <button type="submit" class="btn btn-primary w-100 fw-bold py-2 rounded-3 d-flex align-items-center justify-content-center gap-2">
+                            <span>Submit Assignment!</span> <i class="ph-bold ph-paper-plane-tilt"></i>
                         </button>
                     </form>
                 </div>
@@ -439,7 +436,7 @@ if (submissionForm) {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('🎉 ' + data.message);
+                    alert(data.message);
                     location.reload();
                 } else {
                     alert('Error: ' + data.message);

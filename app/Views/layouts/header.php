@@ -12,7 +12,10 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     
     <!-- Custom CSS -->
-    <link href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/css/custom.css" rel="stylesheet">
+    <link href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/css/custom.css?v=<?php echo time(); ?>" rel="stylesheet">
+
+    <!-- Self-Hosted Phosphor Icons (Bold Weight - Zero CDN Dependency) -->
+    <link href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/css/phosphor/style.css?v=<?php echo time(); ?>" rel="stylesheet">
 
     <!-- Print CSS (Process 5 — IEP print layout) -->
     <link href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/css/print.css" rel="stylesheet" media="print">
@@ -23,16 +26,22 @@
     <!-- Tabler Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/tabler-icons.min.css">
     
-    <!-- Fredoka Font for Cartoon Style -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&display=swap" rel="stylesheet">
+    <!-- Self-Hosted Poppins Font (Zero CDN Dependency) -->
+    <link href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/css/poppins.css?v=<?php echo time(); ?>" rel="stylesheet">
+
+    <script>
+        window.BASE_PATH = '<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>';
+    </script>
+    <script src="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/js/fsl-modal.js?v=<?php echo time(); ?>" defer></script>
 </head>
 <?php
 $bodyClass = 'bg-light-surface';
 $bodyAttrs = '';
 if (isset($_SESSION['role']) && $_SESSION['role'] === 'learner') {
     $bodyClass .= ' learner-layout-active';
+}
+if (!empty($_SESSION['high_contrast'])) {
+    $bodyClass .= ' high-contrast';
 }
 if (isset($_SESSION['user_id'])) {
     $bodyAttrs .= ' data-logged-in="true"';

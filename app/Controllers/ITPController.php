@@ -307,7 +307,7 @@ class ITPController {
 
                         // Send email
                         require_once __DIR__ . '/../Helpers/MailHelper.php';
-                        $appUrl = getenv('APP_URL') ?: 'http://localhost';
+                        $appUrl = env('APP_URL') ?: 'http://localhost';
                         $link = $appUrl . $this->basePath . '/itp-team/edit/' . $memberId;
                         $subject = 'Transition Team Invitation - SPED LMS';
                         $htmlBody = "
@@ -371,7 +371,7 @@ class ITPController {
 
                 // Send email
                 require_once __DIR__ . '/../Helpers/MailHelper.php';
-                $appUrl = getenv('APP_URL') ?: 'http://localhost';
+                $appUrl = env('APP_URL') ?: 'http://localhost';
                 $link = $appUrl . $this->basePath . '/itp-team/edit/' . $memberId;
                 $subject = 'Reminder: Transition Team Invitation - SPED LMS';
                 $htmlBody = "
@@ -649,7 +649,7 @@ class ITPController {
             exit;
         }
 
-        $uploadDir = __DIR__ . '/../../public/uploads/signatures/itp/';
+        $uploadDir = function_exists('public_path') ? public_path('uploads/signatures/itp/') : (__DIR__ . '/../../public/uploads/signatures/itp/');
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
@@ -759,3 +759,4 @@ class ITPController {
         }
     }
 }
+

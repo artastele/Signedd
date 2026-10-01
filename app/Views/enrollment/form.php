@@ -74,7 +74,34 @@ if ($hasAutoFill) {
         </div>
     </div>
 
-    <!-- Auto-fill Indicator -->
+    <!-- Draft Restored Indicator -->
+    <?php if (isset($draft) && !empty($draft)): ?>
+    <div class="alert alert-info alert-dismissible fade show mb-4 border-info shadow-sm" role="alert">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div>
+                <h6 class="alert-heading mb-1 text-primary fw-bold">
+                    <i class="bi bi-clock-history me-1"></i> Draft Application Restored
+                </h6>
+                <div class="small text-dark">
+                    We've restored your previously saved draft for <strong><?php echo htmlspecialchars(($draft['first_name'] ?? 'Learner') . ' ' . ($draft['last_name'] ?? '')); ?></strong>.
+                    <?php if (!empty($draft['draft_saved_at']) || !empty($draft['updated_at'])): ?>
+                        <span class="text-muted ms-1">(Saved: <?php echo htmlspecialchars(date('M d, Y h:i A', strtotime($draft['draft_saved_at'] ?? $draft['updated_at']))); ?>)</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div>
+                <form method="POST" action="<?php echo $basePath; ?>/enrollment/discard-draft" class="d-inline" onsubmit="sessionStorage.removeItem('signed_enrollment_step'); return confirm('Are you sure you want to discard this draft? All entered data will be reset.');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash3 me-1"></i> Discard Draft
+                    </button>
+                </form>
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <?php endif; ?>
+
+    <!-- Auto-fill Indicator (Returning Student) -->
     <?php if ($hasAutoFill): ?>
     <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
         <h5 class="alert-heading">
@@ -89,17 +116,6 @@ if ($hasAutoFill) {
             <?php endif; ?>
         </p>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        
-        <!-- DEBUG INFO -->
-        <hr class="my-2">
-        <small class="text-muted">
-            <strong>Debug Info:</strong><br>
-            Enrollment Type: <?php echo htmlspecialchars($enrollmentType); ?><br>
-            Form Data Count: <?php echo count($formData); ?> fields loaded<br>
-            Sample: Last Name = "<?php echo htmlspecialchars($formData['last_name'] ?? 'NOT SET'); ?>", 
-            First Name = "<?php echo htmlspecialchars($formData['first_name'] ?? 'NOT SET'); ?>", 
-            Birth Date = "<?php echo htmlspecialchars($formData['birth_date'] ?? 'NOT SET'); ?>"
-        </small>
     </div>
     <?php endif; ?>
 
@@ -157,7 +173,7 @@ if ($hasAutoFill) {
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
 
 <!-- Enrollment Utilities -->
-<script src="<?php echo $basePath; ?>/js/enrollment.js"></script>
+<script src="<?php echo $basePath; ?>/js/enrollment.js?v=<?php echo file_exists(__DIR__ . '/../../../public/js/enrollment.js') ? filemtime(__DIR__ . '/../../../public/js/enrollment.js') : time(); ?>"></script>
 
 <script>
 // Override getBasePath for this form
@@ -165,10 +181,10 @@ function getBasePath() {
     return '<?php echo $basePath; ?>';
 }
 
-// AUTO-FILL: Explicitly populate fields with previous enrollment data
-<?php if ($hasAutoFill && !empty($formData)): ?>
+// Populate fields with loaded form data (Draft or Returning student)
+<?php if (!empty($formData)): ?>
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🔄 Auto-fill: Starting field population...');
+    console.log('🔄 Form data loading: Populating fields...');
     
     // Form data from PHP
     const formData = <?php echo json_encode($formData); ?>;
@@ -178,53 +194,55 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Populate each field
     for (const [fieldName, fieldValue] of Object.entries(formData)) {
-        if (!fieldValue || fieldValue === '' || fieldValue === null) {
-            continue; // Skip empty values
+        if (fieldValue === '' || fieldValue === null || fieldValue === undefined) {
+            continue;
+        }
+
+        // 1. Handle survey_devices / array checkboxes
+        if (fieldName === 'survey_devices' && fieldValue) {
+            const devices = (typeof fieldValue === 'string') ? fieldValue.split(',') : (Array.isArray(fieldValue) ? fieldValue : [fieldValue]);
+            document.querySelectorAll('[name="survey_devices[]"]').forEach(cb => {
+                cb.checked = devices.includes(cb.value);
+            });
+            populatedCount++;
+            continue;
+        }
+
+        // 2. Handle radio buttons
+        const radioOptions = document.querySelectorAll(`[name="${fieldName}"][type="radio"]`);
+        if (radioOptions.length > 0) {
+            radioOptions.forEach(rb => {
+                if (String(rb.value) === String(fieldValue)) {
+                    rb.checked = true;
+                    populatedCount++;
+                }
+            });
+            continue;
         }
         
-        // Try to find field by name or id
+        // 3. Try to find field by name or id
         const field = document.querySelector(`[name="${fieldName}"]`) || document.getElementById(fieldName);
         
         if (field) {
             // Handle different input types
             if (field.type === 'checkbox') {
-                field.checked = (fieldValue == 1 || fieldValue === true || fieldValue === 'on');
-                if (field.checked) {
-                    populatedCount++;
-                    console.log(`✓ Checkbox: ${fieldName} = checked`);
-                }
-            } else if (field.type === 'radio') {
-                if (field.value === fieldValue) {
-                    field.checked = true;
-                    populatedCount++;
-                    console.log(`✓ Radio: ${fieldName} = ${fieldValue}`);
-                }
+                field.checked = (fieldValue == 1 || fieldValue === true || fieldValue === 'on' || fieldValue === '1');
+                if (field.checked) populatedCount++;
             } else if (field.tagName === 'SELECT') {
-                // For select dropdowns
+                if (field.id !== 'target_school_id') { // Target school is locked
+                    field.value = fieldValue;
+                    populatedCount++;
+                }
+            } else if (field.type !== 'file' && field.id !== 'target_school_id') {
                 field.value = fieldValue;
                 populatedCount++;
-                console.log(`✓ Select: ${fieldName} = ${fieldValue}`);
-            } else {
-                // For text, date, number, etc.
-                field.value = fieldValue;
-                populatedCount++;
-                
-                // Add visual indicator (green background)
-                field.classList.add('auto-filled');
-                
-                console.log(`✓ Input: ${fieldName} = ${fieldValue}`);
             }
         } else {
             skippedCount++;
         }
     }
     
-    console.log(`✅ Auto-fill complete: ${populatedCount} fields populated, ${skippedCount} skipped`);
-    
-    // Show success message
-    if (populatedCount > 0) {
-        console.log('🎉 Form auto-filled successfully!');
-    }
+    console.log(`✅ Loaded: ${populatedCount} fields populated, ${skippedCount} skipped`);
 });
 <?php endif; ?>
 
@@ -300,12 +318,21 @@ document.getElementById('enrollmentForm').addEventListener('submit', function(e)
     
     // Step 7: Documents (only for new/transfer students)
     if (enrollmentType !== 'returning') {
-        // Check if PSA birth certificate is uploaded using the new upload component
-        const psaPreview = document.querySelector('input[name="psa_birth_cert"]');
-        const psaUploaded = psaPreview && psaPreview.files && psaPreview.files.length > 0;
-        
-        if (!psaUploaded) {
-            errors.push('❌ Step 7: PSA Birth Certificate is required');
+        const requiredDocInputs = document.querySelectorAll('#step-7 input[type="file"][data-required="true"]');
+        if (requiredDocInputs.length > 0) {
+            requiredDocInputs.forEach(input => {
+                const hasFile = input.files && input.files.length > 0;
+                const docTitle = input.getAttribute('data-doc-title') || 'Required document';
+                if (!hasFile) {
+                    errors.push(`❌ Step 7: ${docTitle} is required`);
+                }
+            });
+        } else {
+            // Fallback: verify PSA if present
+            const psaPreview = document.querySelector('input[name="psa_birth_cert"]');
+            if (psaPreview && (!psaPreview.files || psaPreview.files.length === 0)) {
+                errors.push('❌ Step 7: PSA Birth Certificate is required');
+            }
         }
     }
     

@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../Models/LessonPlanModel.php';
 require_once __DIR__ . '/../Models/GamificationModel.php';
+require_once __DIR__ . '/../Middleware/ParentGateMiddleware.php';
 require_once __DIR__ . '/../Helpers/ScoreHelper.php';
 require_once __DIR__ . '/../Helpers/FlashcardResult.php';
 
@@ -39,6 +40,12 @@ class LearningController {
             $db = Database::getInstance()->getConnection();
 
             if ($this->userRole === 'learner') {
+                // Direct lookup via learner_user_id (Stage 2 & 3)
+                $stmtLearner = $db->prepare("SELECT id FROM student_records WHERE learner_user_id = :uid LIMIT 1");
+                $stmtLearner->execute(['uid' => $this->userId]);
+                $sId = $stmtLearner->fetchColumn();
+                if ($sId) return (int) $sId;
+
                 $stmt = $db->prepare("SELECT email FROM users WHERE id = :uid LIMIT 1");
                 $stmt->execute(['uid' => $this->userId]);
                 $user = $stmt->fetch();
@@ -131,6 +138,18 @@ class LearningController {
             $progress = $this->model->getLessonProgress((int) $lp['id'], $studentId);
             $lp['activity_count']  = $progress['total'];
             $lp['completed_count'] = $progress['completed'];
+            $lpMaterials = $this->model->getMaterials((int)$lp['id']);
+            $lp['material_count'] = count($lpMaterials);
+            $lpPages = $this->model->getPagesByLessonPlan((int)$lp['id']);
+            $lp['page_count'] = count($lpPages);
+            $pageProg = $this->model->getPageProgress($studentId, (int)$lp['id']);
+            $lp['is_slides_completed'] = !empty($pageProg['is_completed']);
+            $lp['last_page_number'] = (int)($pageProg['last_page_number'] ?? 0);
+            
+            // Calculate comprehensive completion %
+            $totalTasks = $lp['activity_count'] + ($lp['page_count'] > 0 ? 1 : 0);
+            $doneTasks  = $lp['completed_count'] + ($lp['is_slides_completed'] ? 1 : 0);
+            $lp['progress_pct'] = $totalTasks > 0 ? round(($doneTasks / $totalTasks) * 100) : ($lp['completed_count'] > 0 ? 100 : 0);
         }
         unset($lp);
 
@@ -152,10 +171,11 @@ class LearningController {
     // GET /learning/lesson/{id}
     // ----------------------------------------------------------------
     public function lessonView(string $lessonPlanId): void {
-        $lessonPlanId = (int) $lessonPlanId;
-        $studentId    = $this->getStudentId();
-        $basePath     = $this->basePath;
-        $studentName  = $studentId ? $this->getStudentName($studentId) : 'Learner';
+        $lessonPlanId     = (int) $lessonPlanId;
+        $studentId        = $this->getStudentId();
+        $basePath         = $this->basePath;
+        $isTeacherPreview = in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin', 'principal', 'guidance', 'general_teacher']);
+        $studentName      = $studentId ? $this->getStudentName($studentId) : ($isTeacherPreview ? 'Teacher (Preview Mode)' : 'Learner');
 
         // Gamification summary for sidebar/topbar
         $gamSummary = $studentId ? $this->gamification->getSummary($studentId) : ['total_xp' => 0, 'total_stars' => 0];
@@ -163,14 +183,21 @@ class LearningController {
         $totalStars = $gamSummary['total_stars'];
 
         $lessonPlan = $this->model->findById($lessonPlanId);
-        if (!$lessonPlan || $lessonPlan['status'] !== 'published') {
+        if (!$lessonPlan || (!$isTeacherPreview && $lessonPlan['status'] !== 'published')) {
             $_SESSION['error'] = 'Lesson plan not found.';
             header('Location: ' . $this->basePath . '/learning/dashboard');
             exit;
         }
 
-        $materials  = $this->model->getMaterials($lessonPlanId);
-        $activities = $this->model->getActivities($lessonPlanId);
+        $materials   = $this->model->getMaterials($lessonPlanId);
+        $activities  = $this->model->getActivities($lessonPlanId);
+        $lessonPages = $this->model->getPagesByLessonPlan($lessonPlanId);
+        $pageProgress = $studentId ? $this->model->getPageProgress($studentId, $lessonPlanId) : ['last_page_number' => 1, 'is_completed' => 0];
+
+        // Fetch FSL video vocabulary for automatic real-time interactive highlights
+        require_once __DIR__ . '/../Models/FSLModel.php';
+        $fslModel = new FSLModel();
+        $fslSigns = $fslModel->getAll(null, '', true);
 
         foreach ($activities as &$act) {
             $act['submission']     = $studentId
@@ -196,6 +223,35 @@ class LearningController {
         }
 
         require __DIR__ . '/../Views/learning/lesson_view.php';
+    }
+
+    // ----------------------------------------------------------------
+    // POST /learning/lesson/{id}/progress
+    // ----------------------------------------------------------------
+    public function savePageProgress(string $lessonPlanId): void {
+        header('Content-Type: application/json');
+        try {
+            $lessonPlanId = (int)$lessonPlanId;
+            $studentId    = $this->getStudentId();
+            if (!$studentId) {
+                echo json_encode(['success' => true, 'message' => 'Teacher preview mode (progress not persisted to student record).']);
+                exit;
+            }
+
+            $pageNumber  = (int)($_POST['page_number'] ?? 1);
+            $isCompleted = !empty($_POST['is_completed']);
+
+            $this->model->updatePageProgress($studentId, $lessonPlanId, $pageNumber, $isCompleted);
+
+            if ($isCompleted) {
+                $this->gamification->awardXP($studentId, 25, 'lesson_completed', $lessonPlanId);
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Progress saved.']);
+        } catch (\Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
     }
 
     // ----------------------------------------------------------------
@@ -243,6 +299,8 @@ class LearningController {
 
         $input   = json_decode(file_get_contents('php://input'), true) ?? [];
         $answers = $input['answers'] ?? [];
+        $attempts = $input['attempts'] ?? [];
+        $accuracyPercentage = isset($input['accuracy_percentage']) ? (int)$input['accuracy_percentage'] : null;
 
         $activity = $this->model->getActivityById($activityId);
         if (!$activity) {
@@ -258,8 +316,9 @@ class LearningController {
         $db = Database::getInstance()->getConnection();
 
         // Attempt logging helper (scoring/accessibility)
-        $logAttempt = function($questionIndex, $selectedValue, $correctValue, $isCorrect) use ($db, $activityId, $studentId) {
+        $logAttempt = function($questionIndex, $selectedValue, $correctValue, $isCorrect) use ($db, $activityId, $studentId, $attempts) {
             try {
+                $itemAttempts = isset($attempts[$questionIndex]) ? (int)$attempts[$questionIndex] : 1;
                 $stmt = $db->prepare("
                     INSERT INTO activity_attempt_log 
                         (activity_id, student_id, question_index, selected_value, correct_value, is_correct, attempted_at)
@@ -270,7 +329,7 @@ class LearningController {
                     'a' => $activityId,
                     's' => $studentId,
                     'qi' => $questionIndex,
-                    'sv' => (string) $selectedValue,
+                    'sv' => (string) $selectedValue . ($itemAttempts > 1 ? " (Attempts: {$itemAttempts})" : ""),
                     'cv' => (string) $correctValue,
                     'ic' => $isCorrect ? 1 : 0
                 ]);
@@ -563,6 +622,23 @@ class LearningController {
                     break;
             }
 
+            // ── Stage 3: Smart Adaptive Remedial Track Check ──────────
+            $scorePercentage = ($autoScore !== null && $maxScore > 0) ? round(($autoScore / $maxScore) * 100) : 100;
+            $threshold = 70; // Default threshold
+            
+            // Check lesson plan configured threshold
+            $stmtLp = $db->prepare("SELECT score_threshold, remedial_for_lesson_id FROM lesson_plans WHERE id = :lid LIMIT 1");
+            $stmtLp->execute(['lid' => (int)$activity['lesson_plan_id']]);
+            $lpRow = $stmtLp->fetch(PDO::FETCH_ASSOC);
+            if ($lpRow && !empty($lpRow['score_threshold'])) {
+                $threshold = (int)$lpRow['score_threshold'];
+            }
+
+            $needsRemediation = ($autoScore !== null && $maxScore > 0 && $scorePercentage < $threshold);
+            if ($needsRemediation && $subId) {
+                $db->prepare("UPDATE lms_submissions SET needs_remediation = 1 WHERE id = :id")->execute(['id' => $subId]);
+            }
+
             // Log submission
             $db->prepare("INSERT INTO lms_logs (student_id,activity_id,material_id,action,performed_by,performed_at) VALUES (:s,:a,NULL,'submitted',:p,NOW())")
                ->execute(['s' => $studentId, 'a' => $activityId, 'p' => $this->userId]);
@@ -572,12 +648,18 @@ class LearningController {
         }
 
         echo json_encode([
-            'success'    => true,
-            'auto_score' => $autoScore,
-            'max_score'  => $maxScore,
-            'type'       => $type,
-            'message'    => $autoScore !== null
-                ? "You got {$autoScore} / {$maxScore} correct!"
+            'success'             => true,
+            'auto_score'          => $autoScore,
+            'max_score'           => $maxScore,
+            'score_percentage'    => $scorePercentage ?? 100,
+            'accuracy_percentage' => $accuracyPercentage ?? ($scorePercentage ?? 100),
+            'threshold'           => $threshold ?? 70,
+            'needs_remediation'   => $needsRemediation ?? false,
+            'type'                => $type,
+            'message'             => $autoScore !== null
+                ? ($needsRemediation
+                    ? "Score: {$autoScore} / {$maxScore} ({$scorePercentage}%). Girekomenda nga mo-review una sa Remedial Module aron mas masabtan ang leksyon!"
+                    : "Excellent work! Score: {$autoScore} / {$maxScore} ({$scorePercentage}%). Nakapasar ka!")
                 : ($type === 'image_label'
                     ? 'Submitted! Your teacher will review and grade this.'
                     : 'Great job reviewing!'),
@@ -676,9 +758,10 @@ class LearningController {
 
     // ----------------------------------------------------------------
     // Step 16 — GET /parent/child-progress
-    // Lists all children enrolled under the parent with overall progress
+    // Lists all children enrolled under the parent with composite progress
     // ----------------------------------------------------------------
     public function parentChildProgress(): void {
+        ParentGateMiddleware::check();
         if ($this->userRole !== 'parent') {
             header('Location: ' . $this->basePath . '/dashboard');
             exit;
@@ -686,40 +769,69 @@ class LearningController {
 
         $db = Database::getInstance()->getConnection();
 
-        // Fetch all students linked to this parent via enrollment_submissions
+        // Fetch all verified enrolled students linked to this parent
         $stmt = $db->prepare("
             SELECT sr.id AS student_id,
+                   sr.student_id AS student_code,
                    sr.student_name,
-                   es.grade_level_to_enroll AS grade_level
+                   sr.lrn,
+                   sr.section_name,
+                   COALESCE(es.grade_level_to_enroll, 'SPED Program') AS grade_level,
+                   es.status,
+                   sch.school_name,
+                   u.name AS teacher_name
             FROM student_records sr
             JOIN enrollment_submissions es ON sr.enrollment_id = es.id
-            WHERE es.parent_id = :parent_id
+            LEFT JOIN schools sch ON sr.school_id = sch.id
+            LEFT JOIN users u ON sr.assigned_teacher_id = u.id
+            WHERE es.parent_id = :pid
               AND es.status = 'verified'
+            ORDER BY sr.student_name ASC
         ");
-        $stmt->execute(['parent_id' => $this->userId]);
+        $stmt->execute(['pid' => $this->userId]);
         $children = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-        // Attach quick summary per child
+        // Attach comprehensive progress summary per child
         foreach ($children as &$child) {
             $sid = (int)$child['student_id'];
             $gam = $this->gamification->getSummary($sid);
-            $child['total_xp']    = $gam['total_xp'];
-            $child['total_stars'] = $gam['total_stars'];
+            $child['total_xp']    = $gam['total_xp'] ?? 0;
+            $child['total_stars'] = $gam['total_stars'] ?? 0;
 
-            // Overall progress count
-            $ps = $db->prepare("
-                SELECT COUNT(DISTINCT act.id) AS total,
-                       COUNT(DISTINCT sub.activity_id) AS done
-                FROM lms_activities act
-                JOIN lesson_assignments la ON la.lesson_plan_id = act.lesson_plan_id
-                LEFT JOIN lms_submissions sub ON sub.activity_id = act.id AND sub.student_id = :sid
-                WHERE la.student_id = :sid2
-            ");
-            $ps->execute(['sid' => $sid, 'sid2' => $sid]);
-            $row = $ps->fetch(\PDO::FETCH_ASSOC);
-            $child['total']    = (int)($row['total'] ?? 0);
-            $child['complete'] = (int)($row['done']  ?? 0);
-            $child['pct']      = $child['total'] > 0 ? round(($child['complete'] / $child['total']) * 100) : 0;
+            // Fetch published lesson plans for this child
+            $publishedLessons = $this->model->getPublishedForStudent($sid);
+            $totalLessons = count($publishedLessons);
+            $completedLessons = 0;
+            $totalTasks = 0;
+            $completedTasks = 0;
+
+            foreach ($publishedLessons as $lp) {
+                $lpId = (int)$lp['id'];
+                $pages = $this->model->getPagesByLessonPlan($lpId);
+                $pageProg = $this->model->getPageProgress($sid, $lpId);
+                $hasSlides = count($pages) > 0;
+                $slidesDone = !empty($pageProg['is_completed']);
+
+                $actProg = $this->model->getLessonProgress($lpId, $sid);
+                $actTotal = $actProg['total'];
+                $actDone = $actProg['completed'];
+
+                $lessonTaskTotal = $actTotal + ($hasSlides ? 1 : 0);
+                $lessonTaskDone  = $actDone + ($slidesDone ? 1 : 0);
+
+                $totalTasks += $lessonTaskTotal;
+                $completedTasks += $lessonTaskDone;
+
+                if ($lessonTaskTotal > 0 && $lessonTaskDone >= $lessonTaskTotal) {
+                    $completedLessons++;
+                }
+            }
+
+            $child['total_lessons']     = $totalLessons;
+            $child['completed_lessons'] = $completedLessons;
+            $child['total_tasks']       = $totalTasks;
+            $child['completed_tasks']   = $completedTasks;
+            $child['pct']               = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100) : 0;
         }
         unset($child);
 
@@ -729,9 +841,10 @@ class LearningController {
 
     // ----------------------------------------------------------------
     // Step 17 — GET /parent/child-progress/{id}
-    // Parent views one child's scores/XP/stars — NO lesson content
+    // Detailed Parent Dossier: Story slides, Activities, Scores, Domains
     // ----------------------------------------------------------------
     public function parentStudentProgress(string $studentId): void {
+        ParentGateMiddleware::check();
         if ($this->userRole !== 'parent') {
             header('Location: ' . $this->basePath . '/dashboard');
             exit;
@@ -740,61 +853,144 @@ class LearningController {
         $studentId = (int)$studentId;
         $db = Database::getInstance()->getConnection();
 
-        // Security: verify this student belongs to this parent
+        // Security check: verify child belongs to parent
         $check = $db->prepare("
-            SELECT sr.id FROM student_records sr
+            SELECT sr.id,
+                   sr.student_name,
+                   sr.student_id AS student_code,
+                   sr.lrn,
+                   sr.section_name,
+                   COALESCE(es.grade_level_to_enroll, 'SPED Program') AS grade_level,
+                   es.status,
+                   sch.school_name,
+                   sch.address AS school_address,
+                   u.name AS teacher_name,
+                   u.email AS teacher_email
+            FROM student_records sr
             JOIN enrollment_submissions es ON sr.enrollment_id = es.id
-            WHERE sr.id = :sid AND es.parent_id = :pid AND es.status = 'verified'
+            LEFT JOIN schools sch ON sr.school_id = sch.id
+            LEFT JOIN users u ON sr.assigned_teacher_id = u.id
+            WHERE sr.id = :sid
+              AND es.parent_id = :pid
+              AND es.status = 'verified'
             LIMIT 1
         ");
         $check->execute(['sid' => $studentId, 'pid' => $this->userId]);
-        if (!$check->fetch()) {
-            $_SESSION['error'] = 'Access denied.';
+        $student = $check->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$student) {
+            $_SESSION['error'] = 'Access denied or student record not found.';
             header('Location: ' . $this->basePath . '/parent/child-progress');
             exit;
         }
 
-        // Student name
-        $sn = $db->prepare("SELECT sr.student_name AS name, es.grade_level_to_enroll AS grade_level FROM student_records sr JOIN enrollment_submissions es ON sr.enrollment_id = es.id WHERE sr.id=:id");
-        $sn->execute(['id' => $studentId]);
-        $studentInfo = $sn->fetch(\PDO::FETCH_ASSOC);
-        $studentName = $studentInfo['name'] ?? 'Student';
+        $studentName = $student['student_name'];
+        $gam = $this->gamification->getSummary($studentId);
+        $totalXP    = $gam['total_xp'] ?? 0;
+        $totalStars = $gam['total_stars'] ?? 0;
 
-        $gam       = $this->gamification->getSummary($studentId);
-        $totalXP   = $gam['total_xp'];
-        $totalStars= $gam['total_stars'];
+        // Fetch detailed lessons and compute progress
+        $publishedLessons = $this->model->getPublishedForStudent($studentId);
+        $lessonsDetail = [];
+        $totalTasksAll = 0;
+        $completedTasksAll = 0;
+        $completedLessonsCount = 0;
+        $domainStats = [];
 
-        // Overall progress
-        $ps = $db->prepare("
-            SELECT COUNT(DISTINCT act.id) AS total,
-                   COUNT(DISTINCT sub.activity_id) AS done
-            FROM lms_activities act
-            JOIN lesson_assignments la ON la.lesson_plan_id = act.lesson_plan_id
-            LEFT JOIN lms_submissions sub ON sub.activity_id = act.id AND sub.student_id = :sid
-            WHERE la.student_id = :sid2
-        ");
-        $ps->execute(['sid' => $studentId, 'sid2' => $studentId]);
-        $pr = $ps->fetch(\PDO::FETCH_ASSOC);
-        $overallTotal    = (int)($pr['total'] ?? 0);
-        $overallComplete = (int)($pr['done']  ?? 0);
-        $pct = $overallTotal > 0 ? round(($overallComplete / $overallTotal) * 100) : 0;
+        foreach ($publishedLessons as $lp) {
+            $lpId = (int)$lp['id'];
+            $domain = $lp['pdsp_domain'] ?: 'General';
 
-        // Graded activity scores (no content, just score/date)
-        $grades = $db->prepare("
-            SELECT lp.title AS lesson_plan_title,
-                   act.title AS activity_title,
-                   g.score,
-                   COALESCE(g.max_score, act.max_score) AS max_score,
-                   g.graded_at
-            FROM lms_grades g
-            JOIN lms_submissions sub ON g.submission_id = sub.id
-            JOIN lms_activities act  ON sub.activity_id = act.id
-            JOIN lesson_plans lp     ON act.lesson_plan_id = lp.id
-            WHERE sub.student_id = :sid
-            ORDER BY g.graded_at DESC
-        ");
-        $grades->execute(['sid' => $studentId]);
-        $recentGrades = $grades->fetchAll(\PDO::FETCH_ASSOC);
+            if (!isset($domainStats[$domain])) {
+                $domainStats[$domain] = [
+                    'domain'            => $domain,
+                    'total_tasks'       => 0,
+                    'completed_tasks'   => 0,
+                    'lessons_count'     => 0,
+                    'completed_lessons' => 0
+                ];
+            }
+            $domainStats[$domain]['lessons_count']++;
+
+            $pages = $this->model->getPagesByLessonPlan($lpId);
+            $pageProg = $this->model->getPageProgress($studentId, $lpId);
+            $totalPages = count($pages);
+            $lastPage = (int)($pageProg['last_page_number'] ?? 0);
+            $isSlidesDone = !empty($pageProg['is_completed']);
+
+            $materials = $this->model->getMaterials($lpId);
+            $activities = $this->model->getActivities($lpId);
+            $actList = [];
+            $completedActCount = 0;
+
+            foreach ($activities as $act) {
+                $actId = (int)$act['id'];
+                $actStatus = $this->model->getActivityWithStatus($actId, $studentId);
+                $isSubmitted = !empty($actStatus['submission_id']);
+                if ($isSubmitted) $completedActCount++;
+
+                // Get attempt count for this activity
+                $attStmt = $db->prepare("SELECT COUNT(*) FROM activity_attempt_log WHERE activity_id = :aid AND student_id = :sid");
+                $attStmt->execute(['aid' => $actId, 'sid' => $studentId]);
+                $attemptsCount = (int)$attStmt->fetchColumn();
+
+                $actList[] = [
+                    'id'            => $actId,
+                    'title'         => $act['title'],
+                    'activity_type' => $act['activity_type'],
+                    'max_score'     => LessonPlanModel::displayMaxScoreForActivity($act),
+                    'is_submitted'  => $isSubmitted,
+                    'score'         => $actStatus['score'] ?? $actStatus['auto_score'] ?? null,
+                    'submitted_at'  => $actStatus['submitted_at'] ?? null,
+                    'remarks'       => $actStatus['remarks'] ?? null,
+                    'attempts'      => $attemptsCount > 0 ? $attemptsCount : ($isSubmitted ? 1 : 0)
+                ];
+            }
+
+            $lessonTasks = count($activities) + ($totalPages > 0 ? 1 : 0);
+            $lessonDone  = $completedActCount + ($isSlidesDone ? 1 : 0);
+            $lessonPct   = $lessonTasks > 0 ? round(($lessonDone / $lessonTasks) * 100) : 0;
+
+            $totalTasksAll += $lessonTasks;
+            $completedTasksAll += $lessonDone;
+
+            $domainStats[$domain]['total_tasks'] += $lessonTasks;
+            $domainStats[$domain]['completed_tasks'] += $lessonDone;
+            if ($lessonTasks > 0 && $lessonDone >= $lessonTasks) {
+                $domainStats[$domain]['completed_lessons']++;
+                $completedLessonsCount++;
+            }
+
+            $lessonsDetail[] = [
+                'id'                  => $lpId,
+                'title'               => $lp['title'],
+                'domain'              => $domain,
+                'school_year'         => $lp['school_year'] ?? '',
+                'total_pages'         => $totalPages,
+                'last_page'           => $lastPage,
+                'is_slides_done'      => $isSlidesDone,
+                'slides_completed_at' => $pageProg['completed_at'] ?? null,
+                'materials_count'     => count($materials),
+                'materials'           => $materials,
+                'activities_count'    => count($activities),
+                'activities_done'     => $completedActCount,
+                'activities'          => $actList,
+                'total_tasks'         => $lessonTasks,
+                'completed_tasks'     => $lessonDone,
+                'pct'                 => $lessonPct
+            ];
+        }
+
+        $overallPct = $totalTasksAll > 0 ? round(($completedTasksAll / $totalTasksAll) * 100) : 0;
+
+        // Calculate domain percentages
+        foreach ($domainStats as &$d) {
+            $d['pct'] = $d['total_tasks'] > 0 ? round(($d['completed_tasks'] / $d['total_tasks']) * 100) : 0;
+        }
+        unset($d);
+
+        // Graded / submitted activity logs
+        $recentGrades = $this->getRecentSubmissions($studentId);
 
         $basePath = $this->basePath;
         require __DIR__ . '/../Views/dashboard/parent_student_progress.php';

@@ -143,4 +143,21 @@ class SystemSettingsModel {
         
         return $result['count'] > 0;
     }
+
+    /**
+     * Get all active enrollment settings and guidelines formatted
+     */
+    public function getEnrollmentSettings() {
+        $categorySettings = $this->getSettingsByCategory('enrollment');
+        
+        return [
+            'sy'            => $categorySettings['enrollment_sy']['value'] ?? '2026-2027',
+            'status'        => $categorySettings['enrollment_status']['value'] ?? 'upcoming',
+            'start_date'    => $categorySettings['enrollment_start_date']['value'] ?? '2026-06-01',
+            'end_date'      => $categorySettings['enrollment_end_date']['value'] ?? '2026-08-15',
+            'guidelines'    => $categorySettings['enrollment_guidelines']['value'] ?? "No official enrollment guidelines have been published yet by a School Head.",
+            'announcement'  => $categorySettings['enrollment_announcement']['value'] ?? 'Official Enrollment for SY 2026-2027 is UPCOMING. Please check back once a School Principal has established enrollment guidelines for your school.',
+            'published'     => ($categorySettings['enrollment_guidelines_published']['value'] ?? 'false') === 'true'
+        ];
+    }
 }

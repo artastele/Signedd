@@ -1,6 +1,12 @@
 <?php
-$pageTitle = 'Admin Dashboard - SignED';
+$pageTitle = 'System Admin Dashboard - SignED';
 require_once __DIR__ . '/../layouts/header.php';
+
+$base = defined('BASE_PATH') ? BASE_PATH : '';
+$userAnalytics = $userAnalytics ?? ['total' => 0, 'principal' => 0, 'sped_teacher' => 0, 'guidance' => 0, 'parent' => 0, 'learner' => 0, 'user' => 0];
+$pendingRoleRequests = $pendingRoleRequests ?? [];
+$approvedSchoolsCount = $approvedSchoolsCount ?? 0;
+$pendingCount = count($pendingRoleRequests);
 ?>
 
 <body data-logged-in="true">
@@ -9,40 +15,514 @@ require_once __DIR__ . '/../layouts/header.php';
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
 
 <div class="main-content">
-    <h1 class="mb-4">Admin Dashboard</h1>
+    <!-- Header Banner -->
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <div>
+            <h2 class="fw-bold mb-1" style="color: #1e4072;">
+                <i class="bi bi-shield-lock-fill text-danger me-2"></i> System Admin Dashboard
+            </h2>
+            <p class="text-muted mb-0 small">Overview of user role analytics, pending applications, and system verification requests.</p>
+        </div>
+        <div>
+            <a href="<?php echo $base; ?>/admin/role-requests" class="btn btn-danger position-relative fw-bold shadow-sm px-3">
+                <i class="bi bi-person-check-fill me-1"></i> Role Requests
+                <?php if ($pendingCount > 0): ?>
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark border border-light">
+                        <?php echo $pendingCount; ?>
+                    </span>
+                <?php endif; ?>
+            </a>
+        </div>
+    </div>
+
+    <!-- Pending Applicants Notification Banner -->
+    <?php if ($pendingCount > 0): ?>
+        <div class="alert alert-warning border-0 shadow-sm d-flex align-items-center justify-content-between mb-4 p-3 rounded-3" style="background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%); border-left: 5px solid #ffc107 !important;">
+            <div class="d-flex align-items-center">
+                <div class="rounded-circle bg-warning text-dark p-3 me-3 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                    <i class="bi bi-bell-fill fs-4"></i>
+                </div>
+                <div>
+                    <h5 class="fw-bold mb-1 text-dark">
+                        Pending Applicant Verification Requests (<?php echo $pendingCount; ?>)
+                    </h5>
+                    <p class="mb-0 text-dark small">
+                        There <?php echo $pendingCount === 1 ? 'is' : 'are'; ?> <strong><?php echo $pendingCount; ?> pending application<?php echo $pendingCount === 1 ? '' : 's'; ?></strong> (Principal / Staff Registration) requiring system administrator review.
+                    </p>
+                </div>
+            </div>
+            <div>
+                <a href="<?php echo $base; ?>/admin/role-requests" class="btn btn-dark fw-bold btn-sm px-3 py-2 shadow-sm">
+                    <i class="bi bi-eye-fill me-1"></i> Review Applications Now
+                </a>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <?php
+    // Dynamic database calculation for System Analytics
+    $db = Database::getInstance()->getConnection();
+
+    // 1. Dynamic FSL Adoption Rate calculation across ALL registered faculty
+    $facultyStmt = $db->query("
+        SELECT 
+            COUNT(*) as total_faculty,
+            SUM(CASE WHEN fsl_cert_path IS NOT NULL AND fsl_cert_path != '' THEN 1 ELSE 0 END) as certified_faculty
+        FROM users 
+        WHERE role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
+    ");
+    $facultyData = $facultyStmt ? $facultyStmt->fetch(PDO::FETCH_ASSOC) : ['total_faculty' => 0, 'certified_faculty' => 0];
+
+    $totalSysFaculty = (int)($facultyData['total_faculty'] ?? 0);
+    $certifiedSysFaculty = (int)($facultyData['certified_faculty'] ?? 0);
+    $systemFslAdoptionRate = $totalSysFaculty > 0 ? round(($certifiedSysFaculty / $totalSysFaculty) * 100, 1) : 0;
+
+    // 2. Dynamic System Policy Compliance Rate calculation across ALL registered schools
+    // Formula: Compliance % = (Number of schools meeting criteria / Total number of DepEd schools) * 100
+    $schoolsStmt = $db->query("SELECT id, sip_path FROM schools");
+    $allSysSchools = $schoolsStmt ? $schoolsStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    $totalSchoolsCount = count($allSysSchools);
+
+    $compliantSchoolsCount = 0;
+    if ($totalSchoolsCount > 0) {
+        $cotSchoolStmt = $db->prepare("
+            SELECT COUNT(*) FROM classroom_observations co 
+            JOIN users u ON co.observed_teacher_id = u.id 
+            WHERE u.school_id = :sid AND co.status = 'finalized'
+        ");
+        $lpSchoolStmt = $db->prepare("
+            SELECT (
+                (SELECT COUNT(*) FROM lesson_plans lp JOIN users u ON lp.created_by = u.id WHERE u.school_id = :sid1 AND lp.status = 'published') +
+                (SELECT COUNT(*) FROM traditional_iep_documents tid JOIN student_records sr ON tid.student_id = sr.id WHERE sr.school_id = :sid2 AND tid.document_type = 'dll')
+            )
+        ");
+        $resSchoolStmt = $db->prepare("
+            SELECT COUNT(*) FROM (
+                SELECT lm.id FROM learning_materials lm JOIN users u ON lm.uploaded_by = u.id WHERE u.school_id = :sid1
+                UNION
+                SELECT lp.id FROM lesson_plans lp JOIN users u ON lp.created_by = u.id WHERE u.school_id = :sid2
+            ) AS all_res
+        ");
+        $facSchoolStmt = $db->prepare("
+            SELECT 
+                COUNT(*) as total_faculty,
+                SUM(CASE WHEN fsl_cert_path IS NOT NULL AND fsl_cert_path != '' THEN 1 ELSE 0 END) as certified_faculty
+            FROM users 
+            WHERE school_id = :sid AND role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
+        ");
+
+        foreach ($allSysSchools as $schItem) {
+            $sid = (int)$schItem['id'];
+            $schCotCount = 0;
+            $schLpCount = 0;
+            $schResCount = 0;
+            $schTotalFac = 0;
+            $schCertFac = 0;
+            try {
+                $cotSchoolStmt->execute(['sid' => $sid]);
+                $schCotCount = (int)$cotSchoolStmt->fetchColumn();
+            } catch (\Throwable $e) {}
+
+            try {
+                $lpSchoolStmt->execute(['sid1' => $sid, 'sid2' => $sid]);
+                $schLpCount = (int)$lpSchoolStmt->fetchColumn();
+            } catch (\Throwable $e) {}
+
+            try {
+                $resSchoolStmt->execute(['sid1' => $sid, 'sid2' => $sid]);
+                $schResCount = (int)$resSchoolStmt->fetchColumn();
+            } catch (\Throwable $e) {}
+
+            try {
+                $facSchoolStmt->execute(['sid' => $sid]);
+                $facRow = $facSchoolStmt->fetch(PDO::FETCH_ASSOC);
+                $schTotalFac = (int)($facRow['total_faculty'] ?? 0);
+                $schCertFac = (int)($facRow['certified_faculty'] ?? 0);
+            } catch (\Throwable $e) {}
+
+            $schoolFslRatio = $schTotalFac > 0 
+                ? round(($schCertFac / $schTotalFac) * 100, 1) 
+                : 0;
+
+            $p1_dll = $schLpCount > 0 ? 12.5 : 0; // Lesson Plans (DLL/DLP)
+            $p1_cot = $schCotCount > 0 ? 12.5 : 0; // Class Observation Tool (COT) MOV
+            $p2 = $schResCount > 0 ? 25 : 0; // Learning Resources (Materials Used)
+            $p3 = ($schoolFslRatio >= 75) ? 25 : round(($schoolFslRatio / 75) * 25, 1);
+            $p4 = !empty($schItem['sip_path']) ? 25 : 0;
+            
+            $schScore = $p1_dll + $p1_cot + $p2 + $p3 + $p4;
+            if ($schScore >= 85) {
+                $compliantSchoolsCount++;
+            }
+        }
+        $systemOverallComplianceRate = round(($compliantSchoolsCount / $totalSchoolsCount) * 100, 1);
+    } else {
+        $systemOverallComplianceRate = 0;
+    }
+
+    // 3. Dynamic Distance Learning Inclusion & Participation Rate (General Objective)
+    // Formula: (Active Distance Learning & LMS Learners / Total Enrolled SPED Learners) * 100
+    $totLearnersStmt = $db->query("SELECT COUNT(*) FROM student_records");
+    $totalSysLearners = $totLearnersStmt ? (int)$totLearnersStmt->fetchColumn() : 0;
     
-    <div class="row">
-        <div class="col-md-3 mb-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <i class="bi bi-people-fill text-primary" style="font-size: 3rem;"></i>
-                    <h5 class="card-title mt-3">Users</h5>
-                    <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/admin/users" class="btn btn-sm btn-primary">Manage</a>
+    $participatingLearnersStmt = $db->query("
+        SELECT COUNT(DISTINCT student_id) 
+        FROM (
+            SELECT student_id FROM lms_submissions
+            UNION
+            SELECT student_id FROM activity_attempt_log
+            UNION
+            SELECT student_id FROM attendance_records WHERE source = 'auto'
+        ) active_dl
+    ");
+    $participatingSysLearners = $participatingLearnersStmt ? (int)$participatingLearnersStmt->fetchColumn() : 0;
+    $systemDistanceLearningRate = $totalSysLearners > 0 ? round(($participatingSysLearners / $totalSysLearners) * 100, 1) : 0;
+    ?>
+
+    <!-- Core Research Objectives Performance Overview (General Objective, SO2, SO3) -->
+    <div class="row g-3 mb-4">
+        <!-- Card 1: General Objective — Distance Learning Program Inclusion & Participation -->
+        <div class="col-lg-4 col-md-12">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 5px solid #0d6efd !important; background: #fff;">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.3px; font-size: 0.76rem;">
+                            <i class="bi bi-laptop text-primary fs-6 me-1"></i> Distance Learning Inclusion
+                        </span>
+                        <span class="badge <?php echo $systemDistanceLearningRate >= 85 ? 'bg-success' : 'bg-warning text-dark'; ?> px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
+                            <?php echo $systemDistanceLearningRate >= 85 ? '✓ Target Met (≥85%)' : '○ Action Required'; ?>
+                        </span>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2 mb-2">
+                        <h2 class="fw-bold text-primary mb-0">
+                            <?php echo $totalSysLearners > 0 ? $systemDistanceLearningRate . '%' : '0.0%'; ?>
+                        </h2>
+                        <span class="text-muted small">Target: &ge; 85.0% Participation</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 6px;">
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: <?php echo min(100, $systemDistanceLearningRate); ?>%;"></div>
+                    </div>
+                    <div class="small text-muted" style="font-size: 0.72rem; line-height: 1.3;">
+                        <strong>General Objective:</strong> <?php echo $participatingSysLearners; ?> of <?php echo $totalSysLearners; ?> enrolled SPED learners actively participating in distance learning & LMS.
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <div class="col-md-3 mb-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <i class="bi bi-person-check-fill text-secondary" style="font-size: 3rem;"></i>
-                    <h5 class="card-title mt-3">Principal Requests</h5>
-                    <p class="text-muted small mb-2">Approve Principal roles</p>
-                    <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/admin/role-requests" class="btn btn-sm btn-primary">Review</a>
+
+        <!-- Card 2: Specific Objective 2 — Inclusive Content Policy Compliance Rate -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 5px solid #198754 !important; background: #fff;">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.3px; font-size: 0.76rem;">
+                            <i class="bi bi-shield-check text-success fs-6 me-1"></i> Policy Compliance Rate
+                        </span>
+                        <?php if ($totalSchoolsCount > 0): ?>
+                            <span class="badge <?php echo $systemOverallComplianceRate >= 85 ? 'bg-success' : 'bg-warning text-dark'; ?> px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
+                                <?php echo $systemOverallComplianceRate >= 85 ? '✓ Compliant (≥85%)' : '○ Action Required'; ?>
+                            </span>
+                        <?php else: ?>
+                            <span class="badge bg-secondary px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">No Schools</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2 mb-2">
+                        <h2 class="fw-bold text-success mb-0">
+                            <?php echo $totalSchoolsCount > 0 ? $systemOverallComplianceRate . '%' : '0.0%'; ?>
+                        </h2>
+                        <span class="text-muted small">Target: &ge; 85.0% Across Schools</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 6px;">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo min(100, $systemOverallComplianceRate); ?>%;"></div>
+                    </div>
+                    <div class="small text-muted" style="font-size: 0.72rem; line-height: 1.3;">
+                        <strong>Objective 2:</strong> Verified across <?php echo $totalSchoolsCount; ?> school<?php echo $totalSchoolsCount === 1 ? '' : 's'; ?> based on 4 Compliance Pillars &amp; MOVs.
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <div class="col-md-3 mb-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <i class="bi bi-file-text-fill text-success" style="font-size: 3rem;"></i>
-                    <h5 class="card-title mt-3">Activity Logs</h5>
-                    <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/admin/activity-logs" class="btn btn-sm btn-primary">View</a>
+
+        <!-- Card 3: Specific Objective 3 — FSL Program Adoption Rate -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 5px solid #a01422 !important; background: #fff;">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.3px; font-size: 0.76rem;">
+                            <i class="bi bi-award-fill text-warning fs-6 me-1"></i> FSL Program Adoption Rate
+                        </span>
+                        <?php if ($totalSysFaculty > 0): ?>
+                            <span class="badge <?php echo $systemFslAdoptionRate >= 75 ? 'bg-success' : 'bg-warning text-dark'; ?> px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
+                                <?php echo $systemFslAdoptionRate >= 75 ? '✓ Target Met (≥75%)' : '○ Below Target'; ?>
+                            </span>
+                        <?php else: ?>
+                            <span class="badge bg-secondary px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">No Faculty</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2 mb-2">
+                        <h2 class="fw-bold mb-0 <?php echo $systemFslAdoptionRate >= 75 ? 'text-success' : 'text-danger'; ?>">
+                            <?php echo $totalSysFaculty > 0 ? $systemFslAdoptionRate . '%' : '0.0%'; ?>
+                        </h2>
+                        <span class="text-muted small">Target: &ge; 75.0% Certified Faculty</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 6px;">
+                        <div class="progress-bar <?php echo $systemFslAdoptionRate >= 75 ? 'bg-success' : 'bg-danger'; ?>" role="progressbar" style="width: <?php echo min(100, $systemFslAdoptionRate); ?>%;"></div>
+                    </div>
+                    <div class="small text-muted" style="font-size: 0.72rem; line-height: 1.3;">
+                        <strong>Objective 3:</strong> <?php echo $certifiedSysFaculty; ?> of <?php echo $totalSysFaculty; ?> registered faculty certified in FSL &amp; verified via COT observations.
+                    </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- User Analytics Cards Grid -->
+    <div class="row g-3 mb-4">
+        <!-- Total Users -->
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #1e4072 !important;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle p-3 me-3" style="background: #eef2f7; color: #1e4072;">
+                            <i class="bi bi-people-fill fs-3"></i>
+                        </div>
+                        <div>
+                            <span class="text-muted small fw-semibold">Total System Users</span>
+                            <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($userAnalytics['total']); ?></h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Verified Principals -->
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #a01422 !important;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle p-3 me-3" style="background: #fde8e8; color: #a01422;">
+                            <i class="bi bi-person-workspace fs-3"></i>
+                        </div>
+                        <div>
+                            <span class="text-muted small fw-semibold">School Heads / Principals</span>
+                            <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($userAnalytics['principal']); ?></h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SPED Teachers & Staff -->
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #198754 !important;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle p-3 me-3" style="background: #e8f5e9; color: #198754;">
+                            <i class="bi bi-journal-check fs-3"></i>
+                        </div>
+                        <div>
+                            <span class="text-muted small fw-semibold">SPED Teachers & Faculty</span>
+                            <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($userAnalytics['sped_teacher'] + $userAnalytics['guidance']); ?></h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Enrolled Learners & Parents -->
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #fd7e14 !important;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle p-3 me-3" style="background: #fff4e6; color: #fd7e14;">
+                            <i class="bi bi-house-heart-fill fs-3"></i>
+                        </div>
+                        <div>
+                            <span class="text-muted small fw-semibold">Parents & Learners</span>
+                            <h3 class="fw-bold mb-0 text-dark"><?php echo number_format($userAnalytics['parent'] + $userAnalytics['learner']); ?></h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Analytics Breakdown & Quick Actions -->
+    <div class="row g-4 mb-4">
+        <!-- User Roles Analytics Breakdown -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 px-4 pb-0 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0 text-dark fs-6">
+                        <i class="bi bi-bar-chart-line-fill text-primary me-2"></i> User Distribution Analytics by Role
+                    </h5>
+                    <a href="<?php echo $base; ?>/admin/users" class="btn btn-sm btn-outline-primary fw-bold">
+                        Manage Users <i class="bi bi-arrow-right me-1"></i>
+                    </a>
+                </div>
+                <div class="card-body p-4">
+                    <?php 
+                    $total = max(1, $userAnalytics['total']);
+                    $rolesData = [
+                        ['label' => 'School Principals', 'count' => $userAnalytics['principal'], 'color' => 'bg-danger', 'icon' => 'bi-person-workspace'],
+                        ['label' => 'SPED Teachers', 'count' => $userAnalytics['sped_teacher'], 'color' => 'bg-success', 'icon' => 'bi-award-fill'],
+                        ['label' => 'Guidance Staff', 'count' => $userAnalytics['guidance'], 'color' => 'bg-info text-dark', 'icon' => 'bi-heart-pulse-fill'],
+                        ['label' => 'Parents / Guardians', 'count' => $userAnalytics['parent'], 'color' => 'bg-warning text-dark', 'icon' => 'bi-people'],
+                        ['label' => 'Learners / Students', 'count' => $userAnalytics['learner'], 'color' => 'bg-primary', 'icon' => 'bi-mortarboard-fill'],
+                        ['label' => 'Unassigned Users', 'count' => $userAnalytics['user'], 'color' => 'bg-secondary', 'icon' => 'bi-person-badge']
+                    ];
+                    foreach ($rolesData as $rd):
+                        $pct = round(($rd['count'] / $total) * 100);
+                    ?>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-semibold text-dark small">
+                                    <i class="bi <?php echo $rd['icon']; ?> me-1"></i> <?php echo $rd['label']; ?>
+                                </span>
+                                <span class="badge bg-light text-dark border">
+                                    <?php echo number_format($rd['count']); ?> (<?php echo $pct; ?>%)
+                                </span>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar <?php echo $rd['color']; ?>" role="progressbar" style="width: <?php echo $pct; ?>%;" aria-valuenow="<?php echo $pct; ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Administration Links & Verification Status -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 pt-3 px-4 pb-0">
+                    <h5 class="fw-bold mb-0 text-dark fs-6">
+                        <i class="bi bi-sliders text-danger me-2"></i> System Controls & Management
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="list-group list-group-flush">
+                        <a href="<?php echo $base; ?>/admin/role-requests" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-bottom">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded p-2 bg-light text-danger me-3">
+                                    <i class="bi bi-person-check-fill fs-4"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark mb-0">Role & Verification Requests</div>
+                                    <small class="text-muted">Approve new School Heads & Principal accounts</small>
+                                </div>
+                            </div>
+                            <span class="badge bg-danger rounded-pill px-3 py-2 fs-6">
+                                <?php echo $pendingCount; ?> Pending
+                            </span>
+                        </a>
+
+                        <a href="<?php echo $base; ?>/admin/users" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-bottom">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded p-2 bg-light text-primary me-3">
+                                    <i class="bi bi-people-fill fs-4"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark mb-0">User Directory & Roles</div>
+                                    <small class="text-muted">View, modify, or lock system user accounts</small>
+                                </div>
+                            </div>
+                            <span class="badge bg-light text-dark border">
+                                <?php echo number_format($userAnalytics['total']); ?> Users
+                            </span>
+                        </a>
+
+                        <a href="<?php echo $base; ?>/admin/activity-logs" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 border-bottom">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded p-2 bg-light text-success me-3">
+                                    <i class="bi bi-shield-check fs-4"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark mb-0">System Activity Logs</div>
+                                    <small class="text-muted">Audit security events, logins, and approvals</small>
+                                </div>
+                            </div>
+                            <i class="bi bi-chevron-right text-muted"></i>
+                        </a>
+
+                        <a href="<?php echo $base; ?>/admin/settings" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded p-2 bg-light text-secondary me-3">
+                                    <i class="bi bi-gear-fill fs-4"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark mb-0">Global System Settings</div>
+                                    <small class="text-muted">Configure mail, security, and enrollment settings</small>
+                                </div>
+                            </div>
+                            <i class="bi bi-chevron-right text-muted"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification List of Pending Applicant Requests -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-3 px-4 pb-0 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0 text-dark fs-6">
+                <i class="bi bi-bell-fill text-warning me-2"></i> Applicants Waiting for Admin Approval
+            </h5>
+            <a href="<?php echo $base; ?>/admin/role-requests" class="btn btn-sm btn-outline-danger fw-bold">
+                View All Requests <i class="bi bi-arrow-right ms-1"></i>
+            </a>
+        </div>
+        <div class="card-body p-4">
+            <?php if (empty($pendingRoleRequests)): ?>
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-check-circle-fill text-success mb-2" style="font-size: 2.5rem;"></i>
+                    <h6 class="fw-bold text-dark">No Pending Verification Applications</h6>
+                    <p class="small mb-0">All submitted Principal and staff registration requests have been reviewed.</p>
+                </div>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Applicant Name</th>
+                                <th>Email</th>
+                                <th>Requested Role</th>
+                                <th>Submitted Date</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($pendingRoleRequests as $req): ?>
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold text-dark"><?php echo htmlspecialchars($req['user_name']); ?></div>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted"><?php echo htmlspecialchars($req['user_email']); ?></small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-shield-lock-fill me-1"></i> <?php echo ucwords(str_replace('_', ' ', $req['requested_role'])); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            <i class="bi bi-clock me-1"></i> <?php echo date('M j, Y g:i A', strtotime($req['created_at'])); ?>
+                                        </small>
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="<?php echo $base; ?>/admin/role-requests" class="btn btn-sm btn-primary px-3 fw-bold">
+                                            <i class="bi bi-check-lg me-1"></i> Review Application
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>
+

@@ -474,23 +474,24 @@ $cancellationDate = $transferDetails['cancellation_date'] ?? '';
             text-align: center;
         }
 
-        /* Top control bar */
         .no-print-btn {
             background-color: var(--primary-color);
             color: white;
             border: none;
-            padding: 8px 16px;
-            font-size: 10pt;
+            padding: 6px 14px;
+            font-size: 0.875rem;
+            font-weight: 500;
             cursor: pointer;
-            border-radius: 4px;
+            border-radius: 6px;
             margin-bottom: 15px;
             display: inline-flex;
             align-items: center;
-            gap: 5px;
+            gap: 6px;
             text-decoration: none;
+            transition: opacity 0.2s ease, transform 0.1s ease;
         }
         .no-print-btn:hover {
-            opacity: 0.9;
+            opacity: 0.92;
         }
     </style>
 </head>

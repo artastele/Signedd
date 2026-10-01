@@ -51,3 +51,30 @@ loadEnv($envPath);
 function env($key, $default = null) {
     return $_ENV[$key] ?? getenv($key) ?: $default;
 }
+
+/**
+ * Resolves absolute filesystem path for public assets & uploads
+ * Automatically adapts between local development (/public/) and flat production hosting (/htdocs/)
+ */
+if (!function_exists('public_path')) {
+    function public_path($path = '') {
+        static $base = null;
+        if ($base === null) {
+            $root = dirname(__DIR__);
+            $root = rtrim(str_replace('\\', '/', $root), '/') . '/';
+            $scriptFile = isset($_SERVER['SCRIPT_FILENAME']) ? str_replace('\\', '/', $_SERVER['SCRIPT_FILENAME']) : '';
+            
+            if (strpos($scriptFile, '/public/') !== false) {
+                $base = $root . 'public/';
+            } else {
+                $base = $root;
+            }
+        }
+        $cleanPath = ltrim(str_replace('\\', '/', $path), '/');
+        if (strpos($cleanPath, 'public/') === 0 && rtrim($base, '/') !== rtrim(dirname(__DIR__) . '/public', '/')) {
+            $cleanPath = substr($cleanPath, 7);
+        }
+        return $cleanPath !== '' ? $base . $cleanPath : $base;
+    }
+}
+

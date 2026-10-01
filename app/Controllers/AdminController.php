@@ -44,15 +44,14 @@ class AdminController {
      * Role requests list (Admin - only Principal requests)
      */
     public function roleRequests() {
-        // Admin only sees Principal role requests
-        $requests = $this->roleRequestModel->getPendingByApprover('admin');
-        $allRequests = $this->roleRequestModel->getAll();
-        
-        // Filter to show only principal requests
-        $requests = array_filter($allRequests, function($req) {
+        // Admin sees all Principal & School registration verification requests
+        $allRequests = $this->roleRequestModel->getAll(100);
+
+        // Filter to show principal & school registration requests
+        $requests = array_values(array_filter($allRequests, function($req) {
             return $req['requested_role'] === 'principal';
-        });
-        
+        }));
+
         require_once __DIR__ . '/../Views/admin/role_requests.php';
     }
 
@@ -305,6 +304,16 @@ class AdminController {
             'otp_expiration' => (int)($_POST['otp_expiration'] ?? 10),
             'logout_warning' => (int)($_POST['logout_warning'] ?? 2)
         ];
+
+        // Process Enrollment Guidelines & Schedule Settings if present
+        if (isset($_POST['enrollment_sy'])) {
+            $settingsToUpdate['enrollment_sy']           = trim($_POST['enrollment_sy']);
+            $settingsToUpdate['enrollment_status']       = trim($_POST['enrollment_status'] ?? 'open');
+            $settingsToUpdate['enrollment_start_date']   = trim($_POST['enrollment_start_date'] ?? '');
+            $settingsToUpdate['enrollment_end_date']     = trim($_POST['enrollment_end_date'] ?? '');
+            $settingsToUpdate['enrollment_guidelines']   = trim($_POST['enrollment_guidelines'] ?? '');
+            $settingsToUpdate['enrollment_announcement'] = trim($_POST['enrollment_announcement'] ?? '');
+        }
 
         // Validate
         if ($settingsToUpdate['session_timeout'] < 5 || $settingsToUpdate['session_timeout'] > 60) {

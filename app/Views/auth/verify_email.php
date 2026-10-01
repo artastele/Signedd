@@ -8,9 +8,10 @@ require_once __DIR__ . '/../layouts/header.php';
     <!-- Left Side: Branding -->
     <div class="auth-left">
         <div class="auth-left-content">
-            <?php if (file_exists(__DIR__ . '/../../../public/images/logo-large.png')): ?>
+            <?php if (file_exists(__DIR__ . '/../../../public/images/logo-large.png') || file_exists(__DIR__ . '/../../../images/logo-large.png')): ?>
                 <img src="<?php echo $basePath; ?>/images/logo-large.png" alt="SignED Logo" class="auth-logo-large">
             <?php else: ?>
+
                 <i class="bi bi-envelope-check-fill" style="font-size: 6rem; margin-bottom: 2rem;"></i>
             <?php endif; ?>
             
@@ -57,7 +58,7 @@ require_once __DIR__ . '/../layouts/header.php';
                         <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp6" name="otp6" required>
                     </div>
 
-                    <button type="submit" class="btn btn-primary w-100 mb-3">
+                    <button type="submit" class="btn btn-primary w-100 mb-3" style="border-radius: 8px; font-weight: 600; padding: 10px 16px;">
                         <i class="bi bi-check-circle"></i> Verify Email
                     </button>
                 </form>
@@ -165,6 +166,17 @@ otpInputs.forEach((input, index) => {
     });
 });
 
+function autoFillOtp(code) {
+    if (!code) return;
+    const digits = code.toString().replace(/\D/g, '');
+    for (let i = 0; i < 6; i++) {
+        const inp = document.getElementById('otp' + (i + 1));
+        if (inp) inp.value = digits[i] || '';
+    }
+    const lastInput = document.getElementById('otp6');
+    if (lastInput) lastInput.focus();
+}
+
 // Resend OTP with countdown
 let countdownTimer = null;
 
@@ -190,7 +202,7 @@ function resendOTP() {
             // Show success message
             const alertDiv = document.createElement('div');
             alertDiv.className = 'alert alert-success alert-dismissible fade show';
-            alertDiv.innerHTML = '<i class="bi bi-check-circle"></i> A new verification code has been sent to your email. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+            alertDiv.innerHTML = '<i class="bi bi-check-circle me-1"></i> A new 6-digit verification code has been sent to your email. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
             document.querySelector('.auth-form-container').insertBefore(alertDiv, document.getElementById('otpForm'));
             
             // Clear OTP inputs

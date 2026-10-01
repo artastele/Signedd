@@ -100,12 +100,10 @@ class IEPController {
             exit;
         }
 
-        // Verify signed PDSP exists
+        // Verify signed PDSP exists or auto-establish baseline for enrolled/invited student
         $pdsp = $this->iepModel->getSignedPDSP($studentId);
         if (!$pdsp) {
-            $_SESSION['error'] = 'This student does not have a signed PDSP yet. Complete Process 4 first.';
-            header('Location: ' . BASE_PATH . '/iep');
-            exit;
+            $pdsp = $this->iepModel->ensureBaselinePdspForStudent((int)$studentId, (int)$this->userId);
         }
 
         // Check if a draft already exists for this student + school year
@@ -788,7 +786,7 @@ class IEPController {
         }
 
         // Create student-specific directory
-        $uploadDir = __DIR__ . '/../../public/uploads/iep/' . $iep['student_id'] . '/';
+        $uploadDir = function_exists('public_path') ? public_path('uploads/iep/' . $iep['student_id'] . '/') : (__DIR__ . '/../../public/uploads/iep/' . $iep['student_id'] . '/');
         if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
 
         $filename = 'iep_' . $iepId . '_' . time() . '.' . $ext;
@@ -967,7 +965,7 @@ class IEPController {
             $mf = $_FILES['meeting_signing_proof'] ?? null;
             if ($mf && ($mf['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK && !empty($mf['tmp_name'])) {
                 $ext = strtolower(pathinfo((string) ($mf['name'] ?? ''), PATHINFO_EXTENSION));
-                $uploadDir = __DIR__ . '/../../public/uploads/iep/' . (int) $iep['student_id'] . '/';
+                $uploadDir = function_exists('public_path') ? public_path('uploads/iep/' . (int) $iep['student_id'] . '/') : (__DIR__ . '/../../public/uploads/iep/' . (int) $iep['student_id'] . '/');
                 if (!is_dir($uploadDir)) {
                     mkdir($uploadDir, 0755, true);
                 }
@@ -986,10 +984,9 @@ class IEPController {
             $this->iepModel->markSigned($iepId, 'print_upload');
             $this->sendSignedCopies($iepId, $iep);
             $this->notifyProcess6Unlocked($iepId, $iep);
-            $this->logActivity('iep.signed', $iepId, 'IEP marked as signed (meeting record)');
-            $_SESSION['success'] = 'IEP marked as signed (meeting record). Guidance, Principal, and Parent have been notified.'
+            $_SESSION['success'] = 'IEP marked as signed. Guidance, Principal, and Parent have been notified. Teaching workspace (Process 6) is now unlocked!'
                 . ($proofPath ? ' Signing proof was saved.' : '');
-            header('Location: ' . BASE_PATH . '/iep/form/' . $iepId);
+            header('Location: ' . BASE_PATH . '/iep/implementation/workspace/' . $iepId);
             exit;
         }
 
@@ -1031,8 +1028,8 @@ class IEPController {
             $this->sendSignedCopies($iepId, $iep);
             $this->notifyProcess6Unlocked($iepId, $iep);
             $this->logActivity('iep.signed', $iepId, 'IEP marked as signed (digital, no pending slots)');
-            $_SESSION['success'] = 'IEP marked as signed. All signatory slots were completed on file; Guidance, Principal, and Parent have been notified.';
-            header('Location: ' . BASE_PATH . '/iep/form/' . $iepId);
+            $_SESSION['success'] = 'IEP marked as signed. All signatory slots completed; Guidance, Principal, and Parent notified. Teaching workspace (Process 6) is now unlocked!';
+            header('Location: ' . BASE_PATH . '/iep/implementation/workspace/' . $iepId);
             exit;
         }
 
@@ -1131,7 +1128,7 @@ class IEPController {
             exit;
         }
 
-        $uploadDir = __DIR__ . '/../../public/uploads/signatures/iep/';
+        $uploadDir = function_exists('public_path') ? public_path('uploads/signatures/iep/') : (__DIR__ . '/../../public/uploads/signatures/iep/');
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
@@ -1342,7 +1339,7 @@ class IEPController {
             exit;
         }
         $studentId = (int) ($lp['student_id'] ?? $iep['student_id']);
-        $uploadDir = __DIR__ . '/../../public/uploads/lesson_plans/' . $studentId . '/';
+        $uploadDir = function_exists('public_path') ? public_path('uploads/lesson_plans/' . $studentId . '/') : (__DIR__ . '/../../public/uploads/lesson_plans/' . $studentId . '/');
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
@@ -1422,7 +1419,7 @@ class IEPController {
      */
     private function sendDigitalSignatureInvites(int $iepId, array $iep): void {
         $db    = Database::getInstance()->getConnection();
-        $appUrl = rtrim((string) (getenv('APP_URL') ?: ''), '/');
+        $appUrl = rtrim((string) (env('APP_URL') ?: ''), '/');
         $base   = ($appUrl !== '' ? $appUrl : '') . BASE_PATH;
 
         foreach ($this->iepModel->getSignatories($iepId) as $sig) {
@@ -1515,7 +1512,7 @@ class IEPController {
         $stmt->execute();
         foreach ($stmt->fetchAll() as $s) $recipients[] = $s;
 
-        $link = getenv('APP_URL') . BASE_PATH . '/iep/form/' . $iepId;
+        $link = env('APP_URL') . BASE_PATH . '/iep/form/' . $iepId;
 
         foreach ($recipients as $user) {
             // Record copy
@@ -1641,3 +1638,4 @@ class IEPController {
         }
     }
 }
+

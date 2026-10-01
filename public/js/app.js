@@ -325,6 +325,41 @@ function renderNotifications(notifications) {
                 </a>
                 <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
             `;
+        } else if (notification.type.indexOf('meeting_') === 0 && data.meeting_id) {
+            actionHtml = `
+                <a href="${getBasePath()}/iep/meetings/${data.meeting_id}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-calendar-event"></i> View Meeting
+                </a>
+                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
+            `;
+        } else if (notification.type === 'pdsp_signed' && data.student_id) {
+            actionHtml = `
+                <a href="${getBasePath()}/iep/create?student_id=${data.student_id}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-file-earmark-plus"></i> Generate IEP
+                </a>
+                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
+            `;
+        } else if ((notification.type === 'itgp_revision_requested' || notification.type === 'itgp_finalized' || notification.type === 'itgp_inspected') && data.iep_id) {
+            actionHtml = `
+                <a href="${getBasePath()}/iep/${data.iep_id}/inclusive-iep-itgp" class="btn btn-sm btn-primary">
+                    <i class="bi bi-journal-check"></i> View ITGP
+                </a>
+                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
+            `;
+        } else if ((notification.type === 'placement_confirmed' || notification.type === 'placement_hold') && data.iep_id) {
+            actionHtml = `
+                <a href="${getBasePath()}/iep/${data.iep_id}/placement-notice" class="btn btn-sm btn-success">
+                    <i class="bi bi-patch-check"></i> Placement Notice
+                </a>
+                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
+            `;
+        } else if (notification.type === 'transition_readiness' && data.iep_id) {
+            actionHtml = `
+                <a href="${getBasePath()}/iep/${data.iep_id}/transition-readiness" class="btn btn-sm btn-primary">
+                    <i class="bi bi-bar-chart-steps"></i> Transition Readiness
+                </a>
+                <button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>
+            `;
         } else {
             actionHtml = `<button class="btn btn-sm btn-outline-secondary mark-read-btn" data-id="${notification.id}">Mark as Read</button>`;
         }

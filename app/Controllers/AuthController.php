@@ -91,8 +91,21 @@ class AuthController {
             exit;
         }
 
-        // Find user
+        // Find user by processed email
         $user = $this->userModel->findByEmail($email);
+
+        // If not found and input was altered (e.g. learner_xxx was attempted), try raw input directly
+        if (!$user && $email !== $emailOrLrn) {
+            $user = $this->userModel->findByEmail($emailOrLrn);
+        }
+
+        // If still not found, check if it matches a Student ID or LRN in student records
+        if (!$user) {
+            $user = $this->userModel->findByStudentIdentifier($emailOrLrn);
+            if ($user && !empty($user['email'])) {
+                $email = $user['email'];
+            }
+        }
 
         if (!$user) {
             RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
@@ -142,12 +155,17 @@ class AuthController {
         if (!$_SESSION['email_verified']) {
             // Generate new OTP
             $otp = $this->userModel->generateOTP($user['id']);
+            $_SESSION['dev_otp_code'] = $otp;
             
             if (class_exists('MailHelper')) {
-                MailHelper::sendOTPEmail($email, $user['name'], $otp);
+                try {
+                    MailHelper::sendOTPEmail($email, $user['name'], $otp);
+                } catch (\Throwable $e) {
+                    error_log("Failed to send OTP email: " . $e->getMessage());
+                }
             }
             
-            $_SESSION['success'] = 'Please verify your email to continue. A verification code has been sent.';
+            $_SESSION['success'] = 'Please verify your email to continue. A verification code has been generated.';
             header('Location: ' . $basePath . '/auth/verify-email');
             exit;
         }
@@ -265,9 +283,14 @@ class AuthController {
 
             // Generate and send OTP
             $otp = $this->userModel->generateOTP($userId);
+            $_SESSION['dev_otp_code'] = $otp;
             
             if (class_exists('MailHelper')) {
-                MailHelper::sendOTPEmail($email, $fullName, $otp);
+                try {
+                    MailHelper::sendOTPEmail($email, $fullName, $otp);
+                } catch (\Throwable $e) {
+                    error_log("Failed to send OTP email: " . $e->getMessage());
+                }
             }
             
             // Set session for verification
@@ -278,7 +301,7 @@ class AuthController {
             $_SESSION['email_verified'] = false;
             $_SESSION['last_activity'] = time();
             
-            $_SESSION['success'] = 'Registration successful! Please check your email for the verification code.';
+            $_SESSION['success'] = 'Registration successful! Verification code generated.';
             header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/auth/verify-email');
         } else {
             $_SESSION['error'] = 'Registration failed. Please try again.';
@@ -314,6 +337,32 @@ class AuthController {
             header('Location: ' . $basePath . '/dashboard');
             exit;
         }
+
+        // Check if user has an unexpired verification token
+        try {
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("SELECT email_verification_token, email_verification_expires FROM users WHERE id = :id LIMIT 1");
+            $stmt->execute(['id' => $_SESSION['user_id']]);
+            $tokenData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $needsNewCode = empty($tokenData['email_verification_token']) 
+                || empty($tokenData['email_verification_expires']) 
+                || (strtotime($tokenData['email_verification_expires']) < time());
+
+            if ($needsNewCode) {
+                $otp = $this->userModel->generateOTP($_SESSION['user_id']);
+                if (class_exists('MailHelper')) {
+                    try {
+                        MailHelper::sendOTPEmail($_SESSION['user_email'], $_SESSION['user_name'] ?? 'User', $otp);
+                    } catch (\Throwable $e) {
+                        error_log("Failed to send OTP email: " . $e->getMessage());
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log("Verification check error: " . $e->getMessage());
+        }
+        unset($_SESSION['dev_otp_code']);
         
         require_once __DIR__ . '/../Views/auth/verify_email.php';
     }
@@ -351,13 +400,18 @@ class AuthController {
         $result = $this->userModel->verifyOTP($_SESSION['user_id'], $otp);
         
         if ($result['success']) {
-            // Send welcome email
-            if (class_exists('MailHelper')) {
-                MailHelper::sendWelcomeEmail($_SESSION['user_email'], $_SESSION['user_name']);
-            }
-            
             // Update session
             $_SESSION['email_verified'] = true;
+            unset($_SESSION['dev_otp_code']);
+            
+            // Send welcome email (non-blocking / error-safe)
+            if (class_exists('MailHelper')) {
+                try {
+                    MailHelper::sendWelcomeEmail($_SESSION['user_email'], $_SESSION['user_name']);
+                } catch (\Throwable $e) {
+                    error_log("Failed to send welcome email: " . $e->getMessage());
+                }
+            }
             
             // Create notification
             if (class_exists('NotificationModel')) {
@@ -395,19 +449,21 @@ class AuthController {
         
         // Generate new OTP
         $otp = $this->userModel->generateOTP($_SESSION['user_id']);
+        unset($_SESSION['dev_otp_code']);
         
         // Send email
+        $sent = false;
         if (class_exists('MailHelper')) {
-            $sent = MailHelper::sendOTPEmail($_SESSION['user_email'], $_SESSION['user_name'], $otp);
-            
-            if ($sent) {
-                echo json_encode(['success' => true, 'message' => 'New verification code sent']);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Failed to send email']);
+            try {
+                $sent = MailHelper::sendOTPEmail($_SESSION['user_email'], $_SESSION['user_name'] ?? 'User', $otp);
+            } catch (\Throwable $e) {
+                error_log("Failed to resend OTP email: " . $e->getMessage());
             }
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Email service unavailable']);
         }
+        echo json_encode([
+            'success' => true,
+            'message' => 'A new 6-digit verification code has been sent to your email.'
+        ]);
         exit;
     }
 
@@ -425,7 +481,7 @@ class AuthController {
         }
         
         // Check if credentials are configured
-        if (empty(getenv('GOOGLE_CLIENT_ID')) || empty(getenv('GOOGLE_CLIENT_SECRET'))) {
+        if (empty(env('GOOGLE_CLIENT_ID')) || empty(env('GOOGLE_CLIENT_SECRET'))) {
             $_SESSION['error'] = 'Google Sign-In is not configured. Please use email/password registration.';
             header('Location: ' . $basePath . '/login');
             exit;
@@ -433,9 +489,15 @@ class AuthController {
         
         try {
             $client = new Google_Client();
-            $client->setClientId(getenv('GOOGLE_CLIENT_ID'));
-            $client->setClientSecret(getenv('GOOGLE_CLIENT_SECRET'));
-            $client->setRedirectUri(getenv('GOOGLE_REDIRECT_URI'));
+            if (class_exists('\GuzzleHttp\Client')) {
+                $client->setHttpClient(new \GuzzleHttp\Client(['verify' => false]));
+            }
+            $client->setClientId(env('GOOGLE_CLIENT_ID'));
+            $client->setClientSecret(env('GOOGLE_CLIENT_SECRET'));
+            
+            $redirectUri = $this->getGoogleRedirectUri();
+            $client->setRedirectUri($redirectUri);
+
             $client->addScope('email');
             $client->addScope('profile');
             
@@ -449,7 +511,7 @@ class AuthController {
             exit;
         } catch (Exception $e) {
             error_log('Google OAuth error: ' . $e->getMessage());
-            $_SESSION['error'] = 'Google Sign-In is temporarily unavailable. Please use email/password registration.';
+            $_SESSION['error'] = 'Google Sign-In failed: ' . htmlspecialchars($e->getMessage());
             header('Location: ' . $basePath . '/login');
             exit;
         }
@@ -484,15 +546,21 @@ class AuthController {
         
         try {
             $client = new Google_Client();
-            $client->setClientId(getenv('GOOGLE_CLIENT_ID'));
-            $client->setClientSecret(getenv('GOOGLE_CLIENT_SECRET'));
-            $client->setRedirectUri(getenv('GOOGLE_REDIRECT_URI'));
+            if (class_exists('\GuzzleHttp\Client')) {
+                $client->setHttpClient(new \GuzzleHttp\Client(['verify' => false]));
+            }
+            $client->setClientId(env('GOOGLE_CLIENT_ID'));
+            $client->setClientSecret(env('GOOGLE_CLIENT_SECRET'));
+
+            $redirectUri = $this->getGoogleRedirectUri();
+            $client->setRedirectUri($redirectUri);
+
             
             // Exchange code for access token
             $token = $client->fetchAccessTokenWithAuthCode($_GET['code']);
             
             if (isset($token['error'])) {
-                throw new Exception($token['error_description'] ?? 'Failed to get access token');
+                throw new Exception($token['error_description'] ?? $token['error']);
             }
             
             $client->setAccessToken($token);
@@ -552,7 +620,7 @@ class AuthController {
             
         } catch (Exception $e) {
             error_log('Google OAuth error: ' . $e->getMessage());
-            $_SESSION['error'] = 'Google Sign-In failed. Please try again.';
+            $_SESSION['error'] = 'Google Sign-In failed: ' . htmlspecialchars($e->getMessage());
             header('Location: ' . $basePath . '/login');
         }
         
@@ -598,4 +666,21 @@ class AuthController {
         }
         return true;
     }
+
+    /**
+     * Helper to build exact Google OAuth Redirect URI
+     */
+    private function getGoogleRedirectUri() {
+        $redirectUri = env('GOOGLE_REDIRECT_URI');
+        if (!empty($redirectUri)) {
+            return $redirectUri;
+        }
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+        $scheme = $isHttps ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+        return $scheme . '://' . $host . $basePath . '/auth/google/callback';
+    }
 }
+

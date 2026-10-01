@@ -234,14 +234,161 @@ require __DIR__ . '/../layouts/header.php';
                     </div>
                 <?php endif; ?>
             </div>
-        </div>
+        <!-- Generated Credentials Flash Card (If generated) -->
+        <?php if (!empty($_SESSION['generated_learner_credentials'])): 
+            $creds = $_SESSION['generated_learner_credentials'];
+            unset($_SESSION['generated_learner_credentials']);
+        ?>
+            <div class="card border-success shadow mb-4">
+                <div class="card-header bg-success text-white d-flex align-items-center justify-content-between">
+                    <h5 class="mb-0"><i class="bi bi-key-fill me-2"></i>SignED LMS Learner Account Created Successfully!</h5>
+                    <span class="badge bg-white text-success fw-bold">Active</span>
+                </div>
+                <div class="card-body bg-light">
+                    <p class="mb-3">Palihug i-save o i-copy kini nga login credentials para sa bata (<strong><?= htmlspecialchars($creds['student_name']) ?></strong>) aron maka-login sa SignED LMS portal:</p>
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label text-muted small mb-1">Username / Login Email:</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white"><i class="bi bi-person"></i></span>
+                                <input type="text" class="form-control fw-bold bg-white" value="<?= htmlspecialchars($creds['username']) ?>" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small mb-1">Default Password:</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white"><i class="bi bi-lock"></i></span>
+                                <input type="text" class="form-control fw-bold bg-white text-danger" value="<?= htmlspecialchars($creds['password']) ?>" readonly>
+                            </div>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <a href="<?= $creds['login_url'] ?>" class="btn btn-success w-100" target="_blank">
+                                <i class="bi bi-box-arrow-in-right me-1"></i> Go to Login
+                            </a>
+                        </div>
+                    </div>
+                    <small class="text-muted d-block mt-2"><i class="bi bi-info-circle me-1"></i>Maka-ilis ang bata o ginikanan sa username ug password sa ilang Profile &amp; Settings page.</small>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <!-- Stage 2: Dual-Track & SignED LMS Credential Gate Card -->
+        <?php if (!empty($pdsp) && $pdsp['status'] === 'signed'): 
+            $dbTrack = Database::getInstance()->getConnection();
+            $stmtTrack = $dbTrack->prepare("SELECT learning_track, lms_invite_status, learner_user_id FROM student_records WHERE id = :sid LIMIT 1");
+            $stmtTrack->execute(['sid' => (int)$meeting['student_id']]);
+            $trackInfo = $stmtTrack->fetch(PDO::FETCH_ASSOC) ?: ['learning_track' => 'unassigned', 'lms_invite_status' => 'none', 'learner_user_id' => null];
+            $currentTrack = $trackInfo['learning_track'] ?? 'unassigned';
+            $inviteStatus = $trackInfo['lms_invite_status'] ?? 'none';
+            $isParent = ($_SESSION['role'] === 'parent');
+            $isStaff = in_array($_SESSION['role'], ['sped_teacher', 'admin', 'master_teacher']);
+        ?>
+            <div class="card border-primary shadow-sm mb-4">
+                <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <h5 class="mb-0"><i class="bi bi-diagram-3-fill me-2"></i>Stage 2: Learning Track &amp; SignED LMS Access</h5>
+                    <div>
+                        <?php if ($currentTrack === 'lms'): ?>
+                            <span class="badge bg-info text-dark fs-6"><i class="bi bi-laptop me-1"></i> 💻 SignED LMS Track</span>
+                        <?php elseif ($currentTrack === 'traditional'): ?>
+                            <span class="badge bg-secondary text-white fs-6"><i class="bi bi-person-workspace me-1"></i> 🏫 SEN Traditional F2F Track</span>
+                        <?php else: ?>
+                            <span class="badge bg-warning text-dark fs-6"><i class="bi bi-hourglass-split me-1"></i> Track Not Yet Selected</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Current Status Display -->
+                    <div class="row align-items-center mb-3">
+                        <div class="col-md-8">
+                            <h6 class="fw-bold mb-1">Dual-Track Placement Status:</h6>
+                            <?php if ($currentTrack === 'lms'): ?>
+                                <p class="text-muted mb-0 small">
+                                    This learner is enrolled under the <strong>💻 SignED Interactive LMS Track</strong>. 
+                                    Invitation Status: <span class="badge bg-<?= $inviteStatus === 'accepted' ? 'success' : ($inviteStatus === 'sent' ? 'warning text-dark' : 'secondary') ?>"><?= ucfirst($inviteStatus) ?></span>.
+                                    <?php if ($inviteStatus === 'accepted'): ?>
+                                        <br><span class="text-success"><i class="bi bi-check-all"></i> Learner account active. Access granted to Interactive CMS Workspace.</span>
+                                    <?php elseif ($inviteStatus === 'sent'): ?>
+                                        <br><span class="text-warning text-dark"><i class="bi bi-clock-history"></i> Waiting for parent to accept LMS digital invitation.</span>
+                                    <?php endif; ?>
+                                </p>
+                            <?php elseif ($currentTrack === 'traditional'): ?>
+                                <p class="text-muted mb-0 small">
+                                    This learner is enrolled under the <strong>🏫 SEN Traditional F2F Track</strong>. 
+                                    <br><span class="text-secondary"><i class="bi bi-folder-check"></i> Standard Record-Keeping IEP Workspace active (DLL &amp; physical document uploads only).</span>
+                                </p>
+                            <?php else: ?>
+                                <p class="text-muted mb-0 small">
+                                    Assessment and PDSP are signed! SPED Teacher may now choose to invite the learner to the <strong>SignED Interactive LMS</strong> or maintain as a <strong>Traditional SEN Learner</strong>.
+                                </p>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- SPED Teacher Actions -->
+                        <?php if ($isStaff): ?>
+                            <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                                <div class="d-flex flex-column gap-2">
+                                    <?php if ($currentTrack !== 'lms' || $inviteStatus === 'none'): ?>
+                                        <form method="POST" action="<?= $basePath ?>/iep/meetings/<?= $meeting['id'] ?>/send-lms-invite">
+                                            <button type="submit" class="btn btn-primary btn-sm w-100 shadow-sm" onclick="return confirm('Send SignED LMS digital invitation to parent?');">
+                                                <i class="bi bi-send-fill me-1"></i> 📩 Send SignED LMS Invitation
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
+
+                                    <?php if ($currentTrack !== 'traditional'): ?>
+                                        <form method="POST" action="<?= $basePath ?>/iep/meetings/<?= $meeting['id'] ?>/set-traditional-track">
+                                            <button type="submit" class="btn btn-outline-secondary btn-sm w-100" onclick="return confirm('Set learner as SEN Traditional F2F Learner?');">
+                                                <i class="bi bi-person-workspace me-1"></i> 🏫 Set as Traditional F2F
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Parent LMS Invitation Card -->
+                    <?php if ($isParent && $inviteStatus === 'sent'): ?>
+                        <div class="alert alert-warning border-warning shadow-sm mt-3 mb-0">
+                            <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+                                <div>
+                                    <h6 class="fw-bold text-dark mb-1"><i class="bi bi-envelope-open-fill text-primary me-2"></i>SignED LMS Interactive Learning Invitation</h6>
+                                    <p class="small text-muted mb-2">
+                                        Gi-invite sa SPED Teacher ang imong anak nga maka-access sa SignED Interactive LMS (Online Lesson Plans, Gamified Activities, ug Digital Quizzes).
+                                    </p>
+                                    <span class="badge bg-info text-dark">Parent Action Required</span>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <form method="POST" action="<?= $basePath ?>/iep/meetings/<?= $meeting['id'] ?>/accept-lms-invite">
+                                        <button type="submit" class="btn btn-success btn-sm fw-bold">
+                                            <i class="bi bi-check-circle-fill me-1"></i> Accept LMS Invitation
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="<?= $basePath ?>/iep/meetings/<?= $meeting['id'] ?>/decline-lms-invite">
+                                        <button type="submit" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Decline online LMS and stay on Traditional F2F?');">
+                                            Decline (F2F Only)
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                </div>
+            </div>
+        <?php endif; ?>
 
         <!-- Action Buttons -->
         <div class="d-flex justify-content-between flex-wrap gap-2">
             <a href="<?php echo $basePath; ?>/iep/meetings" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Back to Meetings
             </a>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap">
+                <?php if (!empty($pdsp) && $pdsp['status'] === 'signed' && in_array($_SESSION['role'], ['sped_teacher','admin'])): ?>
+                    <a href="<?php echo $basePath; ?>/iep/create?student_id=<?php echo (int)$meeting['student_id']; ?>" class="btn btn-primary shadow-sm">
+                        <i class="bi bi-file-earmark-plus me-1"></i> Draft IEP for Learner
+                    </a>
+                <?php endif; ?>
                 <?php if (!$isReadOnly && in_array($meeting['status'], ['scheduled','rescheduled'])): ?>
                     <button type="button" class="btn btn-outline-primary"
                             data-bs-toggle="collapse" data-bs-target="#editMeetingForm">

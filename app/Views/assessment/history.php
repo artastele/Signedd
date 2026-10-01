@@ -126,73 +126,77 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <?php if (!empty($assessment['section_a_data'])): ?>
                                         <div class="row mb-3">
                                             <div class="col-md-6">
-                                                <table class="table table-sm table-bordered">
-                                                    <tr>
-                                                        <th style="width: 40%;">Full Name</th>
-                                                        <td>
-                                                            <?php 
-                                                            echo htmlspecialchars(
-                                                                ($assessment['section_a_data']['first_name'] ?? '') . ' ' .
-                                                                ($assessment['section_a_data']['middle_name'] ?? '') . ' ' .
-                                                                ($assessment['section_a_data']['last_name'] ?? '') . ' ' .
-                                                                ($assessment['section_a_data']['extension_name'] ?? '')
-                                                            ); 
-                                                            ?>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <th>Birth Date</th>
-                                                        <td><?php echo htmlspecialchars($assessment['section_a_data']['birth_date'] ?? 'N/A'); ?></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <th>Age</th>
-                                                        <td><?php echo htmlspecialchars($assessment['section_a_data']['age'] ?? 'N/A'); ?></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <th>Sex</th>
-                                                        <td><?php echo htmlspecialchars($assessment['section_a_data']['sex'] ?? 'N/A'); ?></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <th>Religion</th>
-                                                        <td><?php echo htmlspecialchars($assessment['section_a_data']['religion'] ?? 'N/A'); ?></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <th>Home Address</th>
-                                                        <td><?php echo htmlspecialchars($assessment['section_a_data']['home_address'] ?? 'N/A'); ?></td>
-                                                    </tr>
-                                                </table>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-bordered">
+                                                        <tr>
+                                                            <th style="width: 40%;">Full Name</th>
+                                                            <td>
+                                                                <?php 
+                                                                echo htmlspecialchars(
+                                                                    ($assessment['section_a_data']['first_name'] ?? '') . ' ' .
+                                                                    ($assessment['section_a_data']['middle_name'] ?? '') . ' ' .
+                                                                    ($assessment['section_a_data']['last_name'] ?? '') . ' ' .
+                                                                    ($assessment['section_a_data']['extension_name'] ?? '')
+                                                                ); 
+                                                                ?>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>Birth Date</th>
+                                                            <td><?php echo htmlspecialchars($assessment['section_a_data']['birth_date'] ?? 'N/A'); ?></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>Age</th>
+                                                            <td><?php echo htmlspecialchars($assessment['section_a_data']['age'] ?? 'N/A'); ?></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>Sex</th>
+                                                            <td><?php echo htmlspecialchars($assessment['section_a_data']['sex'] ?? 'N/A'); ?></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>Religion</th>
+                                                            <td><?php echo htmlspecialchars($assessment['section_a_data']['religion'] ?? 'N/A'); ?></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>Home Address</th>
+                                                            <td><?php echo htmlspecialchars($assessment['section_a_data']['home_address'] ?? 'N/A'); ?></td>
+                                                        </tr>
+                                                    </table>
+                                                </div>
                                             </div>
                                             <div class="col-md-6">
-                                                <table class="table table-sm table-bordered">
-                                                    <tr>
-                                                        <th style="width: 40%;">Student ID</th>
-                                                        <td><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($assessment['section_a_data']['student_id'] ?? null)); ?></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <th style="width: 40%;">DepEd LRN</th>
-                                                        <td><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($assessment['section_a_data']['lrn'] ?? null)); ?></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <th>School</th>
-                                                        <td><?php echo htmlspecialchars($assessment['section_a_data']['school'] ?? 'N/A'); ?></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <th>School Year</th>
-                                                        <td><?php echo htmlspecialchars($assessment['section_a_data']['school_year'] ?? 'N/A'); ?></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <th>Adviser</th>
-                                                        <td><?php echo htmlspecialchars($assessment['section_a_data']['adviser_name'] ?? 'N/A'); ?></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <th>Previous School</th>
-                                                        <td><?php echo htmlspecialchars($assessment['section_a_data']['previous_school'] ?? 'N/A'); ?></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <th>With IEP</th>
-                                                        <td><?php echo ucfirst($assessment['section_a_data']['with_iep'] ?? 'no'); ?></td>
-                                                    </tr>
-                                                </table>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-bordered">
+                                                        <tr>
+                                                            <th style="width: 40%;">Student ID</th>
+                                                            <td><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($assessment['section_a_data']['student_id'] ?? null)); ?></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th style="width: 40%;">DepEd LRN</th>
+                                                            <td><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($assessment['section_a_data']['lrn'] ?? null)); ?></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>School</th>
+                                                            <td><?php echo htmlspecialchars($assessment['section_a_data']['school'] ?? 'N/A'); ?></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>School Year</th>
+                                                            <td><?php echo htmlspecialchars($assessment['section_a_data']['school_year'] ?? 'N/A'); ?></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>Adviser</th>
+                                                            <td><?php echo htmlspecialchars($assessment['section_a_data']['adviser_name'] ?? 'N/A'); ?></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>Previous School</th>
+                                                            <td><?php echo htmlspecialchars($assessment['section_a_data']['previous_school'] ?? 'N/A'); ?></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>With IEP</th>
+                                                            <td><?php echo ucfirst($assessment['section_a_data']['with_iep'] ?? 'no'); ?></td>
+                                                        </tr>
+                                                    </table>
+                                                </div>
                                             </div>
                                         </div>
                                     <?php else: ?>

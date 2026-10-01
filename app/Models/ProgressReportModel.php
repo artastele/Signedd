@@ -498,9 +498,95 @@ class ProgressReportModel {
         if ($normDb === 'socioemotional') return 'Socio-Emotional';
         if ($normDb === 'psychomotor') return 'Psychomotor';
         if ($normDb === 'dailylivingskills') return 'Daily Living Skills';
-        if ($normDb === 'communicationlanguage') return 'Communication and Language';
+        if ($normDb === 'communicationlanguage' || $normDb === 'languagedevelopment') return 'Language Development';
         
         return $dbDomain;
+    }
+
+    /**
+     * Compute data-driven recommended ratings for SF9 indicators based on LMS activity performance and attendance
+     */
+    public function getRecommendedSf9Ratings(int $studentId): array {
+        $stmt = $this->db->prepare("
+            SELECT 
+                COUNT(*) as total_graded,
+                COALESCE(AVG((g.score / NULLIF(g.max_score, 0)) * 100), 0) as avg_score,
+                SUM(CASE WHEN sub.needs_remediation = 1 THEN 1 ELSE 0 END) as remediation_count
+            FROM lms_grades g
+            JOIN lms_submissions sub ON g.submission_id = sub.id
+            WHERE sub.student_id = :student_id AND g.is_complete = 1
+        ");
+        $stmt->execute(['student_id' => $studentId]);
+        $stats = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $totalGraded = (int)($stats['total_graded'] ?? 0);
+        $overallAvg = round((float)($stats['avg_score'] ?? 0), 1);
+        $remediationCount = (int)($stats['remediation_count'] ?? 0);
+
+        // DepEd SF9 Benchmark mapping
+        // >=90% -> P (Proficient / Independent mastery)
+        // >=75% -> AP (Approaching Proficiency / Most of the time)
+        // >=50% or remediation flag -> D (Developing / Needs guidance)
+        // <50% -> B (Beginning / Rarely manifests)
+        $determineRating = function(float $score, bool $needsRemediation = false): string {
+            if ($score >= 90 && !$needsRemediation) return 'P';
+            if ($score >= 75 && !$needsRemediation) return 'AP';
+            if ($score >= 50 || $needsRemediation) return 'D';
+            if ($score > 0) return 'B';
+            return 'P';
+        };
+
+        $baselineRating = $determineRating($overallAvg, $remediationCount > 0);
+
+        // Fetch domain-specific averages
+        $domainAvgs = $this->getProcess7DomainAverages($studentId);
+        $domainMap = [];
+        foreach ($domainAvgs as $da) {
+            $domName = $da['domain'];
+            $domScore = (float)$da['avg_score'];
+            $domainMap[$domName] = [
+                'score' => $domScore,
+                'rating' => $determineRating($domScore, $domScore < 70)
+            ];
+        }
+
+        $sf9Domains = [
+            'Daily Living Skills',
+            'Socio-Emotional',
+            'Language Development',
+            'Psychomotor',
+            'Cognitive',
+            'Aesthetic/Creative',
+            'Behavioral Development',
+            'Orientation and Mobility'
+        ];
+
+        $domainRecommendations = [];
+        foreach ($sf9Domains as $dom) {
+            if (isset($domainMap[$dom])) {
+                $domainRecommendations[$dom] = [
+                    'rating' => $domainMap[$dom]['rating'],
+                    'score' => $domainMap[$dom]['score'],
+                    'has_direct_lms' => true,
+                    'reason' => $domainMap[$dom]['score'] . '% quiz mastery in ' . $dom
+                ];
+            } else {
+                $domainRecommendations[$dom] = [
+                    'rating' => $baselineRating,
+                    'score' => $overallAvg,
+                    'has_direct_lms' => false,
+                    'reason' => 'Referenced from learner overall LMS mastery (' . $overallAvg . '%)'
+                ];
+            }
+        }
+
+        return [
+            'overall_avg' => $overallAvg,
+            'total_graded' => $totalGraded,
+            'remediation_count' => $remediationCount,
+            'recommended_baseline' => $baselineRating,
+            'domains' => $domainRecommendations
+        ];
     }
 
     public function getActiveDomains(): array {

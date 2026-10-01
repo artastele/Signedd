@@ -96,7 +96,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                     </td>
                                     <td><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?></td>
                                     <td><?php echo htmlspecialchars($student['student_name']); ?></td>
-                                    <td><?php echo date('M d, Y', strtotime($student['date_of_birth'])); ?></td>
+                                    <td><?php echo !empty($student['date_of_birth']) && $student['date_of_birth'] !== '0000-00-00' ? date('M d, Y', strtotime($student['date_of_birth'])) : '<span class="text-muted">N/A</span>'; ?></td>
                                     <td><?php echo htmlspecialchars($student['disability_type'] ?? 'N/A'); ?></td>
                                     <td>
                                         <?php if ($student['current_grade_level']): ?>

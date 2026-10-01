@@ -14,5 +14,15 @@
     },
     "config": {
         "disable-tls": true
+    },
+    "extra": {
+        "google/apiclient-services": [
+            "Oauth2"
+        ]
+    },
+    "scripts": {
+        "post-autoload-dump": [
+            "Google\\Task\\Composer::cleanup"
+        ]
     }
 }

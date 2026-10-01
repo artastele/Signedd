@@ -1,13 +1,25 @@
-# SPED LMS — Root .htaccess
-# Redirects all requests to the public folder
+# SPED LMS — Root .htaccess for Shared Hosting Compatibility
+# Redirects all requests to the public/index.php front controller
+
+# Block direct web access to sensitive environment/config files
+<FilesMatch "^\.env|composer\.(json|lock)$">
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</FilesMatch>
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
     
-    # If the request is not for a file in public folder
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
-    
-    # Redirect to public folder
+    # Block access to hidden files (.env, .git, etc.)
+    RewriteRule (^\.|/\.) - [F]
+
+    # If request is not already pointing to the public folder, redirect to public/
+    RewriteCond %{REQUEST_URI} !public/ [NC]
     RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
+

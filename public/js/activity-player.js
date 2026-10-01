@@ -117,11 +117,11 @@ class ActivityPlayer {
                     <div class="options-list">
                         <label class="option-item">
                             <input type="radio" name="q${index}" value="true">
-                            <span>✓ True</span>
+                            <span><i class="ph-bold ph-check text-success me-1"></i> True</span>
                         </label>
                         <label class="option-item">
                             <input type="radio" name="q${index}" value="false">
-                            <span>✗ False</span>
+                            <span><i class="ph-bold ph-x text-danger me-1"></i> False</span>
                         </label>
                     </div>
                 </div>
@@ -378,10 +378,10 @@ class ActivityPlayer {
                 
                 // Show result
                 const percentage = data.percentage;
-                let message = `🎉 ${data.message}\n\n`;
+                let message = `${data.message}\n\n`;
                 message += `Score: ${data.score}/${data.total_points} (${percentage}%)\n`;
                 if (data.stars_earned > 0) {
-                    message += `Stars Earned: ${'⭐'.repeat(data.stars_earned)}`;
+                    message += `Stars Earned: ${data.stars_earned} star(s)`;
                 }
                 
                 alert(message);

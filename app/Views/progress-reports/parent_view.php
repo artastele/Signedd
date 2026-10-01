@@ -399,80 +399,84 @@ foreach (['1st', '2nd', '3rd', '4th'] as $qText) {
                         <!-- Attendance Table -->
                         <div>
                             <div class="section-title">Attendance Record</div>
-                            <table class="attendance-table">
-                                <thead>
-                                    <tr>
-                                        <th>Month</th>
-                                        <?php foreach ($activeMonths as $m): ?>
-                                            <th><?= htmlspecialchars($m['name']) ?></th>
-                                        <?php endforeach; ?>
-                                        <th>Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php
-                                    $totSchool = 0;
-                                    $totPresent = 0;
-                                    $totAbsent = 0;
-                                    ?>
-                                    <tr>
-                                        <td class="fw-bold">Days of School</td>
-                                        <?php foreach ($activeMonths as $m): $totSchool += $m['school_days']; ?>
-                                            <td><?= $m['school_days'] ?></td>
-                                        <?php endforeach; ?>
-                                        <td class="fw-bold"><?= $totSchool ?></td>
-                                    </tr>
-                                    <tr>
-                                        <td class="fw-bold">Days Present</td>
-                                        <?php foreach ($activeMonths as $m): $totPresent += $m['present']; ?>
-                                            <td><?= $m['present'] ?></td>
-                                        <?php endforeach; ?>
-                                        <td class="fw-bold"><?= $totPresent ?></td>
-                                    </tr>
-                                    <tr>
-                                        <td class="fw-bold">Days Absent</td>
-                                        <?php foreach ($activeMonths as $m): $totAbsent += $m['absent']; ?>
-                                            <td><?= $m['absent'] ?></td>
-                                        <?php endforeach; ?>
-                                        <td class="fw-bold"><?= $totAbsent ?></td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                            <div class="table-responsive">
+                                <table class="attendance-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Month</th>
+                                            <?php foreach ($activeMonths as $m): ?>
+                                                <th><?= htmlspecialchars($m['name']) ?></th>
+                                            <?php endforeach; ?>
+                                            <th>Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php
+                                        $totSchool = 0;
+                                        $totPresent = 0;
+                                        $totAbsent = 0;
+                                        ?>
+                                        <tr>
+                                            <td class="fw-bold">Days of School</td>
+                                            <?php foreach ($activeMonths as $m): $totSchool += $m['school_days']; ?>
+                                                <td><?= $m['school_days'] ?></td>
+                                            <?php endforeach; ?>
+                                            <td class="fw-bold"><?= $totSchool ?></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Days Present</td>
+                                            <?php foreach ($activeMonths as $m): $totPresent += $m['present']; ?>
+                                                <td><?= $m['present'] ?></td>
+                                            <?php endforeach; ?>
+                                            <td class="fw-bold"><?= $totPresent ?></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Days Absent</td>
+                                            <?php foreach ($activeMonths as $m): $totAbsent += $m['absent']; ?>
+                                                <td><?= $m['absent'] ?></td>
+                                            <?php endforeach; ?>
+                                            <td class="fw-bold"><?= $totAbsent ?></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
 
                         <!-- Parent Comments Table -->
                         <div>
                             <div class="section-title" style="margin-top: 15px;">Parent/Guardian Signature &amp; Remarks</div>
-                            <table>
-                                <thead class="table-light">
-                                    <tr>
-                                        <th style="width: 20%;">Quarter</th>
-                                        <th style="width: 55%; text-align: left;">Comments / Suggestions</th>
-                                        <th style="width: 25%;">Signature</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php 
-                                    foreach (['1st', '2nd', '3rd', '4th'] as $qText): 
-                                        $qSig = getQuarterRemark($reportRemarks, $qText, 'parent');
-                                        $commentText = $qSig['remark_text'] ?? '';
-                                        $sigName = $qSig['signature_name'] ?? '';
-                                        $sigData = $qSig['signature_data'] ?? '';
-                                    ?>
+                            <div class="table-responsive">
+                                <table>
+                                    <thead class="table-light">
                                         <tr>
-                                            <td class="quarter-col text-center" style="font-weight: bold; border-bottom: 1px solid #ddd;"><?= $qText ?></td>
-                                            <td class="comment-col underline-value" style="font-style: italic;"><?= htmlspecialchars($commentText) ?></td>
-                                            <td class="signature-col underline-value text-center" style="position: relative;">
-                                                <?php if (!empty($sigData)): ?>
-                                                    <img src="<?= htmlspecialchars($sigData) ?>" class="parent-sig-overlay" alt="Signature">
-                                                <?php elseif (!empty($sigName)): ?>
-                                                    <span class="parent-sig-name"><?= htmlspecialchars($sigName) ?></span>
-                                                <?php endif; ?>
-                                            </td>
+                                            <th style="width: 20%;">Quarter</th>
+                                            <th style="width: 55%; text-align: left;">Comments / Suggestions</th>
+                                            <th style="width: 25%;">Signature</th>
                                         </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        <?php 
+                                        foreach (['1st', '2nd', '3rd', '4th'] as $qText): 
+                                            $qSig = getQuarterRemark($reportRemarks, $qText, 'parent');
+                                            $commentText = $qSig['remark_text'] ?? '';
+                                            $sigName = $qSig['signature_name'] ?? '';
+                                            $sigData = $qSig['signature_data'] ?? '';
+                                        ?>
+                                            <tr>
+                                                <td class="quarter-col text-center" style="font-weight: bold; border-bottom: 1px solid #ddd;"><?= $qText ?></td>
+                                                <td class="comment-col underline-value" style="font-style: italic;"><?= htmlspecialchars($commentText) ?></td>
+                                                <td class="signature-col underline-value text-center" style="position: relative;">
+                                                    <?php if (!empty($sigData)): ?>
+                                                        <img src="<?= htmlspecialchars($sigData) ?>" class="parent-sig-overlay" alt="Signature">
+                                                    <?php elseif (!empty($sigName)): ?>
+                                                        <span class="parent-sig-name"><?= htmlspecialchars($sigName) ?></span>
+                                                    <?php endif; ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
 
                         <!-- Certificate to Transfer -->
@@ -637,39 +641,41 @@ foreach (['1st', '2nd', '3rd', '4th'] as $qText) {
                 </div>
 
                 <!-- Ratings Table -->
-                <table style="margin-bottom: 10px;">
-                    <thead>
-                        <tr>
-                            <th style="text-align:left;">Development Domains & Skill Competencies</th>
-                            <th style="width: 50px; text-align:center;">Q1</th>
-                            <th style="width: 50px; text-align:center;">Q2</th>
-                            <th style="width: 50px; text-align:center;">Q3</th>
-                            <th style="width: 50px; text-align:center;">Q4</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($ratingsGrouped)): ?>
+                <div class="table-responsive">
+                    <table style="margin-bottom: 10px;">
+                        <thead>
                             <tr>
-                                <td colspan="5" style="padding:15px; text-align:center; color: #555;">No domain ratings recorded yet. Initialize PDSP and observe activities to populate.</td>
+                                <th style="text-align:left;">Development Domains & Skill Competencies</th>
+                                <th style="width: 50px; text-align:center;">Q1</th>
+                                <th style="width: 50px; text-align:center;">Q2</th>
+                                <th style="width: 50px; text-align:center;">Q3</th>
+                                <th style="width: 50px; text-align:center;">Q4</th>
                             </tr>
-                        <?php else: ?>
-                            <?php foreach ($ratingsGrouped as $domain => $indicators): ?>
-                                <tr style="background-color: #f2f2f2; font-weight: bold;">
-                                    <td colspan="5" style="font-size: 9pt;"><?= htmlspecialchars($domain) ?></td>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($ratingsGrouped)): ?>
+                                <tr>
+                                    <td colspan="5" style="padding:15px; text-align:center; color: #555;">No domain ratings recorded yet. Initialize PDSP and observe activities to populate.</td>
                                 </tr>
-                                <?php foreach ($indicators as $indicator => $qval): ?>
-                                    <tr>
-                                        <td style="padding-left:15px; font-weight:normal; font-size: 9pt;"><?= htmlspecialchars($indicator) ?></td>
-                                        <td style="text-align:center; font-weight: bold;"><?= htmlspecialchars($qval[1] ?? '—') ?></td>
-                                        <td style="text-align:center; font-weight: bold;"><?= htmlspecialchars($qval[2] ?? '—') ?></td>
-                                        <td style="text-align:center; font-weight: bold;"><?= htmlspecialchars($qval[3] ?? '—') ?></td>
-                                        <td style="text-align:center; font-weight: bold;"><?= htmlspecialchars($qval[4] ?? '—') ?></td>
+                            <?php else: ?>
+                                <?php foreach ($ratingsGrouped as $domain => $indicators): ?>
+                                    <tr style="background-color: #f2f2f2; font-weight: bold;">
+                                        <td colspan="5" style="font-size: 9pt;"><?= htmlspecialchars($domain) ?></td>
                                     </tr>
+                                    <?php foreach ($indicators as $indicator => $qval): ?>
+                                        <tr>
+                                            <td style="font-size: 8.5pt;"><?= htmlspecialchars($indicator) ?></td>
+                                            <td style="text-align:center; font-weight: bold; font-size: 8.5pt;"><?= htmlspecialchars($qval[1] ?? '—') ?></td>
+                                            <td style="text-align:center; font-weight: bold; font-size: 8.5pt;"><?= htmlspecialchars($qval[2] ?? '—') ?></td>
+                                            <td style="text-align:center; font-weight: bold; font-size: 8.5pt;"><?= htmlspecialchars($qval[3] ?? '—') ?></td>
+                                            <td style="text-align:center; font-weight: bold; font-size: 8.5pt;"><?= htmlspecialchars($qval[4] ?? '—') ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
                                 <?php endforeach; ?>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
 
                 <!-- Grading Legend -->
                 <div class="legend-box">
@@ -765,8 +771,8 @@ foreach (['1st', '2nd', '3rd', '4th'] as $qText) {
                                         This signature will be embedded directly in the printed SF9 document. Quarters signed by you are immediately updated in the preview above.
                                     </p>
                                 </div>
-                                <button type="button" class="btn text-white w-100 py-3 font-weight-bold" style="background-color: #a01422; border-radius: 8px; font-size: 1.05rem;" onclick="submitSignature()">
-                                    <i class="bi bi-save me-1"></i> Submit &amp; Sign Quarter
+                                <button type="button" class="btn text-white w-100 fw-semibold" style="background-color: #1e4072; border-radius: 6px; font-size: 0.875rem; padding: 0.55rem 1rem; transition: background-color 0.2s ease;" onclick="submitSignature()">
+                                    <i class="bi bi-vector-pen me-1"></i> Submit &amp; Sign Quarter
                                 </button>
                             </div>
                         </div>

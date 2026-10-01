@@ -308,7 +308,7 @@ class AssessmentModel {
             
             // Delete physical file
             if ($result) {
-                $filePath = __DIR__ . '/../../public/uploads/' . $document['file_path'];
+                $filePath = function_exists('public_path') ? public_path('uploads/' . ltrim($document['file_path'], '/')) : (__DIR__ . '/../../public/uploads/' . $document['file_path']);
                 if (file_exists($filePath)) {
                     @unlink($filePath);
                 }
@@ -561,13 +561,13 @@ class AssessmentModel {
         $result = $stmt->fetch();
         
         if ($result) {
-            // Decode JSON fields
-            $result['section_a_data'] = json_decode($result['section_a_data'], true);
-            $result['services_checked'] = json_decode($result['services_checked'], true);
-            $result['screening_types'] = json_decode($result['screening_types'], true);
-            $result['education_history'] = json_decode($result['education_history'], true);
-            $result['assessment_info'] = json_decode($result['assessment_info'], true);
-            $result['submitted_data'] = json_decode($result['submitted_data'], true);
+            // Decode JSON fields safely
+            $result['section_a_data'] = !empty($result['section_a_data']) ? json_decode($result['section_a_data'], true) : [];
+            $result['services_checked'] = !empty($result['services_checked']) ? json_decode($result['services_checked'], true) : [];
+            $result['screening_types'] = !empty($result['screening_types']) ? json_decode($result['screening_types'], true) : [];
+            $result['education_history'] = !empty($result['education_history']) ? json_decode($result['education_history'], true) : [];
+            $result['assessment_info'] = !empty($result['assessment_info']) ? json_decode($result['assessment_info'], true) : [];
+            $result['submitted_data'] = !empty($result['submitted_data']) ? json_decode($result['submitted_data'], true) : [];
         }
         
         return $result;
@@ -588,8 +588,8 @@ class AssessmentModel {
         $results = $stmt->fetchAll();
         
         foreach ($results as &$result) {
-            $result['education_history'] = json_decode($result['education_history'], true);
-            $result['assessment_info'] = json_decode($result['assessment_info'], true);
+            $result['education_history'] = !empty($result['education_history']) ? json_decode($result['education_history'], true) : [];
+            $result['assessment_info'] = !empty($result['assessment_info']) ? json_decode($result['assessment_info'], true) : [];
         }
         
         return $results;
@@ -611,8 +611,8 @@ class AssessmentModel {
         $result = $stmt->fetch();
         
         if ($result) {
-            $result['education_history'] = json_decode($result['education_history'], true);
-            $result['assessment_info'] = json_decode($result['assessment_info'], true);
+            $result['education_history'] = !empty($result['education_history']) ? json_decode($result['education_history'], true) : [];
+            $result['assessment_info'] = !empty($result['assessment_info']) ? json_decode($result['assessment_info'], true) : [];
         }
         
         return $result;

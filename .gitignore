@@ -1,5 +1,7 @@
 # Environment variables
 .env
+.env.infinityfree
+
 
 # Uploaded files
 public/uploads/*
@@ -28,3 +30,17 @@ Thumbs.db
 *.bak
 *.swp
 *~
+
+# Temporary scratch and debug scripts
+scratch/
+check_live_db.php
+deploy_sync.php
+
+# Large archives and extracted test folders
+*.zip
+signedtest_extracted/
+
+# Test spreadsheets and data
+*.xlsx
+*.csv
+

@@ -17,7 +17,7 @@ class UserModel {
      */
     public function findByEmail($email) {
         $stmt = $this->db->prepare("
-            SELECT id, name, email, password_hash, role, status, created_at
+            SELECT id, school_id, name, email, password_hash, role, status, email_verified, created_at
             FROM users
             WHERE email = :email
             LIMIT 1
@@ -27,17 +27,72 @@ class UserModel {
     }
 
     /**
+     * Find user by student identifier (Student ID or DepEd LRN)
+     */
+    public function findByStudentIdentifier($identifier) {
+        $identifier = trim($identifier);
+        if (empty($identifier)) {
+            return null;
+        }
+
+        try {
+            $stmt = $this->db->prepare("
+                SELECT u.id, u.school_id, u.name, u.email, u.password_hash, u.role, u.status, u.email_verified, u.created_at
+                FROM users u
+                INNER JOIN student_records sr ON sr.learner_user_id = u.id
+                WHERE sr.student_id = :id1 OR sr.lrn = :id2
+                LIMIT 1
+            ");
+            $stmt->execute(['id1' => $identifier, 'id2' => $identifier]);
+            $user = $stmt->fetch();
+            if ($user) {
+                return $user;
+            }
+
+            // Fallback: check enrollment_submissions
+            $stmt2 = $this->db->prepare("
+                SELECT u.id, u.school_id, u.name, u.email, u.password_hash, u.role, u.status, u.email_verified, u.created_at
+                FROM users u
+                INNER JOIN enrollment_submissions es ON es.learner_user_id = u.id
+                WHERE es.lrn = :lrn
+                LIMIT 1
+            ");
+            $stmt2->execute(['lrn' => $identifier]);
+            return $stmt2->fetch();
+        } catch (Throwable $e) {
+            error_log("findByStudentIdentifier error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Find user by ID
      */
     public function findById($id) {
         $stmt = $this->db->prepare("
-            SELECT id, name, email, role, status, created_at
+            SELECT id, school_id, name, email, role, status, email_verified, created_at
             FROM users
             WHERE id = :id
             LIMIT 1
         ");
         $stmt->execute(['id' => $id]);
         return $stmt->fetch();
+    }
+
+    /**
+     * Update user school_id
+     */
+    public function updateSchoolId($userId, $schoolId) {
+        $stmt = $this->db->prepare("
+            UPDATE users
+            SET school_id = :school_id, updated_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([
+            'school_id' => $schoolId,
+            'id' => $userId
+        ]);
     }
 
     /**
@@ -94,6 +149,25 @@ class UserModel {
         return $stmt->execute([
             'status' => $status,
             'id' => $userId
+        ]);
+    }
+
+    /**
+     * Update FSL Training Certificate path and issue date
+     */
+    public function updateFslCert($userId, $certPath, $issueDate = null) {
+        $stmt = $this->db->prepare("
+            UPDATE users
+            SET fsl_cert_path = :cert_path,
+                fsl_cert_issue_date = :issue_date,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+        ");
+
+        return $stmt->execute([
+            'cert_path'  => $certPath,
+            'issue_date' => $issueDate ?: null,
+            'id'         => $userId
         ]);
     }
 
@@ -477,5 +551,41 @@ class UserModel {
         ");
         $stmt->execute(['id' => $userId]);
         return $stmt->fetch();
+    }
+
+    /**
+     * Get User Role Analytics breakdown for System Admin
+     */
+    public function getUserRoleAnalytics() {
+        $stmt = $this->db->query("
+            SELECT role, COUNT(*) as count 
+            FROM users 
+            GROUP BY role
+        ");
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $analytics = [
+            'total'           => 0,
+            'admin'           => 0,
+            'principal'       => 0,
+            'sped_teacher'    => 0,
+            'guidance'        => 0,
+            'master_teacher'  => 0,
+            'general_teacher' => 0,
+            'parent'          => 0,
+            'learner'         => 0,
+            'user'            => 0
+        ];
+
+        foreach ($rows as $r) {
+            $roleKey = $r['role'];
+            $cnt = (int)$r['count'];
+            $analytics['total'] += $cnt;
+            if (isset($analytics[$roleKey])) {
+                $analytics[$roleKey] = $cnt;
+            }
+        }
+
+        return $analytics;
     }
 }

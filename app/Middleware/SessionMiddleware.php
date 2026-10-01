@@ -83,17 +83,28 @@ class SessionMiddleware {
                     $stmt->execute(['id' => $_SESSION['user_id']]);
                     $user = $stmt->fetch();
                     
-                    if ($user && $user['role'] !== $_SESSION['role']) {
+                    if (!$user) {
+                        // User ID no longer exists in database (e.g. database reset)
+                        self::destroy();
+                        $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+                        header('Location: ' . $basePath . '/login');
+                        exit;
+                    }
+
+                    if ($user['role'] !== $_SESSION['role']) {
                         // Role has changed! Update session
                         $oldRole = $_SESSION['role'];
                         $_SESSION['role'] = $user['role'];
                         $_SESSION['last_role_check'] = time();
                         
-                        // Redirect to appropriate dashboard
-                        $basePath = defined('BASE_PATH') ? BASE_PATH : '';
-                        $_SESSION['success'] = 'Your role has been updated to ' . ucwords(str_replace('_', ' ', $user['role'])) . '!';
-                        header('Location: ' . $basePath . '/dashboard');
-                        exit;
+                        // Only redirect if not already on dashboard to avoid infinite loop
+                        $currentUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+                        if (strpos($currentUri, '/dashboard') === false) {
+                            $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+                            $_SESSION['success'] = 'Your role has been updated to ' . ucwords(str_replace('_', ' ', $user['role'])) . '!';
+                            header('Location: ' . $basePath . '/dashboard');
+                            exit;
+                        }
                     }
                     
                     $_SESSION['last_role_check'] = time();
@@ -115,12 +126,15 @@ class SessionMiddleware {
         }
 
         // Get current path
-        $currentPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-        $basePath = dirname($_SERVER['SCRIPT_NAME']);
-        if ($basePath !== '/') {
-            $currentPath = str_replace($basePath, '', $currentPath);
+        $rawPath = str_replace('\\', '/', parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
+        $basePath = defined('BASE_PATH') ? str_replace('\\', '/', BASE_PATH) : str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
+        
+        if (!empty($basePath) && $basePath !== '/') {
+            $currentPath = str_replace($basePath, '', $rawPath);
+        } else {
+            $currentPath = $rawPath;
         }
-        $currentPath = '/' . trim($currentPath, '/');
+        $currentPath = '/' . trim(str_replace('\\', '/', $currentPath), '/');
 
         // Exempt routes (allow access without email verification)
         $exemptRoutes = [
@@ -133,7 +147,7 @@ class SessionMiddleware {
         ];
 
         foreach ($exemptRoutes as $route) {
-            if (strpos($currentPath, $route) !== false) {
+            if (strpos($currentPath, $route) !== false || strpos($rawPath, $route) !== false) {
                 return;
             }
         }

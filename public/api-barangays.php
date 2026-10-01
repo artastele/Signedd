@@ -1,6 +1,10 @@
 <?php
 // Direct barangays endpoint (bypass routing)
-require_once __DIR__ . '/../app/Controllers/LocationController.php';
+$controllerPath = file_exists(__DIR__ . '/app/Controllers/LocationController.php')
+    ? __DIR__ . '/app/Controllers/LocationController.php'
+    : __DIR__ . '/../app/Controllers/LocationController.php';
+
+require_once $controllerPath;
 
 $province = $_GET['province'] ?? '';
 $city = $_GET['city'] ?? '';

@@ -236,30 +236,32 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
         <?php $matchingSets = $actData['sets'] ?? $actData['matching_sets'] ?? [['title' => 'Matching Set 1', 'pairs' => $actData['pairs'] ?? []]]; ?>
         <?php foreach ($matchingSets as $si => $set): ?>
         <div class="fw-semibold small mb-2"><?php echo htmlspecialchars($set['title'] ?? ('Matching Set ' . ($si + 1))); ?></div>
-        <table class="table table-sm table-bordered" style="font-size:.9rem;">
-            <thead style="background:#1e4072;color:#fff;">
-                <tr><th>Left</th><th>Learner's Match</th><th>Correct</th><th></th></tr>
-            </thead>
-            <tbody>
-            <?php foreach ($set['pairs'] ?? [] as $pi => $pair): ?>
-            <?php
-            $given   = $answers[$si . '_' . $pi] ?? ($si === 0 ? ($answers[$pi] ?? $answers[(string)$pi] ?? '') : '');
-            $isRight = strtolower(trim($given)) === strtolower(trim($pair['right']));
-            ?>
-            <tr>
-                <td><?php echo htmlspecialchars($pair['left']); ?></td>
-                <td style="color:<?php echo $isRight ? '#3b6d11' : '#a01422'; ?>;">
-                    <?php echo htmlspecialchars($given ?: '(none)'); ?>
-                </td>
-                <td><?php echo htmlspecialchars($pair['right']); ?></td>
-                <td class="text-center">
-                    <i class="ti ti-<?php echo $isRight ? 'check' : 'x'; ?>"
-                       style="color:<?php echo $isRight ? '#3b6d11' : '#a01422'; ?>;"></i>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered" style="font-size:.9rem;">
+                <thead style="background:#1e4072;color:#fff;">
+                    <tr><th>Left</th><th>Learner's Match</th><th>Correct</th><th></th></tr>
+                </thead>
+                <tbody>
+                <?php foreach ($set['pairs'] ?? [] as $pi => $pair): ?>
+                <?php
+                $given   = $answers[$si . '_' . $pi] ?? ($si === 0 ? ($answers[$pi] ?? $answers[(string)$pi] ?? '') : '');
+                $isRight = strtolower(trim($given)) === strtolower(trim($pair['right']));
+                ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($pair['left']); ?></td>
+                    <td style="color:<?php echo $isRight ? '#3b6d11' : '#a01422'; ?>;">
+                        <?php echo htmlspecialchars($given ?: '(none)'); ?>
+                    </td>
+                    <td><?php echo htmlspecialchars($pair['right']); ?></td>
+                    <td class="text-center">
+                        <i class="ti ti-<?php echo $isRight ? 'check' : 'x'; ?>"
+                           style="color:<?php echo $isRight ? '#3b6d11' : '#a01422'; ?>;"></i>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
         <?php endforeach; ?>
 
     <?php elseif ($actType === 'drag_drop_sort' || $actType === 'sequencing'): ?>
@@ -328,31 +330,33 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
             <?php endforeach; ?>
         </div>
         <?php endif; ?>
-        <table class="table table-sm table-bordered" style="font-size:.9rem;">
-            <thead style="background:#1e4072;color:#fff;">
-                <tr><th>#</th><th>Learner's Answer</th><th>Correct Answer</th><th></th></tr>
-            </thead>
-            <tbody>
-            <?php foreach ($labels as $li => $lbl): ?>
-            <?php
-            $given   = trim($answers[$li] ?? $answers[(string)$li] ?? '');
-            $correct = trim($lbl['answer'] ?? '');
-            $isRight = strtolower($given) === strtolower($correct);
-            ?>
-            <tr>
-                <td><?php echo $li + 1; ?></td>
-                <td style="color:<?php echo $isRight ? '#3b6d11' : '#a01422'; ?>;">
-                    <?php echo htmlspecialchars($given ?: '(blank)'); ?>
-                </td>
-                <td><?php echo htmlspecialchars($correct); ?></td>
-                <td class="text-center">
-                    <i class="ti ti-<?php echo $isRight ? 'check' : 'x'; ?>"
-                       style="color:<?php echo $isRight ? '#3b6d11' : '#a01422'; ?>;"></i>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered" style="font-size:.9rem;">
+                <thead style="background:#1e4072;color:#fff;">
+                    <tr><th>#</th><th>Learner's Answer</th><th>Correct Answer</th><th></th></tr>
+                </thead>
+                <tbody>
+                <?php foreach ($labels as $li => $lbl): ?>
+                <?php
+                $given   = trim($answers[$li] ?? $answers[(string)$li] ?? '');
+                $correct = trim($lbl['answer'] ?? '');
+                $isRight = strtolower($given) === strtolower($correct);
+                ?>
+                <tr>
+                    <td><?php echo $li + 1; ?></td>
+                    <td style="color:<?php echo $isRight ? '#3b6d11' : '#a01422'; ?>;">
+                        <?php echo htmlspecialchars($given ?: '(blank)'); ?>
+                    </td>
+                    <td><?php echo htmlspecialchars($correct); ?></td>
+                    <td class="text-center">
+                        <i class="ti ti-<?php echo $isRight ? 'check' : 'x'; ?>"
+                           style="color:<?php echo $isRight ? '#3b6d11' : '#a01422'; ?>;"></i>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
 
     <?php elseif ($actType === 'flashcards'): ?>
         <div class="alert" style="background:#e8edf5;border:1px solid #1e4072;color:#1e4072;">

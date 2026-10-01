@@ -22,28 +22,30 @@ $activityData = json_decode($activity['activity_data'], true);
 <div class="main-content learner-content">
     <!-- Activity Header -->
     <div class="activity-header">
-        <a href="<?php echo $basePath; ?>/learning/modules" class="btn-cartoon btn-back">
-            <i class="bi bi-arrow-left"></i> Exit
+        <a href="<?php echo $basePath; ?>/learning/modules" class="btn btn-outline-secondary rounded-2 px-3 fw-semibold">
+            <i class="ph-bold ph-arrow-left me-1"></i> Exit
         </a>
         <div class="activity-title-bar">
             <h2><?php echo htmlspecialchars($activity['activity_name']); ?></h2>
             <div class="activity-meta">
                 <span class="activity-type-badge"><?php echo htmlspecialchars($activity['activity_type']); ?></span>
-                <span class="activity-points">🏆 <?php echo $activity['total_points']; ?> points</span>
+                <span class="activity-points"><i class="ph-bold ph-trophy text-warning me-1"></i> <?php echo $activity['total_points']; ?> points</span>
             </div>
         </div>
-        <div class="timer-display">
-            <i class="bi bi-clock"></i>
+        <div class="timer-display d-flex align-items-center gap-1 text-muted">
+            <i class="ph-bold ph-clock"></i>
             <span id="timer">00:00</span>
         </div>
     </div>
 
     <!-- Best Score Display -->
     <?php if ($bestAttempt): ?>
-        <div class="best-score-banner">
-            <i class="bi bi-trophy-fill"></i>
-            Your Best Score: <?php echo $bestAttempt['score']; ?>/<?php echo $bestAttempt['total_points']; ?>
-            (<?php echo round(($bestAttempt['score'] / $bestAttempt['total_points']) * 100); ?>%)
+        <div class="best-score-banner alert alert-success d-flex align-items-center gap-2">
+            <i class="ph-bold ph-trophy fs-4 text-warning"></i>
+            <div>
+                Your Best Score: <strong><?php echo $bestAttempt['score']; ?>/<?php echo $bestAttempt['total_points']; ?></strong>
+                (<?php echo round(($bestAttempt['score'] / $bestAttempt['total_points']) * 100); ?>%)
+            </div>
         </div>
     <?php endif; ?>
 
@@ -54,9 +56,9 @@ $activityData = json_decode($activity['activity_data'], true);
                 <!-- Activity content will be rendered here based on type -->
             </div>
 
-            <div class="activity-actions">
-                <button id="submitBtn" class="btn-cartoon btn-submit-activity">
-                    Submit Answers! 🚀
+            <div class="activity-actions mt-4">
+                <button id="submitBtn" class="btn btn-primary w-100 fw-bold py-2.5 rounded-3 d-flex align-items-center justify-content-center gap-2">
+                    <span>Submit Answers!</span> <i class="ph-bold ph-paper-plane-tilt"></i>
                 </button>
             </div>
         </div>
@@ -66,16 +68,16 @@ $activityData = json_decode($activity['activity_data'], true);
     <?php if (!empty($attempts)): ?>
         <div class="card cartoon-card mt-4">
             <div class="card-body">
-                <h4>📊 Your Previous Attempts</h4>
+                <h4 class="fw-bold mb-3"><i class="ph-bold ph-chart-bar me-1 text-primary"></i> Your Previous Attempts</h4>
                 <div class="attempts-list">
                     <?php foreach (array_slice($attempts, 0, 5) as $attempt): ?>
-                        <div class="attempt-item">
+                        <div class="attempt-item d-flex align-items-center justify-content-between p-2 mb-2 bg-light rounded-2">
                             <div class="attempt-score">
                                 <?php 
                                 $percentage = ($attempt['score'] / $attempt['total_points']) * 100;
-                                $emoji = $percentage >= 90 ? '🌟' : ($percentage >= 70 ? '⭐' : '📝');
+                                $iconClass = $percentage >= 90 ? 'ph-star text-warning' : ($percentage >= 70 ? 'ph-check-circle text-success' : 'ph-pencil-simple text-primary');
                                 ?>
-                                <?php echo $emoji; ?> <?php echo $attempt['score']; ?>/<?php echo $attempt['total_points']; ?>
+                                <i class="ph-bold <?php echo $iconClass; ?> me-1"></i> <?php echo $attempt['score']; ?>/<?php echo $attempt['total_points']; ?>
                                 (<?php echo round($percentage); ?>%)
                             </div>
                             <div class="attempt-date">
@@ -422,12 +424,12 @@ function renderTrueFalse() {
                     <label class="option-item">
                         <input type="radio" name="q${index}" value="true" 
                                onchange="selectOption(this)">
-                        <span>✓ True</span>
+                        <span><i class="ph-bold ph-check text-success me-1"></i> True</span>
                     </label>
                     <label class="option-item">
                         <input type="radio" name="q${index}" value="false" 
                                onchange="selectOption(this)">
-                        <span>✗ False</span>
+                        <span><i class="ph-bold ph-x text-danger me-1"></i> False</span>
                     </label>
                 </div>
             </div>
@@ -591,10 +593,10 @@ document.getElementById('submitBtn').addEventListener('click', function() {
             
             // Show result
             const percentage = data.percentage;
-            let message = `🎉 ${data.message}\n\n`;
+            let message = `${data.message}\n\n`;
             message += `Score: ${data.score}/${data.total_points} (${percentage}%)\n`;
             if (data.stars_earned > 0) {
-                message += `Stars Earned: ${'⭐'.repeat(data.stars_earned)}`;
+                message += `Stars Earned: ${data.stars_earned} star(s)`;
             }
             
             alert(message);

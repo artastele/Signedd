@@ -36,7 +36,7 @@ require_once __DIR__ . '/../layouts/header.php';
                     <h6 class="text-muted mb-2">Enrollment Actions</h6>
                     <h3 class="mb-0 text-success">
                         <?php 
-                        $enrollmentCount = count(array_filter($logs, fn($l) => strpos($l['action_type'], 'enrollment') !== false));
+                        $enrollmentCount = count(array_filter($logs, fn($l) => strpos((string)($l['action_type'] ?? ''), 'enrollment') !== false));
                         echo number_format($enrollmentCount);
                         ?>
                     </h3>
@@ -143,7 +143,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                     </td>
                                     <td>
                                         <?php
-                                        $actionType = $log['action_type'];
+                                        $actionType = (string)($log['action_type'] ?? '');
                                         $badgeColor = '#1e4072'; // default navy
                                         
                                         if (strpos($actionType, 'enrollment') !== false) $badgeColor = '#0d6efd'; // blue

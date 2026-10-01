@@ -7,45 +7,57 @@
 // ============================================
 
 let autoSaveInterval = null;
+let autoSaveDebounceTimeout = null;
 let sessionKeepaliveInterval = null;
 let formChanged = false;
 let sessionExpiryTime = null;
 let sessionWarningShown = false;
 
 function initAutoSave() {
-    // Mark form as changed when any input changes
-    document.querySelectorAll('input, select, textarea').forEach(element => {
-        element.addEventListener('change', () => {
+    const form = document.getElementById('enrollmentForm');
+    if (!form) return;
+
+    // Mark form as changed on both input and change events
+    form.querySelectorAll('input, select, textarea').forEach(element => {
+        const triggerChange = () => {
             formChanged = true;
-        });
+            // Debounced background auto-save (1.5s after typing stops)
+            clearTimeout(autoSaveDebounceTimeout);
+            autoSaveDebounceTimeout = setTimeout(() => {
+                if (formChanged) {
+                    saveDraft(true);
+                }
+            }, 1500);
+        };
+
+        element.addEventListener('input', triggerChange);
+        element.addEventListener('change', triggerChange);
     });
 
-    // Auto-save every 30 seconds
+    // Fallback periodic auto-save every 15 seconds
     autoSaveInterval = setInterval(() => {
         if (formChanged) {
-            saveDraft();
+            saveDraft(true);
         }
-    }, 30000); // 30 seconds
+    }, 15000);
 
     // Session keepalive every 5 minutes (ping server to extend session)
     sessionKeepaliveInterval = setInterval(() => {
         keepSessionAlive();
-    }, 300000); // 5 minutes
+    }, 300000);
 
     // Set session expiry time (60 minutes from now)
-    sessionExpiryTime = Date.now() + (60 * 60 * 1000); // 60 minutes
+    sessionExpiryTime = Date.now() + (60 * 60 * 1000);
 
     // Check session expiry every minute
     setInterval(() => {
         checkSessionExpiry();
-    }, 60000); // 1 minute
+    }, 60000);
 
-    console.log('Auto-save initialized (every 30 seconds)');
-    console.log('Session keepalive initialized (every 5 minutes)');
+    console.log('Auto-save initialized (live debounced & 15s interval)');
 }
 
 function keepSessionAlive() {
-    // Ping server to keep session alive
     fetch(getBasePath() + '/enrollment/keepalive', {
         method: 'POST',
         headers: {
@@ -55,10 +67,8 @@ function keepSessionAlive() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Extend session expiry time
             sessionExpiryTime = Date.now() + (60 * 60 * 1000);
             sessionWarningShown = false;
-            console.log('Session extended at ' + new Date().toLocaleTimeString());
         }
     })
     .catch(error => {
@@ -70,13 +80,11 @@ function checkSessionExpiry() {
     const timeLeft = sessionExpiryTime - Date.now();
     const minutesLeft = Math.floor(timeLeft / 60000);
 
-    // Show warning when 5 minutes left
     if (minutesLeft <= 5 && minutesLeft > 0 && !sessionWarningShown) {
         sessionWarningShown = true;
         showSessionWarning(minutesLeft);
     }
 
-    // Session expired
     if (timeLeft <= 0) {
         showToast('Your session has expired. Please save your work and log in again.', 'error');
         clearInterval(autoSaveInterval);
@@ -100,8 +108,11 @@ function showSessionWarning(minutesLeft) {
     document.body.appendChild(warningDiv);
 }
 
-function saveDraft() {
-    const formData = new FormData(document.getElementById('enrollmentForm'));
+function saveDraft(silent = false) {
+    const form = document.getElementById('enrollmentForm');
+    if (!form) return;
+
+    const formData = new FormData(form);
     
     fetch(getBasePath() + '/enrollment/save-draft', {
         method: 'POST',
@@ -111,8 +122,10 @@ function saveDraft() {
     .then(data => {
         if (data.success) {
             formChanged = false;
-            showToast('Draft saved automatically', 'success');
-            console.log('Draft saved at ' + new Date().toLocaleTimeString());
+            if (!silent) {
+                showToast('<i class="bi bi-check-circle-fill me-1"></i> Draft saved successfully', 'success');
+            }
+            console.log('Draft saved successfully at ' + new Date().toLocaleTimeString());
         }
     })
     .catch(error => {
@@ -121,8 +134,7 @@ function saveDraft() {
 }
 
 function manualSave() {
-    saveDraft();
-    showToast('Saving draft...', 'info');
+    saveDraft(false);
 }
 
 // ============================================
@@ -184,11 +196,7 @@ function setSignatureData(dataURL) {
 // LOCATION DROPDOWNS (Dynamic Loading)
 // ============================================
 
-function initLocationDropdowns() {
-    // Load provinces on page load
-    loadProvinces('current_province', 'current_city', 'current_barangay');
-    loadProvinces('permanent_province', 'permanent_city', 'permanent_barangay');
-
+async function initLocationDropdowns() {
     // Province change handlers
     document.getElementById('current_province')?.addEventListener('change', function() {
         loadCities(this.value, 'current_city', 'current_barangay');
@@ -200,12 +208,12 @@ function initLocationDropdowns() {
 
     // City change handlers
     document.getElementById('current_city')?.addEventListener('change', function() {
-        const province = document.getElementById('current_province').value;
+        const province = document.getElementById('current_province')?.value || '';
         loadBarangays(province, this.value, 'current_barangay');
     });
 
     document.getElementById('permanent_city')?.addEventListener('change', function() {
-        const province = document.getElementById('permanent_province').value;
+        const province = document.getElementById('permanent_province')?.value || '';
         loadBarangays(province, this.value, 'permanent_barangay');
     });
 
@@ -216,89 +224,238 @@ function initLocationDropdowns() {
         }
     });
 
-    console.log('Location dropdowns initialized');
-}
+    // 1. Restore Current Address sequentially
+    const curProvEl = document.getElementById('current_province');
+    const curCityEl = document.getElementById('current_city');
+    const curBrgyEl = document.getElementById('current_barangay');
 
-function loadProvinces(provinceSelectId, citySelectId, barangaySelectId) {
-    fetch(getBasePath() + '/api-provinces.php')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const select = document.getElementById(provinceSelectId);
-                if (select) {
-                    select.innerHTML = '<option value="">-- Select Province --</option>';
-                    data.provinces.forEach(province => {
-                        select.innerHTML += `<option value="${province}">${province}</option>`;
-                    });
-                }
+    const curProv = curProvEl?.getAttribute('data-initial-value') || curProvEl?.value || '';
+    const curCity = curCityEl?.getAttribute('data-initial-value') || curCityEl?.value || '';
+    const curBrgy = curBrgyEl?.getAttribute('data-initial-value') || curBrgyEl?.value || '';
+
+    if (curProvEl) {
+        await loadProvinces('current_province', curProv);
+        if (curProv && curCity) {
+            await loadCities(curProv, 'current_city', 'current_barangay', curCity);
+            if (curBrgy) {
+                await loadBarangays(curProv, curCity, 'current_barangay', curBrgy);
             }
-        })
-        .catch(error => console.error('Failed to load provinces:', error));
+        }
+    }
+
+    // 2. Restore Permanent Address sequentially
+    const isSameAsCurrent = document.getElementById('same_as_current_address')?.checked;
+    const permProvEl = document.getElementById('permanent_province');
+    const permCityEl = document.getElementById('permanent_city');
+    const permBrgyEl = document.getElementById('permanent_barangay');
+
+    const permProv = permProvEl?.getAttribute('data-initial-value') || permProvEl?.value || '';
+    const permCity = permCityEl?.getAttribute('data-initial-value') || permCityEl?.value || '';
+    const permBrgy = permBrgyEl?.getAttribute('data-initial-value') || permBrgyEl?.value || '';
+
+    if (permProvEl) {
+        await loadProvinces('permanent_province', permProv);
+        if (!isSameAsCurrent && permProv && permCity) {
+            await loadCities(permProv, 'permanent_city', 'permanent_barangay', permCity);
+            if (permBrgy) {
+                await loadBarangays(permProv, permCity, 'permanent_barangay', permBrgy);
+            }
+        }
+    }
+
+    console.log('Location dropdowns initialized & restored successfully');
 }
 
-function loadCities(province, citySelectId, barangaySelectId) {
-    if (!province) return;
+function loadProvinces(provinceSelectId, selectedValue = '') {
+    const select = document.getElementById(provinceSelectId);
+    if (!select) return Promise.resolve(null);
 
-    fetch(getBasePath() + '/api-cities.php?province=' + encodeURIComponent(province))
-        .then(response => response.json())
+    let valToSelect = '';
+    if (typeof selectedValue === 'string' && selectedValue !== 'current_city' && selectedValue !== 'permanent_city') {
+        valToSelect = selectedValue;
+    }
+
+    select.innerHTML = '<option value="">Loading provinces...</option>';
+
+    return fetch(getBasePath() + '/api-provinces.php')
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
         .then(data => {
-            if (data.success) {
-                const select = document.getElementById(citySelectId);
-                if (select) {
-                    select.innerHTML = '<option value="">-- Select City/Municipality --</option>';
-                    data.cities.forEach(city => {
-                        select.innerHTML += `<option value="${city}">${city}</option>`;
-                    });
-                }
+            if (data && data.success && Array.isArray(data.provinces)) {
+                let options = '<option value="">-- Select Province --</option>';
+                let foundSelected = false;
                 
-                // Clear barangay dropdown
-                const barangaySelect = document.getElementById(barangaySelectId);
-                if (barangaySelect) {
-                    barangaySelect.innerHTML = '<option value="">-- Select Barangay --</option>';
+                data.provinces.forEach(province => {
+                    const isSelected = (valToSelect && province.toLowerCase() === valToSelect.toLowerCase());
+                    if (isSelected) foundSelected = true;
+                    options += `<option value="${province}"${isSelected ? ' selected' : ''}>${province}</option>`;
+                });
+
+                if (valToSelect && !foundSelected) {
+                    options += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
                 }
+
+                select.innerHTML = options;
+                if (valToSelect) select.value = valToSelect;
+            } else {
+                select.innerHTML = '<option value="">-- Select Province --</option>';
             }
+            return data;
         })
-        .catch(error => console.error('Failed to load cities:', error));
+        .catch(error => {
+            console.error('Failed to load provinces:', error);
+            select.innerHTML = '<option value="">Failed to load provinces</option>';
+            if (valToSelect) {
+                select.innerHTML += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
+            }
+            return null;
+        });
 }
 
-function loadBarangays(province, city, barangaySelectId) {
-    if (!province || !city) return;
+function loadCities(province, citySelectId, barangaySelectId = null, selectedValue = '') {
+    const select = document.getElementById(citySelectId);
+    let barangaySelectIdStr = (typeof barangaySelectId === 'string' && barangaySelectId.includes('barangay')) ? barangaySelectId : null;
+    let valToSelect = selectedValue;
 
-    fetch(getBasePath() + '/api-barangays.php?province=' + encodeURIComponent(province) + '&city=' + encodeURIComponent(city))
-        .then(response => response.json())
+    if (!valToSelect && typeof barangaySelectId === 'string' && !barangaySelectId.includes('barangay')) {
+        valToSelect = barangaySelectId;
+    }
+
+    if (!select) return Promise.resolve(null);
+
+    if (!province) {
+        select.innerHTML = '<option value="">Select province first</option>';
+        if (barangaySelectIdStr && document.getElementById(barangaySelectIdStr)) {
+            document.getElementById(barangaySelectIdStr).innerHTML = '<option value="">Select city first</option>';
+        }
+        return Promise.resolve(null);
+    }
+
+    select.innerHTML = '<option value="">Loading cities...</option>';
+
+    return fetch(getBasePath() + '/api-cities.php?province=' + encodeURIComponent(province))
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
         .then(data => {
-            if (data.success) {
-                const select = document.getElementById(barangaySelectId);
-                if (select) {
-                    select.innerHTML = '<option value="">-- Select Barangay --</option>';
-                    data.barangays.forEach(barangay => {
-                        select.innerHTML += `<option value="${barangay}">${barangay}</option>`;
-                    });
+            if (data && data.success && Array.isArray(data.cities)) {
+                let options = '<option value="">-- Select City/Municipality --</option>';
+                let foundSelected = false;
+
+                data.cities.forEach(city => {
+                    const isSelected = (valToSelect && city.toLowerCase() === valToSelect.toLowerCase());
+                    if (isSelected) foundSelected = true;
+                    options += `<option value="${city}"${isSelected ? ' selected' : ''}>${city}</option>`;
+                });
+
+                if (valToSelect && !foundSelected) {
+                    options += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
+                }
+
+                select.innerHTML = options;
+                if (valToSelect) select.value = valToSelect;
+
+                if (barangaySelectIdStr && document.getElementById(barangaySelectIdStr) && !valToSelect) {
+                    document.getElementById(barangaySelectIdStr).innerHTML = '<option value="">-- Select Barangay --</option>';
+                }
+            } else {
+                select.innerHTML = '<option value="">-- Select City/Municipality --</option>';
+                if (barangaySelectIdStr && document.getElementById(barangaySelectIdStr)) {
+                    document.getElementById(barangaySelectIdStr).innerHTML = '<option value="">-- Select Barangay --</option>';
                 }
             }
+            return data;
         })
-        .catch(error => console.error('Failed to load barangays:', error));
+        .catch(error => {
+            console.error('Failed to load cities:', error);
+            select.innerHTML = '<option value="">Failed to load cities</option>';
+            if (valToSelect) {
+                select.innerHTML += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
+            }
+            return null;
+        });
 }
 
-function copyCurrentToPermanent() {
-    document.getElementById('permanent_house_no').value = document.getElementById('current_house_no').value;
-    document.getElementById('permanent_province').value = document.getElementById('current_province').value;
-    
-    // Trigger change to load cities
-    const event = new Event('change');
-    document.getElementById('permanent_province').dispatchEvent(event);
-    
-    // Wait for cities to load, then set city
-    setTimeout(() => {
-        document.getElementById('permanent_city').value = document.getElementById('current_city').value;
-        document.getElementById('permanent_city').dispatchEvent(event);
-        
-        // Wait for barangays to load, then set barangay
-        setTimeout(() => {
-            document.getElementById('permanent_barangay').value = document.getElementById('current_barangay').value;
-            document.getElementById('permanent_zip_code').value = document.getElementById('current_zip_code').value;
-        }, 500);
-    }, 500);
+function loadBarangays(province, city, barangaySelectId, selectedValue = '') {
+    const select = document.getElementById(barangaySelectId);
+    let valToSelect = selectedValue;
+
+    if (!select) return Promise.resolve(null);
+
+    if (!province || !city) {
+        select.innerHTML = '<option value="">Select city first</option>';
+        return Promise.resolve(null);
+    }
+
+    select.innerHTML = '<option value="">Loading barangays...</option>';
+
+    return fetch(getBasePath() + '/api-barangays.php?province=' + encodeURIComponent(province) + '&city=' + encodeURIComponent(city))
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.success && Array.isArray(data.barangays)) {
+                let options = '<option value="">-- Select Barangay --</option>';
+                let foundSelected = false;
+
+                data.barangays.forEach(barangay => {
+                    const isSelected = (valToSelect && barangay.toLowerCase() === valToSelect.toLowerCase());
+                    if (isSelected) foundSelected = true;
+                    options += `<option value="${barangay}"${isSelected ? ' selected' : ''}>${barangay}</option>`;
+                });
+
+                if (valToSelect && !foundSelected) {
+                    options += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
+                }
+
+                select.innerHTML = options;
+                if (valToSelect) select.value = valToSelect;
+            } else {
+                select.innerHTML = '<option value="">-- Select Barangay --</option>';
+                if (valToSelect) {
+                    select.innerHTML += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
+                    select.value = valToSelect;
+                }
+            }
+            return data;
+        })
+        .catch(error => {
+            console.error('Failed to load barangays:', error);
+            select.innerHTML = '<option value="">Failed to load barangays</option>';
+            if (valToSelect) {
+                select.innerHTML += `<option value="${valToSelect}" selected>${valToSelect}</option>`;
+                select.value = valToSelect;
+            }
+            return null;
+        });
+}
+
+async function copyCurrentToPermanent() {
+    const curHouse = document.getElementById('current_house_no')?.value || '';
+    const curProv = document.getElementById('current_province')?.value || '';
+    const curCity = document.getElementById('current_city')?.value || '';
+    const curBrgy = document.getElementById('current_barangay')?.value || '';
+    const curZip = document.getElementById('current_zip_code')?.value || '';
+
+    const permHouse = document.getElementById('permanent_house_no');
+    const permZip = document.getElementById('permanent_zip_code');
+
+    if (permHouse) permHouse.value = curHouse;
+    if (permZip) permZip.value = curZip;
+
+    if (curProv) {
+        await loadProvinces('permanent_province', curProv);
+        if (curCity) {
+            await loadCities(curProv, 'permanent_city', 'permanent_barangay', curCity);
+            if (curBrgy) {
+                await loadBarangays(curProv, curCity, 'permanent_barangay', curBrgy);
+            }
+        }
+    }
 }
 
 // ============================================
@@ -351,6 +508,8 @@ let currentStep = 1;
 const totalSteps = 7;
 
 function showStep(step) {
+    step = Math.max(1, Math.min(totalSteps, parseInt(step) || 1));
+
     // Hide all steps
     document.querySelectorAll('.form-step').forEach(el => {
         el.style.display = 'none';
@@ -366,22 +525,65 @@ function showStep(step) {
     updateProgressBar(step);
 
     // Update buttons
-    document.getElementById('prevBtn').style.display = step === 1 ? 'none' : 'inline-block';
-    document.getElementById('nextBtn').style.display = step === totalSteps ? 'none' : 'inline-block';
-    document.getElementById('submitBtn').style.display = step === totalSteps ? 'inline-block' : 'none';
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const submitBtn = document.getElementById('submitBtn');
+
+    if (prevBtn) prevBtn.style.display = step === 1 ? 'none' : 'inline-block';
+    if (nextBtn) nextBtn.style.display = step === totalSteps ? 'none' : 'inline-block';
+    if (submitBtn) submitBtn.style.display = step === totalSteps ? 'inline-block' : 'none';
 
     currentStep = step;
+    try {
+        sessionStorage.setItem('signed_enrollment_step', step);
+        localStorage.setItem('signed_enrollment_step', step);
+        if (window.location.hash !== '#step-' + step) {
+            history.replaceState(null, '', '#step-' + step);
+        }
+    } catch(e) {}
+
+    // Ensure signature pad is properly sized when opening step 7
+    if (step === 7) {
+        setTimeout(() => {
+            const canvas = document.getElementById('signaturePad');
+            if (canvas) {
+                const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                if (canvas.offsetWidth > 0 && canvas.width !== canvas.offsetWidth * ratio) {
+                    canvas.width = canvas.offsetWidth * ratio;
+                    canvas.height = canvas.offsetHeight * ratio;
+                    canvas.getContext('2d').scale(ratio, ratio);
+                }
+            }
+        }, 50);
+    }
 }
 
 function nextStep() {
+    try {
+        // Silently save progress when advancing steps
+        if (typeof saveDraft === 'function') {
+            saveDraft(true);
+        }
+    } catch (e) {
+        console.warn('saveDraft skipped:', e);
+    }
     if (currentStep < totalSteps) {
         showStep(currentStep + 1);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 }
 
 function prevStep() {
+    try {
+        if (typeof saveDraft === 'function') {
+            saveDraft(true);
+        }
+    } catch (e) {
+        console.warn('saveDraft skipped:', e);
+    }
     if (currentStep > 1) {
         showStep(currentStep - 1);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 }
 
@@ -425,14 +627,14 @@ function calculateAge() {
 function showToast(message, type = 'info') {
     // Simple toast notification
     const toast = document.createElement('div');
-    toast.className = `alert alert-${type === 'error' ? 'danger' : type} position-fixed top-0 end-0 m-3`;
+    toast.className = `alert alert-${type === 'error' ? 'danger' : type} position-fixed top-0 end-0 m-3 shadow`;
     toast.style.zIndex = '9999';
     toast.innerHTML = message;
     document.body.appendChild(toast);
 
     setTimeout(() => {
         toast.remove();
-    }, type === 'error' ? 0 : 3000);
+    }, type === 'error' ? 5000 : 3000);
 }
 
 function getBasePath() {
@@ -467,7 +669,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     if (document.querySelector('.form-step')) {
-        showStep(1);
+        let initialStep = 1;
+        const hashMatch = window.location.hash.match(/step-(\d+)/);
+        if (hashMatch) {
+            initialStep = parseInt(hashMatch[1]) || 1;
+        } else {
+            try {
+                const saved = sessionStorage.getItem('signed_enrollment_step') || localStorage.getItem('signed_enrollment_step');
+                if (saved) {
+                    initialStep = parseInt(saved) || 1;
+                }
+            } catch(e) {}
+        }
+        showStep(initialStep);
     }
     
     // Calculate age on page load if birth date exists

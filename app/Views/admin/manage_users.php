@@ -291,18 +291,20 @@ function viewDetails(userId) {
         if (data.success) {
             const user = data.user;
             document.getElementById('userDetailsContent').innerHTML = `
-                <table class="table">
-                    <tr><th>ID:</th><td>${user.id}</td></tr>
-                    <tr><th>Name:</th><td>${user.name}</td></tr>
-                    <tr><th>Email:</th><td>${user.email}</td></tr>
-                    <tr><th>Contact:</th><td>${user.contact_number || 'N/A'}</td></tr>
-                    <tr><th>Role:</th><td><span class="badge" style="background-color: #1e4072;">${user.role.replace('_', ' ').toUpperCase()}</span></td></tr>
-                    <tr><th>Status:</th><td><span class="badge bg-${user.status === 'active' ? 'success' : 'danger'}">${user.status.toUpperCase()}</span></td></tr>
-                    <tr><th>Email Verified:</th><td>${user.email_verified ? 'Yes' : 'No'}</td></tr>
-                    <tr><th>Auth Provider:</th><td>${user.auth_provider}</td></tr>
-                    <tr><th>Created:</th><td>${new Date(user.created_at).toLocaleString()}</td></tr>
-                    <tr><th>Updated:</th><td>${new Date(user.updated_at).toLocaleString()}</td></tr>
-                </table>
+                <div class="table-responsive">
+                    <table class="table">
+                        <tr><th>ID:</th><td>${user.id}</td></tr>
+                        <tr><th>Name:</th><td>${user.name}</td></tr>
+                        <tr><th>Email:</th><td>${user.email}</td></tr>
+                        <tr><th>Contact:</th><td>${user.contact_number || 'N/A'}</td></tr>
+                        <tr><th>Role:</th><td><span class="badge" style="background-color: #1e4072;">${user.role.replace('_', ' ').toUpperCase()}</span></td></tr>
+                        <tr><th>Status:</th><td><span class="badge bg-${user.status === 'active' ? 'success' : 'danger'}">${user.status.toUpperCase()}</span></td></tr>
+                        <tr><th>Email Verified:</th><td>${user.email_verified ? 'Yes' : 'No'}</td></tr>
+                        <tr><th>Auth Provider:</th><td>${user.auth_provider}</td></tr>
+                        <tr><th>Created:</th><td>${new Date(user.created_at).toLocaleString()}</td></tr>
+                        <tr><th>Updated:</th><td>${new Date(user.updated_at).toLocaleString()}</td></tr>
+                    </table>
+                </div>
             `;
         } else {
             document.getElementById('userDetailsContent').innerHTML = '<p class="text-danger">Failed to load user details</p>';

@@ -89,31 +89,33 @@ require __DIR__ . '/../layouts/topbar.php';
         </div>
 
         <!-- Assessments Table — Grouped by Student -->
-        <div class="card">
-            <div class="card-header" style="background-color: #1e4072; color: white;">
-                <h5 class="mb-0"><i class="fas fa-list"></i> Assessments by Student</h5>
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold text-dark">
+                    <i class="bi bi-journal-text text-primary me-2"></i> Assessments by Student
+                </h5>
             </div>
             <div class="table-responsive">
-                <table class="table table-hover mb-0" id="assessmentsTable">
-                    <thead style="background-color: #f5f5f5;">
+                <table class="table table-hover align-middle mb-0" id="assessmentsTable">
+                    <thead class="table-light text-secondary" style="font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.5px;">
                         <tr>
-                            <th>Student Name</th>
-                            <th>Student ID</th>
-                            <th>DepEd LRN</th>
-                            <th>Versions</th>
-                            <th>Latest Status</th>
-                            <th>Last Updated</th>
-                            <th>Actions</th>
+                            <th class="ps-3 py-3">Student Name</th>
+                            <th class="py-3">Student ID</th>
+                            <th class="py-3">DepEd LRN</th>
+                            <th class="py-3">Versions</th>
+                            <th class="py-3">Latest Status</th>
+                            <th class="py-3">Last Updated</th>
+                            <th class="text-end pe-3 py-3">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($allAssessments)): ?>
                             <tr>
-                                <td colspan="7" class="text-center py-4 text-muted">
-                                    <i class="fas fa-inbox fa-3x mb-3"></i>
-                                    <p>No assessments found</p>
-                                    <a href="<?php echo BASE_PATH; ?>/assessment/conduct" class="btn btn-primary" style="background-color: #a01422; border-color: #a01422;">
-                                        <i class="fas fa-plus"></i> Conduct First Assessment
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-1 text-secondary mb-2 d-block"></i>
+                                    <p class="mb-3">No assessments recorded yet</p>
+                                    <a href="<?php echo BASE_PATH; ?>/assessment/conduct" class="btn btn-sm btn-primary px-3 py-2" style="border-radius: 6px; font-weight: 500;">
+                                        <i class="bi bi-plus-lg me-1"></i> Conduct First Assessment
                                     </a>
                                 </td>
                             </tr>
@@ -149,46 +151,72 @@ require __DIR__ . '/../layouts/topbar.php';
                             <tr class="assessment-row"
                                 data-status="<?php echo htmlspecialchars($latest['status']); ?>"
                                 data-search="<?php echo strtolower($student['student_name'] . ' ' . ($student['student_code'] ?? '') . ' ' . ($student['lrn'] ?? '')); ?>">
-                                <td>
-                                    <strong><?php echo htmlspecialchars($student['student_name']); ?></strong>
-                                </td>
-                                <td><code><?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_code'] ?? null)); ?></code></td>
-                                <td><small><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?></small></td>
-                                <td>
-                                    <span class="badge" style="background:#1e4072;"><?php echo $vCount; ?> version<?php echo $vCount > 1 ? 's' : ''; ?></span>
+                                <td class="ps-3">
+                                    <span class="fw-semibold text-dark"><?php echo htmlspecialchars($student['student_name']); ?></span>
                                 </td>
                                 <td>
-                                    <?php
-                                    $statusColor = match($latest['status']) {
-                                        'finalized' => '#3b6d11',
-                                        'draft'     => '#ffc107',
-                                        'approved'  => '#28a745',
-                                        'rejected'  => '#dc3545',
-                                        default     => '#6c757d'
-                                    };
-                                    ?>
-                                    <span class="badge" style="background-color:<?php echo $statusColor; ?>;">
-                                        <?php echo ucfirst($latest['status']); ?>
+                                    <span class="badge bg-light text-dark border font-monospace px-2 py-1" style="font-size: 0.8rem; font-weight: 600;">
+                                        <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($student['student_code'] ?? null)); ?>
                                     </span>
                                 </td>
                                 <td>
-                                    <small class="text-muted"><?php echo date('M d, Y', strtotime($latest['created_at'])); ?></small>
+                                    <span class="text-muted small"><?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($student['lrn'] ?? null)); ?></span>
                                 </td>
-                                <td class="d-flex gap-1 flex-wrap">
-                                    <?php if ($hasDraft): ?>
-                                        <a href="<?php echo BASE_PATH; ?>/assessment/conduct/<?php echo $sid; ?>"
-                                           class="btn btn-sm btn-warning">
-                                            <i class="fas fa-edit"></i> Continue Draft
-                                        </a>
+                                <td>
+                                    <span class="badge rounded-pill bg-light text-secondary border px-2 py-1" style="font-size: 0.75rem; font-weight: 500;">
+                                        <?php echo $vCount; ?> version<?php echo $vCount > 1 ? 's' : ''; ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <?php if ($latest['status'] === 'finalized'): ?>
+                                        <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size: 0.75rem; font-weight: 600;">
+                                            <i class="bi bi-check-circle me-1"></i>Finalized
+                                        </span>
+                                    <?php elseif ($latest['status'] === 'approved'): ?>
+                                        <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size: 0.75rem; font-weight: 600;">
+                                            <i class="bi bi-check-circle me-1"></i>Approved
+                                        </span>
+                                    <?php elseif ($latest['status'] === 'draft'): ?>
+                                        <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1" style="font-size: 0.75rem; font-weight: 600;">
+                                            <i class="bi bi-clock me-1"></i>Draft
+                                        </span>
+                                    <?php elseif ($latest['status'] === 'rejected'): ?>
+                                        <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" style="font-size: 0.75rem; font-weight: 600;">
+                                            <i class="bi bi-x-circle me-1"></i>Rejected
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="badge rounded-pill bg-light text-secondary border px-2 py-1" style="font-size: 0.75rem; font-weight: 500;">
+                                            <?php echo ucfirst($latest['status']); ?>
+                                        </span>
                                     <?php endif; ?>
-                                    <a href="<?php echo BASE_PATH; ?>/assessment/history/<?php echo $sid; ?>"
-                                       class="btn btn-sm" style="background:#1e4072;color:white;">
-                                        <i class="bi bi-clock-history"></i> History (<?php echo $vCount; ?>)
-                                    </a>
-                                    <a href="<?php echo BASE_PATH; ?>/assessment/view/<?php echo $latest['id']; ?>"
-                                       class="btn btn-sm btn-outline-secondary">
-                                        <i class="fas fa-eye"></i> Latest
-                                    </a>
+                                </td>
+                                <td>
+                                    <span class="text-muted small"><?php echo date('M d, Y', strtotime($latest['created_at'])); ?></span>
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="d-inline-flex align-items-center gap-1">
+                                        <?php if ($hasDraft): ?>
+                                            <a href="<?php echo BASE_PATH; ?>/assessment/conduct/<?php echo $sid; ?>"
+                                               class="btn btn-sm btn-outline-warning py-1 px-2" style="border-radius: 6px; font-size: 0.78rem; font-weight: 500;" title="Edit Draft Assessment">
+                                                <i class="bi bi-pencil-square me-1"></i> Edit
+                                            </a>
+                                        <?php endif; ?>
+                                        <a href="<?php echo BASE_PATH; ?>/assessment/view/<?php echo $latest['id']; ?>"
+                                           class="btn btn-sm btn-outline-secondary py-1 px-2" style="border-radius: 6px; font-size: 0.78rem; font-weight: 500;" title="View Assessment">
+                                            <i class="bi bi-eye me-1"></i> View
+                                        </a>
+                                        <a href="<?php echo BASE_PATH; ?>/assessment/history/<?php echo $sid; ?>"
+                                           class="btn btn-sm btn-outline-secondary py-1 px-2" style="border-radius: 6px; font-size: 0.78rem; font-weight: 500;" title="Version History">
+                                            <i class="bi bi-clock-history me-1"></i> History
+                                        </a>
+                                        <?php if (in_array($latest['status'], ['finalized', 'approved'])): ?>
+                                            <a href="<?php echo BASE_PATH; ?>/iep/meetings/schedule?student_id=<?php echo $sid; ?>"
+                                               class="btn btn-sm btn-success py-1 px-2" style="border-radius: 6px; font-size: 0.78rem; font-weight: 500;"
+                                               title="Schedule IEP Meeting & Sign PDSP">
+                                                <i class="bi bi-calendar-plus me-1"></i> Schedule IEP
+                                            </a>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                             <?php endforeach; ?>

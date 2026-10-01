@@ -16,6 +16,13 @@ class RoleRequestModel {
      * Create new role request
      */
     public function create($userId, $requestedRole, $submittedDocs = null) {
+        // Verify user exists to prevent Foreign Key constraint failure
+        $checkStmt = $this->db->prepare("SELECT id FROM users WHERE id = :user_id LIMIT 1");
+        $checkStmt->execute(['user_id' => $userId]);
+        if (!$checkStmt->fetch()) {
+            throw new Exception("User ID {$userId} does not exist in users table. Please log out and log in again.");
+        }
+
         // Determine approver based on requested role
         $approverRole = ($requestedRole === 'principal') ? 'admin' : 'principal';
         
@@ -35,14 +42,18 @@ class RoleRequestModel {
     }
 
     /**
-     * Find role request by ID
+     * Find role request by ID with school details
      */
     public function findById($id) {
         $stmt = $this->db->prepare("
-            SELECT rr.*, u.name as user_name, u.email as user_email,
+            SELECT rr.*, u.name as user_name, u.email as user_email, u.contact_number as user_contact,
+                   u.school_id as user_school_id, s.id as school_table_id,
+                   s.school_id as school_code, s.school_name, s.division as school_division, s.region as school_region,
+                   s.address as school_address, s.logo_path as school_logo_path,
                    reviewer.name as reviewer_name
             FROM role_requests rr
             JOIN users u ON rr.user_id = u.id
+            LEFT JOIN schools s ON u.school_id = s.id
             LEFT JOIN users reviewer ON rr.reviewed_by = reviewer.id
             WHERE rr.id = :id
             LIMIT 1
@@ -51,14 +62,18 @@ class RoleRequestModel {
         return $stmt->fetch();
     }
 
+
     /**
-     * Get all pending role requests
+     * Get all pending role requests with school details
      */
     public function getPending() {
         $stmt = $this->db->query("
-            SELECT rr.*, u.name as user_name, u.email as user_email
+            SELECT rr.*, u.name as user_name, u.email as user_email, u.contact_number as user_contact,
+                   s.school_id as school_code, s.school_name, s.division as school_division, s.region as school_region,
+                   s.address as school_address, s.logo_path as school_logo_path
             FROM role_requests rr
             JOIN users u ON rr.user_id = u.id
+            LEFT JOIN schools s ON u.school_id = s.id
             WHERE rr.status = 'pending'
             ORDER BY rr.created_at DESC
         ");
@@ -66,13 +81,16 @@ class RoleRequestModel {
     }
 
     /**
-     * Get pending requests by approver role
+     * Get pending requests by approver role with school details
      */
     public function getPendingByApprover($approverRole) {
         $stmt = $this->db->prepare("
-            SELECT rr.*, u.name as user_name, u.email as user_email
+            SELECT rr.*, u.name as user_name, u.email as user_email, u.contact_number as user_contact, u.school_id,
+                   s.school_id as school_code, s.school_name, s.division as school_division, s.region as school_region,
+                   s.address as school_address, s.logo_path as school_logo_path
             FROM role_requests rr
             JOIN users u ON rr.user_id = u.id
+            LEFT JOIN schools s ON u.school_id = s.id
             WHERE rr.status = 'pending' AND rr.approver_role = :approver_role
             ORDER BY rr.created_at DESC
         ");
@@ -81,26 +99,80 @@ class RoleRequestModel {
     }
 
     /**
+     * Get pending requests by approver role and school ID
+     */
+    public function getPendingByApproverAndSchool($approverRole, $schoolId) {
+        if (!$schoolId) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT rr.*, u.name as user_name, u.email as user_email, u.contact_number as user_contact, u.school_id,
+                   s.school_id as school_code, s.school_name, s.division as school_division, s.region as school_region,
+                   s.address as school_address, s.logo_path as school_logo_path
+            FROM role_requests rr
+            JOIN users u ON rr.user_id = u.id
+            LEFT JOIN schools s ON u.school_id = s.id
+            WHERE rr.status = 'pending' 
+              AND rr.approver_role = :approver_role
+              AND u.school_id = :school_id
+            ORDER BY rr.created_at DESC
+        ");
+        $stmt->execute([
+            'approver_role' => $approverRole,
+            'school_id'     => $schoolId
+        ]);
+        return $stmt->fetchAll();
+    }
+
+
+    /**
      * Get role requests by user ID
      */
     public function getByUserId($userId) {
         $stmt = $this->db->prepare("
-            SELECT * FROM role_requests
-            WHERE user_id = :user_id
-            ORDER BY created_at DESC
+            SELECT rr.*, s.school_id as school_code, s.school_name, s.division as school_division, s.region as school_region,
+                   s.address as school_address, s.logo_path as school_logo_path
+            FROM role_requests rr
+            JOIN users u ON rr.user_id = u.id
+            LEFT JOIN schools s ON u.school_id = s.id
+            WHERE rr.user_id = :user_id
+            ORDER BY rr.created_at DESC
         ");
         $stmt->execute(['user_id' => $userId]);
         return $stmt->fetchAll();
     }
 
     /**
-     * Get pending request for user
+     * Get latest pending request by user ID
      */
     public function getPendingByUserId($userId) {
         $stmt = $this->db->prepare("
-            SELECT * FROM role_requests
-            WHERE user_id = :user_id AND status = 'pending'
-            ORDER BY created_at DESC
+            SELECT rr.*, s.school_id as school_code, s.school_name, s.division as school_division, s.region as school_region,
+                   s.address as school_address, s.logo_path as school_logo_path
+            FROM role_requests rr
+            JOIN users u ON rr.user_id = u.id
+            LEFT JOIN schools s ON u.school_id = s.id
+            WHERE rr.user_id = :user_id AND rr.status = 'pending'
+            ORDER BY rr.created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute(['user_id' => $userId]);
+        return $stmt->fetch();
+    }
+
+    /**
+     * Get user's active/approved role request
+     */
+    public function getApprovedByUserId($userId) {
+        $stmt = $this->db->prepare("
+            SELECT rr.*, s.school_id as school_code, s.school_name, s.division as school_division, s.region as school_region,
+                   s.address as school_address, s.logo_path as school_logo_path
+            FROM role_requests rr
+            JOIN users u ON rr.user_id = u.id
+            LEFT JOIN schools s ON u.school_id = s.id
+            WHERE rr.user_id = :user_id AND rr.status = 'approved'
+            ORDER BY rr.updated_at DESC
             LIMIT 1
         ");
         $stmt->execute(['user_id' => $userId]);
@@ -110,7 +182,7 @@ class RoleRequestModel {
     /**
      * Update role request status
      */
-    public function updateStatus($requestId, $status, $reviewedBy, $reviewNote = null) {
+    public function updateStatus($id, $status, $reviewedBy, $reviewNote = null) {
         $stmt = $this->db->prepare("
             UPDATE role_requests
             SET status = :status,
@@ -121,10 +193,10 @@ class RoleRequestModel {
         ");
 
         return $stmt->execute([
+            'id' => $id,
             'status' => $status,
             'reviewed_by' => $reviewedBy,
-            'review_note' => $reviewNote,
-            'id' => $requestId
+            'review_note' => $reviewNote
         ]);
     }
 
@@ -176,10 +248,13 @@ class RoleRequestModel {
      */
     public function getAll($limit = 50) {
         $stmt = $this->db->prepare("
-            SELECT rr.*, u.name as user_name, u.email as user_email,
+            SELECT rr.*, u.name as user_name, u.email as user_email, u.contact_number as user_contact,
+                   s.school_id as school_code, s.school_name, s.division as school_division, s.region as school_region,
+                   s.address as school_address, s.logo_path as school_logo_path,
                    reviewer.name as reviewer_name
             FROM role_requests rr
             JOIN users u ON rr.user_id = u.id
+            LEFT JOIN schools s ON u.school_id = s.id
             LEFT JOIN users reviewer ON rr.reviewed_by = reviewer.id
             ORDER BY 
                 CASE rr.status 

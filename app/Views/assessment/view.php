@@ -41,14 +41,15 @@ require __DIR__ . '/../layouts/topbar.php';
                     </div>
                     <div class="col-md-6">
                         <h6 class="text-muted mb-2">Assessment Information</h6>
-                        <p class="mb-1"><strong>Quarter:</strong> <span class="badge" style="background-color: #1e4072;"><?php echo htmlspecialchars($assessment['quarter']); ?></span></p>
-                        <p class="mb-1"><strong>Submitted:</strong> <?php echo date('M d, Y H:i', strtotime($assessment['submitted_at'])); ?></p>
+                        <p class="mb-1"><strong>Quarter:</strong> <span class="badge" style="background-color: #1e4072;"><?php echo htmlspecialchars((string)($assessment['quarter'] ?? 'Initial / MDT')); ?></span></p>
+                        <p class="mb-1"><strong>Submitted:</strong> <?php echo !empty($assessment['submitted_at']) ? date('M d, Y H:i', strtotime($assessment['submitted_at'])) : (!empty($assessment['created_at']) ? date('M d, Y H:i', strtotime($assessment['created_at'])) : 'N/A'); ?></p>
                         <p class="mb-1">
                             <strong>Status:</strong> 
                             <?php 
                             $statusColor = match($assessment['status']) {
                                 'pending' => '#ffc107',
                                 'approved' => '#3b6d11',
+                                'finalized' => '#3b6d11',
                                 'rejected' => '#dc3545',
                                 default => '#6c757d'
                             };
@@ -61,6 +62,26 @@ require __DIR__ . '/../layouts/topbar.php';
                 </div>
             </div>
         </div>
+
+        <!-- Next Step Callout (Process 4) -->
+        <?php if (in_array($assessment['status'], ['finalized', 'approved'])): ?>
+            <div class="card mb-4 border-success bg-white shadow-sm" style="border-left: 4px solid #16a34a !important;">
+                <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2 py-3">
+                    <div>
+                        <h6 class="fw-bold text-success mb-1">
+                            <i class="bi bi-check-circle-fill me-1"></i> Diagnostic Assessment Finalized
+                        </h6>
+                        <p class="small text-muted mb-0">
+                            Process 3 is complete. You can now proceed to <strong>Process 4: Schedule IEP Meeting & Sign Digital PDSP</strong>.
+                        </p>
+                    </div>
+                    <a href="<?php echo BASE_PATH; ?>/iep/meetings/schedule?student_id=<?php echo $assessment['student_id']; ?>" 
+                       class="btn btn-sm btn-success px-3 py-2" style="border-radius: 6px; font-weight: 500;">
+                        <i class="bi bi-calendar-plus me-1"></i> Schedule IEP Meeting
+                    </a>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <!-- Section A: Education History -->
         <div class="card mb-4 border-left-navy">

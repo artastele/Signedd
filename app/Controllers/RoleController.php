@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/../Models/UserModel.php';
 require_once __DIR__ . '/../Models/RoleRequestModel.php';
+require_once __DIR__ . '/../Models/SchoolModel.php';
 if (file_exists(__DIR__ . '/../Helpers/MailHelper.php')) {
     require_once __DIR__ . '/../Helpers/MailHelper.php';
 }
@@ -12,11 +13,13 @@ if (file_exists(__DIR__ . '/../Helpers/MailHelper.php')) {
 class RoleController {
     private $userModel;
     private $roleRequestModel;
+    private $schoolModel;
     private $basePath;
 
     public function __construct() {
         $this->userModel = new UserModel();
         $this->roleRequestModel = new RoleRequestModel();
+        $this->schoolModel = new SchoolModel();
         $this->basePath = defined('BASE_PATH') ? BASE_PATH : '';
     }
 
@@ -31,11 +34,23 @@ class RoleController {
 
         $type = $_GET['type'] ?? null;
         $userId = $_SESSION['user_id'];
-        $userName = $_SESSION['user_name'];
-        $userEmail = $_SESSION['user_email'];
+        $currentUser = $this->userModel->findById($userId);
+        if (!$currentUser) {
+            session_destroy();
+            session_start();
+            $_SESSION['error'] = 'Session expired or user account not found. Please log in again.';
+            header('Location: ' . $this->basePath . '/login');
+            exit;
+        }
+
+        $userName = $_SESSION['user_name'] ?? $currentUser['name'];
+        $userEmail = $_SESSION['user_email'] ?? $currentUser['email'];
 
         // Check if user already has a pending request
         $pendingRequest = $this->roleRequestModel->getPendingByUserId($userId);
+        
+        // Fetch all registered schools for selector
+        $schools = $this->schoolModel->getAllSchools();
 
         require_once __DIR__ . '/../Views/auth/role_select.php';
     }
@@ -50,15 +65,24 @@ class RoleController {
         }
 
         $userId = $_SESSION['user_id'];
+        $schoolId = !empty($_POST['school_id']) ? (int)$_POST['school_id'] : null;
 
-        // Update user role to parent
+        if (!$schoolId) {
+            $_SESSION['error'] = 'Please select your target SPED Center / School before proceeding as Parent.';
+            header('Location: ' . $this->basePath . '/role/select?type=parent');
+            exit;
+        }
+
+        // Update user role to parent and assign target school_id
         $this->userModel->updateRole($userId, 'parent');
+        $this->userModel->updateSchoolId($userId, $schoolId);
 
         // Update session
         $_SESSION['role'] = 'parent';
-        $_SESSION['success'] = 'Welcome! You can now enroll your child.';
+        $_SESSION['school_id'] = $schoolId;
+        $_SESSION['success'] = 'Welcome! Your target SPED Center has been set. Please complete the enrollment form below.';
 
-        header('Location: ' . $this->basePath . '/dashboard');
+        header('Location: ' . $this->basePath . '/enroll');
         exit;
     }
 
@@ -77,8 +101,19 @@ class RoleController {
         }
 
         $userId = $_SESSION['user_id'];
+        $currentUser = $this->userModel->findById($userId);
+        if (!$currentUser) {
+            session_destroy();
+            session_start();
+            $_SESSION['error'] = 'Session expired or user account not found. Please log in again.';
+            header('Location: ' . $this->basePath . '/login');
+            exit;
+        }
+
         $requestedRole = $_POST['requested_role'] ?? '';
         $employeeNumber = trim($_POST['employee_number'] ?? '');
+        $schoolMode = $_POST['school_mode'] ?? 'existing';
+        $schoolId = $_POST['school_id'] ?? null;
 
         // Validation
         $errors = [];
@@ -86,6 +121,47 @@ class RoleController {
 
         if (!in_array($requestedRole, $validRoles)) {
             $errors[] = 'Invalid role selected.';
+        }
+
+        // Process school selection / registration
+        if ($schoolMode === 'new' || ($requestedRole === 'principal' && !empty($_POST['new_school_name']))) {
+            $newCode = trim($_POST['new_school_code'] ?? '');
+            $newName = trim($_POST['new_school_name'] ?? '');
+            $newDiv  = trim($_POST['new_school_division'] ?? '');
+            $newReg  = trim($_POST['new_school_region'] ?? '');
+            $newAddr = trim($_POST['new_school_address'] ?? '');
+
+            if (empty($newCode) || empty($newName)) {
+                $errors[] = 'DepEd School ID Code and School Name are required to register a school.';
+            } else {
+                $existingSchool = $this->schoolModel->findBySchoolCode($newCode);
+                if ($existingSchool) {
+                    $schoolId = $existingSchool['id'];
+                } else {
+                    // School logo validation
+                    if (empty($_FILES['school_logo']['name']) || $_FILES['school_logo']['error'] !== UPLOAD_ERR_OK) {
+                        $errors[] = 'Official School Logo image is required when registering a new school.';
+                    } else {
+                        $schoolId = $this->schoolModel->createSchool($newCode, $newName, $newDiv, $newReg, $newAddr);
+                        if ($schoolId) {
+                            $logoFile = $_FILES['school_logo'];
+                            $logoDir = public_path('uploads/schools/');
+                            if (!is_dir($logoDir)) {
+                                mkdir($logoDir, 0755, true);
+                            }
+                            $ext = pathinfo($logoFile['name'], PATHINFO_EXTENSION);
+                            $fileName = 'school_' . $schoolId . '_' . time() . '.' . strtolower($ext);
+                            if (move_uploaded_file($logoFile['tmp_name'], $logoDir . $fileName)) {
+                                $this->schoolModel->updateLogo($schoolId, 'uploads/schools/' . $fileName);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($schoolId) {
+            $this->userModel->updateSchoolId($userId, $schoolId);
         }
 
         // Check if user already has pending request
@@ -97,7 +173,8 @@ class RoleController {
 
         // File uploads
         $uploadedFiles = [];
-        $uploadDir = __DIR__ . '/../../public/uploads/role_verification/';
+        $uploadDir = public_path('uploads/role_verification/');
+
 
         // Create directory if not exists
         if (!is_dir($uploadDir)) {
@@ -105,29 +182,70 @@ class RoleController {
         }
 
         // Process government ID
+        // Process optional government / principal ID
         if (isset($_FILES['government_id']) && $_FILES['government_id']['error'] === UPLOAD_ERR_OK) {
             $file = $_FILES['government_id'];
             $result = $this->uploadFile($file, $uploadDir, 'gov_id_' . $userId . '_');
             if ($result['success']) {
                 $uploadedFiles['government_id'] = $result['path'];
-            } else {
-                $errors[] = $result['error'];
             }
-        } else {
-            $errors[] = 'Government-issued ID is required.';
         }
 
-        // Process proof of designation
+        // Process optional proof of designation
         if (isset($_FILES['proof_designation']) && $_FILES['proof_designation']['error'] === UPLOAD_ERR_OK) {
             $file = $_FILES['proof_designation'];
             $result = $this->uploadFile($file, $uploadDir, 'proof_' . $userId . '_');
             if ($result['success']) {
                 $uploadedFiles['proof_designation'] = $result['path'];
-            } else {
-                $errors[] = $result['error'];
             }
-        } else {
-            $errors[] = 'Proof of designation is required.';
+        }
+
+        // Process optional School Improvement Plan (SIP) PDF document
+        if (isset($_FILES['sip_document']) && $_FILES['sip_document']['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES['sip_document'];
+            $result = $this->uploadFile($file, $uploadDir, 'sip_' . $userId . '_');
+            if ($result['success']) {
+                $uploadedFiles['sip_document'] = $result['path'];
+                if ($schoolId) {
+                    $this->schoolModel->updateSipPath($schoolId, $result['path']);
+                }
+            }
+        }
+
+        // Process multiple FSL & Inclusive Education Certifications
+        $uploadedCertifications = [];
+        if (!empty($_FILES['fsl_certifications']['name'][0])) {
+            $titles = $_POST['fsl_cert_titles'] ?? [];
+            $dates = $_POST['fsl_cert_dates'] ?? [];
+            foreach ($_FILES['fsl_certifications']['name'] as $idx => $name) {
+                if ($_FILES['fsl_certifications']['error'][$idx] === UPLOAD_ERR_OK) {
+                    $singleFile = [
+                        'name'     => $_FILES['fsl_certifications']['name'][$idx],
+                        'type'     => $_FILES['fsl_certifications']['type'][$idx],
+                        'tmp_name' => $_FILES['fsl_certifications']['tmp_name'][$idx],
+                        'error'    => $_FILES['fsl_certifications']['error'][$idx],
+                        'size'     => $_FILES['fsl_certifications']['size'][$idx],
+                    ];
+                    $res = $this->uploadFile($singleFile, $uploadDir, 'fsl_cert_' . $userId . '_' . $idx . '_');
+                    if ($res['success']) {
+                        $certItem = [
+                            'path'       => $res['path'],
+                            'title'      => trim($titles[$idx] ?? 'FSL Certification'),
+                            'issue_date' => $dates[$idx] ?? null
+                        ];
+                        $uploadedCertifications[] = $certItem;
+                        // Save primary cert on user record
+                        if ($idx === 0) {
+                            $this->userModel->updateFslCert($userId, $res['path'], $dates[$idx] ?? null);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Validate that staff upload at least one training certification
+        if ($requestedRole !== 'principal' && empty($uploadedCertifications)) {
+            $errors[] = 'Please upload at least one relevant training certification / seminar certificate (FSL, Inclusive Education, or SPED).';
         }
 
         if (!empty($errors)) {
@@ -139,9 +257,13 @@ class RoleController {
         }
 
         // Create role request
+        $principalRank = trim($_POST['principal_rank'] ?? '');
         $submittedDocs = [
             'employee_number' => $employeeNumber,
-            'files' => $uploadedFiles
+            'principal_rank' => $principalRank,
+            'school_id' => $schoolId,
+            'files' => $uploadedFiles,
+            'certifications' => $uploadedCertifications
         ];
 
         $requestId = $this->roleRequestModel->create($userId, $requestedRole, $submittedDocs);

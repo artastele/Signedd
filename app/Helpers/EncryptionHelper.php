@@ -12,7 +12,7 @@ class EncryptionHelper {
      */
     private static function initKey() {
         if (self::$encryptionKey === null) {
-            $key = getenv('ENCRYPTION_KEY');
+            $key = env('ENCRYPTION_KEY');
             
             if (empty($key)) {
                 throw new Exception('ENCRYPTION_KEY not set in .env file');
@@ -177,3 +177,4 @@ class EncryptionHelper {
         return hash('sha256', $value);
     }
 }
+

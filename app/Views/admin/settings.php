@@ -111,6 +111,55 @@ require_once __DIR__ . '/../layouts/header.php';
                     <small class="text-muted">When to show warning before automatic logout</small>
                 </div>
 
+                <hr class="my-4">
+
+                <!-- Process 4: Enrollment Guidelines & Schedule Settings -->
+                <h5 class="mb-3 text-primary">
+                    <i class="bi bi-megaphone-fill text-warning me-1"></i> Enrollment Guidelines & Schedule (Process 4)
+                </h5>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Active School Year</label>
+                        <input type="text" name="enrollment_sy" class="form-control" 
+                               value="<?php echo htmlspecialchars($settings['enrollment_sy']['value'] ?? '2026-2027'); ?>" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Enrollment Status</label>
+                        <select name="enrollment_status" class="form-select" required>
+                            <option value="open" <?php echo ($settings['enrollment_status']['value'] ?? 'open') === 'open' ? 'selected' : ''; ?>>Open</option>
+                            <option value="upcoming" <?php echo ($settings['enrollment_status']['value'] ?? '') === 'upcoming' ? 'selected' : ''; ?>>Upcoming</option>
+                            <option value="closed" <?php echo ($settings['enrollment_status']['value'] ?? '') === 'closed' ? 'selected' : ''; ?>>Closed</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Enrollment Start Date</label>
+                        <input type="date" name="enrollment_start_date" class="form-control" 
+                               value="<?php echo htmlspecialchars($settings['enrollment_start_date']['value'] ?? '2026-06-01'); ?>" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Enrollment End Date (Deadline)</label>
+                        <input type="date" name="enrollment_end_date" class="form-control" 
+                               value="<?php echo htmlspecialchars($settings['enrollment_end_date']['value'] ?? '2026-08-15'); ?>" required>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Public Announcement Banner Message</label>
+                    <input type="text" name="enrollment_announcement" class="form-control" 
+                           value="<?php echo htmlspecialchars($settings['enrollment_announcement']['value'] ?? 'Official Enrollment for SY 2026-2027 is now OPEN across all registered SPED Centers.'); ?>" required>
+                    <small class="text-muted">Displayed to users before role selection and on dashboard</small>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Official Requirements & Policy Guidelines</label>
+                    <textarea name="enrollment_guidelines" class="form-control" rows="4" required><?php echo htmlspecialchars($settings['enrollment_guidelines']['value'] ?? "1. PSA Birth Certificate\n2. Form 138/SF10 (Progress Report Card)\n3. Medical / Diagnostic Evaluation Report\n4. PWD ID Card (if available)"); ?></textarea>
+                    <small class="text-muted">Official requirements checklist and enrollment policy</small>
+                </div>
+
                 <!-- Save Button -->
                 <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-lg" style="background-color: #a01422; color: white;">

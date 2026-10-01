@@ -5,27 +5,24 @@
 
 $pageTitle = 'My Assignments - SignED';
 require_once __DIR__ . '/../layouts/header.php';
+echo '<link rel="stylesheet" href="' . (defined('BASE_PATH') ? BASE_PATH : '') . '/css/learner.css">';
 ?>
-
-<link rel="stylesheet" href="<?php echo $basePath; ?>/css/learner.css">
-
-<body data-logged-in="true" class="learner-page">
 
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
 
 <div class="main-content learner-content">
     <div class="section-header">
-        <h1>📝 My Assignments</h1>
-        <a href="<?php echo $basePath; ?>/learning/dashboard" class="btn-cartoon btn-primary">
-            <i class="bi bi-arrow-left"></i> Back
+        <h1><i class="ph-bold ph-pencil-simple me-2 text-primary" aria-hidden="true"></i>My Assignments</h1>
+        <a href="<?php echo $basePath; ?>/learning/dashboard" class="btn btn-outline-secondary rounded-2 px-3 fw-semibold">
+            <i class="ph-bold ph-arrow-left me-1" aria-hidden="true"></i> Back
         </a>
     </div>
 
     <?php if (empty($assignments)): ?>
-        <div class="empty-state">
-            <div class="empty-icon">📭</div>
-            <p>No assignments yet. Enjoy your free time!</p>
+        <div class="empty-state text-center py-5">
+            <i class="ph-bold ph-tray text-muted" style="font-size: 3rem; display: block; margin-bottom: 12px;" aria-hidden="true"></i>
+            <p class="text-muted">No assignments yet. Enjoy your free time!</p>
         </div>
     <?php else: ?>
         <!-- Filter Tabs -->
@@ -53,14 +50,11 @@ require_once __DIR__ . '/../layouts/header.php';
                 }
                 ?>
                 <div class="col-md-4 mb-4 assignment-item" data-status="<?php echo $status; ?>">
-                    <div class="assignment-card">
-                        <div class="assignment-icon">
-                            <?php 
-                            $icons = ['✏️', '📄', '📋', '📝', '📑'];
-                            echo $icons[array_rand($icons)];
-                            ?>
+                    <div class="assignment-card card border rounded-3 p-3 shadow-sm bg-white text-center">
+                        <div class="assignment-icon mb-3">
+                            <i class="ph-bold ph-file-text text-primary" style="font-size: 2.5rem;" aria-hidden="true"></i>
                         </div>
-                        <h5 class="assignment-title"><?php echo htmlspecialchars($assignment['material_name']); ?></h5>
+                        <h5 class="assignment-title fw-bold text-dark mb-2"><?php echo htmlspecialchars($assignment['material_name']); ?></h5>
                         
                         <!-- Due Date -->
                         <?php if ($assignment['due_date']): ?>
@@ -69,41 +63,41 @@ require_once __DIR__ . '/../layouts/header.php';
                             $urgentClass = $daysLeft <= 3 && $daysLeft > 0 ? 'urgent' : '';
                             $overdueClass = $daysLeft < 0 ? 'overdue' : '';
                             ?>
-                            <div class="assignment-due <?php echo $urgentClass . ' ' . $overdueClass; ?>">
+                            <div class="assignment-due mb-2 <?php echo $urgentClass . ' ' . $overdueClass; ?>">
                                 <?php if ($daysLeft < 0): ?>
-                                    ⚠️ Overdue by <?php echo abs($daysLeft); ?> day<?php echo abs($daysLeft) != 1 ? 's' : ''; ?>
+                                    <i class="ph-bold ph-warning text-danger me-1" aria-hidden="true"></i> Overdue by <?php echo abs($daysLeft); ?> day<?php echo abs($daysLeft) != 1 ? 's' : ''; ?>
                                 <?php elseif ($daysLeft == 0): ?>
-                                    🔥 Due Today!
+                                    <i class="ph-bold ph-clock-countdown text-danger me-1" aria-hidden="true"></i> Due Today!
                                 <?php else: ?>
-                                    📅 Due in <?php echo $daysLeft; ?> day<?php echo $daysLeft != 1 ? 's' : ''; ?>
+                                    <i class="ph-bold ph-calendar me-1" aria-hidden="true"></i> Due in <?php echo $daysLeft; ?> day<?php echo $daysLeft != 1 ? 's' : ''; ?>
                                 <?php endif; ?>
                             </div>
                         <?php endif; ?>
 
                         <!-- Points -->
                         <?php if ($assignment['points']): ?>
-                            <div class="assignment-points">
-                                🏆 <?php echo $assignment['points']; ?> points
+                            <div class="assignment-points text-muted small mb-3">
+                                <i class="ph-bold ph-trophy text-warning me-1" aria-hidden="true"></i> <?php echo $assignment['points']; ?> points
                             </div>
                         <?php endif; ?>
 
                         <!-- Status Badge -->
                         <?php if ($assignment['submission_id']): ?>
                             <?php if ($assignment['grade'] !== null): ?>
-                                <div class="assignment-badge badge-graded">
-                                    ✓ Graded: <?php echo $assignment['grade']; ?>/<?php echo $assignment['points']; ?>
+                                <div class="badge bg-success mb-2">
+                                    <i class="ph-bold ph-check-circle me-1" aria-hidden="true"></i> Graded: <?php echo $assignment['grade']; ?>/<?php echo $assignment['points']; ?>
                                 </div>
                             <?php else: ?>
-                                <div class="assignment-badge badge-submitted">✓ Submitted</div>
+                                <div class="badge bg-primary mb-2"><i class="ph-bold ph-check me-1" aria-hidden="true"></i> Submitted</div>
                             <?php endif; ?>
                             <a href="<?php echo $basePath; ?>/learning/assignment/<?php echo $assignment['id']; ?>" 
-                               class="btn-cartoon btn-view">
-                                View Details 👀
+                               class="btn btn-outline-primary w-100 fw-bold rounded-2 py-2 mt-2 d-flex align-items-center justify-content-center gap-1">
+                                <i class="ph-bold ph-magnifying-glass me-1" aria-hidden="true"></i> View Details
                             </a>
                         <?php else: ?>
                             <a href="<?php echo $basePath; ?>/learning/assignment/<?php echo $assignment['id']; ?>" 
-                               class="btn-cartoon btn-do">
-                                Do Assignment! ✍️
+                               class="btn btn-primary w-100 fw-bold rounded-2 py-2 mt-2 d-flex align-items-center justify-content-center gap-1">
+                                <i class="ph-bold ph-pencil-simple me-1" aria-hidden="true"></i> Do Assignment!
                             </a>
                         <?php endif; ?>
                     </div>

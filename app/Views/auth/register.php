@@ -16,9 +16,10 @@ unset($_SESSION['old_first_name'], $_SESSION['old_middle_name'], $_SESSION['old_
     <!-- Left Side: Branding -->
     <div class="auth-left">
         <div class="auth-left-content">
-            <?php if (file_exists(__DIR__ . '/../../../public/images/logo-large.png')): ?>
+            <?php if (file_exists(__DIR__ . '/../../../public/images/logo-large.png') || file_exists(__DIR__ . '/../../../images/logo-large.png')): ?>
                 <img src="<?php echo $basePath; ?>/images/logo-large.png" alt="SignED Logo" class="auth-logo-large">
             <?php else: ?>
+
                 <i class="bi bi-mortarboard-fill" style="font-size: 6rem; margin-bottom: 2rem;"></i>
             <?php endif; ?>
             
@@ -119,13 +120,13 @@ unset($_SESSION['old_first_name'], $_SESSION['old_middle_name'], $_SESSION['old_
 
                 <!-- Password -->
                 <div class="mb-3">
-                    <div class="form-floating position-relative">
-                        <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
+                    <div class="form-floating password-toggle-wrapper">
+                        <input type="password" class="form-control password-toggle-input" id="password" name="password" placeholder="Password" required>
                         <label for="password"><i class="bi bi-lock"></i> Password *</label>
-                        <button type="button" class="btn btn-link position-absolute end-0 top-50 translate-middle-y" 
-                                style="z-index: 10; text-decoration: none;" 
-                                onclick="togglePassword('password', 'togglePasswordIcon')">
-                            <i class="bi bi-eye" id="togglePasswordIcon"></i>
+                        <button type="button" class="password-toggle-btn" 
+                                onclick="togglePassword('password', 'togglePasswordIcon')" 
+                                aria-label="Toggle password visibility">
+                            <i class="bi bi-eye-slash" id="togglePasswordIcon"></i>
                         </button>
                     </div>
                     <!-- Password strength indicator will be inserted here by JavaScript -->
@@ -133,13 +134,13 @@ unset($_SESSION['old_first_name'], $_SESSION['old_middle_name'], $_SESSION['old_
 
                 <!-- Confirm Password -->
                 <div class="mb-4">
-                    <div class="form-floating position-relative">
-                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" placeholder="Confirm Password" required>
+                    <div class="form-floating password-toggle-wrapper">
+                        <input type="password" class="form-control password-toggle-input" id="confirm_password" name="confirm_password" placeholder="Confirm Password" required>
                         <label for="confirm_password"><i class="bi bi-lock-fill"></i> Confirm Password *</label>
-                        <button type="button" class="btn btn-link position-absolute end-0 top-50 translate-middle-y" 
-                                style="z-index: 10; text-decoration: none;" 
-                                onclick="togglePassword('confirm_password', 'toggleConfirmPasswordIcon')">
-                            <i class="bi bi-eye" id="toggleConfirmPasswordIcon"></i>
+                        <button type="button" class="password-toggle-btn" 
+                                onclick="togglePassword('confirm_password', 'toggleConfirmPasswordIcon')" 
+                                aria-label="Toggle confirm password visibility">
+                            <i class="bi bi-eye-slash" id="toggleConfirmPasswordIcon"></i>
                         </button>
                     </div>
                 </div>
@@ -173,12 +174,12 @@ function togglePassword(inputId, iconId) {
     
     if (passwordInput.type === 'password') {
         passwordInput.type = 'text';
-        icon.classList.remove('bi-eye');
-        icon.classList.add('bi-eye-slash');
-    } else {
-        passwordInput.type = 'password';
         icon.classList.remove('bi-eye-slash');
         icon.classList.add('bi-eye');
+    } else {
+        passwordInput.type = 'password';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
     }
 }
 

@@ -27,7 +27,12 @@ $isPrincipal = ($role === 'principal');
                     <i class="bi bi-file-earmark-bar-graph-fill me-2"></i>Learner Profile & SF9 Report Card
                 </h2>
             </div>
-            <div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <?php if (!empty($iep['id']) && ($progressReport['status'] ?? '') === 'finalized' && (RoleMiddleware::hasPermission('transition_readiness.view') || RoleMiddleware::hasPermission('transition_readiness.create'))): ?>
+                    <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/transition-readiness" class="btn btn-success shadow-sm">
+                        <i class="bi bi-arrow-up-right-circle me-1"></i> Transition Readiness Assessment
+                    </a>
+                <?php endif; ?>
                 <a href="<?php echo $basePath; ?>/progress-reports" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left me-1"></i> Back to List
                 </a>
@@ -78,6 +83,40 @@ $isPrincipal = ($role === 'principal');
                 </div>
             </div>
         </div>
+
+        <!-- Real-Time LMS Progress & Activity Evidence Widget -->
+        <?php if (!empty($lmsStats)): ?>
+            <div class="card border-0 shadow-sm mb-3" style="background: #f8fafc; border-left: 4px solid #0284c7 !important;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-3 flex-wrap">
+                            <span class="badge bg-primary bg-opacity-10 text-primary fw-bold px-2.5 py-1.5" style="font-size: 0.8rem;">
+                                <i class="bi bi-bar-chart-line me-1"></i> LMS Progress Evidence
+                            </span>
+                            <span class="small text-dark">
+                                <strong>Completed Activities:</strong> <?php echo (int)$lmsStats['completed_activities']; ?> / <?php echo (int)($lmsStats['total_activities'] ?: $lmsStats['completed_activities']); ?>
+                            </span>
+                            <span class="text-muted">|</span>
+                            <span class="small text-dark">
+                                <strong>Average Quiz Mastery:</strong> 
+                                <span class="badge <?php echo ($lmsStats['avg_score'] >= 90) ? 'bg-success' : (($lmsStats['avg_score'] >= 75) ? 'bg-primary' : 'bg-warning text-dark'); ?> rounded-pill px-2 py-0.5">
+                                    <?php echo (int)$lmsStats['avg_score']; ?>%
+                                </span>
+                            </span>
+                            <span class="text-muted">|</span>
+                            <span class="small text-dark">
+                                <strong>Gamification:</strong> <span class="text-warning">★</span> <?php echo (int)$lmsStats['total_stars']; ?> Stars · <span class="text-primary">⚡</span> <?php echo (int)$lmsStats['total_xp']; ?> XP
+                            </span>
+                        </div>
+                        <div>
+                            <a href="<?php echo $basePath; ?>/iep/implementation/progress-tracker" class="btn btn-xs btn-outline-secondary fw-semibold" style="font-size:0.75rem;">
+                                <i class="bi bi-box-arrow-up-right me-1"></i> View LMS Tracker
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <!-- Quarter Switcher Widget -->
         <div class="card border-0 shadow-sm mb-4">

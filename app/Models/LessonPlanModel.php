@@ -224,19 +224,21 @@ class LessonPlanModel {
         $stmt = $this->db->prepare("
             INSERT INTO lesson_materials
                 (lesson_plan_id, material_type, title, file_path, external_url,
-                 embed_type, display_order, uploaded_at)
+                 embed_type, caption_path, transcript_text, display_order, uploaded_at)
             VALUES
                 (:lesson_plan_id, :material_type, :title, :file_path, :external_url,
-                 :embed_type, :display_order, NOW())
+                 :embed_type, :caption_path, :transcript_text, :display_order, NOW())
         ");
         $stmt->execute([
-            'lesson_plan_id' => $data['lesson_plan_id'],
-            'material_type'  => $data['material_type'],
-            'title'          => $data['title'],
-            'file_path'      => $data['file_path']    ?? null,
-            'external_url'   => $data['external_url'] ?? null,
-            'embed_type'     => $data['embed_type']   ?? null,
-            'display_order'  => $data['display_order'] ?? 0,
+            'lesson_plan_id'  => $data['lesson_plan_id'],
+            'material_type'   => $data['material_type'],
+            'title'           => $data['title'],
+            'file_path'       => $data['file_path']       ?? null,
+            'external_url'    => $data['external_url']    ?? null,
+            'embed_type'      => $data['embed_type']      ?? null,
+            'caption_path'    => $data['caption_path']    ?? null,
+            'transcript_text' => $data['transcript_text'] ?? null,
+            'display_order'   => $data['display_order']   ?? 0,
         ]);
         return $this->db->lastInsertId();
     }
@@ -266,7 +268,47 @@ class LessonPlanModel {
             ORDER BY lm.display_order ASC, lm.uploaded_at ASC
         ");
         $stmt->execute(['iep_id' => $iepId]);
-        return $stmt->fetchAll();
+        $materials = $stmt->fetchAll();
+
+        // Also fetch interactive slides summary for lesson plans in this IEP
+        try {
+            $stmtSlides = $this->db->prepare("
+                SELECT lpp.lesson_plan_id, lp.title AS lesson_plan_title, COUNT(lpp.id) AS slide_count, MIN(lpp.created_at) AS first_created
+                FROM lesson_plan_pages lpp
+                JOIN lesson_plans lp ON lpp.lesson_plan_id = lp.id
+                WHERE lp.iep_id = :iep_id
+                GROUP BY lpp.lesson_plan_id, lp.title
+                HAVING slide_count > 0
+            ");
+            $stmtSlides->execute(['iep_id' => $iepId]);
+            $slidesByLp = $stmtSlides->fetchAll();
+
+            foreach ($slidesByLp as $slideLp) {
+                $materials[] = [
+                    'id' => 'interactive_' . $slideLp['lesson_plan_id'],
+                    'lesson_plan_id' => (int)$slideLp['lesson_plan_id'],
+                    'material_type' => 'interactive',
+                    'title' => 'Interactive Lesson (' . $slideLp['slide_count'] . ' slide' . ($slideLp['slide_count'] > 1 ? 's' : '') . ')',
+                    'lesson_plan_title' => $slideLp['lesson_plan_title'],
+                    'slide_count' => (int)$slideLp['slide_count'],
+                    'display_order' => 0,
+                    'uploaded_at' => $slideLp['first_created'] ?? date('Y-m-d H:i:s'),
+                    'is_interactive' => true
+                ];
+            }
+        } catch (\Throwable $e) {
+            error_log('getMaterialsByIepId interactive slides check error: ' . $e->getMessage());
+        }
+
+        return $materials;
+    }
+
+    /**
+     * Delete all pages of a lesson plan
+     */
+    public function deleteAllPagesByLessonPlan($lessonPlanId) {
+        $stmt = $this->db->prepare("DELETE FROM lesson_plan_pages WHERE lesson_plan_id = :lp_id");
+        return $stmt->execute(['lp_id' => (int)$lessonPlanId]);
     }
 
     /**
@@ -391,11 +433,10 @@ class LessonPlanModel {
     }
 
     /**
-     * Update basic fields on an existing activity
-     * (title, instructions, due_date, max_score — not activity_data)
+     * Update fields on an existing activity
      */
     public function updateActivity($id, $data) {
-        $allowed = ['title', 'instructions', 'due_date', 'max_score'];
+        $allowed = ['title', 'instructions', 'due_date', 'max_score', 'activity_data', 'activity_type', 'lesson_plan_id', 'is_f2f'];
         $sets    = [];
         $params  = ['id' => $id];
         foreach ($allowed as $col) {
@@ -880,4 +921,159 @@ class LessonPlanModel {
         $stmt->execute(['student_id' => $studentId, 'student_id2' => $studentId]);
         return $stmt->fetchAll();
     }
+
+    // ============================================================
+    // MULTI-PAGE INTERACTIVE LESSON MODULE (VLE / Moodle Style)
+    // ============================================================
+
+    /**
+     * Get all ordered pages for a lesson plan
+     */
+    public function getPagesByLessonPlan(int $lessonPlanId): array {
+        $stmt = $this->db->prepare("
+            SELECT * FROM lesson_plan_pages
+            WHERE lesson_plan_id = :lp_id
+            ORDER BY page_number ASC, id ASC
+        ");
+        $stmt->execute(['lp_id' => $lessonPlanId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * Get a single lesson page by ID
+     */
+    public function getPageById(int $pageId): ?array {
+        $stmt = $this->db->prepare("
+            SELECT lpp.*, lp.title as lesson_title, lp.iep_id
+            FROM lesson_plan_pages lpp
+            JOIN lesson_plans lp ON lpp.lesson_plan_id = lp.id
+            WHERE lpp.id = :id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $pageId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
+     * Add a new page to a lesson plan
+     */
+    public function createPage(array $data): int {
+        // Find next page number
+        $q = $this->db->prepare("SELECT COALESCE(MAX(page_number), 0) + 1 FROM lesson_plan_pages WHERE lesson_plan_id = :lp_id");
+        $q->execute(['lp_id' => $data['lesson_plan_id']]);
+        $nextPageNum = (int)$q->fetchColumn();
+
+        $stmt = $this->db->prepare("
+            INSERT INTO lesson_plan_pages (
+                lesson_plan_id, page_number, title, content, guide_questions, media_type, media_path
+            ) VALUES (
+                :lesson_plan_id, :page_number, :title, :content, :guide_questions, :media_type, :media_path
+            )
+        ");
+        $stmt->execute([
+            'lesson_plan_id'  => $data['lesson_plan_id'],
+            'page_number'     => $data['page_number'] ?? $nextPageNum,
+            'title'           => trim($data['title']),
+            'content'         => $data['content'] ?? '',
+            'guide_questions' => $data['guide_questions'] ?? null,
+            'media_type'      => $data['media_type'] ?? 'none',
+            'media_path'      => $data['media_path'] ?? null
+        ]);
+        return (int)$this->db->lastInsertId();
+    }
+
+    /**
+     * Update an existing lesson page
+     */
+    public function updatePage(int $pageId, array $data): bool {
+        $stmt = $this->db->prepare("
+            UPDATE lesson_plan_pages
+            SET title = :title,
+                content = :content,
+                guide_questions = :guide_questions,
+                media_type = :media_type,
+                media_path = :media_path
+            WHERE id = :id
+        ");
+        return $stmt->execute([
+            'id'              => $pageId,
+            'title'           => trim($data['title']),
+            'content'         => $data['content'] ?? '',
+            'guide_questions' => $data['guide_questions'] ?? null,
+            'media_type'      => $data['media_type'] ?? 'none',
+            'media_path'      => $data['media_path'] ?? null
+        ]);
+    }
+
+    /**
+     * Delete a lesson page and renumber remaining pages
+     */
+    public function deletePage(int $pageId): bool {
+        $page = $this->getPageById($pageId);
+        if (!$page) {
+            return false;
+        }
+        $lpId = (int)$page['lesson_plan_id'];
+
+        $stmt = $this->db->prepare("DELETE FROM lesson_plan_pages WHERE id = :id");
+        $res = $stmt->execute(['id' => $pageId]);
+
+        if ($res) {
+            // Renumber remaining pages
+            $pages = $this->getPagesByLessonPlan($lpId);
+            $num = 1;
+            $upd = $this->db->prepare("UPDATE lesson_plan_pages SET page_number = :num WHERE id = :id");
+            foreach ($pages as $p) {
+                $upd->execute(['num' => $num++, 'id' => (int)$p['id']]);
+            }
+        }
+        return $res;
+    }
+
+    /**
+     * Get or initialize student's reading progress on a multi-page lesson
+     */
+    public function getPageProgress(int $studentId, int $lessonPlanId): array {
+        $stmt = $this->db->prepare("
+            SELECT * FROM lesson_page_progress
+            WHERE student_id = :sid AND lesson_plan_id = :lpid
+            LIMIT 1
+        ");
+        $stmt->execute(['sid' => $studentId, 'lpid' => $lessonPlanId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            return $row;
+        }
+        return [
+            'student_id'       => $studentId,
+            'lesson_plan_id'   => $lessonPlanId,
+            'last_page_number' => 1,
+            'is_completed'     => 0,
+            'completed_at'     => null
+        ];
+    }
+
+    /**
+     * Update student's lesson page reading progress
+     */
+    public function updatePageProgress(int $studentId, int $lessonPlanId, int $pageNumber, bool $isCompleted = false): bool {
+        $stmt = $this->db->prepare("
+            INSERT INTO lesson_page_progress (student_id, lesson_plan_id, last_page_number, is_completed, completed_at)
+            VALUES (:sid, :lpid, :pnum, :comp, :comp_at)
+            ON DUPLICATE KEY UPDATE
+                last_page_number = GREATEST(last_page_number, VALUES(last_page_number)),
+                is_completed = CASE WHEN is_completed = 1 THEN 1 ELSE VALUES(is_completed) END,
+                completed_at = CASE WHEN completed_at IS NOT NULL THEN completed_at ELSE VALUES(completed_at) END,
+                updated_at = CURRENT_TIMESTAMP
+        ");
+        return $stmt->execute([
+            'sid'     => $studentId,
+            'lpid'    => $lessonPlanId,
+            'pnum'    => $pageNumber,
+            'comp'    => $isCompleted ? 1 : 0,
+            'comp_at' => $isCompleted ? date('Y-m-d H:i:s') : null
+        ]);
+    }
 }
+

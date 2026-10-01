@@ -72,6 +72,13 @@ $statusIcons = [
                         </h5>
                         
                         <div class="row mb-3">
+                            <div class="col-12">
+                                <small class="text-muted"><i class="bi bi-building"></i> Target School</small><br>
+                                <strong><?php echo !empty($enrollment['school_name']) ? htmlspecialchars($enrollment['school_name']) : 'SPED Center / School'; ?></strong>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
                             <div class="col-6">
                                 <small class="text-muted">Enrollment Type</small><br>
                                 <strong><?php echo ucfirst($enrollment['enrollment_type']); ?></strong>
@@ -97,12 +104,15 @@ $statusIcons = [
                         <?php if ($enrollment['status'] === 'pending'): ?>
                             <div class="alert alert-warning mb-3">
                                 <i class="bi bi-hourglass-split"></i> 
-                                Your enrollment is being reviewed by a SPED teacher. You will be notified once the review is complete.
+                                Your enrollment is being reviewed by a SPED teacher from <strong><?php echo !empty($enrollment['school_name']) ? htmlspecialchars($enrollment['school_name']) : 'the school'; ?></strong>.
                             </div>
                         <?php elseif ($enrollment['status'] === 'verified'): ?>
                             <div class="alert alert-success mb-3">
                                 <i class="bi bi-check-circle"></i> 
-                                Your enrollment has been approved! All documents have been verified.
+                                Your enrollment has been approved!
+                                <?php if (!empty($enrollment['assigned_teacher_name'])): ?>
+                                    <br><i class="bi bi-person-check-fill mt-1"></i> <strong>Assigned SPED Teacher:</strong> <?php echo htmlspecialchars($enrollment['assigned_teacher_name']); ?>
+                                <?php endif; ?>
                             </div>
                         <?php elseif ($enrollment['status'] === 'rejected'): ?>
                             <div class="alert alert-danger mb-3">
