@@ -133,6 +133,29 @@ class AuthController {
             exit;
         }
 
+        // Demo Account & Password Safety in Production / Pilot
+        $appEnv = strtolower(getenv('APP_ENV') ?: ($_ENV['APP_ENV'] ?? 'development'));
+        $isDemoAccount = (strpos($user['email'], '@signed.ph') !== false) 
+                      || (strpos($user['email'], 'demo') !== false)
+                      || (strpos(strtolower($user['name'] ?? ''), '(demo)') !== false);
+
+        if ($appEnv === 'production') {
+            if ($isDemoAccount) {
+                RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
+                $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
+                $_SESSION['error'] = 'Demo accounts are disabled in production mode. Please use official school credentials.';
+                header('Location: ' . $basePath . '/login');
+                exit;
+            }
+            if (in_array(strtolower($password), ['password', 'password123', 'admin123', '12345678'], true)) {
+                RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
+                $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
+                $_SESSION['error'] = 'Default demo passwords cannot be used in a production environment. Please reset your password.';
+                header('Location: ' . $basePath . '/login');
+                exit;
+            }
+        }
+
         // Login successful
         RateLimitHelper::recordLoginAttempt($email, true, $ipAddress);
         RateLimitHelper::clearLoginAttempts($email);

@@ -13,6 +13,11 @@ if (php_sapi_name() !== 'cli') {
     die("Error: This script can only be executed from the CLI.\n");
 }
 
+$appEnv = getenv('APP_ENV') ?: ($_ENV['APP_ENV'] ?? 'development');
+if (strtolower($appEnv) === 'production') {
+    die("CRITICAL ABORT: Cannot run reset script in PRODUCTION environment (APP_ENV=production).\n");
+}
+
 require_once __DIR__ . '/../config/db.php';
 
 try {
@@ -75,9 +80,9 @@ try {
         echo "No rehearsal clones found.\n";
     }
 
-    // 3. Reset Clone Count on Resource Hub Pack
-    $db->prepare("UPDATE resource_hub_packs SET clone_count = 0, status = 'published' WHERE id = :id")->execute(['id' => $packId]);
-    echo "Reset Resource Hub Pack {$packId} clone count to 0.\n";
+    // 3. Reset Clone Count on Resource Hub Pack(s)
+    $db->prepare("UPDATE resource_hub_packs SET clone_count = 0, status = 'published' WHERE id = :id OR source_lesson_plan_id = :lpid")->execute(['id' => $packId, 'lpid' => $sourceLessonId]);
+    echo "Reset Resource Hub Pack clone count to 0.\n";
 
     // 4. Reset Mastery Results on Source Lesson
     $db->prepare("DELETE FROM external_mastery_results WHERE lesson_plan_id = :id")->execute(['id' => $sourceLessonId]);
