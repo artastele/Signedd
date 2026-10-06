@@ -245,7 +245,34 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
     z-index: 6;
     pointer-events: none;
     letter-spacing: 0.5px;
-    box-shadow: 0 1px 4px rgba(2, 132, 199, 0.25);
+/* FSL Suggestions Panel Styles */
+.fsl-suggestion-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    transition: all 0.15s ease-in-out;
+}
+.fsl-suggestion-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.06);
+}
+.fsl-suggestion-card.is-inserted {
+    background: #f0fdf4 !important;
+    border-color: #86efac !important;
+}
+.fsl-drawer-nav-btn {
+    border-radius: 6px !important;
+    font-size: 0.8125rem !important;
+    font-weight: 600 !important;
+    transition: all 0.15s ease;
+}
+.fsl-drawer-nav-btn.active {
+    background: #1e4072 !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 3px rgba(30, 64, 114, 0.25);
 }
 </style>
 
@@ -282,6 +309,9 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                     <a href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lpId; ?>" target="_blank" class="btn btn-xs btn-outline-primary rounded-pill px-2.5 py-1 fw-bold">
                         <i class="ph-bold ph-eye me-1"></i> Preview as Learner <i class="ph-bold ph-arrow-square-out ms-0.5"></i>
                     </a>
+                    <button type="button" class="btn btn-xs btn-outline-warning rounded-pill px-2.5 py-1 fw-bold text-dark" onclick="openShareToHubModal()" title="Share as reusable Accessibility Pack">
+                        <i class="ph-bold ph-share-network me-1 text-warning"></i> Share to Hub
+                    </button>
                     <button type="button" class="btn btn-xs btn-success rounded-pill px-3 py-1 fw-bold" onclick="saveActiveSlide()">
                         <i class="ph-bold ph-floppy-disk me-1"></i> Save Slide
                     </button>
@@ -363,10 +393,12 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                                         Slide Content &amp; Interactive Words <span class="text-danger">*</span>
                                     </label>
                                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                        <button type="button" class="btn btn-xs btn-warning text-dark fw-bold rounded-pill px-3 py-1 shadow-sm" id="btnAnalyzeSlideFsl" onclick="analyzeSlideFslSigns(true)" title="Scan slide text for matching FSL signs" style="font-size: 0.78rem; background: #fef3c7; border: 1px solid #fcd34d;">
+                                            <i class="ph-bold ph-sparkle text-warning me-1"></i> Analyze FSL Signs
+                                        </button>
                                         <button type="button" class="btn btn-xs btn-outline-secondary text-dark fw-semibold rounded-pill px-2.5 py-1" onclick="insertSampleInteractiveTemplate()" title="Insert interactive story sample" style="font-size: 0.75rem;">
                                             <i class="ph-bold ph-file-text me-1"></i> Sample Story
                                         </button>
-
                                         <button type="button" class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" onclick="clearEditorContent()" title="Papasa tanang sulod sa editor" style="font-size: 0.75rem;">
                                             <i class="ph-bold ph-trash me-0.5"></i> Clear
                                         </button>
@@ -478,17 +510,18 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                 </div>
             </div>
 
-            <!-- Column 3: FSL Sign & Interactive Aid Library Drawer (28% / col-lg-3) -->
+            <!-- Column 3: FSL Assistant & Library Drawer (28% / col-lg-3) -->
             <div class="col-lg-3" id="fslLibraryCol">
                 <div class="studio-card h-100 d-flex flex-column">
+                    <!-- Drawer Header -->
                     <div class="studio-card-header bg-warning-subtle text-warning-emphasis">
                         <div class="d-flex align-items-center gap-1.5">
                             <i class="ph-bold ph-hand-waving fs-5 text-warning"></i>
-                            <span class="fw-bold small">FSL Sign Library</span>
+                            <span class="fw-bold small">FSL Assistant</span>
                         </div>
                         <div class="d-flex align-items-center gap-1">
                             <button type="button" class="btn btn-xs btn-primary rounded-pill px-2.5 py-1 fw-bold" onclick="openAddCustomSignModal()" title="Upload your own video for a sign">
-                                <i class="ph-bold ph-video-camera me-1"></i>+ Upload Sign
+                                <i class="ph-bold ph-video-camera me-1"></i>+ Upload
                             </button>
                             <button type="button" class="btn btn-xs btn-outline-dark rounded-pill px-2 py-1 fw-bold" onclick="toggleFslLibrary()" title="Hide FSL Library to expand slide editor">
                                 <i class="ph-bold ph-caret-right me-0.5"></i> Hide
@@ -496,64 +529,125 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                         </div>
                     </div>
 
-                    <div class="p-2 border-bottom bg-light">
-                        <!-- Search Box -->
-                        <div class="input-group input-group-sm mb-1.5">
-                            <span class="input-group-text bg-white border-end-0" style="border-radius: 9999px 0 0 9999px;"><i class="ph-bold ph-magnifying-glass text-muted"></i></span>
-                            <input type="text" class="form-control border-start-0" id="fslSearchInput" placeholder="Search signs (e.g. Father, Mother, Thank You)..." oninput="filterFslSigns()" style="border-radius: 0 9999px 9999px 0;">
-                        </div>
-
-                        <!-- Drag cue & Count badge -->
-                        <div class="d-flex align-items-center justify-content-between px-1 mb-1.5" style="font-size: 0.72rem;">
-                            <span class="text-muted"><i class="ph-bold ph-hand-pointing text-warning me-1"></i> Drag card or click insert</span>
-                            <span class="badge bg-warning text-dark rounded-pill fw-bold" id="fslCountBadge"><?php echo count($fslSigns); ?> Signs</span>
-                        </div>
-
-                        <!-- Category Filter Pills -->
-                        <div class="d-flex gap-1 overflow-auto pb-1" id="fslCategoryPills">
-                            <button type="button" class="btn btn-xs btn-warning rounded-pill px-2.5 py-0.5 fw-bold fsl-cat-filter active" data-cat="all" onclick="setFslCategory('all', this)">
-                                All
+                    <!-- Dual Drawer Tabs -->
+                    <div class="px-2 pt-2 pb-1 bg-light border-bottom">
+                        <div class="d-flex p-0.5 bg-white rounded-3 border shadow-sm" role="tablist">
+                            <button type="button" class="btn btn-xs flex-fill py-1 px-2 fsl-drawer-nav-btn active" id="tabSuggestionsBtn" onclick="switchFslDrawerTab('suggestions')">
+                                <i class="ph-bold ph-sparkle me-1"></i> Suggestions
+                                <span class="badge bg-danger rounded-pill ms-1" id="fslSuggestionsCountBadge" style="display:none; font-size: 0.68rem;">0</span>
                             </button>
-                            <?php foreach ($fslCategories as $cat): ?>
-                                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2.5 py-0.5 fw-semibold fsl-cat-filter" data-cat="<?php echo htmlspecialchars($cat); ?>" onclick="setFslCategory('<?php echo htmlspecialchars($cat); ?>', this)">
-                                    <?php echo htmlspecialchars(ucfirst($cat)); ?>
-                                </button>
-                            <?php endforeach; ?>
+                            <button type="button" class="btn btn-xs flex-fill py-1 px-2 fsl-drawer-nav-btn text-muted" id="tabLibraryBtn" onclick="switchFslDrawerTab('library')">
+                                <i class="ph-bold ph-books me-1"></i> Library
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Sign Cards List -->
-                    <div class="fsl-library-list flex-grow-1" id="fslSignsContainer">
-                        <?php foreach ($fslSigns as $sign): ?>
-                            <div class="fsl-sign-card" draggable="true" data-word="<?php echo htmlspecialchars(strtolower($sign['word'])); ?>" data-cat="<?php echo htmlspecialchars($sign['category'] ?? 'General'); ?>" data-video="<?php echo htmlspecialchars($sign['video_path'] ?? ''); ?>" data-desc="<?php echo htmlspecialchars($sign['description'] ?? ''); ?>">
-                                <div class="d-flex justify-content-between align-items-start mb-1">
-                                    <div class="d-flex align-items-center gap-1.5">
-                                        <span class="text-muted" title="Can be dragged into editor" style="cursor: grab;"><i class="ph-bold ph-dots-six-vertical"></i></span>
-                                        <strong class="text-dark text-capitalize" style="font-size: 0.95rem;">
-                                            <?php echo htmlspecialchars(ucfirst($sign['word'])); ?>
-                                        </strong>
-                                    </div>
-                                    <span class="fsl-sign-badge"><?php echo htmlspecialchars(ucfirst($sign['category'] ?? 'General')); ?></span>
-                                </div>
-                                <?php if (!empty($sign['description'])): ?>
-                                    <p class="small text-muted mb-2" style="font-size: 0.76rem; line-height: 1.3;">
-                                        <?php echo htmlspecialchars($sign['description']); ?>
-                                    </p>
-                                <?php endif; ?>
-                                <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top">
-                                    <button type="button" class="btn btn-link btn-xs text-primary p-0 fw-semibold" onclick="previewFslSign('<?php echo htmlspecialchars(addslashes($sign['word'])); ?>')">
-                                        <i class="ph-bold ph-play-circle me-1"></i> Watch
-                                    </button>
-                                    <button type="button" class="btn btn-xs fsl-insert-btn" onmousedown="saveCurrentSelection(); event.preventDefault();" onclick="insertFslSignIntoSlide('<?php echo htmlspecialchars(addslashes($sign['word'])); ?>', this.closest('.fsl-sign-card'))">
-                                        <i class="ph-bold ph-plus me-1"></i> Insert to Slide
-                                    </button>
+                    <!-- TAB 1: FSL Suggestions Pane -->
+                    <div id="fslSuggestionsPane" class="d-flex flex-column flex-grow-1 overflow-hidden">
+                        <!-- Suggestions Actions Bar -->
+                        <div class="p-2 border-bottom bg-light">
+                            <div class="d-flex align-items-center justify-content-between gap-1.5 mb-1.5">
+                                <button type="button" class="btn btn-xs btn-primary fw-bold rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm" onclick="analyzeSlideFslSigns(false)" style="font-size:0.75rem;">
+                                    <i class="ph-bold ph-sparkle"></i> Analyze Slide Text
+                                </button>
+                                <button type="button" class="btn btn-xs btn-success fw-bold rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm" id="btnInsertSelectedSuggestions" onclick="insertSelectedSuggestions()" style="display:none; font-size:0.75rem;">
+                                    <i class="ph-bold ph-check-circle"></i> Insert Selected (<span id="selectedSuggestionsCount">0</span>)
+                                </button>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between px-1" style="font-size: 0.72rem;">
+                                <span class="text-muted fw-semibold" id="fslSuggestionsSummary">Click Analyze to scan slide text</span>
+                                <div class="d-flex align-items-center gap-2">
+                                    <label class="form-check-label text-muted d-flex align-items-center gap-1" id="selectAllSuggestionsLabel" style="cursor:pointer; display:none;">
+                                        <input type="checkbox" class="form-check-input mt-0" id="selectAllSuggestionsCheck" onchange="toggleSelectAllSuggestions(this.checked)" checked style="width:13px; height:13px;"> Select All
+                                    </label>
+                                    <button type="button" class="btn btn-xs btn-link text-muted p-0" id="btnResetIgnored" onclick="resetIgnoredSuggestions()" style="display:none; font-size:0.7rem;" title="Reset ignored signs">Reset Ignored</button>
                                 </div>
                             </div>
-                        <?php endforeach; ?>
+                        </div>
+
+                        <!-- Suggestions List Container -->
+                        <div class="fsl-library-list flex-grow-1 p-2 overflow-auto" id="fslSuggestionsList">
+                            <div class="text-center py-4 px-2 text-muted">
+                                <div class="mb-2" style="font-size: 2.2rem; color: #f59e0b;">
+                                    <i class="ph-bold ph-sparkle"></i>
+                                </div>
+                                <h6 class="fw-bold text-dark mb-1" style="font-size: 0.88rem;">Teacher-Reviewed FSL Suggestions</h6>
+                                <p class="small text-muted mb-2" style="font-size: 0.76rem; line-height: 1.4;">
+                                    Awtomatikong susihon sa SignED ang mga pulong sa slide batok sa aktibong FSL vocabulary aron dali kining masumpay.
+                                </p>
+                                <button type="button" class="btn btn-xs btn-outline-primary rounded-pill px-3 py-1 fw-bold" onclick="analyzeSlideFslSigns(false)">
+                                    <i class="ph-bold ph-sparkle me-1"></i> Analyze Slide Text
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Suggestions Footer Info -->
+                        <div class="p-2 border-top bg-light text-center small text-muted" style="font-size: 0.72rem;">
+                            <i class="ph-bold ph-shield-check text-success me-1"></i> Ikaw ang magbuot kung unsang mga senyas ang i-apil sa slide.
+                        </div>
                     </div>
 
-                    <div class="p-2 border-top bg-light text-center small text-muted">
-                        <i class="ph-bold ph-info me-1"></i> Click "Insert to Slide" or drag directly into the editor.
+                    <!-- TAB 2: Full FSL Sign Library Pane -->
+                    <div id="fslLibraryPane" class="d-flex flex-column flex-grow-1 overflow-hidden" style="display: none;">
+                        <div class="p-2 border-bottom bg-light">
+                            <!-- Search Box -->
+                            <div class="input-group input-group-sm mb-1.5">
+                                <span class="input-group-text bg-white border-end-0" style="border-radius: 9999px 0 0 9999px;"><i class="ph-bold ph-magnifying-glass text-muted"></i></span>
+                                <input type="text" class="form-control border-start-0" id="fslSearchInput" placeholder="Search signs (e.g. Father, Mother, Thank You)..." oninput="filterFslSigns()" style="border-radius: 0 9999px 9999px 0;">
+                            </div>
+
+                            <!-- Drag cue & Count badge -->
+                            <div class="d-flex align-items-center justify-content-between px-1 mb-1.5" style="font-size: 0.72rem;">
+                                <span class="text-muted"><i class="ph-bold ph-hand-pointing text-warning me-1"></i> Drag card or click insert</span>
+                                <span class="badge bg-warning text-dark rounded-pill fw-bold" id="fslCountBadge"><?php echo count($fslSigns); ?> Signs</span>
+                            </div>
+
+                            <!-- Category Filter Pills -->
+                            <div class="d-flex gap-1 overflow-auto pb-1" id="fslCategoryPills">
+                                <button type="button" class="btn btn-xs btn-warning rounded-pill px-2.5 py-0.5 fw-bold fsl-cat-filter active" data-cat="all" onclick="setFslCategory('all', this)">
+                                    All
+                                </button>
+                                <?php foreach ($fslCategories as $cat): ?>
+                                    <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2.5 py-0.5 fw-semibold fsl-cat-filter" data-cat="<?php echo htmlspecialchars($cat); ?>" onclick="setFslCategory('<?php echo htmlspecialchars($cat); ?>', this)">
+                                        <?php echo htmlspecialchars(ucfirst($cat)); ?>
+                                    </button>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+
+                        <!-- Sign Cards List -->
+                        <div class="fsl-library-list flex-grow-1 p-2 overflow-auto" id="fslSignsContainer">
+                            <?php foreach ($fslSigns as $sign): ?>
+                                <div class="fsl-sign-card" draggable="true" data-word="<?php echo htmlspecialchars(strtolower($sign['word'])); ?>" data-cat="<?php echo htmlspecialchars($sign['category'] ?? 'General'); ?>" data-video="<?php echo htmlspecialchars($sign['video_path'] ?? ''); ?>" data-desc="<?php echo htmlspecialchars($sign['description'] ?? ''); ?>">
+                                    <div class="d-flex justify-content-between align-items-start mb-1">
+                                        <div class="d-flex align-items-center gap-1.5">
+                                            <span class="text-muted" title="Can be dragged into editor" style="cursor: grab;"><i class="ph-bold ph-dots-six-vertical"></i></span>
+                                            <strong class="text-dark text-capitalize" style="font-size: 0.95rem;">
+                                                <?php echo htmlspecialchars(ucfirst($sign['word'])); ?>
+                                            </strong>
+                                        </div>
+                                        <span class="fsl-sign-badge"><?php echo htmlspecialchars(ucfirst($sign['category'] ?? 'General')); ?></span>
+                                    </div>
+                                    <?php if (!empty($sign['description'])): ?>
+                                        <p class="small text-muted mb-2" style="font-size: 0.76rem; line-height: 1.3;">
+                                            <?php echo htmlspecialchars($sign['description']); ?>
+                                        </p>
+                                    <?php endif; ?>
+                                    <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top">
+                                        <button type="button" class="btn btn-link btn-xs text-primary p-0 fw-semibold" onclick="previewFslSign('<?php echo htmlspecialchars(addslashes($sign['word'])); ?>')">
+                                            <i class="ph-bold ph-play-circle me-1"></i> Watch
+                                        </button>
+                                        <button type="button" class="btn btn-xs fsl-insert-btn" onmousedown="saveCurrentSelection(); event.preventDefault();" onclick="insertFslSignIntoSlide('<?php echo htmlspecialchars(addslashes($sign['word'])); ?>', this.closest('.fsl-sign-card'))">
+                                            <i class="ph-bold ph-plus me-1"></i> Insert to Slide
+                                        </button>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <div class="p-2 border-top bg-light text-center small text-muted">
+                            <i class="ph-bold ph-info me-1"></i> Click "Insert to Slide" or drag directly into the editor.
+                        </div>
                     </div>
                 </div>
             </div>
@@ -670,13 +764,26 @@ function initSummernote() {
         return button.render();
     };
 
+    // Custom Toolbar Button for FSL Suggestions / Analysis
+    const AnalyzeFslButton = function (context) {
+        const ui = $.summernote.ui;
+        const button = ui.button({
+            contents: '<i class="ph-bold ph-sparkle text-primary me-1"></i> <span style="font-weight:700; color:#1e4072;">Analyze FSL</span>',
+            tooltip: 'Analyze slide text against active FSL vocabulary',
+            click: function () {
+                analyzeSlideFslSigns(true);
+            }
+        });
+        return button.render();
+    };
+
     $('#slideContentEditor').summernote({
         placeholder: 'Write slide content, story, instructions, table, or insert FSL video signs...',
         height: 380,
         tabsize: 2,
         toolbar: [
             ['shapes', ['shapesButton']],
-            ['fsl', ['fslButton']],
+            ['fsl', ['fslButton', 'analyzeFslButton']],
             ['style', ['style', 'bold', 'italic', 'underline', 'clear']],
             ['font', ['color']],
             ['para', ['ul', 'ol', 'paragraph']],
@@ -686,7 +793,8 @@ function initSummernote() {
         ],
         buttons: {
             shapesButton: ShapesButton,
-            fslButton: FslButton
+            fslButton: FslButton,
+            analyzeFslButton: AnalyzeFslButton
         },
         callbacks: {
             onChange: function(contents, $editable) {
@@ -781,6 +889,24 @@ function renderSlideDeck() {
     listEl.innerHTML = html;
 }
 
+// ── Resolve relative or environment-dependent image paths for Editor Canvas ──
+function resolveContentMediaUrls(html) {
+    if (!html) return '';
+    const bp = (window.BASE || window.BASE_PATH || '').replace(/\/+$/, '');
+    return html.replace(/(<img\s+[^>]*?src=["'])([^"']+)(["'][^>]*?>)/gi, function(match, pre, src, post) {
+        let cleanSrc = src.trim();
+        if (/^data:image\//i.test(cleanSrc) || (/^https?:\/\//i.test(cleanSrc) && !cleanSrc.includes('/uploads/'))) {
+            return match;
+        }
+        const m = cleanSrc.match(/(?:.*\/)?(uploads\/(?:lesson_editor|lesson_pages|fsl_custom_videos)\/[^\s"']+)/i);
+        if (m) {
+            const resolved = bp ? (bp + '/' + m[1]) : ('/' + m[1]);
+            return pre + resolved + post;
+        }
+        return match;
+    });
+}
+
 // ── Load Slide into Canvas Form ──
 function loadSlideIntoEditor(idx) {
     if (!LESSON_PAGES[idx]) return;
@@ -789,7 +915,7 @@ function loadSlideIntoEditor(idx) {
 
     document.getElementById('slideId').value = p.id;
     document.getElementById('slideTitleInput').value = p.title || '';
-    $('#slideContentEditor').summernote('code', p.content || '');
+    $('#slideContentEditor').summernote('code', resolveContentMediaUrls(p.content || ''));
     document.getElementById('slideGuideInput').value = p.guide_questions || '';
 
     // Media
@@ -815,6 +941,7 @@ function loadSlideIntoEditor(idx) {
     document.getElementById('saveStatusIndicator').textContent = 'Loaded Slide ' + (idx + 1) + '. Ready to edit.';
 
     renderSlideDeck();
+    resetFslSuggestionsForNewSlide();
 }
 
 // ── Start Fresh New Slide ──
@@ -833,6 +960,7 @@ function startNewSlide() {
     document.getElementById('saveStatusIndicator').textContent = 'Ready for new slide.';
 
     renderSlideDeck();
+    resetFslSuggestionsForNewSlide();
     document.getElementById('slideTitleInput').focus();
 }
 
@@ -1305,6 +1433,528 @@ document.addEventListener('dragstart', function(e) {
         displayText: displayText
     }));
 });
+
+// ── FSL Suggestions State & Engine ──
+let FSL_SUGGESTION_DICT = null;
+let ignoredSuggestionWords = new Set();
+let currentSlideSuggestions = [];
+
+function switchFslDrawerTab(tab) {
+    const sugBtn = document.getElementById('tabSuggestionsBtn');
+    const libBtn = document.getElementById('tabLibraryBtn');
+    const sugPane = document.getElementById('fslSuggestionsPane');
+    const libPane = document.getElementById('fslLibraryPane');
+
+    if (tab === 'suggestions') {
+        if (sugBtn) {
+            sugBtn.className = 'btn btn-xs flex-fill py-1 px-2 fsl-drawer-nav-btn active';
+        }
+        if (libBtn) {
+            libBtn.className = 'btn btn-xs flex-fill py-1 px-2 fsl-drawer-nav-btn text-muted';
+        }
+        if (sugPane) sugPane.style.display = 'flex';
+        if (libPane) libPane.style.display = 'none';
+    } else {
+        if (libBtn) {
+            libBtn.className = 'btn btn-xs flex-fill py-1 px-2 fsl-drawer-nav-btn active';
+        }
+        if (sugBtn) {
+            sugBtn.className = 'btn btn-xs flex-fill py-1 px-2 fsl-drawer-nav-btn text-muted';
+        }
+        if (libPane) libPane.style.display = 'flex';
+        if (sugPane) sugPane.style.display = 'none';
+    }
+}
+
+function buildFslSearchDictionary() {
+    if (FSL_SUGGESTION_DICT) return FSL_SUGGESTION_DICT;
+
+    const dict = [];
+    if (!ALL_FSL_SIGNS || !Array.isArray(ALL_FSL_SIGNS)) return [];
+
+    ALL_FSL_SIGNS.forEach(s => {
+        if (!s || !s.word) return;
+        const video = (s.video_path || '').trim();
+        const gif = (s.gif_path || '').trim();
+        // Matching rule 4: Do not suggest vocabulary that has no usable video/GIF
+        if (!video && !gif) return;
+
+        const mainWord = s.word.trim();
+        if (mainWord.length >= 2) {
+            dict.push({
+                matchWord: mainWord,
+                targetWord: mainWord,
+                sign: s
+            });
+        }
+
+        // Tagalog / secondary keywords from description (e.g. "Tatay / Ama - Magulang na lalaki")
+        if (s.description && s.description.includes('-')) {
+            const parts = s.description.split('-');
+            const tagPart = parts[0].trim();
+            const words = tagPart.split(/[/,]+/);
+            words.forEach(w => {
+                const cleanW = w.trim();
+                if (cleanW.length >= 2 && !dict.some(x => x.matchWord.toLowerCase() === cleanW.toLowerCase() && x.targetWord.toLowerCase() === mainWord.toLowerCase())) {
+                    dict.push({
+                        matchWord: cleanW,
+                        targetWord: mainWord,
+                        sign: s
+                    });
+                }
+            });
+        }
+    });
+
+    // Matching rule 2: Longer phrases before shorter phrases
+    dict.sort((a, b) => b.matchWord.length - a.matchWord.length);
+    FSL_SUGGESTION_DICT = dict;
+    return dict;
+}
+
+function analyzeSlideFslSigns(autoOpenDrawer = false) {
+    const dict = buildFslSearchDictionary();
+    if (!dict.length) {
+        const toast = document.getElementById('saveStatusIndicator');
+        if (toast) toast.innerHTML = `<span class="text-warning fw-bold"><i class="ph-bold ph-warning me-1"></i> No FSL vocabulary available.</span>`;
+        return;
+    }
+
+    // 1. Get current slide HTML from Summernote
+    const rawHtml = $('#slideContentEditor').summernote('code') || '';
+
+    // Create sandbox DOM to analyze visible text only
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = rawHtml;
+
+    // Collect all existing linked words/terms inside .fsl-word in this slide
+    const existingLinkedWords = new Set();
+    const existingSpans = tempDiv.querySelectorAll('.fsl-word');
+    existingSpans.forEach(sp => {
+        const w = (sp.dataset.word || sp.textContent || '').trim().toLowerCase();
+        if (w) existingLinkedWords.add(w);
+    });
+
+    // Extract all text nodes that are NOT descendants of .fsl-word, SCRIPT, or STYLE
+    const textNodes = [];
+    function collectTextNodes(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            const txt = (node.nodeValue || '').trim();
+            if (txt) textNodes.push(node);
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+            // Rule 5: Skip existing .fsl-word elements completely
+            if (node.classList.contains('fsl-word') || (node.tagName === 'BUTTON' && node.classList.contains('fsl-word'))) {
+                return;
+            }
+            if (node.tagName === 'SCRIPT' || node.tagName === 'STYLE') {
+                return;
+            }
+            Array.from(node.childNodes).forEach(collectTextNodes);
+        }
+    }
+    collectTextNodes(tempDiv);
+
+    // Combine unlinked text for scanning
+    const combinedUnlinkedText = textNodes.map(n => n.nodeValue).join(' ');
+
+    const matchesMap = new Map();
+    const claimedSpans = [];
+
+    dict.forEach(entry => {
+        const searchWord = entry.matchWord.trim();
+        const targetWordLower = entry.targetWord.toLowerCase();
+
+        // Rule 7: Skip if ignored during current session
+        if (ignoredSuggestionWords.has(targetWordLower) || ignoredSuggestionWords.has(searchWord.toLowerCase())) {
+            return;
+        }
+
+        // Matching rule 1 & 3: Exact whole-word / phrase matching with punctuation & whitespace boundaries
+        const escaped = searchWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s\\u00A0]+');
+        const regex = new RegExp('(^|[\\s\\u00A0,.!?;:\'"()[\\]{}<>-])(' + escaped + ')(?=$|[\\s\\u00A0,.!?;:\'"()[\\]{}<>-])', 'gi');
+
+        let match;
+        while ((match = regex.exec(combinedUnlinkedText)) !== null) {
+            const matchIndex = match.index + match[1].length;
+            const matchedStr = match[2];
+            const endOffset = matchIndex + matchedStr.length;
+
+            // Rule 2: Longest phrase first -> check overlap with already claimed spans
+            let overlaps = false;
+            for (const sp of claimedSpans) {
+                if (matchIndex < sp.end && endOffset > sp.start) {
+                    overlaps = true;
+                    break;
+                }
+            }
+            if (overlaps) continue;
+
+            claimedSpans.push({ start: matchIndex, end: endOffset });
+
+            // Group by target word & matched text
+            const key = targetWordLower + '::' + searchWord.toLowerCase();
+            if (!matchesMap.has(key)) {
+                matchesMap.set(key, {
+                    key: key,
+                    matchWord: searchWord,
+                    matchedDisplay: matchedStr,
+                    targetWord: entry.targetWord,
+                    sign: entry.sign,
+                    count: 0,
+                    inserted: false
+                });
+            }
+            matchesMap.get(key).count++;
+        }
+    });
+
+    currentSlideSuggestions = Array.from(matchesMap.values());
+
+    // Render suggestions in UI
+    renderFslSuggestionsPanel();
+
+    // Auto-open drawer & switch tab if requested
+    if (autoOpenDrawer) {
+        const col = document.getElementById('fslLibraryCol');
+        if (col && col.classList.contains('d-none')) {
+            toggleFslLibrary();
+        }
+        switchFslDrawerTab('suggestions');
+    }
+
+    const toast = document.getElementById('saveStatusIndicator');
+    if (toast) {
+        if (currentSlideSuggestions.length > 0) {
+            toast.innerHTML = `<span class="text-primary fw-bold"><i class="ph-bold ph-sparkle me-1"></i> Found ${currentSlideSuggestions.length} FSL suggestion${currentSlideSuggestions.length > 1 ? 's' : ''}!</span>`;
+        } else {
+            toast.innerHTML = `<span class="text-secondary"><i class="ph-bold ph-info me-1"></i> No unlinked FSL signs detected on this slide.</span>`;
+        }
+        setTimeout(() => { toast.textContent = 'Ready to save.'; }, 3500);
+    }
+}
+
+function renderFslSuggestionsPanel() {
+    const listEl = document.getElementById('fslSuggestionsList');
+    const badgeEl = document.getElementById('fslSuggestionsCountBadge');
+    const summaryEl = document.getElementById('fslSuggestionsSummary');
+    const selectAllLbl = document.getElementById('selectAllSuggestionsLabel');
+    const btnBatch = document.getElementById('btnInsertSelectedSuggestions');
+    const btnResetIgnored = document.getElementById('btnResetIgnored');
+
+    if (!listEl) return;
+
+    if (btnResetIgnored) {
+        btnResetIgnored.style.display = (ignoredSuggestionWords.size > 0) ? 'inline-block' : 'none';
+    }
+
+    const uninsertedCount = currentSlideSuggestions.filter(s => !s.inserted).length;
+
+    if (badgeEl) {
+        if (uninsertedCount > 0) {
+            badgeEl.textContent = uninsertedCount;
+            badgeEl.style.display = 'inline-block';
+        } else {
+            badgeEl.style.display = 'none';
+        }
+    }
+
+    if (currentSlideSuggestions.length === 0) {
+        if (summaryEl) {
+            summaryEl.textContent = (ignoredSuggestionWords.size > 0)
+                ? `No active suggestions (${ignoredSuggestionWords.size} ignored)`
+                : 'No unlinked FSL signs detected';
+        }
+        if (selectAllLbl) selectAllLbl.style.display = 'none';
+        if (btnBatch) btnBatch.style.display = 'none';
+
+        listEl.innerHTML = `
+            <div class="text-center py-4 px-2 text-muted">
+                <i class="ph-bold ph-check-circle fs-2 text-success d-block mb-1"></i>
+                <strong class="text-dark small">No New FSL Signs to Suggest</strong>
+                <p class="small text-muted mb-2 mt-1" style="font-size:0.75rem; line-height:1.4;">
+                    All matching vocabulary on this slide are either already linked, ignored, or none were found in text.
+                </p>
+                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2.5 py-1 fw-semibold" onclick="analyzeSlideFslSigns(false)" style="font-size:0.75rem;">
+                    <i class="ph-bold ph-arrows-clockwise me-1"></i> Re-scan Slide
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    if (summaryEl) {
+        summaryEl.textContent = `${uninsertedCount} suggestion${uninsertedCount === 1 ? '' : 's'} available (${currentSlideSuggestions.length} total)`;
+    }
+    if (selectAllLbl) selectAllLbl.style.display = (uninsertedCount > 0) ? 'flex' : 'none';
+    if (btnBatch) {
+        btnBatch.style.display = (uninsertedCount > 0) ? 'inline-flex' : 'none';
+    }
+
+    let html = '';
+    currentSlideSuggestions.forEach(s => {
+        const isInserted = s.inserted;
+        const sign = s.sign || {};
+        const isTagalogMatch = s.matchedDisplay.toLowerCase() !== s.targetWord.toLowerCase();
+        const displayTitle = isTagalogMatch
+            ? `${escapeHtml(s.matchedDisplay)} <small class="text-muted fw-normal">(FSL: ${escapeHtml(s.targetWord)})</small>`
+            : escapeHtml(s.targetWord.charAt(0).toUpperCase() + s.targetWord.slice(1));
+
+        html += `
+            <div class="fsl-suggestion-card ${isInserted ? 'is-inserted' : ''}" data-key="${escapeHtml(s.key)}">
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                        ${!isInserted ? `<input type="checkbox" class="form-check-input fsl-select-check mt-0" checked data-key="${escapeHtml(s.key)}" onchange="updateSelectedSuggestionsCount()" style="width:14px; height:14px; cursor:pointer;">` : ''}
+                        <strong class="text-dark" style="font-size: 0.9rem;">${displayTitle}</strong>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <span class="badge bg-secondary-subtle text-dark border px-2 py-0.5 rounded-pill" style="font-size: 0.68rem;">${escapeHtml(sign.category || 'General')}</span>
+                        <span class="badge bg-light text-muted border px-1.5 py-0.5" style="font-size: 0.66rem;">${s.count} in slide</span>
+                    </div>
+                </div>
+
+                ${sign.description ? `
+                    <p class="small text-muted mb-2 text-truncate" style="font-size: 0.74rem; line-height: 1.3;" title="${escapeHtml(sign.description)}">
+                        ${escapeHtml(sign.description)}
+                    </p>
+                ` : ''}
+
+                <div class="d-flex justify-content-between align-items-center pt-1.5 border-top">
+                    ${isInserted ? `
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-bold" style="font-size: 0.74rem;">
+                            <i class="ph-bold ph-check-circle me-1"></i> Inserted to Slide
+                        </span>
+                    ` : `
+                        <div class="d-flex align-items-center gap-1.5">
+                            <button type="button" class="btn btn-xs btn-outline-secondary px-2.5 py-1 fw-semibold d-inline-flex align-items-center gap-1" onclick="previewSuggestedSign('${escapeJs(s.targetWord)}', '${escapeJs(sign.video_path || '')}', '${escapeJs(sign.description || '')}', '${escapeJs(sign.category || 'General')}', '${escapeJs(s.matchedDisplay)}')" style="font-size:0.75rem; border-radius:6px;">
+                                <i class="ph-bold ph-play-circle text-primary"></i> Preview
+                            </button>
+                            <button type="button" class="btn btn-xs btn-outline-success px-2.5 py-1 fw-bold d-inline-flex align-items-center gap-1" onclick="insertSingleSuggestion('${escapeJs(s.key)}')" style="font-size:0.75rem; border-radius:6px;">
+                                <i class="ph-bold ph-plus-circle"></i> Insert
+                            </button>
+                        </div>
+                        <button type="button" class="btn btn-xs btn-link text-muted p-0 text-decoration-none" onclick="ignoreSingleSuggestion('${escapeJs(s.key)}')" title="Dismiss this suggestion for now" style="font-size:0.74rem;">
+                            <i class="ph-bold ph-x me-0.5"></i> Ignore
+                        </button>
+                    `}
+                </div>
+            </div>
+        `;
+    });
+
+    listEl.innerHTML = html;
+    updateSelectedSuggestionsCount();
+}
+
+function updateSelectedSuggestionsCount() {
+    const checks = document.querySelectorAll('#fslSuggestionsList .fsl-select-check:checked');
+    const countEl = document.getElementById('selectedSuggestionsCount');
+    if (countEl) countEl.textContent = checks.length;
+}
+
+function toggleSelectAllSuggestions(isChecked) {
+    const checks = document.querySelectorAll('#fslSuggestionsList .fsl-select-check');
+    checks.forEach(c => { c.checked = isChecked; });
+    updateSelectedSuggestionsCount();
+}
+
+function wrapFslSignOccurrencesInHtml(rawHtml, suggestion) {
+    if (!rawHtml || !suggestion) return { html: rawHtml, count: 0 };
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = rawHtml;
+
+    const targetSign = suggestion.sign || {};
+    const signWord = targetSign.word || suggestion.targetWord;
+    const videoPath = targetSign.video_path || '';
+    const category = targetSign.category || 'General';
+    const desc = targetSign.description || '';
+    const searchWord = suggestion.matchWord.trim();
+
+    const escaped = searchWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s\\u00A0]+');
+    const regex = new RegExp('(^|[\\s\\u00A0,.!?;:\'"()[\\]{}<>-])(' + escaped + ')(?=$|[\\s\\u00A0,.!?;:\'"()[\\]{}<>-])', 'i');
+
+    let insertedCount = 0;
+
+    function walk(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            let text = node.nodeValue || '';
+            if (!text || !text.trim()) return;
+
+            const normalizedText = text.replace(/\u00A0/g, ' ');
+            const match = regex.exec(normalizedText);
+
+            if (match) {
+                const matchIndex = match.index + match[1].length;
+                const matchedStr = match[2];
+
+                const beforeText = text.substring(0, matchIndex);
+                const afterText = text.substring(matchIndex + matchedStr.length);
+
+                const span = document.createElement('span');
+                span.className = 'fsl-word';
+                span.dataset.word = signWord.toLowerCase();
+                span.dataset.video = videoPath;
+                span.dataset.category = category;
+                span.dataset.desc = desc;
+                span.title = 'FSL Sign: ' + signWord;
+                span.textContent = matchedStr;
+
+                const parent = node.parentNode;
+                if (beforeText) {
+                    parent.insertBefore(document.createTextNode(beforeText), node);
+                }
+                parent.insertBefore(span, node);
+
+                insertedCount++;
+
+                if (afterText) {
+                    const nextNode = document.createTextNode(afterText);
+                    parent.insertBefore(nextNode, node);
+                    parent.removeChild(node);
+                    walk(nextNode);
+                } else {
+                    parent.removeChild(node);
+                }
+            }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+            // Strictly NEVER wrap inside an existing .fsl-word
+            if (node.classList.contains('fsl-word') || (node.tagName === 'BUTTON' && node.classList.contains('fsl-word'))) {
+                return;
+            }
+            if (node.tagName === 'SCRIPT' || node.tagName === 'STYLE') {
+                return;
+            }
+            Array.from(node.childNodes).forEach(walk);
+        }
+    }
+
+    walk(tempDiv);
+    return {
+        html: tempDiv.innerHTML,
+        count: insertedCount
+    };
+}
+
+function insertSingleSuggestion(key) {
+    const suggestion = currentSlideSuggestions.find(s => s.key === key);
+    if (!suggestion || suggestion.inserted) return;
+
+    const currentHtml = $('#slideContentEditor').summernote('code') || '';
+    const res = wrapFslSignOccurrencesInHtml(currentHtml, suggestion);
+
+    if (res.count > 0) {
+        $('#slideContentEditor').summernote('code', res.html);
+        triggerAutoSave();
+    }
+
+    suggestion.inserted = true;
+    renderFslSuggestionsPanel();
+
+    const toast = document.getElementById('saveStatusIndicator');
+    if (toast) {
+        toast.innerHTML = `<span class="text-success fw-bold"><i class="ph-bold ph-check-circle me-1"></i> Linked FSL Sign "${escapeHtml(suggestion.targetWord)}" to ${res.count} word occurrence${res.count > 1 ? 's' : ''}!</span>`;
+        setTimeout(() => { toast.textContent = 'Ready to save.'; }, 3500);
+    }
+}
+
+function insertSelectedSuggestions() {
+    const checks = document.querySelectorAll('#fslSuggestionsList .fsl-select-check:checked');
+    const keysToInsert = Array.from(checks).map(c => c.dataset.key);
+
+    const selectedList = currentSlideSuggestions.filter(s => keysToInsert.includes(s.key) && !s.inserted);
+    if (!selectedList.length) {
+        alert('Please check at least one uninserted suggestion.');
+        return;
+    }
+
+    // Sort selected items descending by phrase length
+    selectedList.sort((a, b) => b.matchWord.length - a.matchWord.length);
+
+    let html = $('#slideContentEditor').summernote('code') || '';
+    let totalCount = 0;
+
+    selectedList.forEach(s => {
+        const res = wrapFslSignOccurrencesInHtml(html, s);
+        html = res.html;
+        totalCount += res.count;
+        s.inserted = true;
+    });
+
+    if (totalCount > 0) {
+        $('#slideContentEditor').summernote('code', html);
+        triggerAutoSave();
+    }
+
+    renderFslSuggestionsPanel();
+
+    const toast = document.getElementById('saveStatusIndicator');
+    if (toast) {
+        toast.innerHTML = `<span class="text-success fw-bold"><i class="ph-bold ph-check-circle me-1"></i> Inserted ${selectedList.length} FSL sign${selectedList.length > 1 ? 's' : ''} (${totalCount} occurrences)!</span>`;
+        setTimeout(() => { toast.textContent = 'Ready to save.'; }, 3500);
+    }
+}
+
+function ignoreSingleSuggestion(key) {
+    const suggestion = currentSlideSuggestions.find(s => s.key === key);
+    if (!suggestion) return;
+
+    ignoredSuggestionWords.add(suggestion.targetWord.toLowerCase());
+    ignoredSuggestionWords.add(suggestion.matchWord.toLowerCase());
+
+    currentSlideSuggestions = currentSlideSuggestions.filter(s => s.key !== key);
+    renderFslSuggestionsPanel();
+}
+
+function resetIgnoredSuggestions() {
+    ignoredSuggestionWords.clear();
+    analyzeSlideFslSigns(false);
+}
+
+function previewSuggestedSign(word, video, desc, category, displayText) {
+    if (typeof window.openFSLModal === 'function') {
+        window.openFSLModal(word, {
+            video: video || '',
+            desc: desc || '',
+            category: category || 'General',
+            displayText: displayText || word
+        });
+    } else {
+        previewFslSign(word);
+    }
+}
+
+function resetFslSuggestionsForNewSlide() {
+    ignoredSuggestionWords.clear();
+    currentSlideSuggestions = [];
+    const badgeEl = document.getElementById('fslSuggestionsCountBadge');
+    if (badgeEl) badgeEl.style.display = 'none';
+
+    const listEl = document.getElementById('fslSuggestionsList');
+    if (listEl) {
+        listEl.innerHTML = `
+            <div class="text-center py-4 px-2 text-muted">
+                <div class="mb-2" style="font-size: 2.2rem; color: #f59e0b;">
+                    <i class="ph-bold ph-sparkle"></i>
+                </div>
+                <h6 class="fw-bold text-dark mb-1" style="font-size: 0.88rem;">Teacher-Reviewed FSL Suggestions</h6>
+                <p class="small text-muted mb-2" style="font-size: 0.76rem; line-height: 1.4;">
+                    Awtomatikong susihon sa SignED ang mga pulong sa slide batok sa aktibong FSL vocabulary aron dali kining masumpay.
+                </p>
+                <button type="button" class="btn btn-xs btn-outline-primary rounded-pill px-3 py-1 fw-bold" onclick="analyzeSlideFslSigns(false)">
+                    <i class="ph-bold ph-sparkle me-1"></i> Analyze Slide Text
+                </button>
+            </div>
+        `;
+    }
+    const summaryEl = document.getElementById('fslSuggestionsSummary');
+    if (summaryEl) summaryEl.textContent = 'Click Analyze to scan slide text';
+    const selectAllLbl = document.getElementById('selectAllSuggestionsLabel');
+    if (selectAllLbl) selectAllLbl.style.display = 'none';
+    const btnBatch = document.getElementById('btnInsertSelectedSuggestions');
+    if (btnBatch) btnBatch.style.display = 'none';
+    const btnReset = document.getElementById('btnResetIgnored');
+    if (btnReset) btnReset.style.display = 'none';
+}
 
 // ── Preview FSL Sign Video Modal ──
 function previewFslSign(word) {
@@ -2053,6 +2703,157 @@ function autoHighlightFslSigns() {
         </div>
     </div>
 </div>
+
+<!-- Share to Resource Hub Modal -->
+<div class="modal fade" id="shareToHubModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow" style="border-radius: 12px;">
+            <div class="modal-header border-bottom py-3 px-3.5" style="background:#f8fafc; border-radius: 12px 12px 0 0;">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-warning text-dark" style="width:34px; height:34px; font-size:1.1rem;">
+                        <i class="ph-bold ph-share-network"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0 text-dark">Share to Resource Hub</h6>
+                        <span class="text-muted" style="font-size:0.75rem;">Publish as a reusable Deaf-accessible template pack</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="shareToHubForm" onsubmit="submitShareToHub(event)">
+                <div class="modal-body p-3.5">
+                    <!-- Privacy Guarantee Notice -->
+                    <div class="p-3 mb-3 rounded border border-warning-subtle bg-warning-subtle text-dark small" style="font-size: 0.78rem; line-height: 1.45;">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="ph-bold ph-shield-check text-warning mt-0.5" style="font-size: 1.25rem;"></i>
+                            <div>
+                                <strong class="d-block mb-0.5 text-dark">Gipanalipdan ang Pribasiya ug Relational Safety:</strong>
+                                Ang shared version maglakip lamang sa educational content, gi-aprobahan nga FSL signs, ug visual materials.
+                                <strong>DILI maapil</strong> ang ngalan sa estudyante, IEP ID, diagnosis, parent records, submissions, o grado.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-2.5">
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                Accessibility Pack Title: <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" id="sharePackTitle" class="form-control form-control-sm" required value="<?php echo htmlspecialchars($lessonPlan['title'] ?? ''); ?>" style="border-radius: 6px;">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-dark mb-1">Developmental Domain:</label>
+                            <select id="sharePackDomain" class="form-select form-select-sm" style="border-radius: 6px;">
+                                <option value="communication_language" <?php echo ($domainName ?? '') === 'communication_language' ? 'selected' : ''; ?>>Communication / Language</option>
+                                <option value="perceptuo_cognitive" <?php echo ($domainName ?? '') === 'perceptuo_cognitive' ? 'selected' : ''; ?>>Perceptuo-Cognitive</option>
+                                <option value="psychomotor" <?php echo ($domainName ?? '') === 'psychomotor' ? 'selected' : ''; ?>>Psychomotor</option>
+                                <option value="psychosocial" <?php echo ($domainName ?? '') === 'psychosocial' ? 'selected' : ''; ?>>Psychosocial</option>
+                                <option value="socio_emotional" <?php echo ($domainName ?? '') === 'socio_emotional' ? 'selected' : ''; ?>>Socio-Emotional</option>
+                                <option value="daily_living_skills" <?php echo ($domainName ?? '') === 'daily_living_skills' ? 'selected' : ''; ?>>Daily Living Skills</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-dark mb-1">Grade / Learning Level:</label>
+                            <input type="text" id="sharePackLevel" class="form-control form-control-sm" value="Primary SPED / Deaf Ed" style="border-radius: 6px;">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-dark mb-1">Learning Competency / Objective:</label>
+                            <textarea id="sharePackCompetency" class="form-control form-control-sm" rows="2" placeholder="e.g. Makat-on sa mga batakang senyas sa pamilya ug pagtimbaya..." style="border-radius: 6px;"></textarea>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-dark mb-1">Short Description / Overview:</label>
+                            <textarea id="sharePackDesc" class="form-control form-control-sm" rows="2" placeholder="Mubo nga overview para sa ubang magtutudlo..." style="border-radius: 6px;"></textarea>
+                        </div>
+
+                        <!-- Optional Mainstream Mastery Link -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-semibold text-dark mb-1">
+                                External Mastery Resource Link <span class="text-muted fw-normal">(Optional HTTPS)</span>:
+                            </label>
+                            <input type="url" id="sharePackMasteryUrl" class="form-control form-control-sm" placeholder="https://www.khanacademy.org/..." style="border-radius: 6px;">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-semibold text-dark mb-1">
+                                Mastery Resource Title <span class="text-muted fw-normal">(Optional)</span>:
+                            </label>
+                            <input type="text" id="sharePackMasteryTitle" class="form-control form-control-sm" placeholder="e.g. Khan Academy — Addition within 10" style="border-radius: 6px;">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold text-dark mb-1">Tags / Keywords (comma-separated):</label>
+                            <input type="text" id="sharePackTags" class="form-control form-control-sm" placeholder="fsl, deaf-ed, greeting, family, primary" style="border-radius: 6px;">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top py-2.5 px-3.5 bg-light" style="border-radius: 0 0 12px 12px;">
+                    <button type="button" class="btn btn-outline-secondary btn-sm fw-medium px-3" data-bs-dismiss="modal" style="border-radius: 6px;">
+                        Kanselahon
+                    </button>
+                    <button type="submit" id="btnSubmitShareHub" class="btn btn-warning btn-sm fw-bold px-3 text-dark" style="border-radius: 6px;">
+                        <i class="ph-bold ph-share-network me-1"></i> Confirm &amp; Publish to Hub
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openShareToHubModal() {
+    const modal = new bootstrap.Modal(document.getElementById('shareToHubModal'));
+    modal.show();
+}
+
+async function submitShareToHub(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSubmitShareHub');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Publishing...';
+
+    const payload = {
+        title: document.getElementById('sharePackTitle').value.trim(),
+        description: document.getElementById('sharePackDesc').value.trim(),
+        pdsp_domain: document.getElementById('sharePackDomain').value,
+        learning_level: document.getElementById('sharePackLevel').value.trim(),
+        learning_competency: document.getElementById('sharePackCompetency').value.trim(),
+        mainstream_mastery_url: document.getElementById('sharePackMasteryUrl').value.trim(),
+        mainstream_mastery_title: document.getElementById('sharePackMasteryTitle').value.trim(),
+        tags: document.getElementById('sharePackTags').value.trim()
+    };
+
+    try {
+        const res = await fetch(`${BASE}/iep/implementation/resource-hub/share/${LP_ID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('shareToHubModal')).hide();
+            alert('✓ ' + (data.message || 'Successfully published to Resource Hub!'));
+            const toast = document.getElementById('saveStatusIndicator');
+            if (toast) {
+                toast.innerHTML = `<span class="text-success fw-bold"><i class="ph-bold ph-share-network me-1"></i> Shared to Resource Hub (#${data.pack_id})</span>`;
+            }
+        } else {
+            alert(data.message || 'Nabigo ang pag-share sa Resource Hub.');
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Server connection error while sharing to Resource Hub.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+}
+</script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>
 

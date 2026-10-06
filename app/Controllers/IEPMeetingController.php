@@ -258,11 +258,14 @@ class IEPMeetingController {
             // Determine signatory role for current user
             $signatoryRole = $this->determineSignatoryRole();
             
-            // Pass data to view
-            $basePath = BASE_PATH;
-            
-            // Load view
-            require __DIR__ . '/../Views/iep_meeting/pdsp_sign.php';
+            // Redirect to active PDSP meeting workflow
+            $meetingId = (int)($pdsp['meeting_id'] ?? 0);
+            if ($meetingId) {
+                header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId . '/pdsp');
+                exit;
+            }
+            header('Location: ' . BASE_PATH . '/iep/meetings');
+            exit;
             
         } catch (Exception $e) {
             error_log("IEPMeetingController->signPDSP() ERROR: " . $e->getMessage());

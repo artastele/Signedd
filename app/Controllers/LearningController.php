@@ -9,11 +9,13 @@ require_once __DIR__ . '/../Models/GamificationModel.php';
 require_once __DIR__ . '/../Middleware/ParentGateMiddleware.php';
 require_once __DIR__ . '/../Helpers/ScoreHelper.php';
 require_once __DIR__ . '/../Helpers/FlashcardResult.php';
+require_once __DIR__ . '/../Models/ExternalMasteryModel.php';
 
 class LearningController {
 
-    private LessonPlanModel   $model;
-    private GamificationModel $gamification;
+    private LessonPlanModel      $model;
+    private GamificationModel    $gamification;
+    private ExternalMasteryModel $masteryModel;
     private int    $userId;
     private string $userRole;
     private string $basePath;
@@ -23,11 +25,12 @@ class LearningController {
             header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/login');
             exit;
         }
-        $this->userId   = (int) $_SESSION['user_id'];
-        $this->userRole = $_SESSION['role'] ?? '';
+        $this->userId        = (int) $_SESSION['user_id'];
+        $this->userRole      = $_SESSION['role'] ?? '';
         $this->basePath      = defined('BASE_PATH') ? BASE_PATH : '';
         $this->model         = new LessonPlanModel();
         $this->gamification  = new GamificationModel();
+        $this->masteryModel  = new ExternalMasteryModel();
     }
 
     // ----------------------------------------------------------------
@@ -189,6 +192,15 @@ class LearningController {
             exit;
         }
 
+        if (!$isTeacherPreview) {
+            if (!$studentId || !$this->model->isAssignedToStudent($lessonPlanId, $studentId)) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied. This lesson plan is not assigned to you.';
+                header('Location: ' . $this->basePath . '/learning/dashboard');
+                exit;
+            }
+        }
+
         $materials   = $this->model->getMaterials($lessonPlanId);
         $activities  = $this->model->getActivities($lessonPlanId);
         $lessonPages = $this->model->getPagesByLessonPlan($lessonPlanId);
@@ -222,7 +234,263 @@ class LearningController {
             }
         }
 
+        // Fetch external mainstream mastery result for learner if recorded
+        $masteryResult = $studentId ? $this->masteryModel->getResultByLessonAndStudent($lessonPlanId, $studentId) : null;
+
         require __DIR__ . '/../Views/learning/lesson_view.php';
+    }
+
+    // ----------------------------------------------------------------
+    // GET /learning/lesson/{id}/offline-manifest
+    // Generates targeted asset manifest for Offline Read-Only Lesson MVP
+    // ----------------------------------------------------------------
+    public function offlineLessonManifest(string $lessonPlanId): void {
+        header('Content-Type: application/json');
+        try {
+            $lessonPlanId     = (int) $lessonPlanId;
+            $studentId        = $this->getStudentId();
+            $basePath         = $this->basePath;
+            $isTeacherPreview = in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin', 'principal', 'guidance', 'general_teacher'], true);
+
+            $lessonPlan = $this->model->findById($lessonPlanId);
+            if (!$lessonPlan || (!$isTeacherPreview && $lessonPlan['status'] !== 'published')) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Lesson plan not found.']);
+                exit;
+            }
+
+            if (!$isTeacherPreview) {
+                if (!$studentId || !$this->model->isAssignedToStudent($lessonPlanId, $studentId)) {
+                    http_response_code(403);
+                    echo json_encode(['success' => false, 'message' => 'Access denied. This lesson is not assigned to you.']);
+                    exit;
+                }
+            }
+
+            $lessonPages = $this->model->getPagesByLessonPlan($lessonPlanId);
+            if (empty($lessonPages)) {
+                echo json_encode(['success' => false, 'message' => 'This lesson has no slide pages to download.']);
+                exit;
+            }
+
+            require_once __DIR__ . '/../Models/FSLModel.php';
+            $fslModel = new FSLModel();
+            $allFslSigns = $fslModel->getAll(null, '', true);
+
+            $publicDir = realpath(__DIR__ . '/../../public') ?: (__DIR__ . '/../../public');
+            $assetUrls = [];
+            $referencedSigns = [];
+            $totalBytes = 0;
+
+            // 1. Core static shell assets required by offline reader
+            $coreShellAssets = [
+                '/css/custom.css',
+                '/css/learner.css',
+                '/css/phosphor/style.css',
+                '/css/phosphor/Phosphor-Bold.woff2',
+                '/css/poppins.css',
+                '/fonts/poppins/poppins-v24-latin-400.woff2',
+                '/fonts/poppins/poppins-v24-latin-500.woff2',
+                '/fonts/poppins/poppins-v24-latin-600.woff2',
+                '/fonts/poppins/poppins-v24-latin-700.woff2',
+                '/js/fsl-modal.js',
+                '/js/app.js',
+                '/js/offline-manager.js',
+                '/images/fsl/default_sign.svg',
+                '/images/logo-large.png',
+                '/images/favicon.ico',
+                '/offline-reader.html'
+            ];
+
+            foreach ($coreShellAssets as $assetRel) {
+                $fullUrl = ($basePath ? rtrim($basePath, '/') : '') . $assetRel;
+                $assetUrls[$fullUrl] = true;
+                $diskPath = $publicDir . $assetRel;
+                if (file_exists($diskPath)) {
+                    $totalBytes += (int)filesize($diskPath);
+                }
+            }
+
+            // 2. Scan each slide for referenced media & FSL terms
+            $allCombinedText = '';
+            foreach ($lessonPages as $p) {
+                $content = $p['content'] ?? '';
+                $allCombinedText .= ' ' . strip_tags($content) . ' ' . ($p['title'] ?? '') . ' ' . ($p['guide_questions'] ?? '');
+
+                // A. Slide images in <img src="...">
+                if (preg_match_all('/<img\s+[^>]*?src=["\']([^"\']+)["\']/i', $content, $imgMatches)) {
+                    foreach ($imgMatches[1] as $imgSrc) {
+                        $clean = trim($imgSrc);
+                        if (!preg_match('/^data:image\//i', $clean) && !preg_match('/^https?:\/\//i', $clean)) {
+                            if (preg_match('/(?:uploads\/(?:lesson_editor|lesson_pages|fsl_custom_videos)\/[^\s"\'?#]+)/i', $clean, $m)) {
+                                $rel = $m[0];
+                                $fullUrl = ($basePath ? rtrim($basePath, '/') : '') . '/' . $rel;
+                                $assetUrls[$fullUrl] = true;
+                                $diskPath = $publicDir . '/' . $rel;
+                                if (file_exists($diskPath)) {
+                                    $totalBytes += (int)filesize($diskPath);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // B. Page column media_path
+                if (!empty($p['media_path'])) {
+                    $rel = ltrim($p['media_path'], '/');
+                    $fullUrl = ($basePath ? rtrim($basePath, '/') : '') . '/' . $rel;
+                    $assetUrls[$fullUrl] = true;
+                    $diskPath = $publicDir . '/' . $rel;
+                    if (file_exists($diskPath)) {
+                        $totalBytes += (int)filesize($diskPath);
+                    }
+                }
+
+                // C. Teacher-inserted manual .fsl-word spans
+                if (preg_match_all('/<span\s+[^>]*?class=["\'][^"\']*?fsl-word[^"\']*?["\'][^>]*?>/i', $content, $spanMatches)) {
+                    foreach ($spanMatches[0] as $spanTag) {
+                        $video = '';
+                        $word = '';
+                        $desc = '';
+                        $cat = 'General';
+                        if (preg_match('/data-video=["\']([^"\']+)["\']/i', $spanTag, $mv)) $video = trim($mv[1]);
+                        if (preg_match('/data-word=["\']([^"\']+)["\']/i', $spanTag, $mw)) $word = trim($mw[1]);
+                        if (preg_match('/data-desc=["\']([^"\']+)["\']/i', $spanTag, $md)) $desc = trim($md[1]);
+                        if (preg_match('/data-category=["\']([^"\']+)["\']/i', $spanTag, $mc)) $cat = trim($mc[1]);
+
+                        if ($word && !isset($referencedSigns[strtolower($word)])) {
+                            $referencedSigns[strtolower($word)] = [
+                                'word' => $word,
+                                'video_path' => $video,
+                                'category' => $cat,
+                                'description' => $desc
+                            ];
+                        }
+
+                        if ($video) {
+                            $rel = ltrim($video, '/');
+                            $fullUrl = ($basePath ? rtrim($basePath, '/') : '') . '/' . $rel;
+                            $assetUrls[$fullUrl] = true;
+                            $diskPath = $publicDir . '/' . $rel;
+                            if (file_exists($diskPath)) {
+                                $totalBytes += (int)filesize($diskPath);
+                            }
+                            if (preg_match('/\.mov$/i', $rel)) {
+                                $mp4Rel = preg_replace('/\.mov$/i', '.mp4', $rel);
+                                $mp4Disk = $publicDir . '/' . $mp4Rel;
+                                if (file_exists($mp4Disk)) {
+                                    $mp4Url = ($basePath ? rtrim($basePath, '/') : '') . '/' . $mp4Rel;
+                                    $assetUrls[$mp4Url] = true;
+                                    $totalBytes += (int)filesize($mp4Disk);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Match learner-side auto-FSL keywords in combined lesson text
+            $normalizedAllText = preg_replace('/\s+/', ' ', $allCombinedText);
+            foreach ($allFslSigns as $s) {
+                if (empty($s['word'])) continue;
+                $w = trim($s['word']);
+                $tagWord = '';
+                if (!empty($s['description']) && strpos($s['description'], '-') !== false) {
+                    $parts = explode('-', $s['description']);
+                    $tagWord = trim($parts[0]);
+                }
+
+                $matched = false;
+                $patternW = '/\b' . preg_quote($w, '/') . '\b/i';
+                if (preg_match($patternW, $normalizedAllText)) {
+                    $matched = true;
+                } elseif ($tagWord && strlen($tagWord) > 2) {
+                    $patternT = '/\b' . preg_quote($tagWord, '/') . '\b/i';
+                    if (preg_match($patternT, $normalizedAllText)) {
+                        $matched = true;
+                    }
+                }
+
+                if ($matched) {
+                    $key = strtolower($w);
+                    if (!isset($referencedSigns[$key])) {
+                        $referencedSigns[$key] = [
+                            'word' => $s['word'],
+                            'video_path' => $s['video_path'] ?? '',
+                            'category' => $s['category'] ?? 'General',
+                            'description' => $s['description'] ?? ''
+                        ];
+                    }
+
+                    if (!empty($s['video_path'])) {
+                        $rel = ltrim($s['video_path'], '/');
+                        $fullUrl = ($basePath ? rtrim($basePath, '/') : '') . '/' . $rel;
+                        $assetUrls[$fullUrl] = true;
+                        $diskPath = $publicDir . '/' . $rel;
+                        if (file_exists($diskPath)) {
+                            $totalBytes += (int)filesize($diskPath);
+                        }
+                        if (preg_match('/\.mov$/i', $rel)) {
+                            $mp4Rel = preg_replace('/\.mov$/i', '.mp4', $rel);
+                            $mp4Disk = $publicDir . '/' . $mp4Rel;
+                            if (file_exists($mp4Disk)) {
+                                $mp4Url = ($basePath ? rtrim($basePath, '/') : '') . '/' . $mp4Rel;
+                                $assetUrls[$mp4Url] = true;
+                                $totalBytes += (int)filesize($mp4Disk);
+                            }
+                        }
+                    }
+                    if (!empty($s['gif_path'])) {
+                        $rel = ltrim($s['gif_path'], '/');
+                        $fullUrl = ($basePath ? rtrim($basePath, '/') : '') . '/' . $rel;
+                        $assetUrls[$fullUrl] = true;
+                        $diskPath = $publicDir . '/' . $rel;
+                        if (file_exists($diskPath)) {
+                            $totalBytes += (int)filesize($diskPath);
+                        }
+                    }
+                }
+            }
+
+            // Human-readable size
+            $sizeFormatted = $totalBytes < 1048576
+                ? round($totalBytes / 1024, 1) . ' KB'
+                : round($totalBytes / 1048576, 1) . ' MB';
+
+            echo json_encode([
+                'success' => true,
+                'learner_id' => (int)($studentId ?: $this->userId),
+                'lesson' => [
+                    'id' => (int)$lessonPlan['id'],
+                    'title' => $lessonPlan['title'],
+                    'domain' => $lessonPlan['pdsp_domain'] ?? 'Aralin',
+                    'school_year' => $lessonPlan['school_year'] ?? '',
+                    'total_pages' => count($lessonPages),
+                    'pages' => array_map(function($pg) {
+                        return [
+                            'id' => (int)$pg['id'],
+                            'page_number' => (int)$pg['page_number'],
+                            'title' => $pg['title'] ?? '',
+                            'content' => $pg['content'] ?? '',
+                            'guide_questions' => $pg['guide_questions'] ?? '',
+                            'media_type' => $pg['media_type'] ?? null,
+                            'media_path' => $pg['media_path'] ?? null
+                        ];
+                    }, $lessonPages),
+                    'fsl_signs' => array_values($referencedSigns),
+                    'mainstream_mastery_url'   => $lessonPlan['mainstream_mastery_url'] ?? null,
+                    'mainstream_mastery_title' => $lessonPlan['mainstream_mastery_title'] ?? null
+                ],
+                'assets' => array_values(array_keys($assetUrls)),
+                'estimated_bytes' => $totalBytes,
+                'estimated_size' => $sizeFormatted
+            ]);
+            exit;
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Manifest error: ' . $e->getMessage()]);
+            exit;
+        }
     }
 
     // ----------------------------------------------------------------
@@ -236,6 +504,15 @@ class LearningController {
             if (!$studentId) {
                 echo json_encode(['success' => true, 'message' => 'Teacher preview mode (progress not persisted to student record).']);
                 exit;
+            }
+
+            $isTeacherPreview = in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin', 'principal', 'guidance', 'general_teacher']);
+            if (!$isTeacherPreview) {
+                if (!$this->model->isAssignedToStudent($lessonPlanId, $studentId)) {
+                    http_response_code(403);
+                    echo json_encode(['success' => false, 'message' => 'Access denied. This lesson is not assigned to you.']);
+                    exit;
+                }
             }
 
             $pageNumber  = (int)($_POST['page_number'] ?? 1);
@@ -275,6 +552,17 @@ class LearningController {
             exit;
         }
 
+        $isTeacherPreview = in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin', 'principal', 'guidance', 'general_teacher']);
+        if (!$isTeacherPreview) {
+            $lessonPlanId = (int)($activity['lesson_plan_id'] ?? 0);
+            if (!$studentId || !$this->model->isAssignedToStudent($lessonPlanId, $studentId)) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied. This activity is not assigned to you.';
+                header('Location: ' . $this->basePath . '/learning/dashboard');
+                exit;
+            }
+        }
+
         $activity['activity_data'] = json_decode($activity['activity_data'] ?? '{}', true) ?? [];
 
         $submission = $studentId
@@ -305,6 +593,13 @@ class LearningController {
         $activity = $this->model->getActivityById($activityId);
         if (!$activity) {
             echo json_encode(['success' => false, 'message' => 'Activity not found.']);
+            exit;
+        }
+
+        $lessonPlanId = (int)($activity['lesson_plan_id'] ?? 0);
+        if (!$this->model->isAssignedToStudent($lessonPlanId, $studentId)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Access denied. This activity is not assigned to you.']);
             exit;
         }
 
@@ -601,7 +896,9 @@ class LearningController {
             }
 
             // Step 14 — Badges auto-check
-            $totalSubs = (int) $db->query("SELECT COUNT(*) FROM lms_submissions WHERE student_id={$studentId}")->fetchColumn();
+            $stmtSubs = $db->prepare("SELECT COUNT(*) FROM lms_submissions WHERE student_id = :sid");
+            $stmtSubs->execute(['sid' => $studentId]);
+            $totalSubs = (int) $stmtSubs->fetchColumn();
             if ($totalSubs >= 1)  $this->gamification->awardBadge($studentId, 'first_activity');
             if ($totalSubs >= 5)  $this->gamification->awardBadge($studentId, 'five_in_a_row');
             if ($autoScore !== null && $maxScore > 0 && $autoScore >= $maxScore)
@@ -611,8 +908,13 @@ class LearningController {
             $totalStarsEarned = $this->gamification->getTotalStars($studentId);
             if ($totalStarsEarned >= 10) $this->gamification->awardBadge($studentId, 'star_collector');
             // all_done: all published plans fully complete
-            $allDone = $db->query("SELECT COUNT(*) FROM lesson_plans lp JOIN lesson_assignments la ON lp.id=la.lesson_plan_id WHERE la.student_id={$studentId} AND lp.status='published'")->fetchColumn();
-            $allDoneSub = $db->query("SELECT COUNT(DISTINCT act.lesson_plan_id) FROM lms_submissions sub JOIN lms_activities act ON sub.activity_id=act.id WHERE sub.student_id={$studentId}")->fetchColumn();
+            $stmtAllDone = $db->prepare("SELECT COUNT(*) FROM lesson_plans lp JOIN lesson_assignments la ON lp.id=la.lesson_plan_id WHERE la.student_id = :sid AND lp.status='published'");
+            $stmtAllDone->execute(['sid' => $studentId]);
+            $allDone = (int) $stmtAllDone->fetchColumn();
+
+            $stmtAllDoneSub = $db->prepare("SELECT COUNT(DISTINCT act.lesson_plan_id) FROM lms_submissions sub JOIN lms_activities act ON sub.activity_id=act.id WHERE sub.student_id = :sid");
+            $stmtAllDoneSub->execute(['sid' => $studentId]);
+            $allDoneSub = (int) $stmtAllDoneSub->fetchColumn();
             if ($allDone > 0 && $allDoneSub >= $allDone) $this->gamification->awardBadge($studentId, 'all_done');
 
             // Badge XP bonus (+15 per new badge)

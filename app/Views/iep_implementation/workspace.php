@@ -274,6 +274,62 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <span><i class="ti ti-activity me-1"></i><?php echo $lpActivityCount; ?> activit<?php echo $lpActivityCount !== 1 ? 'ies' : 'y'; ?></span>
                                 </div>
 
+                                <?php 
+                                $lpMasteryUrl = trim($lp['mainstream_mastery_url'] ?? '');
+                                $lpMasteryTitle = $lp['mainstream_mastery_title'] ?? '';
+                                $lpMasteryRes = $masteryResultsByLp[$lpId] ?? null;
+                                ?>
+                                <div class="p-2.5 rounded-2 mb-3" style="background:#f8fafc; border:1px solid #e2e8f0; font-size:0.8rem;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="fw-bold text-dark d-flex align-items-center gap-1" style="font-size:0.75rem;">
+                                            <i class="ti ti-external-link text-primary"></i> Mainstream Mastery
+                                        </span>
+                                        <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" style="font-size:0.72rem; color:#1e4072;"
+                                                onclick="openConfigureMasteryModal(<?php echo $lpId; ?>, '<?php echo htmlspecialchars(addslashes($lp['title'])); ?>', '<?php echo htmlspecialchars(addslashes($lpMasteryTitle)); ?>', '<?php echo htmlspecialchars(addslashes($lpMasteryUrl)); ?>')">
+                                            <i class="ti ti-settings me-0.5"></i>Config
+                                        </button>
+                                    </div>
+                                    <?php if ($lpMasteryUrl): ?>
+                                        <div class="mb-1 text-truncate">
+                                            <strong class="text-dark d-block"><?php echo htmlspecialchars($lpMasteryTitle ?: 'Mastery Activity'); ?></strong>
+                                            <a href="<?php echo htmlspecialchars($lpMasteryUrl); ?>" target="_blank" rel="noopener noreferrer" class="text-muted text-decoration-none" style="font-size:0.72rem;">
+                                                <?php echo htmlspecialchars($lpMasteryUrl); ?> <i class="ti ti-arrow-up-right"></i>
+                                            </a>
+                                        </div>
+                                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-1 mt-1 pt-1 border-top">
+                                            <div>
+                                                <?php if ($lpMasteryRes): ?>
+                                                    <?php if ($lpMasteryRes['mastery_status'] === 'completed'): ?>
+                                                        <span class="badge bg-success" style="font-size:0.68rem;">
+                                                            <i class="ti ti-check me-0.5"></i>Completed<?php echo $lpMasteryRes['score'] !== null ? ' (' . (float)$lpMasteryRes['score'] . '%)' : ''; ?>
+                                                        </span>
+                                                    <?php elseif ($lpMasteryRes['mastery_status'] === 'needs_support'): ?>
+                                                        <span class="badge bg-warning text-dark" style="font-size:0.68rem;">Needs Support</span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-secondary" style="font-size:0.68rem;">Not Attempted</span>
+                                                    <?php endif; ?>
+                                                <?php else: ?>
+                                                    <span class="badge bg-light text-muted border" style="font-size:0.68rem;">Pending Log</span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-outline-primary py-0.5 px-2" style="font-size:0.72rem; border-radius:6px; font-weight:600;"
+                                                    onclick="openRecordMasteryModal(<?php echo $lpId; ?>, <?php echo (int)($iep['student_id'] ?? 0); ?>, '<?php echo htmlspecialchars(addslashes($lp['title'])); ?>', '<?php echo htmlspecialchars(addslashes($lpMasteryTitle)); ?>', '<?php echo htmlspecialchars(addslashes($lpMasteryUrl)); ?>')">
+                                                <i class="ti ti-clipboard-check me-1"></i><?php echo $lpMasteryRes ? 'Edit Result' : 'Record Result'; ?>
+                                            </button>
+                                        </div>
+                                        <?php if (!empty($lpMasteryRes['teacher_notes'])): ?>
+                                            <div class="text-muted mt-1 fst-italic" style="font-size:0.7rem;">
+                                                Obs: <?php echo htmlspecialchars($lpMasteryRes['teacher_notes']); ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <div class="text-muted small fst-italic d-flex justify-content-between align-items-center" style="font-size:0.73rem;">
+                                            <span>No external mainstream activity configured.</span>
+                                            <a href="javascript:void(0)" onclick="openConfigureMasteryModal(<?php echo $lpId; ?>, '<?php echo htmlspecialchars(addslashes($lp['title'])); ?>', '', '')" style="color:#1e4072; font-weight:600;">+ Link Activity</a>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+
                                 <div class="d-flex flex-wrap gap-1">
                                     <?php if ($iepLpLocked): ?>
                                         <p class="small text-muted w-100 mb-1" style="border-left:3px solid #1e4072;padding-left:8px;">
@@ -295,7 +351,13 @@ require_once __DIR__ . '/../layouts/header.php';
                                         </button>
                                     <?php endif; ?>
                                     <button class="btn btn-sm"
-                                            style="background:#a01422;color:#fff;border:none;font-size:0.75rem;"
+                                            style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:0.75rem; border-radius:6px; font-weight:600;"
+                                            onclick="openShareToHubFromWorkspace(<?php echo $lpId; ?>, '<?php echo htmlspecialchars(addslashes($lp['title'])); ?>', '<?php echo htmlspecialchars(addslashes($lpDomain)); ?>')"
+                                            title="Share as reusable Accessibility Pack">
+                                        <i class="ti ti-share me-1"></i>Share to Hub
+                                    </button>
+                                    <button class="btn btn-sm"
+                                            style="background:#a01422;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
                                             onclick="confirmDeleteLessonPlan(<?php echo $lpId; ?>, '<?php echo htmlspecialchars(addslashes($lp['title'])); ?>')">
                                         <i class="ti ti-trash me-1"></i>Delete
                                     </button>
@@ -4707,6 +4769,459 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 });
+
+/* ----------------------------------------------------------------
+   Resource Hub Sharing from Workspace
+   ---------------------------------------------------------------- */
+let currentWorkspaceShareLpId = null;
+
+function openShareToHubFromWorkspace(lpId, title, domain) {
+    currentWorkspaceShareLpId = lpId;
+    document.getElementById('wsSharePackTitle').value = title || '';
+    document.getElementById('wsSharePackDomain').value = domain || 'communication_language';
+    document.getElementById('wsSharePackDesc').value = '';
+    document.getElementById('wsSharePackCompetency').value = '';
+    document.getElementById('wsSharePackMasteryUrl').value = '';
+    document.getElementById('wsSharePackMasteryTitle').value = '';
+    document.getElementById('wsSharePackTags').value = '';
+
+    const modal = new bootstrap.Modal(document.getElementById('shareToHubWorkspaceModal'));
+    modal.show();
+}
+
+async function submitWorkspaceShareToHub(e) {
+    e.preventDefault();
+    if (!currentWorkspaceShareLpId) return;
+
+    const btn = document.getElementById('btnSubmitWsShareHub');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Publishing...';
+
+    const payload = {
+        title: document.getElementById('wsSharePackTitle').value.trim(),
+        description: document.getElementById('wsSharePackDesc').value.trim(),
+        pdsp_domain: document.getElementById('wsSharePackDomain').value,
+        learning_level: document.getElementById('wsSharePackLevel').value.trim(),
+        learning_competency: document.getElementById('wsSharePackCompetency').value.trim(),
+        mainstream_mastery_url: document.getElementById('wsSharePackMasteryUrl').value.trim(),
+        mainstream_mastery_title: document.getElementById('wsSharePackMasteryTitle').value.trim(),
+        tags: document.getElementById('wsSharePackTags').value.trim()
+    };
+
+    try {
+        const res = await fetch(`${BASE}/iep/implementation/resource-hub/share/${currentWorkspaceShareLpId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('shareToHubWorkspaceModal')).hide();
+            Swal.fire({
+                icon: 'success',
+                title: 'Published to Resource Hub!',
+                text: data.message || 'Accessible template pack is now live on the Resource Hub.',
+                confirmButtonColor: '#1e4072'
+            });
+        } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Failed to share to Resource Hub.' });
+        }
+    } catch (err) {
+        console.error(err);
+        Swal.fire({ icon: 'error', title: 'Connection Error', text: 'Could not connect to server.' });
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+}
+</script>
+
+<!-- Share to Resource Hub Modal (Workspace) -->
+<div class="modal fade" id="shareToHubWorkspaceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow" style="border-radius: 12px;">
+            <div class="modal-header border-bottom py-3 px-3.5" style="background:#f8fafc; border-radius: 12px 12px 0 0;">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-warning text-dark" style="width:34px; height:34px; font-size:1.1rem;">
+                        <i class="ti ti-share"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0 text-dark">Share to Resource Hub</h6>
+                        <span class="text-muted" style="font-size:0.75rem;">Publish as a reusable Deaf-accessible template pack</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="shareToHubWorkspaceForm" onsubmit="submitWorkspaceShareToHub(event)">
+                <div class="modal-body p-3.5">
+                    <div class="p-3 mb-3 rounded border border-warning-subtle bg-warning-subtle text-dark small" style="font-size: 0.78rem; line-height: 1.45;">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="ti ti-shield-check text-warning mt-0.5" style="font-size: 1.25rem;"></i>
+                            <div>
+                                <strong class="d-block mb-0.5 text-dark">Gipanalipdan ang Pribasiya ug Relational Safety:</strong>
+                                Ang shared version maglakip lamang sa educational content, gi-aprobahan nga FSL signs, ug visual materials.
+                                <strong>DILI maapil</strong> ang ngalan sa estudyante, IEP ID, diagnosis, parent records, submissions, o grado.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-2.5">
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-dark mb-1">
+                                Accessibility Pack Title: <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" id="wsSharePackTitle" class="form-control form-control-sm" required style="border-radius: 6px;">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-dark mb-1">Developmental Domain:</label>
+                            <select id="wsSharePackDomain" class="form-select form-select-sm" style="border-radius: 6px;">
+                                <option value="communication_language">Communication / Language</option>
+                                <option value="perceptuo_cognitive">Perceptuo-Cognitive</option>
+                                <option value="psychomotor">Psychomotor</option>
+                                <option value="psychosocial">Psychosocial</option>
+                                <option value="socio_emotional">Socio-Emotional</option>
+                                <option value="daily_living_skills">Daily Living Skills</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-bold text-dark mb-1">Grade / Learning Level:</label>
+                            <input type="text" id="wsSharePackLevel" class="form-control form-control-sm" value="Primary SPED / Deaf Ed" style="border-radius: 6px;">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-dark mb-1">Learning Competency / Objective:</label>
+                            <textarea id="wsSharePackCompetency" class="form-control form-control-sm" rows="2" placeholder="e.g. Makat-on sa mga batakang senyas sa pamilya..." style="border-radius: 6px;"></textarea>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-dark mb-1">Short Description / Overview:</label>
+                            <textarea id="wsSharePackDesc" class="form-control form-control-sm" rows="2" placeholder="Mubo nga overview para sa ubang magtutudlo..." style="border-radius: 6px;"></textarea>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-semibold text-dark mb-1">
+                                External Mastery Link <span class="text-muted fw-normal">(Optional HTTPS)</span>:
+                            </label>
+                            <input type="url" id="wsSharePackMasteryUrl" class="form-control form-control-sm" placeholder="https://www.khanacademy.org/..." style="border-radius: 6px;">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-semibold text-dark mb-1">
+                                Mastery Resource Title <span class="text-muted fw-normal">(Optional)</span>:
+                            </label>
+                            <input type="text" id="wsSharePackMasteryTitle" class="form-control form-control-sm" placeholder="e.g. Khan Academy — Addition within 10" style="border-radius: 6px;">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold text-dark mb-1">Tags / Keywords (comma-separated):</label>
+                            <input type="text" id="wsSharePackTags" class="form-control form-control-sm" placeholder="fsl, deaf-ed, greeting, primary" style="border-radius: 6px;">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top py-2.5 px-3.5 bg-light" style="border-radius: 0 0 12px 12px;">
+                    <button type="button" class="btn btn-outline-secondary btn-sm fw-medium px-3" data-bs-dismiss="modal" style="border-radius: 6px;">
+                        Kanselahon
+                    </button>
+                    <button type="submit" id="btnSubmitWsShareHub" class="btn btn-warning btn-sm fw-bold px-3 text-dark" style="border-radius: 6px;">
+                        <i class="ti ti-share me-1"></i> Confirm &amp; Publish to Hub
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Record Mainstream Mastery Result Modal -->
+<div class="modal fade" id="recordMasteryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow" style="border-radius:12px;">
+            <div class="modal-header border-bottom py-3 px-3.5" style="background:#f8fafc; border-radius:12px 12px 0 0;">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-primary text-white" style="width:34px; height:34px; font-size:1.1rem;">
+                        <i class="ti ti-clipboard-check"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0 text-dark">Record Mastery Result</h6>
+                        <span class="text-muted" style="font-size:0.75rem;">External Mainstream Activity Evidence</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="recordMasteryForm" onsubmit="submitMasteryResult(event)">
+                <input type="hidden" id="masteryRecordLpId" name="lesson_plan_id" value="">
+                <input type="hidden" id="masteryRecordStudentId" name="student_id" value="">
+                <input type="hidden" id="masteryRecordUrl" name="resource_url" value="">
+                
+                <div class="modal-body p-3.5">
+                    <div class="p-2.5 mb-3 rounded bg-light border" style="font-size:0.8rem;">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Learner:</span>
+                            <strong class="text-dark"><?php echo htmlspecialchars($iep['student_name'] ?? 'Student'); ?></strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">SignED Lesson:</span>
+                            <span class="fw-semibold text-dark" id="masteryRecordLpTitle">...</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Mastery Activity:</span>
+                            <a href="#" id="masteryRecordLinkPreview" target="_blank" rel="noopener noreferrer" class="fw-semibold text-primary text-truncate" style="max-width:200px;">
+                                <span id="masteryRecordResourceTitle">...</span> <i class="ti ti-external-link"></i>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">
+                            Mastery Status: <span class="text-danger">*</span>
+                        </label>
+                        <select id="masteryRecordStatus" class="form-select form-select-sm" required style="border-radius:6px; font-size:0.875rem;">
+                            <option value="completed">Completed (Demonstrated Mastery)</option>
+                            <option value="needs_support">Needs Support (In Progress / Additional Practice)</option>
+                            <option value="not_attempted">Not Yet Attempted</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-dark mb-1">
+                                Score / Percentage: <span class="text-muted fw-normal">(Optional)</span>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" id="masteryRecordScore" class="form-control" min="0" max="100" step="0.1" placeholder="e.g. 80" style="border-radius:6px 0 0 6px; font-size:0.875rem;">
+                                <span class="input-group-text bg-white" style="border-radius:0 6px 6px 0;">%</span>
+                            </div>
+                            <div class="form-text" style="font-size:0.7rem;">Enter 0–100 if available.</div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-dark mb-1">
+                                Date Completed:
+                            </label>
+                            <input type="date" id="masteryRecordDate" class="form-control form-control-sm" value="<?php echo date('Y-m-d'); ?>" style="border-radius:6px; font-size:0.875rem;">
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold text-dark mb-1">
+                            Teacher Observation / Note: <span class="text-muted fw-normal">(Optional, Internal Only)</span>
+                        </label>
+                        <textarea id="masteryRecordNotes" class="form-control form-control-sm" rows="3" placeholder="Observation on learner's performance, support needed, or external platform feedback..." style="border-radius:6px; font-size:0.85rem;"></textarea>
+                        <div class="form-text" style="font-size:0.7rem;">Internal to educators. Private and never exposed to the learner.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top py-2.5 px-3.5 bg-light" style="border-radius:0 0 12px 12px;">
+                    <button type="button" class="btn btn-outline-secondary btn-sm px-3 fw-medium" data-bs-dismiss="modal" style="border-radius:6px; font-size:0.875rem;">
+                        Cancel
+                    </button>
+                    <button type="submit" id="btnSubmitMasteryRecord" class="btn btn-primary btn-sm px-3 fw-semibold shadow-sm" style="border-radius:6px; font-size:0.875rem;">
+                        <i class="ti ti-device-floppy me-1"></i> Save Mastery Result
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Configure Mainstream Mastery Link Modal -->
+<div class="modal fade" id="configureMasteryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow" style="border-radius:12px;">
+            <div class="modal-header border-bottom py-3 px-3.5" style="background:#f8fafc; border-radius:12px 12px 0 0;">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-info text-white" style="width:34px; height:34px; font-size:1.1rem;">
+                        <i class="ti ti-link"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0 text-dark">Link Mainstream Mastery Activity</h6>
+                        <span class="text-muted" style="font-size:0.75rem;">Connect lesson to an external practice activity</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="configureMasteryForm" onsubmit="submitConfigureMastery(event)">
+                <input type="hidden" id="configMasteryLpId" name="lesson_plan_id" value="">
+                <div class="modal-body p-3.5">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-dark mb-1">
+                            SignED Lesson:
+                        </label>
+                        <input type="text" id="configMasteryLpTitle" class="form-control form-control-sm bg-light" readonly style="border-radius:6px;">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-dark mb-1">
+                            Mastery Activity Title:
+                        </label>
+                        <input type="text" id="configMasteryTitle" class="form-control form-control-sm" placeholder="e.g. Khan Academy — Addition within 10" style="border-radius:6px; font-size:0.875rem;">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold text-dark mb-1">
+                            Activity URL <span class="text-muted fw-normal">(HTTPS Only)</span>:
+                        </label>
+                        <input type="url" id="configMasteryUrl" class="form-control form-control-sm" placeholder="https://www.khanacademy.org/math/early-math/..." style="border-radius:6px; font-size:0.875rem;">
+                        <div class="form-text" style="font-size:0.72rem;">Enter the direct safe HTTPS URL to the external learning exercise.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top py-2.5 px-3.5 bg-light" style="border-radius:0 0 12px 12px;">
+                    <button type="button" class="btn btn-outline-secondary btn-sm px-3 fw-medium" data-bs-dismiss="modal" style="border-radius:6px; font-size:0.875rem;">
+                        Cancel
+                    </button>
+                    <button type="submit" id="btnSubmitConfigMastery" class="btn btn-primary btn-sm px-3 fw-semibold shadow-sm" style="border-radius:6px; font-size:0.875rem;">
+                        <i class="ti ti-check me-1"></i> Save Link
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Open Record Mastery Modal
+function openRecordMasteryModal(lpId, studentId, lpTitle, resTitle, resUrl) {
+    document.getElementById('masteryRecordLpId').value = lpId;
+    document.getElementById('masteryRecordStudentId').value = studentId;
+    document.getElementById('masteryRecordUrl').value = resUrl || '';
+    document.getElementById('masteryRecordLpTitle').textContent = lpTitle;
+    document.getElementById('masteryRecordResourceTitle').textContent = resTitle || 'External Activity';
+    var linkEl = document.getElementById('masteryRecordLinkPreview');
+    if (resUrl) {
+        linkEl.href = resUrl;
+        linkEl.style.display = 'inline-block';
+    } else {
+        linkEl.style.display = 'none';
+    }
+
+    // Reset defaults
+    document.getElementById('masteryRecordStatus').value = 'completed';
+    document.getElementById('masteryRecordScore').value = '';
+    document.getElementById('masteryRecordDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('masteryRecordNotes').value = '';
+
+    // Fetch existing result if already recorded
+    var url = (window.BASE || '<?php echo htmlspecialchars($basePath); ?>') + '/iep/implementation/lesson-plan/' + lpId + '/mastery-result/' + studentId;
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.result) {
+                var r = data.result;
+                if (r.mastery_status) document.getElementById('masteryRecordStatus').value = r.mastery_status;
+                if (r.score !== null && r.score !== undefined) document.getElementById('masteryRecordScore').value = r.score;
+                if (r.completed_at) document.getElementById('masteryRecordDate').value = r.completed_at;
+                if (r.teacher_notes) document.getElementById('masteryRecordNotes').value = r.teacher_notes;
+                if (r.resource_title) document.getElementById('masteryRecordResourceTitle').textContent = r.resource_title;
+                if (r.resource_url) {
+                    document.getElementById('masteryRecordUrl').value = r.resource_url;
+                    linkEl.href = r.resource_url;
+                    linkEl.style.display = 'inline-block';
+                }
+            }
+        })
+        .catch(function(e) { console.error('Fetch mastery result error:', e); });
+
+    var modal = new bootstrap.Modal(document.getElementById('recordMasteryModal'));
+    modal.show();
+}
+
+// Submit Record Mastery
+async function submitMasteryResult(e) {
+    e.preventDefault();
+    var lpId = document.getElementById('masteryRecordLpId').value;
+    var studentId = document.getElementById('masteryRecordStudentId').value;
+    var status = document.getElementById('masteryRecordStatus').value;
+    var score = document.getElementById('masteryRecordScore').value;
+    var date = document.getElementById('masteryRecordDate').value;
+    var notes = document.getElementById('masteryRecordNotes').value;
+    var resTitle = document.getElementById('masteryRecordResourceTitle').textContent;
+    var resUrl = document.getElementById('masteryRecordUrl').value;
+    var btn = document.getElementById('btnSubmitMasteryRecord');
+    var origHtml = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+    try {
+        var endpoint = (window.BASE || '<?php echo htmlspecialchars($basePath); ?>') + '/iep/implementation/lesson-plan/' + lpId + '/mastery-result';
+        var resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                student_id: parseInt(studentId),
+                mastery_status: status,
+                score: score !== '' ? parseFloat(score) : null,
+                completed_at: date,
+                teacher_notes: notes,
+                resource_title: resTitle,
+                resource_url: resUrl
+            })
+        });
+        var data = await resp.json();
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('recordMasteryModal')).hide();
+            window.location.reload();
+        } else {
+            alert(data.message || 'Error recording mastery result.');
+        }
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+}
+
+// Open Configure Mastery Modal
+function openConfigureMasteryModal(lpId, lpTitle, resTitle, resUrl) {
+    document.getElementById('configMasteryLpId').value = lpId;
+    document.getElementById('configMasteryLpTitle').value = lpTitle;
+    document.getElementById('configMasteryTitle').value = resTitle || '';
+    document.getElementById('configMasteryUrl').value = resUrl || '';
+    var modal = new bootstrap.Modal(document.getElementById('configureMasteryModal'));
+    modal.show();
+}
+
+// Submit Configure Mastery
+async function submitConfigureMastery(e) {
+    e.preventDefault();
+    var lpId = document.getElementById('configMasteryLpId').value;
+    var title = document.getElementById('configMasteryTitle').value.trim();
+    var url = document.getElementById('configMasteryUrl').value.trim();
+    var btn = document.getElementById('btnSubmitConfigMastery');
+    var origHtml = btn.innerHTML;
+
+    if (url && !url.match(/^https:\/\//i)) {
+        alert('Please enter a valid secure HTTPS URL.');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+    try {
+        var endpoint = (window.BASE || '<?php echo htmlspecialchars($basePath); ?>') + '/iep/implementation/lesson-plan/' + lpId + '/mastery-resource';
+        var resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                mainstream_mastery_title: title,
+                mainstream_mastery_url: url
+            })
+        });
+        var data = await resp.json();
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('configureMasteryModal')).hide();
+            window.location.reload();
+        } else {
+            alert(data.message || 'Error updating mastery link.');
+        }
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+}
 </script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

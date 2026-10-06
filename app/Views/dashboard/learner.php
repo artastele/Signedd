@@ -57,7 +57,12 @@ if (!isset($avgScore))           $avgScore           = 0;
       <i class="ph-bold ph-hand-waving"></i>
     </div>
     <div class="kid-banner__text">
-      <h2 class="mb-1">Magandang araw, <?php echo htmlspecialchars($firstName); ?>!</h2>
+      <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+        <h2 class="mb-0">Magandang araw, <?php echo htmlspecialchars($firstName); ?>!</h2>
+        <span class="signed-network-indicator badge bg-success-subtle text-success border border-success-subtle px-2.5 py-0.5 rounded-pill fw-semibold" style="font-size:0.75rem;">
+          <i class="ph-bold ph-wifi-high me-1"></i> Online
+        </span>
+      </div>
       <p class="mb-0"><?php echo $progressMsg; ?></p>
     </div>
   </div>
@@ -145,6 +150,7 @@ $activeTab = isset($_GET['tab']) && $_GET['tab'] === 'badges' ? 'badges' : 'less
               <span class="kid-card-badge"><i class="ph-bold ph-game-controller me-1" aria-hidden="true"></i> <?php echo $at; ?> Laro</span>
             <?php endif; ?>
             <span class="kid-card-badge fsl-badge"><i class="ph-bold ph-hand-waving me-1" aria-hidden="true"></i> May FSL Video</span>
+            <span class="offline-badge-slot" data-lesson-id="<?php echo (int)$lp['id']; ?>"></span>
           </div>
 
           <div class="mt-auto">

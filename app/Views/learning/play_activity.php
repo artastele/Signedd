@@ -566,6 +566,19 @@ function selectMatchingItem(element, side) {
 
 // Submit answers
 document.getElementById('submitBtn').addEventListener('click', function() {
+    if (!navigator.onLine) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Kailangan ng Internet',
+                text: 'This activity requires an internet connection.',
+                confirmButtonColor: '#1e4072'
+            });
+        } else {
+            alert('This activity requires an internet connection.');
+        }
+        return;
+    }
     if (!confirm('Are you sure you want to submit your answers?')) {
         return;
     }

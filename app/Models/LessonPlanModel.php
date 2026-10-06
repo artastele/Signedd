@@ -86,7 +86,7 @@ class LessonPlanModel {
             SELECT
                 lp.*,
                 ir.school_year, ir.status AS iep_status, ir.signed_document_path,
-                ir.re_evaluation_date,
+                ir.re_evaluation_date, ir.drafted_by,
                 sr.student_name, sr.lrn,
                 u.name AS created_by_name
             FROM lesson_plans lp
@@ -119,7 +119,7 @@ class LessonPlanModel {
      * Update allowed fields on a lesson plan
      */
     public function update($id, $data) {
-        $allowed = ['title', 'pdsp_domain', 'document_path', 'status', 'published_at'];
+        $allowed = ['title', 'pdsp_domain', 'document_path', 'status', 'published_at', 'mainstream_mastery_url', 'mainstream_mastery_title'];
         $sets    = [];
         $params  = ['id' => $id];
         foreach ($allowed as $col) {
@@ -134,6 +134,24 @@ class LessonPlanModel {
             "UPDATE lesson_plans SET " . implode(', ', $sets) . " WHERE id = :id"
         );
         return $stmt->execute($params);
+    }
+
+    /**
+     * Update mainstream mastery link on a lesson plan
+     */
+    public function updateMasteryResource(int $id, ?string $url, ?string $title): bool {
+        $stmt = $this->db->prepare("
+            UPDATE lesson_plans
+            SET mainstream_mastery_url = :url,
+                mainstream_mastery_title = :title,
+                updated_at = NOW()
+            WHERE id = :id
+        ");
+        return $stmt->execute([
+            'id'    => $id,
+            'url'   => $url ?: null,
+            'title' => $title ?: null
+        ]);
     }
 
     /**
@@ -750,6 +768,19 @@ class LessonPlanModel {
         ");
         $stmt->execute(['student_id' => $studentId]);
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Check if a lesson plan is assigned to a specific student
+     */
+    public function isAssignedToStudent(int $lessonPlanId, int $studentId): bool {
+        $stmt = $this->db->prepare("
+            SELECT 1 FROM lesson_assignments
+            WHERE lesson_plan_id = :lp_id AND student_id = :sid
+            LIMIT 1
+        ");
+        $stmt->execute(['lp_id' => $lessonPlanId, 'sid' => $studentId]);
+        return (bool) $stmt->fetchColumn();
     }
 
     /**

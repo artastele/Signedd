@@ -3,11 +3,21 @@
 // Last modified: 2026-05-04
 // Part of: SPED LMS — Front Controller
 
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+$isProd = (getenv('APP_ENV') === 'production' || ($_ENV['APP_ENV'] ?? '') === 'production');
+ini_set('display_errors', $isProd ? 0 : 1);
+ini_set('display_startup_errors', $isProd ? 0 : 1);
 error_reporting(E_ALL);
 
 set_exception_handler(function($e) {
+    error_log("Application Exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
+    $isProd = (getenv('APP_ENV') === 'production' || ($_ENV['APP_ENV'] ?? '') === 'production');
+    if ($isProd) {
+        http_response_code(500);
+        echo "<div style='font-family:sans-serif; padding:40px; text-align:center;'>";
+        echo "<h2 style='color:#333;'>Something went wrong</h2><p style='color:#666;'>An unexpected error occurred. Please contact system support.</p>";
+        echo "</div>";
+        return;
+    }
     echo "<div style='font-family:sans-serif; padding:20px; background:#fff3f3; border:1px solid #ffcdd2; border-radius:8px; margin:20px;'>";
     echo "<h2 style='color:#d32f2f; margin-top:0;'>Application Error</h2>";
     echo "<p><strong>Message:</strong> " . htmlspecialchars($e->getMessage()) . "</p>";

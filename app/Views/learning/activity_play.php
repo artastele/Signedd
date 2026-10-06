@@ -2898,6 +2898,15 @@ function escapeHtml(value) {
 }
 
 function submitAnswers() {
+    if (!navigator.onLine) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Kailangan ng Internet',
+            text: 'This activity requires an internet connection.',
+            confirmButtonColor: '#1e4072'
+        });
+        return;
+    }
     if (!validateAllAnswered()) {
         Swal.fire({icon:'warning',title:'Mission not finished',text:'Please answer every challenge before submitting.',confirmButtonColor:'#a01422'});
         return;

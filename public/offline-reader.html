@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="tl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SignED — Offline Aralin Reader</title>
+    
+    <script>
+        (function() {
+            var path = window.location.pathname;
+            var match = path.match(/^(.*?)(?:\/learning\/lesson|\/offline-reader)/);
+            var baseHref = (match && match[1]) ? (match[1] + '/') : '/';
+            window.BASE_PATH = (match && match[1]) ? match[1] : '';
+            var baseEl = document.createElement('base');
+            baseEl.href = baseHref;
+            document.head.appendChild(baseEl);
+        })();
+    </script>
+
+    <!-- Self-Hosted Phosphor Icons -->
+    <link href="css/phosphor/style.css" rel="stylesheet">
+    <!-- Self-Hosted Poppins Font -->
+    <link href="css/poppins.css" rel="stylesheet">
+    <!-- Custom & Learner CSS -->
+    <link href="css/custom.css" rel="stylesheet">
+    <link href="css/learner.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --signed-navy: #1e4072;
+            --signed-green: #3b6d11;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+            margin: 0;
+            padding: 0;
+        }
+        .offline-banner {
+            background: linear-gradient(135deg, #1e4072, #0f2347);
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .offline-pill {
+            background: #f59e0b;
+            color: #78350f;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .reader-container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 15px;
+        }
+        .slide-card {
+            background: #ffffff;
+            border-radius: 14px;
+            border: 1px solid #e2e8f0;
+            padding: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            min-height: 480px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .slide-content-area {
+            font-size: 1.15rem;
+            line-height: 1.8;
+            color: #1e293b;
+        }
+        .slide-content-area img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            margin: 15px 0;
+        }
+        .fsl-word {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #eef2ff;
+            color: #1e4072;
+            border: 1px solid #c7d2fe;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .fsl-word:hover {
+            background: #1e4072;
+            color: #ffffff;
+        }
+        .fsl-word::after {
+            content: '👋';
+            font-size: 0.85em;
+        }
+        .progress-bar-bg {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 12px 0 20px 0;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: #3b6d11;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .nav-btn {
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+        .btn-prev {
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid #cbd5e1;
+        }
+        .btn-prev:hover {
+            background: #e2e8f0;
+        }
+        .btn-next {
+            background: #1e4072;
+            color: #ffffff;
+        }
+        .btn-next:hover {
+            background: #152e54;
+        }
+        .btn-complete {
+            background: #3b6d11;
+            color: #ffffff;
+        }
+        .btn-complete:hover {
+            background: #2d540d;
+        }
+        .tab-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border: 1px solid transparent;
+            cursor: pointer;
+            background: #f8fafc;
+            color: #64748b;
+        }
+        .tab-btn.active {
+            background: #ffffff;
+            color: #1e4072;
+            border-color: #cbd5e1;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Offline Top Banner -->
+    <div class="offline-banner">
+        <div style="display:flex; align-items:center; gap:12px;">
+            <a href="javascript:history.back()" style="color:white; text-decoration:none; display:flex; align-items:center; gap:6px; font-weight:600; font-size:0.9rem;">
+                <i class="ph-bold ph-arrow-left"></i> Bumalik
+            </a>
+            <span style="opacity:0.6;">|</span>
+            <strong id="offlineLessonHeaderTitle" style="font-size:1.05rem;">SignED Offline Lesson</strong>
+        </div>
+        <div>
+            <span class="offline-pill">
+                <i class="ph-bold ph-wifi-slash"></i> Offline Mode
+            </span>
+        </div>
+    </div>
+
+    <div class="reader-container">
+        <!-- Lesson Header Card -->
+        <div style="background:white; border-radius:14px; border:1px solid #e2e8f0; padding:20px; margin-bottom:15px; box-shadow:0 2px 4px rgba(0,0,0,0.04);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+                <div>
+                    <span id="lessonDomainBadge" style="font-size:0.75rem; font-weight:700; color:#1e4072; background:#e0e7ff; padding:3px 10px; border-radius:6px; text-transform:uppercase;">
+                        ARALIN
+                    </span>
+                    <h2 id="lessonTitleText" style="margin:8px 0 4px 0; font-size:1.5rem; color:#0f172a;">Naglo-load ng aralin...</h2>
+                    <p style="margin:0; color:#64748b; font-size:0.9rem;">Available nang offline kasama ang mga larawan at Filipino Sign Language (FSL) videos.</p>
+                </div>
+                <div style="text-align:right;">
+                    <span id="pageCountBadge" style="font-size:0.9rem; font-weight:600; color:#334155;">Pahina 1 ng 1</span>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="lessonProgressFill"></div>
+            </div>
+
+            <!-- Tab Selection -->
+            <div style="display:flex; gap:8px; border-top:1px solid #f1f5f9; padding-top:12px;">
+                <button type="button" class="tab-btn active" id="tabBtnSlides" onclick="switchOfflineTab('slides')">
+                    <i class="ph-bold ph-presentation"></i> Mga Pahina ng Aralin
+                </button>
+                <button type="button" class="tab-btn" id="tabBtnActivities" onclick="switchOfflineTab('activities')">
+                    <i class="ph-bold ph-game-controller"></i> Mga Pagsasanay (Online Required)
+                </button>
+            </div>
+        </div>
+
+        <!-- TAB 1: SLIDE CONTENT -->
+        <div id="panelSlides">
+            <div class="slide-card">
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid #f1f5f9; padding-bottom:12px;">
+                        <span id="currentSlideBadge" style="background:#1e4072; color:white; font-size:0.8rem; font-weight:700; padding:4px 12px; border-radius:20px;">
+                            Pahina 1
+                        </span>
+                        <h3 id="currentSlideTitle" style="margin:0; font-size:1.25rem; color:#0f172a;">...</h3>
+                    </div>
+
+                    <!-- Slide Body -->
+                    <div id="slideContentBody" class="slide-content-area"></div>
+
+                    <!-- Guide Questions -->
+                    <div id="slideGuideBox" style="display:none; margin-top:20px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:15px;">
+                        <strong style="color:#166534; font-size:0.95rem; display:flex; align-items:center; gap:6px;">
+                            <i class="ph-bold ph-question"></i> Gabay na Tanong:
+                        </strong>
+                        <p id="slideGuideText" style="margin:5px 0 0 0; color:#14532d; font-size:0.95rem; line-height:1.5;"></p>
+                    </div>
+                </div>
+
+                <!-- Footer Navigation -->
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:30px; padding-top:16px; border-top:1px solid #e2e8f0;">
+                    <button type="button" class="nav-btn btn-prev" id="btnPrevSlide" onclick="prevSlide()">
+                        <i class="ph-bold ph-arrow-left"></i> Nakaraang Pahina
+                    </button>
+                    <button type="button" class="nav-btn btn-next" id="btnNextSlide" onclick="nextSlide()">
+                        Susunod na Pahina <i class="ph-bold ph-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mainstream Mastery Activity Offline Notice Card -->
+            <div id="offlineMasteryCard" style="display:none; margin-top:20px; background:white; border-radius:14px; border:1px solid #e2e8f0; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                    <div>
+                        <span style="font-size:0.75rem; font-weight:700; color:#1e4072; background:#e0e7ff; padding:3px 10px; border-radius:6px; text-transform:uppercase;">
+                            Mainstream Mastery Step
+                        </span>
+                        <h4 id="offlineMasteryTitle" style="margin:8px 0 4px 0; font-size:1.15rem; color:#0f172a;">...</h4>
+                        <p style="margin:0; color:#64748b; font-size:0.875rem;">
+                            External mainstream learning activity.
+                        </p>
+                    </div>
+                    <div>
+                        <button type="button" class="nav-btn" disabled style="background:#f1f5f9; color:#64748b; cursor:not-allowed; border:1px solid #cbd5e1; font-size:0.875rem;" title="Internet connection required for this mastery activity.">
+                            <i class="ph-bold ph-wifi-slash"></i> Internet connection required for this mastery activity.
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: ACTIVITIES (EXPLANATION NOTICE) -->
+        <div id="panelActivities" style="display:none;">
+            <div class="slide-card" style="text-align:center; padding:40px 20px;">
+                <div style="max-width:550px; margin:auto;">
+                    <div style="font-size:3.5rem; color:#f59e0b; margin-bottom:12px;">
+                        <i class="ph-bold ph-wifi-slash"></i>
+                    </div>
+                    <h3 style="color:#0f172a; margin-bottom:8px;">Kailangan ng Koneksyon sa Internet</h3>
+                    <p style="color:#64748b; font-size:1rem; line-height:1.6;">
+                        Ang mga pagsasanay at pagsusulit ay nangangailangan ng aktibong internet upang maitala ang iyong mga sagot, makakuha ng bituin, at madagdagan ang iyong XP.
+                    </p>
+                    <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:10px; padding:16px; margin:20px 0; text-align:left;">
+                        <strong style="color:#334155; display:block; margin-bottom:6px;"><i class="ph-bold ph-check text-success"></i> Magagamit Nang Offline:</strong>
+                        <span style="color:#64748b; font-size:0.9rem;">Pagbabasa ng mga slide, pagtingin sa mga larawan, at panonood ng mga senyas sa Filipino Sign Language (FSL).</span>
+                    </div>
+                    <button type="button" class="nav-btn btn-next" onclick="switchOfflineTab('slides')">
+                        <i class="ph-bold ph-book-open"></i> Bumalik sa Pagbabasa ng Aralin
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/fsl-modal.js"></script>
+    <script>
+        // Resolve lesson ID from URL: e.g. /learning/lesson/1 or ?lesson_id=1
+        let lessonId = 1;
+        const pathMatch = window.location.pathname.match(/\/learning\/lesson\/(\d+)/);
+        if (pathMatch) {
+            lessonId = parseInt(pathMatch[1], 10);
+        } else {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('lesson_id')) {
+                lessonId = parseInt(urlParams.get('lesson_id'), 10);
+            }
+        }
+
+        // Active learner ID resolution - strictly isolate per authenticated learner
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeLearnerId = urlParams.get('learner_id') || localStorage.getItem('signed_active_learner_id') || '';
+
+        // Load offline lesson data strictly for this learner
+        let lessonData = null;
+        if (activeLearnerId) {
+            const storageKey = 'signed_offline_lesson_' + activeLearnerId + '_' + lessonId;
+            const cachedRaw = localStorage.getItem(storageKey);
+            if (cachedRaw) {
+                try {
+                    lessonData = JSON.parse(cachedRaw);
+                } catch (e) {
+                    console.error('Failed to parse cached lesson data:', e);
+                }
+            }
+        }
+
+        let currentPageIdx = 0;
+        let pages = [];
+        let fslSigns = [];
+        const SIGN_DICT = [];
+
+        function initOfflineReader() {
+            if (!lessonData) {
+                document.getElementById('lessonTitleText').textContent = 'Hindi Nahanap ang Aralin';
+                document.getElementById('slideContentBody').innerHTML = `
+                    <div style="text-align:center; padding:40px 10px;">
+                        <h4 style="color:#a01422;">Hindi pa na-download ang araling ito nang offline.</h4>
+                        <p style="color:#64748b;">Mangyaring kumonekta sa internet at buksan ang aralin upang mai-download ito.</p>
+                        <a href="javascript:history.back()" class="nav-btn btn-prev" style="margin-top:15px; display:inline-flex;">Bumalik</a>
+                    </div>
+                `;
+                return;
+            }
+
+            // Hydrate Header
+            document.getElementById('offlineLessonHeaderTitle').textContent = lessonData.title || 'Aralin';
+            document.getElementById('lessonTitleText').textContent = lessonData.title || 'Aralin';
+            document.getElementById('lessonDomainBadge').textContent = lessonData.domain || 'ARALIN';
+
+            pages = lessonData.pages || [];
+            fslSigns = lessonData.fsl_signs || [];
+
+            // Build FSL dictionary
+            fslSigns.forEach(s => {
+                if (s.word) {
+                    SIGN_DICT.push({ matchWord: s.word.trim(), targetSign: s });
+                    if (s.description && s.description.includes('-')) {
+                        const tagWord = s.description.split('-')[0].trim();
+                        if (tagWord && tagWord.length > 2 && !SIGN_DICT.some(x => x.matchWord.toLowerCase() === tagWord.toLowerCase())) {
+                            SIGN_DICT.push({ matchWord: tagWord, targetSign: s });
+                        }
+                    }
+                }
+            });
+            SIGN_DICT.sort((a, b) => b.matchWord.length - a.matchWord.length);
+
+            // Hydrate External Mastery Notice if present in lesson pack
+            if (lessonData.mainstream_mastery_url) {
+                var masteryCard = document.getElementById('offlineMasteryCard');
+                if (masteryCard) {
+                    var mTitle = document.getElementById('offlineMasteryTitle');
+                    if (mTitle) {
+                        mTitle.textContent = lessonData.mainstream_mastery_title || 'Mainstream Mastery Activity';
+                    }
+                    masteryCard.style.display = 'block';
+                }
+            }
+
+            renderOfflineSlide(0);
+        }
+
+        function highlightOfflineFslKeywords(content) {
+            if (!content) return '';
+            let html = content;
+
+            // Resolve image relative paths
+            html = html.replace(/(<img\s+[^>]*?src=["'])([^"']+)(["'][^>]*?>)/gi, function(match, pre, src, post) {
+                return match;
+            });
+
+            // Replace explicit [fsl:word] tags
+            html = html.replace(/\[fsl:([^\]]+)\]/gi, function(match, word) {
+                const w = word.trim();
+                const found = SIGN_DICT.find(x => x.matchWord.toLowerCase() === w.toLowerCase());
+                const vid = found ? (found.targetSign.video_path || '') : '';
+                const cat = found ? (found.targetSign.category || 'General') : 'General';
+                const desc = found ? (found.targetSign.description || '') : '';
+                return `<span class="fsl-word" data-word="${w.toLowerCase()}" data-video="${vid}" data-category="${cat}" data-desc="${desc}">${w}</span>`;
+            });
+
+            if (SIGN_DICT.length === 0) return html;
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+
+            function walk(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    let text = node.nodeValue || '';
+                    if (!text || !text.trim()) return;
+                    const normalizedText = text.replace(/\u00A0/g, ' ');
+
+                    for (const item of SIGN_DICT) {
+                        const searchWord = item.matchWord.trim();
+                        if (!searchWord) continue;
+                        const escaped = searchWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s\\u00A0]+');
+                        const regex = new RegExp('(^|[\\s\\u00A0,.!?;:\'"\\(\\)\\[\\]{}<>-])(' + escaped + ')(?=$|[\\s\\u00A0,.!?;:\'"\\(\\)\\[\\]{}<>-])', 'i');
+                        const match = regex.exec(normalizedText);
+
+                        if (match) {
+                            const matchIndex = match.index + match[1].length;
+                            const matchedStr = match[2];
+                            const beforeText = text.substring(0, matchIndex);
+                            const afterText = text.substring(matchIndex + matchedStr.length);
+
+                            const span = document.createElement('span');
+                            span.className = 'fsl-word';
+                            span.dataset.word = item.targetSign.word.toLowerCase();
+                            span.dataset.video = item.targetSign.video_path || '';
+                            span.dataset.category = item.targetSign.category || 'General';
+                            span.dataset.desc = item.targetSign.description || '';
+                            span.textContent = matchedStr;
+
+                            const parent = node.parentNode;
+                            if (beforeText) parent.insertBefore(document.createTextNode(beforeText), node);
+                            parent.insertBefore(span, node);
+
+                            if (afterText) {
+                                const nextNode = document.createTextNode(afterText);
+                                parent.insertBefore(nextNode, node);
+                                parent.removeChild(node);
+                                walk(nextNode);
+                            } else {
+                                parent.removeChild(node);
+                            }
+                            return;
+                        }
+                    }
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (node.classList.contains('fsl-word') || node.tagName === 'SCRIPT' || node.tagName === 'STYLE') return;
+                    Array.from(node.childNodes).forEach(walk);
+                }
+            }
+
+            walk(tempDiv);
+            return tempDiv.innerHTML;
+        }
+
+        function renderOfflineSlide(idx) {
+            if (pages.length === 0) return;
+            currentPageIdx = Math.max(0, Math.min(pages.length - 1, idx));
+            const p = pages[currentPageIdx];
+            const total = pages.length;
+            const pageNum = currentPageIdx + 1;
+
+            // Badges
+            document.getElementById('currentSlideBadge').textContent = 'Pahina ' + pageNum;
+            document.getElementById('currentSlideTitle').textContent = p.title || ('Pahina ' + pageNum);
+            document.getElementById('pageCountBadge').textContent = 'Pahina ' + pageNum + ' ng ' + total;
+
+            const pct = Math.round((pageNum / total) * 100);
+            document.getElementById('lessonProgressFill').style.width = pct + '%';
+
+            // Content
+            document.getElementById('slideContentBody').innerHTML = highlightOfflineFslKeywords(p.content || '');
+
+            // Guide
+            const guideBox = document.getElementById('slideGuideBox');
+            if (p.guide_questions && p.guide_questions.trim()) {
+                document.getElementById('slideGuideText').textContent = p.guide_questions;
+                guideBox.style.display = 'block';
+            } else {
+                guideBox.style.display = 'none';
+            }
+
+            // Buttons
+            document.getElementById('btnPrevSlide').style.visibility = (currentPageIdx === 0) ? 'hidden' : 'visible';
+            const btnNext = document.getElementById('btnNextSlide');
+            if (currentPageIdx === total - 1) {
+                btnNext.className = 'nav-btn btn-complete';
+                btnNext.innerHTML = '<i class="ph-bold ph-check-circle"></i> Natapos ang Aralin';
+            } else {
+                btnNext.className = 'nav-btn btn-next';
+                btnNext.innerHTML = 'Susunod na Pahina <i class="ph-bold ph-arrow-right"></i>';
+            }
+        }
+
+        function prevSlide() {
+            if (currentPageIdx > 0) renderOfflineSlide(currentPageIdx - 1);
+        }
+
+        function nextSlide() {
+            if (currentPageIdx < pages.length - 1) {
+                renderOfflineSlide(currentPageIdx + 1);
+            } else {
+                alert('Magaling! Natapos mo ang lahat ng pahina ng araling ito nang offline.');
+            }
+        }
+
+        function switchOfflineTab(tab) {
+            document.getElementById('tabBtnSlides').classList.toggle('active', tab === 'slides');
+            document.getElementById('tabBtnActivities').classList.toggle('active', tab === 'activities');
+            document.getElementById('panelSlides').style.display = (tab === 'slides') ? 'block' : 'none';
+            document.getElementById('panelActivities').style.display = (tab === 'activities') ? 'block' : 'none';
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight') nextSlide();
+            if (e.key === 'ArrowLeft') prevSlide();
+        });
+
+        document.addEventListener('DOMContentLoaded', initOfflineReader);
+    </script>
+</body>
+</html>

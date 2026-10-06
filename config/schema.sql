@@ -2065,3 +2065,12 @@ INSERT IGNORE INTO db_version (version) VALUES (65);
 
 -- END MIGRATION: v65
 
+-- ============================================
+-- MIGRATION: v66 - Add status to student_records for Class Placement
+-- ============================================
+ALTER TABLE `student_records` ADD COLUMN IF NOT EXISTS `status` ENUM('active','mainstreamed') NOT NULL DEFAULT 'active';
+
+INSERT IGNORE INTO db_version (version) VALUES (66);
+
+-- END MIGRATION: v66
+

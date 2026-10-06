@@ -89,7 +89,13 @@ $typeMap = [
                         Tuklasin at matuto sa pamamagitan ng masayang aralin, mga larawan, at pagsasanay.
                     </p>
                 </div>
-                <div>
+                <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                    <!-- Network State Indicator -->
+                    <span class="signed-network-indicator badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1 rounded-pill fw-semibold" style="font-size:0.78rem;">
+                        <i class="ph-bold ph-wifi-high me-1"></i> Online
+                    </span>
+                    <!-- Offline Lesson Action Widget -->
+                    <div id="offlineLessonWidget" data-lesson-id="<?php echo (int)($lessonPlan['id'] ?? 0); ?>" class="d-inline-flex align-items-center"></div>
                     <span class="badge <?php echo $isCompleted ? 'bg-success text-white' : 'bg-primary-subtle text-primary border border-primary-subtle'; ?> px-3 py-2" id="lessonStatusBadge" style="font-size: 0.85rem; border-radius:8px;">
                         <i class="ph-bold <?php echo $isCompleted ? 'ph-check-circle' : 'ph-book-open'; ?> me-1"></i>
                         <span id="lessonStatusText"><?php echo $isCompleted ? 'Tapos na ang Aralin' : 'Kasalukuyang Binabasa'; ?></span>
@@ -385,6 +391,66 @@ $typeMap = [
                 <?php endif; ?>
             </section>
         </div>
+
+        <!-- ====================================================
+             MAINSTREAM MASTERY ACTIVITY HANDOFF (MVP)
+             ==================================================== -->
+        <?php 
+        $rawMasteryUrl = trim($lessonPlan['mainstream_mastery_url'] ?? '');
+        $isSafeMasteryUrl = (bool)preg_match('/^https:\/\/[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}(?:\/.*)?$/i', $rawMasteryUrl);
+        if ($isSafeMasteryUrl):
+            $masteryTitle = !empty($lessonPlan['mainstream_mastery_title']) ? $lessonPlan['mainstream_mastery_title'] : 'Mainstream Mastery Activity';
+            $masteryStatus = $masteryResult['mastery_status'] ?? null;
+            $masteryScore  = $masteryResult['score'] ?? null;
+        ?>
+        <div class="mainstream-mastery-card bg-white rounded-3 p-3 p-md-4 mt-4 border shadow-sm" style="border-radius:14px !important; border-color:#e2e8f0 !important; background:linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                <div style="max-width: 780px;">
+                    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1 rounded-pill fw-semibold" style="font-size:0.78rem;">
+                            <i class="ph-bold ph-graduation-cap me-1"></i> Mainstream Mastery Step
+                        </span>
+                        <?php if ($masteryStatus === 'completed'): ?>
+                            <span class="badge bg-success text-white px-2.5 py-1 rounded-pill fw-semibold" style="font-size:0.78rem;">
+                                <i class="ph-bold ph-check-circle me-1"></i> Completed ✓
+                                <?php if ($masteryScore !== null): ?>
+                                    (<?php echo (float)$masteryScore; ?>%)
+                                <?php endif; ?>
+                            </span>
+                        <?php elseif ($masteryStatus === 'needs_support'): ?>
+                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2.5 py-1 rounded-pill fw-semibold" style="font-size:0.78rem;">
+                                <i class="ph-bold ph-hourglass-high me-1"></i> Under Review / Needs Support
+                            </span>
+                        <?php endif; ?>
+                    </div>
+                    <h3 class="fw-bold text-dark mb-1" style="font-size: 1.25rem;">
+                        <?php echo htmlspecialchars($masteryTitle); ?>
+                    </h3>
+                    <p class="text-secondary mb-2" style="font-size: 0.9rem; line-height: 1.45;">
+                        Complete your SignED accessibility preparation and warm-up, then proceed to the official mainstream activity to demonstrate your mastery.
+                    </p>
+                    <div class="d-flex align-items-center gap-1.5 text-muted small" style="font-size:0.8rem;">
+                        <i class="ph-bold ph-info text-primary"></i>
+                        <span>Internet connection required. This activity opens an external learning platform.</span>
+                    </div>
+                </div>
+                <div class="text-md-end flex-shrink-0">
+                    <a href="<?php echo htmlspecialchars($rawMasteryUrl); ?>" 
+                       target="_blank" 
+                       rel="noopener noreferrer" 
+                       id="externalMasteryBtn"
+                       class="btn btn-primary d-inline-flex align-items-center gap-2 px-3 py-2 fw-semibold shadow-sm"
+                       style="font-size:0.875rem; border-radius:8px;">
+                        <span>Continue to Mastery Activity</span>
+                        <i class="ph-bold ph-arrow-square-out"></i>
+                    </a>
+                    <div id="externalMasteryOfflineNotice" class="d-none text-danger small mt-1.5 fw-medium" style="font-size:0.78rem;">
+                        <i class="ph-bold ph-wifi-slash me-1"></i> Internet connection required for this mastery activity.
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -803,6 +869,21 @@ function highlightFslKeywords(rawHtml) {
     if (!rawHtml) return '';
     let content = rawHtml;
 
+    // Resolve relative or legacy environment-dependent media paths in <img> tags
+    const bp = (window.BASE || window.BASE_PATH || '').replace(/\/+$/, '');
+    content = content.replace(/(<img\s+[^>]*?src=["'])([^"']+)(["'][^>]*?>)/gi, function(match, pre, src, post) {
+        let cleanSrc = src.trim();
+        if (/^data:image\//i.test(cleanSrc) || (/^https?:\/\//i.test(cleanSrc) && !cleanSrc.includes('/uploads/'))) {
+            return match;
+        }
+        const m = cleanSrc.match(/(?:.*\/)?(uploads\/(?:lesson_editor|lesson_pages|fsl_custom_videos)\/[^\s"']+)/i);
+        if (m) {
+            const resolved = bp ? (bp + '/' + m[1]) : ('/' + m[1]);
+            return pre + resolved + post;
+        }
+        return match;
+    });
+
     // If plain text without HTML tags, wrap newlines in paragraphs
     if (!/<[a-z][\s\S]*>/i.test(content)) {
         content = content.split(/\n\n+/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
@@ -1161,6 +1242,33 @@ document.addEventListener('keydown', function(event) {
 document.getElementById('lessonViewer').addEventListener('click', function(event) {
     if (event.target === this) closeLessonMaterial();
 });
+
+// External Mastery Activity Online/Offline Toggle
+function updateMasteryOnlineState() {
+    var btn = document.getElementById('externalMasteryBtn');
+    var notice = document.getElementById('externalMasteryOfflineNotice');
+    if (!btn) return;
+    if (navigator.onLine === false) {
+        btn.classList.add('disabled', 'btn-secondary');
+        btn.classList.remove('btn-primary');
+        btn.setAttribute('aria-disabled', 'true');
+        btn.setAttribute('tabindex', '-1');
+        btn.style.pointerEvents = 'none';
+        btn.title = 'Internet connection required for this mastery activity.';
+        if (notice) notice.classList.remove('d-none');
+    } else {
+        btn.classList.remove('disabled', 'btn-secondary');
+        btn.classList.add('btn-primary');
+        btn.removeAttribute('aria-disabled');
+        btn.removeAttribute('tabindex');
+        btn.style.pointerEvents = 'auto';
+        btn.title = '';
+        if (notice) notice.classList.add('d-none');
+    }
+}
+window.addEventListener('online', updateMasteryOnlineState);
+window.addEventListener('offline', updateMasteryOnlineState);
+document.addEventListener('DOMContentLoaded', updateMasteryOnlineState);
 </script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

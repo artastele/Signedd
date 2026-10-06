@@ -167,9 +167,13 @@ if ($role === 'learner') {
                 </div>
             </div>
 
-            <a href="<?php echo $basePath; ?>/iep/implementation" class="<?php echo isActive('/iep/implementation'); ?>">
+            <a href="<?php echo $basePath; ?>/iep/implementation" class="<?php echo isActive('/iep/implementation') && !isActive('/iep/implementation/resource-hub') ? 'active' : ''; ?>">
                 <i class="bi bi-book"></i>
                 <span>IEP Workspace</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/iep/implementation/resource-hub" class="<?php echo isActive('/iep/implementation/resource-hub') || isActive('/teacher/resource-hub') ? 'active' : ''; ?>">
+                <i class="bi bi-collection-play"></i>
+                <span>Resource Hub</span>
             </a>
             <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports') || isActive('/iep/implementation/progress-tracker'); ?>">
                 <i class="bi bi-file-earmark-bar-graph"></i>
