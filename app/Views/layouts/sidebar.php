@@ -280,6 +280,10 @@ if ($role === 'learner') {
                 <i class="bi bi-journal-check"></i>
                 <span>ITGP Inspection</span>
             </a>
+            <a href="<?php echo $basePath; ?>/iep/implementation/resource-hub" class="<?php echo isActive('/iep/implementation/resource-hub') ? 'active' : ''; ?>">
+                <i class="bi bi-collection-play"></i>
+                <span>Resource Hub</span>
+            </a>
 
         <?php elseif ($role === 'admin'): ?>
             <a href="<?php echo $basePath; ?>/admin/role-requests" class="<?php echo isActive('/admin/role-requests'); ?>">
@@ -297,6 +301,10 @@ if ($role === 'learner') {
             <a href="<?php echo $basePath; ?>/admin/settings" class="<?php echo isActive('/admin/settings'); ?>">
                 <i class="bi bi-gear"></i>
                 <span>System Settings</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/iep/implementation/resource-hub" class="<?php echo isActive('/iep/implementation/resource-hub') ? 'active' : ''; ?>">
+                <i class="bi bi-collection-play"></i>
+                <span>Resource Hub</span>
             </a>
             <a href="<?php echo $basePath; ?>/admin/login-logs" class="<?php echo isActive('/admin/login-logs'); ?>">
                 <i class="bi bi-shield-lock"></i>

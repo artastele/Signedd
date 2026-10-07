@@ -845,6 +845,8 @@ const SIGN_DICT = [];
 if (ALL_FSL_SIGNS && ALL_FSL_SIGNS.length > 0) {
     ALL_FSL_SIGNS.forEach(s => {
         if (!s.word) return;
+        // Require valid media for auto-highlighting
+        if (!s.video_path || !s.video_path.trim()) return;
         const w = s.word.trim();
         SIGN_DICT.push({
             matchWord: w,
@@ -957,7 +959,7 @@ function highlightFslKeywords(rawHtml) {
             if (node.classList.contains('fsl-word') || (node.tagName === 'BUTTON' && node.classList.contains('fsl-word'))) {
                 return;
             }
-            if (node.tagName === 'SCRIPT' || node.tagName === 'STYLE') {
+            if (node.tagName === 'SCRIPT' || node.tagName === 'STYLE' || node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.tagName === 'NOSCRIPT') {
                 return;
             }
             const children = Array.from(node.childNodes);

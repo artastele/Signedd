@@ -2077,20 +2077,255 @@ function toggleFslLibrary() {
     recalcEditorWidth();
 }
 
-// ── Teacher Custom FSL Sign Video Upload ──
+// ── Teacher Custom FSL Sign Video (Camera Recording + Upload) ──
+let currentVideoSourceMode = 'record';
+let activeCameraStream = null;
+let activeMediaRecorder = null;
+let recordedMediaChunks = [];
+let recordedVideoBlob = null;
+let recordTimerInterval = null;
+let recordSecondsCount = 0;
+
+function switchVideoSourceMode(mode) {
+    currentVideoSourceMode = mode;
+    const btnRec = document.getElementById('btnModeRecord');
+    const btnUp = document.getElementById('btnModeUpload');
+    const panelRec = document.getElementById('panelCameraRecord');
+    const panelUp = document.getElementById('panelVideoUpload');
+
+    if (mode === 'record') {
+        if (btnRec) btnRec.className = 'btn btn-sm btn-primary fw-semibold';
+        if (btnUp) btnUp.className = 'btn btn-sm btn-outline-secondary fw-semibold';
+        if (panelRec) panelRec.style.display = 'block';
+        if (panelUp) panelUp.style.display = 'none';
+        const fileInput = document.getElementById('customSignVideoFile');
+        if (fileInput) fileInput.required = false;
+    } else {
+        if (btnRec) btnRec.className = 'btn btn-sm btn-outline-secondary fw-semibold';
+        if (btnUp) btnUp.className = 'btn btn-sm btn-primary fw-semibold';
+        if (panelRec) panelRec.style.display = 'none';
+        if (panelUp) panelUp.style.display = 'block';
+        const fileInput = document.getElementById('customSignVideoFile');
+        if (fileInput) fileInput.required = true;
+        stopCameraStream();
+    }
+}
+
 function openAddCustomSignModal() {
     document.getElementById('customSignForm').reset();
     document.getElementById('uploadSignProgress').style.display = 'none';
+    switchVideoSourceMode('record');
+    retakeCameraRecording();
+
     const modalEl = document.getElementById('addCustomSignModal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
+
+    setTimeout(() => {
+        initCameraStream();
+    }, 300);
+}
+
+async function initCameraStream() {
+    const statusMsg = document.getElementById('cameraStatusMsg');
+    const preview = document.getElementById('fslCameraPreview');
+    const playback = document.getElementById('fslCameraPlayback');
+    const placeholder = document.getElementById('fslCameraPlaceholder');
+    const btnStartCam = document.getElementById('btnStartCamera');
+    const btnStartRec = document.getElementById('btnStartRecord');
+
+    if (playback) {
+        playback.style.display = 'none';
+        playback.pause();
+    }
+
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            if (statusMsg) statusMsg.textContent = 'Camera recording not supported by browser. Please use Upload File.';
+            switchVideoSourceMode('upload');
+            return;
+        }
+
+        if (activeCameraStream) {
+            stopCameraStream();
+        }
+
+        if (statusMsg) statusMsg.textContent = 'Requesting camera access...';
+        activeCameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+            audio: false
+        });
+
+        if (preview) {
+            preview.srcObject = activeCameraStream;
+            preview.style.display = 'block';
+        }
+        if (placeholder) placeholder.style.display = 'none';
+
+        if (btnStartCam) btnStartCam.style.display = 'none';
+        if (btnStartRec) btnStartRec.style.display = 'inline-flex';
+        if (statusMsg) statusMsg.textContent = 'Camera ready. Position hands and click "Start Recording".';
+    } catch (err) {
+        console.error('Camera access error:', err);
+        if (statusMsg) statusMsg.textContent = 'Camera permission denied or camera unavailable.';
+        if (btnStartCam) btnStartCam.style.display = 'inline-flex';
+        if (btnStartRec) btnStartRec.style.display = 'none';
+    }
+}
+
+function stopCameraStream() {
+    if (activeCameraStream) {
+        activeCameraStream.getTracks().forEach(track => track.stop());
+        activeCameraStream = null;
+    }
+    const preview = document.getElementById('fslCameraPreview');
+    if (preview) {
+        preview.srcObject = null;
+        preview.style.display = 'none';
+    }
+}
+
+function stopAllCameraMedia() {
+    stopCameraRecording();
+    stopCameraStream();
+    const playback = document.getElementById('fslCameraPlayback');
+    if (playback) {
+        playback.pause();
+        playback.src = '';
+        playback.style.display = 'none';
+    }
+    const placeholder = document.getElementById('fslCameraPlaceholder');
+    if (placeholder) placeholder.style.display = 'block';
+}
+
+function startCameraRecording() {
+    if (!activeCameraStream) {
+        initCameraStream().then(() => startCameraRecording());
+        return;
+    }
+
+    recordedMediaChunks = [];
+    recordedVideoBlob = null;
+    recordSecondsCount = 0;
+
+    let mimeType = 'video/webm;codecs=vp9';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm;codecs=vp8';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'video/webm';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'video/mp4';
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    mimeType = '';
+                }
+            }
+        }
+    }
+
+    try {
+        activeMediaRecorder = mimeType ? new MediaRecorder(activeCameraStream, { mimeType }) : new MediaRecorder(activeCameraStream);
+    } catch (e) {
+        console.warn('Fallback basic MediaRecorder:', e);
+        activeMediaRecorder = new MediaRecorder(activeCameraStream);
+    }
+
+    activeMediaRecorder.ondataavailable = function(e) {
+        if (e.data && e.data.size > 0) {
+            recordedMediaChunks.push(e.data);
+        }
+    };
+
+    activeMediaRecorder.onstop = function() {
+        const finalType = activeMediaRecorder.mimeType || 'video/webm';
+        recordedVideoBlob = new Blob(recordedMediaChunks, { type: finalType });
+
+        const preview = document.getElementById('fslCameraPreview');
+        const playback = document.getElementById('fslCameraPlayback');
+        const indicator = document.getElementById('fslRecordIndicator');
+        const btnStop = document.getElementById('btnStopRecord');
+        const btnRetake = document.getElementById('btnRetakeRecord');
+
+        if (indicator) indicator.style.display = 'none';
+        if (preview) preview.style.display = 'none';
+        if (btnStop) btnStop.style.display = 'none';
+        if (btnRetake) btnRetake.style.display = 'inline-flex';
+
+        if (playback) {
+            playback.src = URL.createObjectURL(recordedVideoBlob);
+            playback.style.display = 'block';
+            playback.play().catch(() => {});
+        }
+
+        const statusMsg = document.getElementById('cameraStatusMsg');
+        if (statusMsg) {
+            statusMsg.textContent = 'Previewing recorded sign. Click "Retake" to record again or "Save to FSL Library" to finish.';
+        }
+    };
+
+    activeMediaRecorder.start(100);
+
+    const btnStartRec = document.getElementById('btnStartRecord');
+    const btnStopRec = document.getElementById('btnStopRecord');
+    const btnRetake = document.getElementById('btnRetakeRecord');
+    const indicator = document.getElementById('fslRecordIndicator');
+    const timerDisplay = document.getElementById('fslRecordTimer');
+    const statusMsg = document.getElementById('cameraStatusMsg');
+
+    if (btnStartRec) btnStartRec.style.display = 'none';
+    if (btnStopRec) btnStopRec.style.display = 'inline-flex';
+    if (btnRetake) btnRetake.style.display = 'none';
+    if (indicator) indicator.style.display = 'flex';
+    if (timerDisplay) timerDisplay.textContent = '00:00';
+    if (statusMsg) statusMsg.textContent = 'Recording sign... Perform gesture clearly.';
+
+    clearInterval(recordTimerInterval);
+    recordTimerInterval = setInterval(() => {
+        recordSecondsCount++;
+        const mins = String(Math.floor(recordSecondsCount / 60)).padStart(2, '0');
+        const secs = String(recordSecondsCount % 60).padStart(2, '0');
+        if (timerDisplay) timerDisplay.textContent = `${mins}:${secs}`;
+
+        if (recordSecondsCount >= 30) {
+            stopCameraRecording();
+        }
+    }, 1000);
+}
+
+function stopCameraRecording() {
+    clearInterval(recordTimerInterval);
+    if (activeMediaRecorder && activeMediaRecorder.state === 'recording') {
+        activeMediaRecorder.stop();
+    }
+}
+
+function retakeCameraRecording() {
+    clearInterval(recordTimerInterval);
+    recordedVideoBlob = null;
+    recordedMediaChunks = [];
+
+    const playback = document.getElementById('fslCameraPlayback');
+    if (playback) {
+        playback.pause();
+        playback.src = '';
+        playback.style.display = 'none';
+    }
+
+    const btnStart = document.getElementById('btnStartRecord');
+    const btnStop = document.getElementById('btnStopRecord');
+    const btnRetake = document.getElementById('btnRetakeRecord');
+    const indicator = document.getElementById('fslRecordIndicator');
+
+    if (btnStop) btnStop.style.display = 'none';
+    if (btnRetake) btnRetake.style.display = 'none';
+    if (indicator) indicator.style.display = 'none';
+
+    initCameraStream();
 }
 
 function submitCustomFslSign() {
     const word = document.getElementById('customSignWord').value.trim();
     const category = document.getElementById('customSignCategory').value.trim() || 'Custom Signs';
     const desc = document.getElementById('customSignDesc').value.trim();
-    const fileInput = document.getElementById('customSignVideoFile');
 
     if (!word) {
         alert('Please enter the sign word / vocabulary.');
@@ -2098,12 +2333,29 @@ function submitCustomFslSign() {
         return;
     }
 
-    if (!fileInput.files || fileInput.files.length === 0) {
-        alert('Please select a video file for the sign.');
-        return;
+    let videoFileToSend = null;
+
+    if (currentVideoSourceMode === 'record') {
+        if (!recordedVideoBlob) {
+            alert('Please record a video of the sign first using the camera controls.');
+            return;
+        }
+        const ext = recordedVideoBlob.type.includes('mp4') ? '.mp4' : '.webm';
+        const cleanSlug = word.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+        videoFileToSend = new File([recordedVideoBlob], `fsl_${cleanSlug}_${Date.now()}${ext}`, {
+            type: recordedVideoBlob.type || 'video/webm'
+        });
+    } else {
+        const fileInput = document.getElementById('customSignVideoFile');
+        if (!fileInput.files || fileInput.files.length === 0) {
+            alert('Please select a video file for the sign.');
+            return;
+        }
+        videoFileToSend = fileInput.files[0];
     }
 
     const btn = document.getElementById('btnSubmitCustomSign');
+    const origHtml = btn.innerHTML;
     btn.disabled = true;
     document.getElementById('uploadSignProgress').style.display = 'block';
 
@@ -2111,7 +2363,7 @@ function submitCustomFslSign() {
     fd.append('word', word);
     fd.append('category', category);
     fd.append('description', desc);
-    fd.append('video_file', fileInput.files[0]);
+    fd.append('video_file', videoFileToSend);
 
     fetch(BASE + '/iep/implementation/fsl/upload-sign', {
         method: 'POST',
@@ -2120,46 +2372,70 @@ function submitCustomFslSign() {
     .then(r => r.json())
     .then(data => {
         btn.disabled = false;
+        btn.innerHTML = origHtml;
         document.getElementById('uploadSignProgress').style.display = 'none';
 
         if (data.success && data.sign) {
+            stopAllCameraMedia();
             const modalEl = document.getElementById('addCustomSignModal');
             bootstrap.Modal.getOrCreateInstance(modalEl).hide();
 
             const sign = data.sign;
+
+            // 1. Prepend to UI card container
             const container = document.getElementById('fslSignsContainer');
-            const cardHtml = `
-                <div class="fsl-sign-card" data-word="${escapeHtml(sign.word.toLowerCase())}" data-cat="${escapeHtml(sign.category)}" data-video="${escapeHtml(sign.video_path)}" data-desc="${escapeHtml(sign.description || '')}" style="background: #f0fdf4; border-color: #22c55e;">
-                    <div class="d-flex justify-content-between align-items-start mb-1">
-                        <strong class="text-dark text-capitalize" style="font-size: 0.95rem;">
-                            ${escapeHtml(sign.word.charAt(0).toUpperCase() + sign.word.slice(1))}
-                        </strong>
-                        <span class="fsl-sign-badge" style="background:#dcfce7; color:#15803d;">Teacher Added</span>
+            if (container) {
+                const cardHtml = `
+                    <div class="fsl-sign-card" draggable="true" data-word="${escapeHtml(sign.word.toLowerCase())}" data-cat="${escapeHtml(sign.category)}" data-video="${escapeHtml(sign.video_path)}" data-desc="${escapeHtml(sign.description || '')}" style="background: #f0fdf4; border-color: #22c55e;">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <strong class="text-dark text-capitalize" style="font-size: 0.95rem;">
+                                ${escapeHtml(sign.word.charAt(0).toUpperCase() + sign.word.slice(1))}
+                            </strong>
+                            <span class="fsl-sign-badge" style="background:#dcfce7; color:#15803d;">Teacher Added</span>
+                        </div>
+                        ${sign.description ? `<p class="small text-muted mb-2" style="font-size: 0.76rem; line-height: 1.3;">${escapeHtml(sign.description)}</p>` : ''}
+                        <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top">
+                            <button type="button" class="btn btn-link btn-xs text-primary p-0 fw-semibold" onclick="previewFslSign('${escapeJs(sign.word)}')">
+                                <i class="ph-bold ph-play-circle me-1"></i> Watch
+                            </button>
+                            <button type="button" class="btn btn-xs fsl-insert-btn" onclick="insertFslSignIntoSlide('${escapeJs(sign.word)}')">
+                                <i class="ph-bold ph-plus me-1"></i> Insert to Slide
+                            </button>
+                        </div>
                     </div>
-                    ${sign.description ? `<p class="small text-muted mb-2" style="font-size: 0.76rem; line-height: 1.3;">${escapeHtml(sign.description)}</p>` : ''}
-                    <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top">
-                        <button type="button" class="btn btn-link btn-xs text-primary p-0 fw-semibold" onclick="previewFslSign('${escapeJs(sign.word)}')">
-                            <i class="ph-bold ph-play-circle me-1"></i> Watch
-                        </button>
-                        <button type="button" class="btn btn-xs fsl-insert-btn" onclick="insertFslSignIntoSlide('${escapeJs(sign.word)}')">
-                            <i class="ph-bold ph-plus me-1"></i> Insert to Slide
-                        </button>
-                    </div>
-                </div>
-            `;
-            container.insertAdjacentHTML('afterbegin', cardHtml);
+                `;
+                container.insertAdjacentHTML('afterbegin', cardHtml);
+            }
 
-            // Update badge
+            // 2. CRITICAL: Add to runtime ALL_FSL_SIGNS so search and Analyze FSL Signs recognize it immediately!
+            if (typeof ALL_FSL_SIGNS !== 'undefined' && Array.isArray(ALL_FSL_SIGNS)) {
+                ALL_FSL_SIGNS.unshift(sign);
+            }
+            // Invalidate suggestion dictionary cache so buildFslSearchDictionary includes new sign
+            FSL_SUGGESTION_DICT = null;
+
+            // 3. Update count badge
             const total = document.querySelectorAll('#fslSignsContainer .fsl-sign-card').length;
-            document.getElementById('fslCountBadge').textContent = total + ' Signs';
+            const countBadge = document.getElementById('fslCountBadge');
+            if (countBadge) countBadge.textContent = total + ' Signs';
 
-            alert('Successfully uploaded FSL video for "' + word + '"!');
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'FSL Sign Saved!',
+                    text: `"${word}" has been added to your FSL Library and is now available for Analyze FSL Signs and lesson insertion.`,
+                    confirmButtonColor: '#1e4072'
+                });
+            } else {
+                alert('Successfully added FSL sign for "' + word + '"!');
+            }
         } else {
-            alert('Failed to upload video: ' + (data.message || 'Error occurred'));
+            alert('Failed to save sign: ' + (data.message || 'Error occurred'));
         }
     })
     .catch(err => {
         btn.disabled = false;
+        btn.innerHTML = origHtml;
         document.getElementById('uploadSignProgress').style.display = 'none';
         console.error('Upload sign error:', err);
         alert('A network error occurred while uploading.');
@@ -2591,61 +2867,120 @@ function autoHighlightFslSigns() {
 }
 </script>
 
-<!-- Modal: Upload Custom FSL Sign Video -->
+<!-- Modal: Add Custom FSL Sign Video (Camera Recording + Upload) -->
 <div class="modal fade" id="addCustomSignModal" tabindex="-1" aria-labelledby="addCustomSignModalLabel" aria-hidden="true" style="z-index: 1080;">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
             <div class="modal-header px-4 py-3 text-white" style="background: linear-gradient(135deg, #1e4072 0%, #a01422 100%);">
                 <div class="d-flex align-items-center gap-2">
                     <i class="ph-bold ph-video-camera fs-5 text-warning"></i>
-                    <h5 class="modal-title fw-bold mb-0 text-white" id="addCustomSignModalLabel">Upload Custom FSL Video</h5>
+                    <h5 class="modal-title fw-bold mb-0 text-white" id="addCustomSignModalLabel">Add Custom FSL Video Sign</h5>
                 </div>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" onclick="stopAllCameraMedia()"></button>
             </div>
             <form id="customSignForm" onsubmit="event.preventDefault(); submitCustomFslSign();">
                 <div class="modal-body p-4 bg-light">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small text-dark mb-1">
-                            Sign Word / Vocabulary <span class="text-danger">*</span>
-                        </label>
-                        <input type="text" class="form-control form-control-sm" id="customSignWord" placeholder="e.g. Teacher, Wash Hands, Read, Thank You..." required style="border-radius: 8px;">
-                        <div class="form-text small">This word will appear on the slide and be searchable in the library.</div>
-                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-dark mb-1">
+                                Sign Word / Vocabulary <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control form-control-sm" id="customSignWord" placeholder="e.g. Teacher, Wash Hands, Read, Thank You..." required style="border-radius: 8px;">
+                            <div class="form-text small">This word will appear on the slide and be searchable in the library.</div>
+                        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small text-dark mb-1">Category</label>
-                        <input type="text" class="form-control form-control-sm" id="customSignCategory" list="fslCatOptions" placeholder="e.g. School Terms, Daily Living, Greetings, Food..." style="border-radius: 8px;">
-                        <datalist id="fslCatOptions">
-                            <?php foreach ($fslCategories as $cat): ?>
-                                <option value="<?php echo htmlspecialchars($cat); ?>">
-                            <?php endforeach; ?>
-                            <option value="Custom Signs">
-                            <option value="Daily Living">
-                            <option value="School Terms">
-                        </datalist>
-                    </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-dark mb-1">Category</label>
+                            <input type="text" class="form-control form-control-sm" id="customSignCategory" list="fslCatOptions" placeholder="e.g. School Terms, Daily Living, Greetings..." style="border-radius: 8px;">
+                            <datalist id="fslCatOptions">
+                                <?php foreach ($fslCategories as $cat): ?>
+                                    <option value="<?php echo htmlspecialchars($cat); ?>">
+                                <?php endforeach; ?>
+                                <option value="Custom Signs">
+                                <option value="Daily Living">
+                                <option value="School Terms">
+                            </datalist>
+                        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small text-dark mb-1">Description / Instructions (optional)</label>
-                        <textarea class="form-control form-control-sm" id="customSignDesc" rows="2" placeholder="e.g. Demonstration of the sign for this word or concept..." style="border-radius: 8px;"></textarea>
-                    </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold small text-dark mb-1">Description / Meaning (optional)</label>
+                            <input type="text" class="form-control form-control-sm" id="customSignDesc" placeholder="e.g. Demonstration of the sign for this word or concept..." style="border-radius: 8px;">
+                        </div>
 
-                    <div class="mb-3 p-3 bg-white rounded-3 border">
-                        <label class="form-label fw-bold small text-dark mb-1">
-                            <i class="ph-bold ph-video me-1 text-primary"></i> Sign Video File (MP4, WebM, MOV) <span class="text-danger">*</span>
-                        </label>
-                        <input type="file" class="form-control form-control-sm" id="customSignVideoFile" accept="video/mp4,video/webm,video/quicktime,video/mov" required style="border-radius: 8px;">
-                        <div class="form-text small text-muted">You can upload videos recorded from a camera, phone, or screen.</div>
-                    </div>
+                        <!-- Video Mode Switcher (Record Camera vs Upload File) -->
+                        <div class="col-12">
+                            <div class="d-flex align-items-center justify-content-between p-2 rounded-3 bg-white border">
+                                <span class="small fw-bold text-dark">
+                                    <i class="ph-bold ph-video text-primary me-1"></i> Video Source:
+                                </span>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-sm btn-primary fw-semibold" id="btnModeRecord" onclick="switchVideoSourceMode('record')">
+                                        <i class="ph-bold ph-camera me-1"></i> Record with Camera
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold" id="btnModeUpload" onclick="switchVideoSourceMode('upload')">
+                                        <i class="ph-bold ph-upload-simple me-1"></i> Upload File
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div id="uploadSignProgress" class="alert alert-info py-2 px-3 small" style="display: none;">
-                        <span class="spinner-border spinner-border-sm me-1"></span> Uploading video to FSL Library...
+                        <!-- Panel A: Record with Camera (Default) -->
+                        <div class="col-12" id="panelCameraRecord">
+                            <div class="p-3 bg-white rounded-3 border text-center">
+                                <div class="position-relative bg-dark rounded-3 overflow-hidden d-flex align-items-center justify-content-center mx-auto mb-2" style="max-width: 480px; height: 280px;">
+                                    <video id="fslCameraPreview" autoplay playsinline muted style="width: 100%; height: 100%; object-fit: cover; display: none;"></video>
+                                    <video id="fslCameraPlayback" controls playsinline style="width: 100%; height: 100%; object-fit: cover; display: none;"></video>
+                                    <div id="fslCameraPlaceholder" class="text-white p-3 text-center">
+                                        <i class="ph-bold ph-video-camera" style="font-size: 3rem; color: #94a3b8;"></i>
+                                        <p class="small text-muted mt-2 mb-0">Click "Start Camera" below to begin recording with your webcam or phone camera.</p>
+                                    </div>
+                                    <div id="fslRecordIndicator" class="position-absolute top-0 start-0 m-2 px-2 py-1 bg-danger text-white rounded-pill small fw-bold d-flex align-items-center gap-1 shadow" style="display: none; font-size: 0.72rem;">
+                                        <span class="spinner-grow spinner-grow-sm" style="width: 8px; height: 8px;"></span> REC <span id="fslRecordTimer">00:00</span> / 00:30
+                                    </div>
+                                </div>
+
+                                <div class="d-flex justify-content-center align-items-center gap-2 flex-wrap">
+                                    <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" id="btnStartCamera" onclick="initCameraStream()">
+                                        <i class="ph-bold ph-camera me-1"></i> Start Camera
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-danger fw-bold" id="btnStartRecord" onclick="startCameraRecording()" style="display: none;">
+                                        <i class="ph-bold ph-circle me-1"></i> Start Recording
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-warning text-dark fw-bold" id="btnStopRecord" onclick="stopCameraRecording()" style="display: none;">
+                                        <i class="ph-bold ph-stop me-1"></i> Stop Recording
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold" id="btnRetakeRecord" onclick="retakeCameraRecording()" style="display: none;">
+                                        <i class="ph-bold ph-arrow-counter-clockwise me-1"></i> Retake
+                                    </button>
+                                </div>
+                                <div id="cameraStatusMsg" class="small text-muted mt-2" style="font-size: 0.75rem;">
+                                    Max duration: 30 seconds. Recording is stored directly in WebM / MP4 format.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Panel B: Upload Existing Video (Fallback) -->
+                        <div class="col-12" id="panelVideoUpload" style="display: none;">
+                            <div class="p-3 bg-white rounded-3 border">
+                                <label class="form-label fw-bold small text-dark mb-1">
+                                    <i class="ph-bold ph-file-video me-1 text-primary"></i> Choose Video File (MP4, WebM, MOV)
+                                </label>
+                                <input type="file" class="form-control form-control-sm" id="customSignVideoFile" accept="video/mp4,video/webm,video/quicktime,video/mov" style="border-radius: 8px;">
+                                <div class="form-text small text-muted">You can upload pre-recorded video clips (Max 10MB).</div>
+                            </div>
+                        </div>
+
+                        <div id="uploadSignProgress" class="col-12" style="display: none;">
+                            <div class="alert alert-info py-2 px-3 small mb-0">
+                                <span class="spinner-border spinner-border-sm me-1"></span> Saving video sign to FSL Library...
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer px-4 py-3 bg-white border-top">
-                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal" onclick="stopAllCameraMedia()">Cancel</button>
                     <button type="submit" class="btn btn-sm btn-primary rounded-pill px-4 fw-bold" id="btnSubmitCustomSign">
-                        <i class="ph-bold ph-upload-simple me-1"></i> Save to FSL Library
+                        <i class="ph-bold ph-check me-1"></i> Save to FSL Library
                     </button>
                 </div>
             </form>
@@ -2723,7 +3058,7 @@ function autoHighlightFslSigns() {
 
 <!-- Share to Resource Hub Modal -->
 <div class="modal fade" id="shareToHubModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow" style="border-radius: 12px;">
             <div class="modal-header border-bottom py-3 px-3.5" style="background:#f8fafc; border-radius: 12px 12px 0 0;">
                 <div class="d-flex align-items-center gap-2">
@@ -2740,13 +3075,12 @@ function autoHighlightFslSigns() {
             <form id="shareToHubForm" onsubmit="submitShareToHub(event)">
                 <div class="modal-body p-3.5">
                     <!-- Privacy Guarantee Notice -->
-                    <div class="p-3 mb-3 rounded border border-warning-subtle bg-warning-subtle text-dark small" style="font-size: 0.78rem; line-height: 1.45;">
+                    <div class="p-2.5 mb-3 rounded border border-warning-subtle bg-warning-subtle text-dark small" style="font-size: 0.78rem; line-height: 1.45;">
                         <div class="d-flex align-items-start gap-2">
                             <i class="ph-bold ph-shield-check text-warning mt-0.5" style="font-size: 1.25rem;"></i>
                             <div>
-                                <strong class="d-block mb-0.5 text-dark">Gipanalipdan ang Pribasiya ug Relational Safety:</strong>
-                                Ang shared version maglakip lamang sa educational content, gi-aprobahan nga FSL signs, ug visual materials.
-                                <strong>DILI maapil</strong> ang ngalan sa estudyante, IEP ID, diagnosis, parent records, submissions, o grado.
+                                <strong class="d-block mb-0.5 text-dark">Learner Privacy Protected:</strong>
+                                Shared packs contain instructional slides and FSL signs only. Student names, IEP IDs, and submissions are never included.
                             </div>
                         </div>
                     </div>
@@ -2759,8 +3093,13 @@ function autoHighlightFslSigns() {
                             <input type="text" id="sharePackTitle" class="form-control form-control-sm" required value="<?php echo htmlspecialchars($lessonPlan['title'] ?? ''); ?>" style="border-radius: 6px;">
                         </div>
 
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-dark mb-1">Short Description <span class="text-muted fw-normal">(Optional)</span>:</label>
+                            <textarea id="sharePackDesc" class="form-control form-control-sm" rows="2" placeholder="Brief overview for other teachers adapting this pack..." style="border-radius: 6px;"></textarea>
+                        </div>
+
                         <div class="col-12 col-md-6">
-                            <label class="form-label small fw-bold text-dark mb-1">Developmental Domain:</label>
+                            <label class="form-label small fw-bold text-dark mb-1">Subject / Domain:</label>
                             <select id="sharePackDomain" class="form-select form-select-sm" style="border-radius: 6px;">
                                 <option value="communication_language" <?php echo ($domainName ?? '') === 'communication_language' ? 'selected' : ''; ?>>Communication / Language</option>
                                 <option value="perceptuo_cognitive" <?php echo ($domainName ?? '') === 'perceptuo_cognitive' ? 'selected' : ''; ?>>Perceptuo-Cognitive</option>
@@ -2776,43 +3115,32 @@ function autoHighlightFslSigns() {
                             <input type="text" id="sharePackLevel" class="form-control form-control-sm" value="Primary SPED / Deaf Ed" style="border-radius: 6px;">
                         </div>
 
-                        <div class="col-12">
-                            <label class="form-label small fw-bold text-dark mb-1">Learning Competency / Objective:</label>
-                            <textarea id="sharePackCompetency" class="form-control form-control-sm" rows="2" placeholder="e.g. Makat-on sa mga batakang senyas sa pamilya ug pagtimbaya..." style="border-radius: 6px;"></textarea>
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label small fw-bold text-dark mb-1">Short Description / Overview:</label>
-                            <textarea id="sharePackDesc" class="form-control form-control-sm" rows="2" placeholder="Mubo nga overview para sa ubang magtutudlo..." style="border-radius: 6px;"></textarea>
-                        </div>
-
-                        <!-- Optional Mainstream Mastery Link -->
-                        <div class="col-12 col-md-6">
-                            <label class="form-label small fw-semibold text-dark mb-1">
-                                External Mastery Resource Link <span class="text-muted fw-normal">(Optional HTTPS)</span>:
-                            </label>
-                            <input type="url" id="sharePackMasteryUrl" class="form-control form-control-sm" placeholder="https://www.khanacademy.org/..." style="border-radius: 6px;">
-                        </div>
-
-                        <div class="col-12 col-md-6">
-                            <label class="form-label small fw-semibold text-dark mb-1">
-                                Mastery Resource Title <span class="text-muted fw-normal">(Optional)</span>:
-                            </label>
-                            <input type="text" id="sharePackMasteryTitle" class="form-control form-control-sm" placeholder="e.g. Khan Academy — Addition within 10" style="border-radius: 6px;">
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label small fw-semibold text-dark mb-1">Tags / Keywords (comma-separated):</label>
-                            <input type="text" id="sharePackTags" class="form-control form-control-sm" placeholder="fsl, deaf-ed, greeting, family, primary" style="border-radius: 6px;">
+                        <!-- Advanced Options (Collapsed by default) -->
+                        <div class="col-12 mt-2">
+                            <a class="small fw-semibold text-muted text-decoration-none d-inline-flex align-items-center gap-1" data-bs-toggle="collapse" href="#shareAdvancedCollapse" role="button" aria-expanded="false">
+                                <i class="ph-bold ph-caret-down"></i> Advanced Options
+                            </a>
+                            <div class="collapse mt-2" id="shareAdvancedCollapse">
+                                <div class="p-2.5 rounded bg-light border">
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold text-dark mb-1">Learning Competency / Objective:</label>
+                                        <textarea id="sharePackCompetency" class="form-control form-control-sm" rows="2" placeholder="e.g. Makat-on sa mga batakang senyas sa pamilya ug pagtimbaya..." style="border-radius: 6px;"></textarea>
+                                    </div>
+                                    <div>
+                                        <label class="form-label small fw-semibold text-dark mb-1">Tags / Keywords (comma-separated):</label>
+                                        <input type="text" id="sharePackTags" class="form-control form-control-sm" placeholder="fsl, deaf-ed, greeting, family, primary" style="border-radius: 6px;">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer border-top py-2.5 px-3.5 bg-light" style="border-radius: 0 0 12px 12px;">
                     <button type="button" class="btn btn-outline-secondary btn-sm fw-medium px-3" data-bs-dismiss="modal" style="border-radius: 6px;">
-                        Kanselahon
+                        Cancel
                     </button>
                     <button type="submit" id="btnSubmitShareHub" class="btn btn-warning btn-sm fw-bold px-3 text-dark" style="border-radius: 6px;">
-                        <i class="ph-bold ph-share-network me-1"></i> Confirm &amp; Publish to Hub
+                        <i class="ph-bold ph-share-network me-1"></i> Share Resource
                     </button>
                 </div>
             </form>
@@ -2831,17 +3159,15 @@ async function submitShareToHub(e) {
     const btn = document.getElementById('btnSubmitShareHub');
     const origHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Publishing...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sharing...';
 
     const payload = {
         title: document.getElementById('sharePackTitle').value.trim(),
         description: document.getElementById('sharePackDesc').value.trim(),
         pdsp_domain: document.getElementById('sharePackDomain').value,
         learning_level: document.getElementById('sharePackLevel').value.trim(),
-        learning_competency: document.getElementById('sharePackCompetency').value.trim(),
-        mainstream_mastery_url: document.getElementById('sharePackMasteryUrl').value.trim(),
-        mainstream_mastery_title: document.getElementById('sharePackMasteryTitle').value.trim(),
-        tags: document.getElementById('sharePackTags').value.trim()
+        learning_competency: (document.getElementById('sharePackCompetency') ? document.getElementById('sharePackCompetency').value.trim() : ''),
+        tags: (document.getElementById('sharePackTags') ? document.getElementById('sharePackTags').value.trim() : '')
     };
 
     try {
@@ -2854,13 +3180,31 @@ async function submitShareToHub(e) {
         const data = await res.json();
         if (data.success) {
             bootstrap.Modal.getInstance(document.getElementById('shareToHubModal')).hide();
-            alert('✓ ' + (data.message || 'Successfully published to Resource Hub!'));
             const toast = document.getElementById('saveStatusIndicator');
             if (toast) {
                 toast.innerHTML = `<span class="text-success fw-bold"><i class="ph-bold ph-share-network me-1"></i> Shared to Resource Hub (#${data.pack_id})</span>`;
             }
+
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Resource Shared Successfully!',
+                    text: 'Your accessibility pack is now published in the Resource Hub under My Shared Packs.',
+                    showCancelButton: true,
+                    confirmButtonColor: '#1e4072',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: '<i class="ph-bold ph-collection me-1"></i> View in Resource Hub',
+                    cancelButtonText: '<i class="ph-bold ph-pencil-simple me-1"></i> Continue Editing'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = `${BASE}/iep/implementation/resource-hub?tab=my_packs`;
+                    }
+                });
+            } else {
+                alert('Resource shared successfully!');
+            }
         } else {
-            alert(data.message || 'Nabigo ang pag-share sa Resource Hub.');
+            alert(data.message || 'Failed to share to Resource Hub.');
         }
     } catch (err) {
         console.error(err);

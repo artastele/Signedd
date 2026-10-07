@@ -4780,10 +4780,14 @@ function openShareToHubFromWorkspace(lpId, title, domain) {
     document.getElementById('wsSharePackTitle').value = title || '';
     document.getElementById('wsSharePackDomain').value = domain || 'communication_language';
     document.getElementById('wsSharePackDesc').value = '';
-    document.getElementById('wsSharePackCompetency').value = '';
-    document.getElementById('wsSharePackMasteryUrl').value = '';
-    document.getElementById('wsSharePackMasteryTitle').value = '';
-    document.getElementById('wsSharePackTags').value = '';
+    const compEl = document.getElementById('wsSharePackCompetency');
+    if (compEl) compEl.value = '';
+    const mUrl = document.getElementById('wsSharePackMasteryUrl');
+    if (mUrl) mUrl.value = '';
+    const mTitle = document.getElementById('wsSharePackMasteryTitle');
+    if (mTitle) mTitle.value = '';
+    const tagsEl = document.getElementById('wsSharePackTags');
+    if (tagsEl) tagsEl.value = '';
 
     const modal = new bootstrap.Modal(document.getElementById('shareToHubWorkspaceModal'));
     modal.show();
@@ -4796,17 +4800,17 @@ async function submitWorkspaceShareToHub(e) {
     const btn = document.getElementById('btnSubmitWsShareHub');
     const origHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Publishing...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sharing...';
 
     const payload = {
         title: document.getElementById('wsSharePackTitle').value.trim(),
         description: document.getElementById('wsSharePackDesc').value.trim(),
         pdsp_domain: document.getElementById('wsSharePackDomain').value,
         learning_level: document.getElementById('wsSharePackLevel').value.trim(),
-        learning_competency: document.getElementById('wsSharePackCompetency').value.trim(),
-        mainstream_mastery_url: document.getElementById('wsSharePackMasteryUrl').value.trim(),
-        mainstream_mastery_title: document.getElementById('wsSharePackMasteryTitle').value.trim(),
-        tags: document.getElementById('wsSharePackTags').value.trim()
+        learning_competency: (document.getElementById('wsSharePackCompetency') ? document.getElementById('wsSharePackCompetency').value.trim() : ''),
+        mainstream_mastery_url: (document.getElementById('wsSharePackMasteryUrl') ? document.getElementById('wsSharePackMasteryUrl').value.trim() : ''),
+        mainstream_mastery_title: (document.getElementById('wsSharePackMasteryTitle') ? document.getElementById('wsSharePackMasteryTitle').value.trim() : ''),
+        tags: (document.getElementById('wsSharePackTags') ? document.getElementById('wsSharePackTags').value.trim() : '')
     };
 
     try {
@@ -4821,9 +4825,17 @@ async function submitWorkspaceShareToHub(e) {
             bootstrap.Modal.getInstance(document.getElementById('shareToHubWorkspaceModal')).hide();
             Swal.fire({
                 icon: 'success',
-                title: 'Published to Resource Hub!',
-                text: data.message || 'Accessible template pack is now live on the Resource Hub.',
-                confirmButtonColor: '#1e4072'
+                title: 'Resource Shared Successfully!',
+                text: data.message || 'Your accessible template pack is now live on the Resource Hub.',
+                showCancelButton: true,
+                confirmButtonColor: '#1e4072',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: '<i class="ti ti-folders me-1"></i> View in Resource Hub',
+                cancelButtonText: 'Stay in Workspace'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = `${BASE}/iep/implementation/resource-hub?tab=my_packs`;
+                }
             });
         } else {
             Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Failed to share to Resource Hub.' });
@@ -4840,7 +4852,7 @@ async function submitWorkspaceShareToHub(e) {
 
 <!-- Share to Resource Hub Modal (Workspace) -->
 <div class="modal fade" id="shareToHubWorkspaceModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow" style="border-radius: 12px;">
             <div class="modal-header border-bottom py-3 px-3.5" style="background:#f8fafc; border-radius: 12px 12px 0 0;">
                 <div class="d-flex align-items-center gap-2">
@@ -4856,13 +4868,11 @@ async function submitWorkspaceShareToHub(e) {
             </div>
             <form id="shareToHubWorkspaceForm" onsubmit="submitWorkspaceShareToHub(event)">
                 <div class="modal-body p-3.5">
-                    <div class="p-3 mb-3 rounded border border-warning-subtle bg-warning-subtle text-dark small" style="font-size: 0.78rem; line-height: 1.45;">
+                    <div class="p-2.5 mb-3 rounded border border-warning-subtle bg-warning-subtle text-dark small" style="font-size: 0.76rem; line-height: 1.45;">
                         <div class="d-flex align-items-start gap-2">
-                            <i class="ti ti-shield-check text-warning mt-0.5" style="font-size: 1.25rem;"></i>
+                            <i class="ti ti-shield-check text-warning mt-0.5" style="font-size: 1.15rem;"></i>
                             <div>
-                                <strong class="d-block mb-0.5 text-dark">Gipanalipdan ang Pribasiya ug Relational Safety:</strong>
-                                Ang shared version maglakip lamang sa educational content, gi-aprobahan nga FSL signs, ug visual materials.
-                                <strong>DILI maapil</strong> ang ngalan sa estudyante, IEP ID, diagnosis, parent records, submissions, o grado.
+                                <strong>Privacy Guarded:</strong> Educational content and FSL media only. Learner names, IEP IDs, and evaluations are never shared.
                             </div>
                         </div>
                     </div>
@@ -4870,13 +4880,18 @@ async function submitWorkspaceShareToHub(e) {
                     <div class="row g-2.5">
                         <div class="col-12">
                             <label class="form-label small fw-bold text-dark mb-1">
-                                Accessibility Pack Title: <span class="text-danger">*</span>
+                                Title: <span class="text-danger">*</span>
                             </label>
                             <input type="text" id="wsSharePackTitle" class="form-control form-control-sm" required style="border-radius: 6px;">
                         </div>
 
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-dark mb-1">Short Description <span class="text-muted fw-normal">(Optional)</span>:</label>
+                            <textarea id="wsSharePackDesc" class="form-control form-control-sm" rows="2" placeholder="Brief overview for other teachers..." style="border-radius: 6px;"></textarea>
+                        </div>
+
                         <div class="col-12 col-md-6">
-                            <label class="form-label small fw-bold text-dark mb-1">Developmental Domain:</label>
+                            <label class="form-label small fw-bold text-dark mb-1">Subject / Domain:</label>
                             <select id="wsSharePackDomain" class="form-select form-select-sm" style="border-radius: 6px;">
                                 <option value="communication_language">Communication / Language</option>
                                 <option value="perceptuo_cognitive">Perceptuo-Cognitive</option>
@@ -4892,42 +4907,42 @@ async function submitWorkspaceShareToHub(e) {
                             <input type="text" id="wsSharePackLevel" class="form-control form-control-sm" value="Primary SPED / Deaf Ed" style="border-radius: 6px;">
                         </div>
 
-                        <div class="col-12">
-                            <label class="form-label small fw-bold text-dark mb-1">Learning Competency / Objective:</label>
-                            <textarea id="wsSharePackCompetency" class="form-control form-control-sm" rows="2" placeholder="e.g. Makat-on sa mga batakang senyas sa pamilya..." style="border-radius: 6px;"></textarea>
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label small fw-bold text-dark mb-1">Short Description / Overview:</label>
-                            <textarea id="wsSharePackDesc" class="form-control form-control-sm" rows="2" placeholder="Mubo nga overview para sa ubang magtutudlo..." style="border-radius: 6px;"></textarea>
-                        </div>
-
-                        <div class="col-12 col-md-6">
-                            <label class="form-label small fw-semibold text-dark mb-1">
-                                External Mastery Link <span class="text-muted fw-normal">(Optional HTTPS)</span>:
-                            </label>
-                            <input type="url" id="wsSharePackMasteryUrl" class="form-control form-control-sm" placeholder="https://www.khanacademy.org/..." style="border-radius: 6px;">
-                        </div>
-
-                        <div class="col-12 col-md-6">
-                            <label class="form-label small fw-semibold text-dark mb-1">
-                                Mastery Resource Title <span class="text-muted fw-normal">(Optional)</span>:
-                            </label>
-                            <input type="text" id="wsSharePackMasteryTitle" class="form-control form-control-sm" placeholder="e.g. Khan Academy — Addition within 10" style="border-radius: 6px;">
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label small fw-semibold text-dark mb-1">Tags / Keywords (comma-separated):</label>
-                            <input type="text" id="wsSharePackTags" class="form-control form-control-sm" placeholder="fsl, deaf-ed, greeting, primary" style="border-radius: 6px;">
+                        <!-- Advanced Options (Collapsed by default) -->
+                        <div class="col-12 pt-1">
+                            <a class="text-decoration-none small text-muted d-inline-flex align-items-center gap-1" data-bs-toggle="collapse" href="#wsShareAdvancedOptions" role="button" aria-expanded="false" style="font-size: 0.78rem;">
+                                <i class="ti ti-chevron-down"></i> Advanced Options
+                            </a>
+                            <div class="collapse mt-2" id="wsShareAdvancedOptions">
+                                <div class="p-2.5 bg-light rounded border">
+                                    <div class="mb-2">
+                                        <label class="form-label small text-muted mb-0.5">Learning Competency / Objective:</label>
+                                        <input type="text" id="wsSharePackCompetency" class="form-control form-control-sm" placeholder="Auto-linked from lesson if empty..." style="border-radius:6px; font-size:0.8rem;">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small text-muted mb-0.5">Tags (comma-separated):</label>
+                                        <input type="text" id="wsSharePackTags" class="form-control form-control-sm" placeholder="e.g. fsl, signs, beginner" style="border-radius:6px; font-size:0.8rem;">
+                                    </div>
+                                    <div class="row g-2">
+                                        <div class="col-6">
+                                            <label class="form-label small text-muted mb-0.5">External Resource Title:</label>
+                                            <input type="text" id="wsSharePackMasteryTitle" class="form-control form-control-sm" placeholder="Optional practice title" style="border-radius:6px; font-size:0.8rem;">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small text-muted mb-0.5">External Resource URL:</label>
+                                            <input type="url" id="wsSharePackMasteryUrl" class="form-control form-control-sm" placeholder="https://..." style="border-radius:6px; font-size:0.8rem;">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer border-top py-2.5 px-3.5 bg-light" style="border-radius: 0 0 12px 12px;">
                     <button type="button" class="btn btn-outline-secondary btn-sm fw-medium px-3" data-bs-dismiss="modal" style="border-radius: 6px;">
-                        Kanselahon
+                        Cancel
                     </button>
                     <button type="submit" id="btnSubmitWsShareHub" class="btn btn-warning btn-sm fw-bold px-3 text-dark" style="border-radius: 6px;">
-                        <i class="ti ti-share me-1"></i> Confirm &amp; Publish to Hub
+                        <i class="ti ti-share me-1"></i> Share Resource
                     </button>
                 </div>
             </form>
@@ -5054,13 +5069,13 @@ async function submitWorkspaceShareToHub(e) {
                         <label class="form-label small fw-bold text-dark mb-1">
                             Mastery Activity Title:
                         </label>
-                        <input type="text" id="configMasteryTitle" class="form-control form-control-sm" placeholder="e.g. Khan Academy — Addition within 10" style="border-radius:6px; font-size:0.875rem;">
+                        <input type="text" id="configMasteryTitle" class="form-control form-control-sm" placeholder="e.g. Interactive Practice — Addition within 10" style="border-radius:6px; font-size:0.875rem;">
                     </div>
                     <div class="mb-2">
                         <label class="form-label small fw-bold text-dark mb-1">
                             Activity URL <span class="text-muted fw-normal">(HTTPS Only)</span>:
                         </label>
-                        <input type="url" id="configMasteryUrl" class="form-control form-control-sm" placeholder="https://www.khanacademy.org/math/early-math/..." style="border-radius:6px; font-size:0.875rem;">
+                        <input type="url" id="configMasteryUrl" class="form-control form-control-sm" placeholder="https://example.org/exercise/..." style="border-radius:6px; font-size:0.875rem;">
                         <div class="form-text" style="font-size:0.72rem;">Enter the direct safe HTTPS URL to the external learning exercise.</div>
                     </div>
                 </div>
