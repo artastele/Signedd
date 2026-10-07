@@ -17,6 +17,8 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
 <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
+<!-- SweetAlert2 for Notifications & Confirmations -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <style>
 /* Lesson Studio Studio Styles */
@@ -306,7 +308,11 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                     <span class="badge bg-light text-secondary border px-2.5 py-1" id="totalSlidesCountBadge" style="font-size: 0.76rem;">
                         <?php echo count($pages); ?> Slides
                     </span>
-                    <a href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lpId; ?>" target="_blank" class="btn btn-xs btn-outline-primary rounded-pill px-2.5 py-1 fw-bold">
+                    <span id="builderLpStatusBadge" class="badge <?php echo ($lessonPlan['status'] ?? '') === 'published' ? 'bg-success text-white' : 'bg-secondary text-white'; ?> px-2.5 py-1 fw-bold" style="font-size: 0.76rem;">
+                        <i class="ph-bold <?php echo ($lessonPlan['status'] ?? '') === 'published' ? 'ph-check-circle' : 'ph-pencil-simple'; ?> me-1"></i>
+                        <span id="builderLpStatusText"><?php echo ($lessonPlan['status'] ?? '') === 'published' ? 'Published' : 'Draft'; ?></span>
+                    </span>
+                    <a id="btnPreviewAsLearner" href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lpId; ?>" target="_blank" class="btn btn-xs btn-outline-primary rounded-pill px-2.5 py-1 fw-bold">
                         <i class="ph-bold ph-eye me-1"></i> Preview as Learner <i class="ph-bold ph-arrow-square-out ms-0.5"></i>
                     </a>
                     <button type="button" class="btn btn-xs btn-outline-warning rounded-pill px-2.5 py-1 fw-bold text-dark" onclick="openShareToHubModal()" title="Share as reusable Accessibility Pack">
@@ -315,6 +321,11 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                     <button type="button" class="btn btn-xs btn-success rounded-pill px-3 py-1 fw-bold" onclick="saveActiveSlide()">
                         <i class="ph-bold ph-floppy-disk me-1"></i> Save Slide
                     </button>
+                    <?php if (($lessonPlan['status'] ?? '') !== 'published'): ?>
+                    <button type="button" id="btnPublishFromBuilder" class="btn btn-xs btn-primary rounded-pill px-3 py-1 fw-bold shadow-sm" onclick="publishFromBuilder()" title="Publish this lesson to assigned learners">
+                        <i class="ph-bold ph-paper-plane-tilt me-1"></i> Publish Lesson
+                    </button>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -924,10 +935,12 @@ function loadSlideIntoEditor(idx) {
     toggleMediaInputFields();
 
     const currentNoteEl = document.getElementById('mediaFileCurrentNote');
-    if (p.media_path && (mediaType === 'image' || mediaType === 'video')) {
-        currentNoteEl.innerHTML = `<span class="text-success"><i class="ph-bold ph-check-circle me-1"></i> Current file:</span> <code>${escapeHtml(p.media_path)}</code>`;
-    } else {
-        currentNoteEl.innerHTML = '';
+    if (currentNoteEl) {
+        if (p.media_path && (mediaType === 'image' || mediaType === 'video')) {
+            currentNoteEl.innerHTML = `<span class="text-success"><i class="ph-bold ph-check-circle me-1"></i> Current file:</span> <code>${escapeHtml(p.media_path)}</code>`;
+        } else {
+            currentNoteEl.innerHTML = '';
+        }
     }
 
     if (mediaType === 'embed') {
@@ -1122,9 +1135,13 @@ function deleteActiveSlide() {
 
 // ── Toggle Media Input ──
 function toggleMediaInputFields() {
-    const val = document.getElementById('slideMediaTypeSelect').value;
-    document.getElementById('mediaUploadWrap').style.display = (val === 'image' || val === 'video') ? 'block' : 'none';
-    document.getElementById('mediaUrlWrap').style.display = (val === 'embed') ? 'block' : 'none';
+    const sel = document.getElementById('slideMediaTypeSelect');
+    if (!sel) return;
+    const val = sel.value;
+    const uploadWrap = document.getElementById('mediaUploadWrap');
+    const urlWrap = document.getElementById('mediaUrlWrap');
+    if (uploadWrap) uploadWrap.style.display = (val === 'image' || val === 'video') ? 'block' : 'none';
+    if (urlWrap) urlWrap.style.display = (val === 'embed') ? 'block' : 'none';
 }
 
 // ── Responsive Multi-Drawer Width Recalculation ──
@@ -2851,6 +2868,135 @@ async function submitShareToHub(e) {
     } finally {
         btn.disabled = false;
         btn.innerHTML = origHtml;
+    }
+}
+
+/**
+ * Sprint A1: Publish directly from inside Lesson Builder
+ * Reuses existing /iep/implementation/lesson-plan/{id}/publish endpoint
+ */
+async function publishFromBuilder() {
+    const lpTitle = <?php echo json_encode($lessonPlan['title'] ?? 'this lesson'); ?>;
+    const lpId = <?php echo (int)$lpId; ?>;
+    const iepId = <?php echo (int)$iepId; ?>;
+    const basePath = <?php echo json_encode($basePath); ?>;
+
+    const executePublish = async () => {
+        const btn = document.getElementById('btnPublishFromBuilder');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Publishing...';
+        }
+
+        try {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'Publishing Lesson...',
+                    text: 'Activating lesson and notifying assigned learners...',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+            }
+
+            const response = await fetch(basePath + '/iep/implementation/lesson-plan/' + lpId + '/publish', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ lesson_plan_id: lpId })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Visually update status badge
+                const statusBadge = document.getElementById('builderLpStatusBadge');
+                if (statusBadge) {
+                    statusBadge.className = 'badge bg-success text-white px-2.5 py-1 fw-bold';
+                    statusBadge.innerHTML = '<i class="ph-bold ph-check-circle me-1"></i> Published';
+                }
+                if (btn) btn.remove();
+
+                const toast = document.getElementById('saveStatusIndicator');
+                if (toast) {
+                    toast.innerHTML = '<span class="text-success fw-bold"><i class="ph-bold ph-check-circle me-1"></i> Lesson Published Live</span>';
+                }
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Lesson Published Live!',
+                        html: '<p class="mb-2"><strong>' + $('<div>').text(lpTitle).html() + '</strong> is now active and accessible to assigned learners.</p>',
+                        showCancelButton: true,
+                        confirmButtonText: '<i class="ph-bold ph-eye me-1"></i> Preview as Learner',
+                        cancelButtonText: '<i class="ph-bold ph-arrow-left me-1"></i> Back to Workspace',
+                        confirmButtonColor: '#1e4072',
+                        cancelButtonColor: '#64748b'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.open(basePath + '/learning/lesson/' + lpId, '_blank');
+                        } else if (result.dismiss === Swal.DismissReason.cancel) {
+                            window.location.href = basePath + '/iep/implementation/workspace/' + iepId;
+                        }
+                    });
+                } else {
+                    alert('Lesson published successfully! Visible to assigned learners.');
+                }
+            } else {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ph-bold ph-paper-plane-tilt me-1"></i> Publish Lesson';
+                }
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Publish Failed',
+                        text: data.message || 'Could not publish lesson plan.',
+                        confirmButtonColor: '#dc2626'
+                    });
+                } else {
+                    alert('Publish Failed: ' + (data.message || 'Error'));
+                }
+            }
+        } catch (err) {
+            console.error('publishFromBuilder error:', err);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ph-bold ph-paper-plane-tilt me-1"></i> Publish Lesson';
+            }
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Network Error',
+                    text: err.message || 'Failed to reach server.',
+                    confirmButtonColor: '#dc2626'
+                });
+            } else {
+                alert('Network error while publishing lesson.');
+            }
+        }
+    };
+
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            icon: 'question',
+            title: 'Publish Lesson?',
+            html: 'Publish <strong>' + $('<div>').text(lpTitle).html() + '</strong>?<br><small class="text-muted">This will make all slides immediately live to assigned learners.</small>',
+            showCancelButton: true,
+            confirmButtonColor: '#1e4072',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: '<i class="ph-bold ph-paper-plane-tilt me-1"></i> Yes, Publish Now',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                executePublish();
+            }
+        });
+    } else {
+        if (confirm('Publish "' + lpTitle + '"? This will make the lesson visible to assigned learners.')) {
+            executePublish();
+        }
     }
 }
 </script>

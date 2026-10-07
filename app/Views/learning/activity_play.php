@@ -2979,8 +2979,25 @@ function showResult(data) {
         triggerConfettiEffect();
     }
 
+    const returnLessonUrl = data.parent_lesson_url || (BASE + '/learning/lesson/' + LESSON_PLAN_ID);
+    let nextLessonHtml = '';
+    if (data.next_lesson_url) {
+        const nextTitle = data.next_lesson_title ? ': ' + $('<div>').text(data.next_lesson_title).html() : '';
+        nextLessonHtml = '<a class="btn btn-primary px-4 py-2 d-flex align-items-center gap-1.5 fw-bold shadow-sm" href="' + data.next_lesson_url + '"><i class="ph-bold ph-arrow-right"></i> <span>Next Lesson' + nextTitle + '</span></a>';
+    }
+
     area.style.display = 'block';
-    area.innerHTML = '<section class="mission-complete-card text-center p-4 bg-white border rounded-4 shadow-sm"><div class="complete-badge-icon mb-3"><i class="ph-bold ph-trophy text-warning" style="font-size: 3.8rem;" aria-hidden="true"></i></div><div class="quest-eyebrow text-success fw-bold"><i class="ph-bold ph-check-circle me-1"></i> ' + (data.needs_remediation ? 'MISSION COMPLETED (REMEDIATION)' : 'MISSION ACCOMPLISHED!') + '</div><h2 class="fw-bold text-dark mt-2">' + (data.needs_remediation ? 'Practice Makes Progress!' : 'Superstar Achievement Unlocked!') + '</h2>' + scoreHtml + '<div class="game-actions center d-flex justify-content-center gap-2 mt-4 flex-wrap"><a class="btn btn-bubble-outline px-4 py-2 d-flex align-items-center gap-1.5" href="' + BASE + '/learning/lesson/' + LESSON_PLAN_ID + '"><i class="ph-bold ph-book-open"></i> <span>Back to Lesson Hub</span></a><a class="btn btn-bubble px-4 py-2 d-flex align-items-center gap-1.5" href="' + BASE + '/learning/dashboard?tab=badges"><i class="ph-bold ph-trophy"></i> <span>View My Badges</span></a></div></section>';
+    area.innerHTML = '<section class="mission-complete-card text-center p-4 bg-white border rounded-4 shadow-sm">' +
+        '<div class="complete-badge-icon mb-3"><i class="ph-bold ph-trophy text-warning" style="font-size: 3.8rem;" aria-hidden="true"></i></div>' +
+        '<div class="quest-eyebrow text-success fw-bold"><i class="ph-bold ph-check-circle me-1"></i> ' + (data.needs_remediation ? 'MISSION COMPLETED (REMEDIATION)' : 'MISSION ACCOMPLISHED!') + '</div>' +
+        '<h2 class="fw-bold text-dark mt-2">' + (data.needs_remediation ? 'Practice Makes Progress!' : 'Superstar Achievement Unlocked!') + '</h2>' +
+        scoreHtml +
+        '<div class="game-actions center d-flex justify-content-center gap-2 mt-4 flex-wrap">' +
+            '<a class="btn btn-bubble-outline px-4 py-2 d-flex align-items-center gap-1.5 fw-bold" href="' + returnLessonUrl + '"><i class="ph-bold ph-arrow-left"></i> <span>Return to Lesson</span></a>' +
+            nextLessonHtml +
+            '<a class="btn btn-bubble px-4 py-2 d-flex align-items-center gap-1.5" href="' + BASE + '/learning/dashboard?tab=badges"><i class="ph-bold ph-trophy"></i> <span>View My Badges</span></a>' +
+        '</div>' +
+    '</section>';
 }
 
 function triggerConfettiEffect() {

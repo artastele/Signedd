@@ -523,7 +523,7 @@ class ProgressReportController {
         }
 
         $this->model->finalizeProgressReportWithDoc($reportId, $docPath);
-        $_SESSION['success'] = 'Progress report finalized successfully.';
+        $_SESSION['success'] = 'Progress report finalized successfully. You may now proceed to Transition Readiness.';
         header('Location: ' . $this->basePath . '/progress-reports/' . $report['student_id'] . '?tab=report');
         exit;
     }

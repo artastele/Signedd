@@ -29,8 +29,8 @@ $isPrincipal = ($role === 'principal');
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <?php if (!empty($iep['id']) && ($progressReport['status'] ?? '') === 'finalized' && (RoleMiddleware::hasPermission('transition_readiness.view') || RoleMiddleware::hasPermission('transition_readiness.create'))): ?>
-                    <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/transition-readiness" class="btn btn-success shadow-sm">
-                        <i class="bi bi-arrow-up-right-circle me-1"></i> Transition Readiness Assessment
+                    <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/transition-readiness" class="btn btn-success shadow-sm fw-bold">
+                        <i class="bi bi-arrow-right-circle me-1"></i> Proceed to Transition Readiness
                     </a>
                 <?php endif; ?>
                 <a href="<?php echo $basePath; ?>/progress-reports" class="btn btn-outline-secondary">
@@ -524,16 +524,23 @@ $isPrincipal = ($role === 'principal');
                             <?php endif; ?>
                         <?php else: ?>
                             <div class="card border-0 bg-success-subtle text-success p-3">
-                                <div class="d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                                     <div>
                                         <h6 class="fw-bold mb-1"><i class="bi bi-check-circle-fill me-1"></i> Progress Report Finalized</h6>
                                         <p class="mb-0 small">This progress report has been locked and cannot be edited.</p>
                                     </div>
-                                    <?php if (!empty($progressReport['document_path'])): ?>
-                                        <a href="<?php echo $basePath . $progressReport['document_path']; ?>" target="_blank" class="btn btn-sm btn-success">
-                                            <i class="bi bi-download me-1"></i> View Signed Copy
-                                        </a>
-                                    <?php endif; ?>
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <?php if (!empty($progressReport['document_path'])): ?>
+                                            <a href="<?php echo $basePath . $progressReport['document_path']; ?>" target="_blank" class="btn btn-sm btn-outline-success">
+                                                <i class="bi bi-download me-1"></i> View Signed Copy
+                                            </a>
+                                        <?php endif; ?>
+                                        <?php if (!empty($iep['id']) && (RoleMiddleware::hasPermission('transition_readiness.view') || RoleMiddleware::hasPermission('transition_readiness.create'))): ?>
+                                            <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/transition-readiness" class="btn btn-sm btn-success fw-bold shadow-sm">
+                                                <i class="bi bi-arrow-right-circle me-1"></i> Proceed to Transition Readiness
+                                            </a>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                             </div>
                         <?php endif; ?>

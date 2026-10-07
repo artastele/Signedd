@@ -949,6 +949,28 @@ class LearningController {
             error_log('LearningController::submitActivity() gamification error: ' . $e->getMessage());
         }
 
+        // Query legitimate next published lesson assigned to this student (if any)
+        $parentLessonId = (int)($activity['lesson_plan_id'] ?? 0);
+        $nextLesson = null;
+        if ($studentId && $parentLessonId > 0) {
+            try {
+                $stmtNext = $db->prepare("
+                    SELECT lp.id, lp.title
+                    FROM lesson_plans lp
+                    JOIN lesson_assignments la ON lp.id = la.lesson_plan_id
+                    WHERE la.student_id = :sid 
+                      AND lp.status = 'published'
+                      AND lp.id > :current_id
+                    ORDER BY lp.id ASC
+                    LIMIT 1
+                ");
+                $stmtNext->execute(['sid' => $studentId, 'current_id' => $parentLessonId]);
+                $nextLesson = $stmtNext->fetch(PDO::FETCH_ASSOC) ?: null;
+            } catch (\Throwable $e) {
+                error_log('Failed to query next lesson: ' . $e->getMessage());
+            }
+        }
+
         echo json_encode([
             'success'             => true,
             'auto_score'          => $autoScore,
@@ -958,6 +980,11 @@ class LearningController {
             'threshold'           => $threshold ?? 70,
             'needs_remediation'   => $needsRemediation ?? false,
             'type'                => $type,
+            'parent_lesson_id'    => $parentLessonId,
+            'parent_lesson_url'   => $parentLessonId > 0 ? ($this->basePath . '/learning/lesson/' . $parentLessonId) : null,
+            'next_lesson_id'      => $nextLesson ? (int)$nextLesson['id'] : null,
+            'next_lesson_title'   => $nextLesson ? $nextLesson['title'] : null,
+            'next_lesson_url'     => $nextLesson ? ($this->basePath . '/learning/lesson/' . (int)$nextLesson['id']) : null,
             'message'             => $autoScore !== null
                 ? ($needsRemediation
                     ? "Score: {$autoScore} / {$maxScore} ({$scorePercentage}%). Girekomenda nga mo-review una sa Remedial Module aron mas masabtan ang leksyon!"
