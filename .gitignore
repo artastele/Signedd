@@ -44,3 +44,11 @@ signedtest_extracted/
 *.xlsx
 *.csv
 
+# Database dumps and backups (preserve versioned migrations and schema)
+*.sql
+!config/v*.sql
+!config/schema.sql
+!config/manual_migration_*.sql
+!config/insert_demo_enrollments.sql
+!database.sql
+backups/
