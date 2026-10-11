@@ -1,6 +1,9 @@
 # Environment variables
 .env
 .env.infinityfree
+.env.test-server
+.env.local
+.env.production
 
 
 # Uploaded files
