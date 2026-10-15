@@ -727,18 +727,21 @@ class MasterlistController {
             $claimUrl
         );
 
+        $isLiveSent = ($res['status'] ?? '') === 'sent';
+
         echo json_encode([
-            'success'   => true,
-            'status'    => $res['status'] ?? 'simulated',
-            'phone'     => $row['phone'],
-            'parent'    => $row['parent_name'],
-            'student'   => $row['student_name'],
-            'sms_body'  => $smsBody,
-            'claim_url' => $claimUrl,
-            'is_live'   => ($res['status'] ?? '') === 'sent',
-            'message'   => ($res['status'] ?? '') === 'sent' 
-                ? "Napadala na ang SMS invitation kang {$row['parent_name']} ({$row['phone']})!" 
-                : "Andam na ang SMS invitation para kang {$row['parent_name']}!"
+            'success'     => true,
+            'status'      => $res['status'] ?? 'simulated',
+            'phone'       => $row['phone'],
+            'parent'      => $row['parent_name'],
+            'student'     => $row['student_name'],
+            'sms_body'    => $smsBody,
+            'claim_url'   => $claimUrl,
+            'is_live'     => $isLiveSent,
+            'gateway_msg' => $res['message'] ?? '',
+            'message'     => $isLiveSent 
+                ? "Napadala na ang automated SMS kang {$row['parent_name']} ({$row['phone']})!" 
+                : ($res['message'] ?? "Andam na ang SMS invitation!")
         ]);
         exit;
     }

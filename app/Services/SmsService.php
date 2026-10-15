@@ -16,12 +16,12 @@ class SmsService {
         $this->db = Database::getInstance()->getConnection();
         $this->ensureTable();
 
-        // Load Semaphore API key from env or database
-        $this->apiKey = getenv('SEMAPHORE_API_KEY') ?: ($_ENV['SEMAPHORE_API_KEY'] ?? null);
+        // Load Semaphore API key from env, database, or fallback
+        $this->apiKey = getenv('SEMAPHORE_API_KEY') ?: ($_ENV['SEMAPHORE_API_KEY'] ?? '87a22817a5942debb361ecb8e115a561');
         $this->senderName = getenv('SEMAPHORE_SENDER_NAME') ?: ($_ENV['SEMAPHORE_SENDER_NAME'] ?? 'SEMAPHORE');
 
         // Check if API key is in settings table (if exists)
-        if (empty($this->apiKey)) {
+        if (empty($this->apiKey) || $this->apiKey === '87a22817a5942debb361ecb8e115a561') {
             try {
                 $stmt = $this->db->prepare("SELECT setting_value FROM app_settings WHERE setting_key = 'semaphore_api_key' LIMIT 1");
                 $stmt->execute();

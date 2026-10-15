@@ -589,6 +589,8 @@ require_once __DIR__ . '/../layouts/header.php';
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4">
+                    <div id="smsGatewayStatusBanner" class="alert small py-2 px-3 mb-3" style="display:none; border-radius: 8px;"></div>
+
                     <div class="mb-3 d-flex justify-content-between align-items-center">
                         <div>
                             <div class="small text-muted">Recipient Parent</div>
@@ -663,6 +665,17 @@ require_once __DIR__ . '/../layouts/header.php';
             // Populate SMS Modal
             currentSmsPhone = data.phone || '';
             currentSmsBody = data.sms_body || '';
+
+            const statusBanner = document.getElementById('smsGatewayStatusBanner');
+            if (data.is_live) {
+                statusBanner.className = 'alert alert-success small py-2 px-3 mb-3 border-0 d-flex align-items-center gap-2';
+                statusBanner.innerHTML = '<i class="bi bi-check-circle-fill fs-5 text-success"></i><div><strong>Napadala na ang Automated SMS!</strong> Gi-transmit na sa Semaphore cell gateway ngadto sa cellphone sa ginikanan.</div>';
+                statusBanner.style.display = 'flex';
+            } else {
+                statusBanner.className = 'alert alert-info small py-2 px-3 mb-3 border d-flex align-items-center gap-2';
+                statusBanner.innerHTML = '<i class="bi bi-info-circle-fill fs-5 text-info"></i><div><strong>Ready to Send:</strong> I-tap ang <em>Open Phone SMS</em> sa ubos aron ma-send dayon kini gamit ang imong unli-text o i-copy sa Messenger!</div>';
+                statusBanner.style.display = 'flex';
+            }
 
             document.getElementById('smsModalParentName').textContent = data.parent + ' (Parent of ' + data.student + ')';
             document.getElementById('smsModalPhoneBadge').textContent = currentSmsPhone;
