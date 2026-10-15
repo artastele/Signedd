@@ -683,6 +683,8 @@ class MasterlistController {
 
         $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
         $studentId = (int)($input['student_id'] ?? 0);
+        $action = $input['action'] ?? 'get_details'; // 'get_details' or 'send_email'
+        $customEmail = trim($input['email'] ?? '');
 
         if ($studentId <= 0) {
             echo json_encode(['success' => false, 'message' => 'Invalid student ID.']);
@@ -693,7 +695,8 @@ class MasterlistController {
         $stmt = $db->prepare("
             SELECT sr.id, sr.student_name, sr.claim_token,
                    COALESCE(u.name, es.guardian_first_name, 'Parent') AS parent_name,
-                   COALESCE(u.contact_number, es.guardian_contact_number, es.mother_contact_number, es.father_contact_number) AS phone
+                   COALESCE(u.contact_number, es.guardian_contact_number, es.mother_contact_number, es.father_contact_number, '') AS phone,
+                   COALESCE(u.email, '') AS email
             FROM student_records sr
             LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
             LEFT JOIN users u ON es.parent_id = u.id
@@ -708,40 +711,61 @@ class MasterlistController {
             exit;
         }
 
-        if (empty($row['phone'])) {
-            echo json_encode(['success' => false, 'message' => 'Walay contact number nga narekord para sa ginikanan niini nga estudyante.']);
-            exit;
-        }
-
         $token = $this->model->generateClaimTokenForStudent($studentId);
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         $claimUrl = $protocol . $host . $this->basePath . '/invite/claim/' . $token;
-
         $smsBody = "SignED SPED: Maayong adlaw {$row['parent_name']}! Gi-invite ka sa online portal para sa leksyon ni {$row['student_name']}. I-click kini para ma-connect: {$claimUrl}";
+        $targetEmail = !empty($customEmail) ? $customEmail : $row['email'];
 
-        $res = SmsService::getInstance()->notifyInvite(
-            $row['phone'],
-            $row['parent_name'],
-            $row['student_name'],
-            $claimUrl
-        );
+        // If action is to send automated email
+        if ($action === 'send_email') {
+            if (empty($targetEmail) || !filter_var($targetEmail, FILTER_VALIDATE_EMAIL)) {
+                echo json_encode(['success' => false, 'message' => 'Palihog butangi og sakto nga email address ang ginikanan.']);
+                exit;
+            }
 
-        $isLiveSent = ($res['status'] ?? '') === 'sent';
+            require_once __DIR__ . '/../Helpers/MailHelper.php';
+            $subject = "SignED SPED: Parent Portal Invitation para kang {$row['student_name']}";
+            $html = "
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;'>
+                <div style='background: linear-gradient(135deg, #1e4072 0%, #0ea5e9 100%); padding: 24px; text-align: center; color: #ffffff;'>
+                    <h2 style='margin: 0; font-size: 22px;'>SignED SPED LMS</h2>
+                    <p style='margin: 5px 0 0; opacity: 0.9; font-size: 14px;'>Inclusive Learning & Progress Portal</p>
+                </div>
+                <div style='padding: 24px; background: #ffffff;'>
+                    <p style='font-size: 16px; color: #1e293b;'>Maayong adlaw <strong>" . htmlspecialchars($row['parent_name']) . "</strong>,</p>
+                    <p style='color: #475569; line-height: 1.6;'>Gi-invite ka sa SPED teacher sa imong anak nga si <strong>" . htmlspecialchars($row['student_name']) . "</strong> aron ma-access nimo ang SignED Parent Portal.</p>
+                    <div style='text-align: center; margin: 25px 0;'>
+                        <a href='{$claimUrl}' style='background: #1e4072; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; display: inline-block;'>I-konekta ang Parent Account</a>
+                    </div>
+                    <p style='font-size: 13px; color: #64748b; word-break: break-all;'>O kopyaha kini nga link sa imong browser: <br><a href='{$claimUrl}'>{$claimUrl}</a></p>
+                </div>
+                <div style='background: #f8fafc; padding: 12px; text-align: center; color: #94a3b8; font-size: 12px;'>
+                    SignED Digital SPED System • DepEd Division Pilot
+                </div>
+            </div>
+            ";
+
+            $sent = MailHelper::sendNotification($targetEmail, $row['parent_name'], $subject, $html);
+
+            echo json_encode([
+                'success' => $sent,
+                'email_sent' => $sent,
+                'message' => $sent ? "Napadala na ang email invitation kang {$targetEmail}!" : "Adunay sayop sa pagpadala sa email. Palihog sulayi pag-usab."
+            ]);
+            exit;
+        }
 
         echo json_encode([
-            'success'     => true,
-            'status'      => $res['status'] ?? 'simulated',
-            'phone'       => $row['phone'],
-            'parent'      => $row['parent_name'],
-            'student'     => $row['student_name'],
-            'sms_body'    => $smsBody,
-            'claim_url'   => $claimUrl,
-            'is_live'     => $isLiveSent,
-            'gateway_msg' => $res['message'] ?? '',
-            'message'     => $isLiveSent 
-                ? "Napadala na ang automated SMS kang {$row['parent_name']} ({$row['phone']})!" 
-                : ($res['message'] ?? "Andam na ang SMS invitation!")
+            'success'   => true,
+            'phone'     => $row['phone'],
+            'email'     => $targetEmail,
+            'parent'    => $row['parent_name'],
+            'student'   => $row['student_name'],
+            'sms_body'  => $smsBody,
+            'claim_url' => $claimUrl,
+            'message'   => "Andam na ang invitation para kang {$row['parent_name']}!"
         ]);
         exit;
     }

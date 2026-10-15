@@ -34,6 +34,7 @@ $files = [
     'app/Controllers/LearningController.php',
     'app/Controllers/DashboardController.php',
     'app/Views/layouts/navbar.php',
+    'app/Views/layouts/topbar.php',
     'app/Controllers/AdminController.php',
     'app/Controllers/AuthController.php',
     'app/Controllers/EnrollmentController.php',

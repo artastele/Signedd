@@ -274,6 +274,7 @@ route('POST', '/invite/claim-by-alias',          'ParentClaimController', 'claim
 // SMS Deadline Reminder & SMS Invite
 route('POST', '/learning/send-deadline-reminder', 'LearningController', 'sendDeadlineReminder');
 route('POST', '/masterlist/send-sms-invite',       'MasterlistController', 'sendSmsInvite');
+route('POST', '/masterlist/send-invite',           'MasterlistController', 'sendSmsInvite');
 
 // Steps 16 & 17 — Parent child progress (Process 7)
 route('GET',  '/parent/child-progress',           'LearningController', 'parentChildProgress', 'parent.dashboard');

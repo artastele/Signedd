@@ -1404,7 +1404,8 @@ class LearningController {
                 sr.id AS student_id,
                 sr.student_name,
                 COALESCE(u.name, es.guardian_first_name, 'Parent') AS parent_name,
-                COALESCE(u.contact_number, es.guardian_contact_number, es.mother_contact_number, es.father_contact_number) AS phone
+                COALESCE(u.contact_number, es.guardian_contact_number, es.mother_contact_number, es.father_contact_number) AS phone,
+                COALESCE(u.email, '') AS email
             FROM lesson_assignments la
             JOIN student_records sr ON la.student_id = sr.id
             LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
@@ -1422,7 +1423,28 @@ class LearningController {
 
         $sentCount = 0;
         $smsSvc = SmsService::getInstance();
+        require_once __DIR__ . '/../Helpers/MailHelper.php';
+
         foreach ($pendingLearners as $pl) {
+            $notified = false;
+            // 1. Send free automated email
+            if (!empty($pl['email'])) {
+                $dueStr = !empty($dueDate) ? date('M d, Y', strtotime($dueDate)) : 'Hapit na';
+                $emailSubj = "SignED SPED: Pahinumdom sa Deadline para kang {$pl['student_name']} ({$title})";
+                $emailHtml = "
+                <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;'>
+                    <h3 style='color: #1e4072; margin-top: 0;'>SignED SPED LMS — Deadline Reminder</h3>
+                    <p>Maayong adlaw <strong>" . htmlspecialchars($pl['parent_name']) . "</strong>,</p>
+                    <p>Pahinumdom gikan sa SPED teacher nga ang leksyon o activity nga <strong>" . htmlspecialchars($title) . "</strong> para kang <strong>" . htmlspecialchars($pl['student_name']) . "</strong> kay kinahanglan nang mahuman.</p>
+                    <p><strong>Petsa sa Deadline:</strong> {$dueStr}</p>
+                    <p>Palihog dasiga ug giyahi ang bata sa pag-login sa <a href='" . $this->basePath . "/login'>SignED Learner Portal</a> aron makatubag.</p>
+                </div>
+                ";
+                @MailHelper::sendNotification($pl['email'], $pl['parent_name'], $emailSubj, $emailHtml);
+                $notified = true;
+            }
+
+            // 2. Also log/send SMS
             if (!empty($pl['phone'])) {
                 $res = $smsSvc->notifyDeadlineReminder(
                     $pl['phone'],
@@ -1432,14 +1454,18 @@ class LearningController {
                     $dueDate
                 );
                 if (!empty($res['success'])) {
-                    $sentCount++;
+                    $notified = true;
                 }
+            }
+
+            if ($notified) {
+                $sentCount++;
             }
         }
 
         echo json_encode([
             'success' => true,
-            'message' => "Malampusong napadala ang SMS deadline reminders sa {$sentCount} ka mga ginikanan.",
+            'message' => "Malampusong napadala ang automated reminders sa {$sentCount} ka mga ginikanan.",
             'sent_count' => $sentCount,
             'total_pending' => count($pendingLearners)
         ]);

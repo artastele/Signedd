@@ -398,8 +398,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                                 </button>
                                                 <button type="button" class="btn btn-sm btn-outline-info d-inline-flex align-items-center gap-1" 
                                                         onclick="sendQuickSmsInvite(<?= $l['student_record_id'] ?>, '<?= htmlspecialchars(addslashes($l['student_name'])) ?>')"
-                                                        style="border-radius: 6px; font-size: 0.8rem; font-weight: 500;" title="Send SMS Invite to Parent Phone">
-                                                    <i class="bi bi-chat-dots-fill"></i> SMS
+                                                        style="border-radius: 6px; font-size: 0.8rem; font-weight: 500;" title="Invite Parent via Email, Messenger, or Phone">
+                                                    <i class="bi bi-envelope-paper-heart"></i> Invite
                                                 </button>
                                                 <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1" 
                                                         data-bs-toggle="modal" 
@@ -578,42 +578,51 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     </div>
 
-    <!-- Direct Phone SMS & Messenger Invite Modal -->
+    <!-- Direct Parent Invitation Modal (Email, Messenger, Phone) -->
     <div class="modal fade" id="directSmsModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content text-dark border-0 shadow-lg" style="border-radius: 12px;">
-                <div class="modal-header bg-success-subtle py-3">
-                    <h6 class="modal-title fw-bold text-success-emphasis mb-0">
-                        <i class="bi bi-chat-dots-fill me-2"></i>Send Invitation to Parent
+                <div class="modal-header bg-primary-subtle py-3">
+                    <h6 class="modal-title fw-bold text-primary mb-0">
+                        <i class="bi bi-envelope-paper-heart-fill me-2"></i>Invite Parent / Guardian
                     </h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <div id="smsGatewayStatusBanner" class="alert small py-2 px-3 mb-3" style="display:none; border-radius: 8px;"></div>
-
                     <div class="mb-3 d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="small text-muted">Recipient Parent</div>
+                            <div class="small text-muted">Recipient Parent / Learner</div>
                             <strong id="smsModalParentName" class="text-dark fs-6">—</strong>
                         </div>
-                        <span id="smsModalPhoneBadge" class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1.5 font-monospace">09xxxxxxxxx</span>
+                        <span id="smsModalPhoneBadge" class="badge bg-light text-secondary border px-2.5 py-1.5 font-monospace">09xxxxxxxxx</span>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-secondary mb-1">Invitation Text (Pre-Formatted)</label>
-                        <textarea id="smsModalText" class="form-control form-control-sm bg-light" rows="4" readonly style="font-size: 0.85rem; border-radius: 8px;"></textarea>
+                    <!-- Option 1: Instant Email Invite (100% Free Google SMTP) -->
+                    <div class="card border-0 bg-light p-3 mb-3" style="border-radius: 10px;">
+                        <label class="form-label small fw-bold text-dark mb-1">
+                            <i class="bi bi-envelope-at-fill text-primary me-1"></i> Option 1: Send Automated Email (Free)
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <input type="email" id="inviteModalEmailInput" class="form-control" placeholder="Enter parent's email address...">
+                            <button class="btn btn-primary fw-semibold px-3" type="button" id="sendEmailInviteBtn" onclick="sendAutomatedEmailInvite()">
+                                <i class="bi bi-send-fill me-1"></i> Send Email
+                            </button>
+                        </div>
+                        <div id="emailSendResult" class="small mt-2" style="display:none;"></div>
                     </div>
 
-                    <div class="d-grid gap-2">
-                        <!-- 100% Free: Opens Phone SMS App with pre-filled number & text -->
-                        <a id="nativeSmsBtn" href="#" class="btn btn-success d-flex align-items-center justify-content-center gap-2" style="border-radius: 7px; font-size: 0.875rem; font-weight: 600; padding: 10px;">
-                            <i class="bi bi-phone-fill fs-5"></i> Open Phone SMS (Free Unli-Text)
-                        </a>
-
-                        <!-- Messenger / Viber Copy -->
-                        <button type="button" class="btn btn-outline-primary d-flex align-items-center justify-content-center gap-2" onclick="copyDirectSmsText()" style="border-radius: 7px; font-size: 0.875rem; font-weight: 500; padding: 9px;">
-                            <i class="bi bi-chat-heart-fill"></i> Copy Text for Messenger / GC
+                    <!-- Option 2: Messenger / Viber Group Chat (Free) -->
+                    <div class="mb-2">
+                        <button type="button" class="btn btn-outline-primary d-flex align-items-center justify-content-center gap-2 w-100 py-2 fw-semibold" onclick="copyDirectSmsText()" style="border-radius: 7px; font-size: 0.875rem;">
+                            <i class="bi bi-chat-heart-fill"></i> Option 2: Copy Link &amp; Text for Messenger / GC
                         </button>
+                    </div>
+
+                    <!-- Option 3: Phone Messages App (Free Unli-Text) -->
+                    <div>
+                        <a id="nativeSmsBtn" href="#" class="btn btn-outline-success d-flex align-items-center justify-content-center gap-2 w-100 py-2 fw-semibold" style="border-radius: 7px; font-size: 0.875rem;">
+                            <i class="bi bi-phone-fill"></i> Option 3: Open in Phone SMS App (Free Unli-Text)
+                        </a>
                     </div>
 
                     <div id="smsCopySuccess" class="alert alert-success border-0 small py-2 px-3 mt-3 text-center mb-0" style="display: none; border-radius: 6px;">
@@ -621,7 +630,7 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
 
                     <div class="alert alert-light border small text-muted mt-3 mb-0" style="border-radius: 8px;">
-                        <i class="bi bi-info-circle me-1 text-primary"></i> <strong>Tip para sa demo:</strong> Pag-tap sa <em>Open Phone SMS</em>, mo-diretso kini sa Messages app sa imong cellphone nga daan nang naay number ug mensahe gamit ang imong libreng unli-text.
+                        <i class="bi bi-info-circle me-1 text-primary"></i> <strong>100% Cost-Free:</strong> Walay bayad o SMS credits nga kaltason. Ang automated email diretsong moabot sa Gmail/Inbox sa ginikanan.
                     </div>
                 </div>
             </div>
@@ -635,6 +644,7 @@ require_once __DIR__ . '/../layouts/header.php';
     let currentStudentId = 0;
     let currentSmsPhone = '';
     let currentSmsBody = '';
+    let currentParentEmail = '';
 
     function copyUniversalGcLink() {
         const protocol = window.location.protocol;
@@ -650,37 +660,31 @@ require_once __DIR__ . '/../layouts/header.php';
     }
 
     function sendQuickSmsInvite(studentId, learnerName) {
+        currentStudentId = studentId;
+        currentLearnerName = learnerName;
+
         fetch('<?= $basePath ?>/masterlist/send-sms-invite', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ student_id: studentId })
+            body: JSON.stringify({ student_id: studentId, action: 'get_details' })
         })
         .then(res => res.json())
         .then(data => {
             if (!data.success) {
-                alert(data.message || 'Wala mapadala ang SMS.');
+                alert(data.message || 'Wala makuha ang mga detalye.');
                 return;
             }
 
-            // Populate SMS Modal
+            // Populate Modal
             currentSmsPhone = data.phone || '';
             currentSmsBody = data.sms_body || '';
-
-            const statusBanner = document.getElementById('smsGatewayStatusBanner');
-            if (data.is_live) {
-                statusBanner.className = 'alert alert-success small py-2 px-3 mb-3 border-0 d-flex align-items-center gap-2';
-                statusBanner.innerHTML = '<i class="bi bi-check-circle-fill fs-5 text-success"></i><div><strong>Napadala na ang Automated SMS!</strong> Gi-transmit na sa Semaphore cell gateway ngadto sa cellphone sa ginikanan.</div>';
-                statusBanner.style.display = 'flex';
-            } else {
-                statusBanner.className = 'alert alert-info small py-2 px-3 mb-3 border d-flex align-items-center gap-2';
-                statusBanner.innerHTML = '<i class="bi bi-info-circle-fill fs-5 text-info"></i><div><strong>Ready to Send:</strong> I-tap ang <em>Open Phone SMS</em> sa ubos aron ma-send dayon kini gamit ang imong unli-text o i-copy sa Messenger!</div>';
-                statusBanner.style.display = 'flex';
-            }
+            currentParentEmail = data.email || '';
 
             document.getElementById('smsModalParentName').textContent = data.parent + ' (Parent of ' + data.student + ')';
-            document.getElementById('smsModalPhoneBadge').textContent = currentSmsPhone;
-            document.getElementById('smsModalText').value = currentSmsBody;
+            document.getElementById('smsModalPhoneBadge').textContent = currentSmsPhone || 'No Phone';
+            document.getElementById('inviteModalEmailInput').value = currentParentEmail;
             document.getElementById('smsCopySuccess').style.display = 'none';
+            document.getElementById('emailSendResult').style.display = 'none';
 
             // Prepare native sms: URI scheme (supports both iOS and Android)
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -692,24 +696,71 @@ require_once __DIR__ . '/../layouts/header.php';
             smsModal.show();
         })
         .catch(err => {
-            alert('Adunay sayop sa koneksyon sa pagkuha sa SMS details.');
+            alert('Adunay sayop sa koneksyon sa pagkuha sa invitation details.');
+        });
+    }
+
+    function sendAutomatedEmailInvite() {
+        const emailInput = document.getElementById('inviteModalEmailInput');
+        const targetEmail = emailInput.value.trim();
+        const resultEl = document.getElementById('emailSendResult');
+        const btn = document.getElementById('sendEmailInviteBtn');
+
+        if (!targetEmail || !targetEmail.includes('@')) {
+            alert('Palihog pagbutang og sakto nga email address.');
+            emailInput.focus();
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
+        resultEl.style.display = 'none';
+
+        fetch('<?= $basePath ?>/masterlist/send-sms-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                student_id: currentStudentId,
+                action: 'send_email',
+                email: targetEmail
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-send-fill me-1"></i> Send Email';
+            resultEl.style.display = 'block';
+
+            if (data.success) {
+                resultEl.className = 'small mt-2 text-success fw-semibold';
+                resultEl.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> ' + (data.message || 'Napadala na ang email invitation!');
+            } else {
+                resultEl.className = 'small mt-2 text-danger fw-semibold';
+                resultEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + (data.message || 'Wala napadala ang email.');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-send-fill me-1"></i> Send Email';
+            resultEl.style.display = 'block';
+            resultEl.className = 'small mt-2 text-danger fw-semibold';
+            resultEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Error sa koneksyon sa email server.';
         });
     }
 
     function copyDirectSmsText() {
-        const text = document.getElementById('smsModalText').value;
-        navigator.clipboard.writeText(text).then(() => {
+        navigator.clipboard.writeText(currentSmsBody).then(() => {
             const el = document.getElementById('smsCopySuccess');
             el.style.display = 'block';
             setTimeout(() => { el.style.display = 'none'; }, 4000);
         }).catch(() => {
-            prompt('Kopyaha ang mensahe para sa Messenger:', text);
+            prompt('Kopyaha ang mensahe para sa Messenger:', currentSmsBody);
         });
     }
 
     function sendSmsFromModal() {
         if (!currentStudentId) return;
-        // Close QR modal first then open SMS
+        // Close QR modal first then open Invite
         const qrEl = document.getElementById('qrInviteModal');
         const qrModalInstance = bootstrap.Modal.getInstance(qrEl);
         if (qrModalInstance) {

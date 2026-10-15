@@ -32,7 +32,22 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     <?php endif; ?>
 
-    <!-- Newly Generated Learner Credentials Banner -->
+    <!-- Browser Push Notifications Permission Alert -->
+    <div id="parentPushAlert" class="alert alert-light border shadow-sm d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4" style="display:none; border-radius: 12px; border-left: 4px solid #0284c7 !important;">
+        <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle bg-primary-subtle text-primary p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                <i class="bi bi-bell-fill fs-5"></i>
+            </div>
+            <div>
+                <strong class="d-block text-dark">Instant Mobile Alerts</strong>
+                <small class="text-muted">I-on ang notifications aron mo-tingog ang imong cellphone kung mag-upload si teacher og bag-ong leksyon o feedback.</small>
+            </div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm fw-semibold px-3" onclick="requestBrowserPush()" style="border-radius: 6px;">
+            <i class="bi bi-check2-circle me-1"></i> Allow Notifications
+        </button>
+    </div>
+
     <?php if (!empty($_SESSION['generated_learner_credentials'])): ?>
         <?php $glc = $_SESSION['generated_learner_credentials']; unset($_SESSION['generated_learner_credentials']); ?>
         <div class="card border-0 shadow-sm rounded-4 mb-4" style="background: linear-gradient(135deg, #1e4072 0%, #0f172a 100%); color: #ffffff;">
