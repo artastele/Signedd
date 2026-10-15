@@ -32,6 +32,8 @@ $files = [
     'app/Views/masterlist/index.php',
     'app/Controllers/IEPImplementationController.php',
     'app/Controllers/LearningController.php',
+    'app/Controllers/DashboardController.php',
+    'app/Views/layouts/navbar.php',
     'app/Controllers/AdminController.php',
     'app/Controllers/AuthController.php',
     'app/Controllers/EnrollmentController.php',

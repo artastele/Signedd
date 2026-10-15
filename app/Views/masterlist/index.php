@@ -180,7 +180,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 <?php endif; ?>
 
                 <!-- Summary Statistics Bar -->
-                <div class="row g-3 mb-4">
+                <div class="row g-3 mb-4 m-grid">
                     <div class="col-6 col-md-3">
                         <div class="card border-0 shadow-sm">
                             <div class="card-body p-3 d-flex align-items-center gap-3">

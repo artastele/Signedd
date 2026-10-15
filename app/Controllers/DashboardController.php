@@ -11,10 +11,14 @@ class DashboardController {
             exit;
         }
 
-        $role = $_SESSION['role'];
-        $userName = $_SESSION['user_name'];
-        $userEmail = $_SESSION['user_email'];
-        $userId = $_SESSION['user_id'];
+        $role = $_SESSION['role'] ?? 'parent';
+        $userName = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'User';
+        $userEmail = $_SESSION['user_email'] ?? $_SESSION['email'] ?? '';
+        $userId = $_SESSION['user_id'] ?? 0;
+
+        // Ensure normalized session keys
+        $_SESSION['user_name'] = $userName;
+        $_SESSION['user_email'] = $userEmail;
 
         // Check for pending and rejected role requests
         require_once __DIR__ . '/../Models/RoleRequestModel.php';

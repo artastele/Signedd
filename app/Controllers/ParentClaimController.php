@@ -215,7 +215,9 @@ class ParentClaimController {
         $_SESSION['user_id'] = $newUserId;
         $_SESSION['role'] = 'parent';
         $_SESSION['name'] = $name;
+        $_SESSION['user_name'] = $name;
         $_SESSION['email'] = $email;
+        $_SESSION['user_email'] = $email;
         if ($schoolId > 0) {
             $_SESSION['school_id'] = $schoolId;
         }
@@ -340,7 +342,9 @@ class ParentClaimController {
         $_SESSION['user_id'] = $newUserId;
         $_SESSION['role'] = 'parent';
         $_SESSION['name'] = $name;
+        $_SESSION['user_name'] = $name;
         $_SESSION['email'] = $email;
+        $_SESSION['user_email'] = $email;
         if ($schoolId > 0) {
             $_SESSION['school_id'] = $schoolId;
         }
