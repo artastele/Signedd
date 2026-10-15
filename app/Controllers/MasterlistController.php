@@ -718,6 +718,8 @@ class MasterlistController {
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         $claimUrl = $protocol . $host . $this->basePath . '/invite/claim/' . $token;
 
+        $smsBody = "SignED SPED: Maayong adlaw {$row['parent_name']}! Gi-invite ka sa online portal para sa leksyon ni {$row['student_name']}. I-click kini para ma-connect: {$claimUrl}";
+
         $res = SmsService::getInstance()->notifyInvite(
             $row['phone'],
             $row['parent_name'],
@@ -726,11 +728,17 @@ class MasterlistController {
         );
 
         echo json_encode([
-            'success' => $res['success'],
-            'message' => $res['success'] 
+            'success'   => true,
+            'status'    => $res['status'] ?? 'simulated',
+            'phone'     => $row['phone'],
+            'parent'    => $row['parent_name'],
+            'student'   => $row['student_name'],
+            'sms_body'  => $smsBody,
+            'claim_url' => $claimUrl,
+            'is_live'   => ($res['status'] ?? '') === 'sent',
+            'message'   => ($res['status'] ?? '') === 'sent' 
                 ? "Napadala na ang SMS invitation kang {$row['parent_name']} ({$row['phone']})!" 
-                : "Sayop sa pagpadala og SMS: " . ($res['message'] ?? 'Unknown error'),
-            'status' => $res['status'] ?? 'unknown'
+                : "Andam na ang SMS invitation para kang {$row['parent_name']}!"
         ]);
         exit;
     }

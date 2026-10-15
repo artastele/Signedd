@@ -578,11 +578,61 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     </div>
 
+    <!-- Direct Phone SMS & Messenger Invite Modal -->
+    <div class="modal fade" id="directSmsModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content text-dark border-0 shadow-lg" style="border-radius: 12px;">
+                <div class="modal-header bg-success-subtle py-3">
+                    <h6 class="modal-title fw-bold text-success-emphasis mb-0">
+                        <i class="bi bi-chat-dots-fill me-2"></i>Send Invitation to Parent
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="small text-muted">Recipient Parent</div>
+                            <strong id="smsModalParentName" class="text-dark fs-6">—</strong>
+                        </div>
+                        <span id="smsModalPhoneBadge" class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1.5 font-monospace">09xxxxxxxxx</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary mb-1">Invitation Text (Pre-Formatted)</label>
+                        <textarea id="smsModalText" class="form-control form-control-sm bg-light" rows="4" readonly style="font-size: 0.85rem; border-radius: 8px;"></textarea>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <!-- 100% Free: Opens Phone SMS App with pre-filled number & text -->
+                        <a id="nativeSmsBtn" href="#" class="btn btn-success d-flex align-items-center justify-content-center gap-2" style="border-radius: 7px; font-size: 0.875rem; font-weight: 600; padding: 10px;">
+                            <i class="bi bi-phone-fill fs-5"></i> Open Phone SMS (Free Unli-Text)
+                        </a>
+
+                        <!-- Messenger / Viber Copy -->
+                        <button type="button" class="btn btn-outline-primary d-flex align-items-center justify-content-center gap-2" onclick="copyDirectSmsText()" style="border-radius: 7px; font-size: 0.875rem; font-weight: 500; padding: 9px;">
+                            <i class="bi bi-chat-heart-fill"></i> Copy Text for Messenger / GC
+                        </button>
+                    </div>
+
+                    <div id="smsCopySuccess" class="alert alert-success border-0 small py-2 px-3 mt-3 text-center mb-0" style="display: none; border-radius: 6px;">
+                        <i class="bi bi-check-circle-fill me-1"></i> Na-kopyar na ang text! Pwede na nimo i-paste sa inyong Messenger chat o GC.
+                    </div>
+
+                    <div class="alert alert-light border small text-muted mt-3 mb-0" style="border-radius: 8px;">
+                        <i class="bi bi-info-circle me-1 text-primary"></i> <strong>Tip para sa demo:</strong> Pag-tap sa <em>Open Phone SMS</em>, mo-diretso kini sa Messages app sa imong cellphone nga daan nang naay number ug mensahe gamit ang imong libreng unli-text.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Custom Page Scripts -->
     <script>
     let currentClaimUrl = '';
     let currentLearnerName = '';
     let currentStudentId = 0;
+    let currentSmsPhone = '';
+    let currentSmsBody = '';
 
     function copyUniversalGcLink() {
         const protocol = window.location.protocol;
@@ -598,10 +648,6 @@ require_once __DIR__ . '/../layouts/header.php';
     }
 
     function sendQuickSmsInvite(studentId, learnerName) {
-        if (!confirm('Gusto ba nimong padad-an og SMS invitation ang ginikanan ni ' + learnerName + '?')) {
-            return;
-        }
-
         fetch('<?= $basePath ?>/masterlist/send-sms-invite', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -609,15 +655,53 @@ require_once __DIR__ . '/../layouts/header.php';
         })
         .then(res => res.json())
         .then(data => {
-            alert(data.message || (data.success ? 'Napadala na ang SMS!' : 'Wala mapadala.'));
+            if (!data.success) {
+                alert(data.message || 'Wala mapadala ang SMS.');
+                return;
+            }
+
+            // Populate SMS Modal
+            currentSmsPhone = data.phone || '';
+            currentSmsBody = data.sms_body || '';
+
+            document.getElementById('smsModalParentName').textContent = data.parent + ' (Parent of ' + data.student + ')';
+            document.getElementById('smsModalPhoneBadge').textContent = currentSmsPhone;
+            document.getElementById('smsModalText').value = currentSmsBody;
+            document.getElementById('smsCopySuccess').style.display = 'none';
+
+            // Prepare native sms: URI scheme (supports both iOS and Android)
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const separator = isIOS ? '&' : '?';
+            const nativeUrl = 'sms:' + currentSmsPhone + separator + 'body=' + encodeURIComponent(currentSmsBody);
+            document.getElementById('nativeSmsBtn').setAttribute('href', nativeUrl);
+
+            const smsModal = new bootstrap.Modal(document.getElementById('directSmsModal'));
+            smsModal.show();
         })
         .catch(err => {
-            alert('Adunay sayop sa koneksyon sa pagpadala sa SMS.');
+            alert('Adunay sayop sa koneksyon sa pagkuha sa SMS details.');
+        });
+    }
+
+    function copyDirectSmsText() {
+        const text = document.getElementById('smsModalText').value;
+        navigator.clipboard.writeText(text).then(() => {
+            const el = document.getElementById('smsCopySuccess');
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 4000);
+        }).catch(() => {
+            prompt('Kopyaha ang mensahe para sa Messenger:', text);
         });
     }
 
     function sendSmsFromModal() {
         if (!currentStudentId) return;
+        // Close QR modal first then open SMS
+        const qrEl = document.getElementById('qrInviteModal');
+        const qrModalInstance = bootstrap.Modal.getInstance(qrEl);
+        if (qrModalInstance) {
+            qrModalInstance.hide();
+        }
         sendQuickSmsInvite(currentStudentId, currentLearnerName);
     }
 
