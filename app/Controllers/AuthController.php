@@ -135,11 +135,13 @@ class AuthController {
 
         // Demo Account & Password Safety in Production / Pilot
         $appEnv = strtolower(getenv('APP_ENV') ?: ($_ENV['APP_ENV'] ?? 'development'));
+        $host = $_SERVER['HTTP_HOST'] ?? '';
+        $isTestHost = (strpos($host, 'signedtest') !== false || strpos($host, 'localhost') !== false || strpos($host, '127.0.0.1') !== false || strpos($host, '.test') !== false || strpos($host, '.local') !== false);
         $isDemoAccount = (strpos($user['email'], '@signed.ph') !== false) 
                       || (strpos($user['email'], 'demo') !== false)
                       || (strpos(strtolower($user['name'] ?? ''), '(demo)') !== false);
 
-        if ($appEnv === 'production') {
+        if ($appEnv === 'production' && !$isTestHost) {
             if ($isDemoAccount) {
                 RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
                 $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
@@ -280,6 +282,10 @@ class AuthController {
 
         if ($password !== $confirmPassword) {
             $errors[] = 'Passwords do not match.';
+        }
+
+        if (empty($_POST['privacy_consent'])) {
+            $errors[] = 'You must agree to the Data Privacy Act (RA 10173) consent statement to create an account.';
         }
 
         if (!empty($errors)) {

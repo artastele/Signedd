@@ -145,6 +145,18 @@ unset($_SESSION['old_first_name'], $_SESSION['old_middle_name'], $_SESSION['old_
                     </div>
                 </div>
 
+                <!-- Data Privacy Act (RA 10173) Consent -->
+                <div class="card bg-light border-0 rounded-3 p-3 mb-3" style="border: 1px solid #e2e8f0 !important;">
+                    <div class="form-check d-flex align-items-start gap-2 mb-0">
+                        <input class="form-check-input mt-1 flex-shrink-0" type="checkbox" id="privacy_consent" name="privacy_consent" value="1" required style="cursor: pointer;">
+                        <label class="form-check-label small text-secondary" for="privacy_consent" style="cursor: pointer; line-height: 1.45;">
+                            I have read, understood, and agree to the 
+                            <a href="#dataPrivacyModal" data-bs-toggle="modal" class="text-primary fw-semibold text-decoration-none">Data Privacy Notice</a>. 
+                            In compliance with <strong>Republic Act No. 10173 (Data Privacy Act of 2012)</strong>, I give my explicit consent to SignED to collect, process, and store my personal information for educational and account management purposes. <span class="text-danger">*</span>
+                        </label>
+                    </div>
+                </div>
+
                 <div class="d-grid mb-3">
                     <button type="submit" class="btn btn-primary btn-lg">
                         <i class="bi bi-person-plus"></i> Register
@@ -347,5 +359,5 @@ document.addEventListener('DOMContentLoaded', function() {
     border-color: #dc3545 !important;
 }
 </style>
-
+<?php include __DIR__ . '/../components/data_privacy_modal.php'; ?>
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

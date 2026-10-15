@@ -174,6 +174,18 @@
                         </div>
                     </div>
 
+                    <!-- Data Privacy Act (RA 10173) Consent -->
+                    <div class="card bg-light border-0 rounded-3 p-3 mb-3" style="border: 1px solid #e2e8f0 !important;">
+                        <div class="form-check d-flex align-items-start gap-2 mb-0">
+                            <input class="form-check-input mt-1 flex-shrink-0" type="checkbox" id="privacy_consent_parent" name="privacy_consent" value="1" required style="cursor: pointer;">
+                            <label class="form-check-label small text-secondary" for="privacy_consent_parent" style="cursor: pointer; line-height: 1.45;">
+                                In accordance with the <strong>Data Privacy Act of 2012 (RA 10173)</strong>, I have read the 
+                                <a href="#dataPrivacyModal" data-bs-toggle="modal" class="text-primary fw-semibold text-decoration-none">Data Privacy Notice</a>, 
+                                and I give my explicit consent to process my details and connect this parent portal with the learner's SPED educational records. <span class="text-danger">*</span>
+                            </label>
+                        </div>
+                    </div>
+
                     <button type="submit" class="btn btn-primary btn-claim w-100 mb-3">
                         <i class="bi bi-person-check-fill me-1"></i> Activate &amp; Connect to Child
                     </button>
@@ -190,6 +202,7 @@
         </div>
     </div>
 
+    <?php include __DIR__ . '/../components/data_privacy_modal.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

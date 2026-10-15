@@ -679,7 +679,7 @@ class ProgressReportModel {
         $nameIndex = null;
         $targetRow = null;
 
-        while (($row = fgetcsv($handle)) !== false) {
+        while (($row = fgetcsv($handle, 0, ',', '"', "\\")) !== false) {
             if ($header === null) {
                 $candidate = array_map(fn($cell) => trim((string)$cell), $row);
                 $nonEmpty = array_filter($candidate, fn($cell) => $cell !== '');

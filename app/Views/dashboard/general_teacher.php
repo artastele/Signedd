@@ -12,7 +12,7 @@ require_once __DIR__ . '/../layouts/header.php';
     <h1 class="mb-4">General Teacher Dashboard</h1>
 
     <!-- Welcome Banner -->
-    <div class="card mb-4" style="background: linear-gradient(135deg, #1e4072 0%, #3a5c8c 100%); color: white; border: none; border-radius: 12px;">
+    <div class="card mb-4 dash-welcome" style="background: linear-gradient(135deg, #1e4072 0%, #3a5c8c 100%); color: white; border: none; border-radius: 12px;">
         <div class="card-body p-4">
             <div class="row align-items-center">
                 <div class="col-md-9">
@@ -27,7 +27,7 @@ require_once __DIR__ . '/../layouts/header.php';
     </div>
 
     <!-- Statistics Cards -->
-    <div class="row mb-4">
+    <div class="row mb-4 dash-kpis">
         <div class="col-md-4 mb-3">
             <div class="card border-0 shadow-sm" style="border-left: 5px solid #1e4072 !important; border-radius: 10px;">
                 <div class="card-body text-center py-4">

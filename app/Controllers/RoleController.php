@@ -123,6 +123,10 @@ class RoleController {
             $errors[] = 'Invalid role selected.';
         }
 
+        if (empty($_POST['privacy_consent'])) {
+            $errors[] = 'You must agree to the Data Privacy Act (RA 10173) acknowledgment to submit your application.';
+        }
+
         // Process school selection / registration
         if ($schoolMode === 'new' || ($requestedRole === 'principal' && !empty($_POST['new_school_name']))) {
             $newCode = trim($_POST['new_school_code'] ?? '');

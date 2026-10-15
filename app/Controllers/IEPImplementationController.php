@@ -1284,7 +1284,7 @@ class IEPImplementationController {
             }
 
             // Read header row
-            $headers = fgetcsv($handle);
+            $headers = fgetcsv($handle, 0, ',', '"', "\\");
             if (!$headers) {
                 fclose($handle);
                 echo json_encode(['success' => false, 'message' => 'CSV is empty or unreadable.']);
@@ -1297,7 +1297,7 @@ class IEPImplementationController {
             $errors   = [];
             $rowNum   = 1;
 
-            while (($row = fgetcsv($handle)) !== false) {
+            while (($row = fgetcsv($handle, 0, ',', '"', "\\")) !== false) {
                 $rowNum++;
                 if (empty(array_filter($row))) continue; // skip blank rows
 

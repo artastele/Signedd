@@ -2,9 +2,23 @@
 <div class="form-step" id="step-1">
     <div class="card">
         <div class="card-body">
-            <h4 class="card-title text-primary mb-4">
+            <h4 class="card-title text-primary mb-3">
                 <i class="bi bi-person-fill"></i> Step 1: Learner Information
             </h4>
+            
+            <!-- Data Privacy Act Protection Notice -->
+            <div class="alert alert-light border shadow-sm rounded-3 py-2 px-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2" style="background-color: #f8fafc; border-left: 4px solid #2563eb !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-shield-check text-primary fs-5"></i>
+                    <div class="small text-secondary">
+                        <strong class="text-dark">Republic Act No. 10173 (Data Privacy Act of 2012) Protection:</strong>
+                        All learner records, developmental assessments, and parent information collected are strictly confidential.
+                    </div>
+                </div>
+                <a href="#dataPrivacyModal" data-bs-toggle="modal" class="btn btn-sm btn-outline-primary py-1 px-2.5" style="border-radius: 6px; font-size: 0.78rem; font-weight: 500;">
+                    <i class="bi bi-shield-lock me-1"></i> View Privacy Policy
+                </a>
+            </div>
             
             <!-- DepEd LRN (optional) -->
             <div class="row">

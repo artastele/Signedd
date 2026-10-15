@@ -212,7 +212,7 @@ $myAssignmentData = $teacherAssignModelObj->getByTeacherId($_SESSION['user_id'])
     <?php endif; ?>
 
     <!-- Statistics Cards -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4 dash-kpis">
         <div class="col-md-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body text-center p-3">

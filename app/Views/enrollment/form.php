@@ -315,6 +315,12 @@ document.getElementById('enrollmentForm').addEventListener('submit', function(e)
     if (!signatureData) {
         errors.push('❌ Step 7: Parent/Guardian signature is required');
     }
+
+    // Step 7: Data Privacy Consent (RA 10173)
+    const privacyCheckbox = document.getElementById('data_privacy_consent');
+    if (!privacyCheckbox || !privacyCheckbox.checked) {
+        errors.push('❌ Step 7: You must read and agree to the Data Privacy Act (RA 10173) consent statement');
+    }
     
     // Step 7: Documents (only for new/transfer students)
     if (enrollmentType !== 'returning') {
@@ -384,6 +390,7 @@ document.getElementById('enrollmentForm').addEventListener('submit', function(e)
 </script>
 
 <?php 
+include __DIR__ . '/../components/data_privacy_modal.php';
 unset($_SESSION['old_data']);
 require_once __DIR__ . '/../layouts/footer.php'; 
 ?>

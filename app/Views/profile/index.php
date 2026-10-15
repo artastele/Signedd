@@ -198,6 +198,18 @@ require_once __DIR__ . '/../layouts/header.php';
                                             </div>
                                         </div>
 
+                                        <div class="col-12 mt-2">
+                                            <div class="d-flex align-items-center justify-content-between p-2 rounded bg-light border">
+                                                <div class="small text-muted d-flex align-items-center gap-1.5" style="font-size: 0.76rem;">
+                                                    <i class="bi bi-shield-check text-success fs-6"></i>
+                                                    <span>Your profile information is protected under <strong>Republic Act No. 10173</strong> (Data Privacy Act of 2012).</span>
+                                                </div>
+                                                <a href="#dataPrivacyModal" data-bs-toggle="modal" class="text-primary small text-decoration-none fw-semibold" style="font-size: 0.75rem;">
+                                                    View Notice
+                                                </a>
+                                            </div>
+                                        </div>
+
                                         <div class="col-12 text-end mt-3">
                                             <button type="submit" class="btn btn-primary btn-modern shadow-sm">
                                                 <i class="bi bi-check2-circle"></i> Save Profile Details
@@ -243,4 +255,5 @@ require_once __DIR__ . '/../layouts/header.php';
     </div> <!-- End container-fluid -->
 </div> <!-- End .main-content -->
 
+    <?php include __DIR__ . '/../components/data_privacy_modal.php'; ?>
     <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

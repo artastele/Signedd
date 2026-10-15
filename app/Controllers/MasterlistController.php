@@ -120,6 +120,10 @@ class MasterlistController {
         // Log export action
         $this->model->logSyncAction($this->userId, 'enrollment_register_export', $filename, count($learners));
 
+        // Clear any previous output buffering and disable display_errors for clean binary/CSV output
+        if (ob_get_level()) ob_end_clean();
+        ini_set('display_errors', '0');
+
         // HTTP Headers for file download
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -145,12 +149,12 @@ class MasterlistController {
             'Division: ' . $division,
             'Region: ' . $region,
             'School Year: ' . $schoolYear
-        ]);
+        ], ',', '"', "\\");
         fputcsv($output, [
             'Generated: ' . date('F d, Y'),
             'Total Enrolled Learners: ' . count($learners)
-        ]);
-        fputcsv($output, []); // blank row
+        ], ',', '"', "\\");
+        fputcsv($output, [], ',', '"', "\\"); // blank row
 
         // Detailed Header Columns
         fputcsv($output, [
@@ -249,7 +253,7 @@ class MasterlistController {
                 $trackLabel,
                 ucfirst($l['enrollment_status'] ?? 'Verified'),
                 $regStatus
-            ]);
+            ], ',', '"', "\\");
         }
 
         fclose($output);
@@ -278,6 +282,9 @@ class MasterlistController {
         // Log export action
         $this->model->logSyncAction($this->userId, 'attendance_register_export', $filename, count($learners));
 
+        if (ob_get_level()) ob_end_clean();
+        ini_set('display_errors', '0');
+
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
         header('Pragma: no-cache');
@@ -286,9 +293,9 @@ class MasterlistController {
         $output = fopen('php://output', 'w');
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
 
-        fputcsv($output, ['SignED — Monthly Learner Attendance Register']);
-        fputcsv($output, ['Month:', date('F Y', strtotime($yearMonth . '-01'))]);
-        fputcsv($output, []);
+        fputcsv($output, ['SignED — Monthly Learner Attendance Register'], ',', '"', "\\");
+        fputcsv($output, ['Month:', date('F Y', strtotime($yearMonth . '-01'))], ',', '"', "\\");
+        fputcsv($output, [], ',', '"', "\\");
 
         // Build header row: LRN, Name, Day 1..Day N, Total Present, Total Absent
         $header = ['LRN', 'Learner Name'];
@@ -297,7 +304,7 @@ class MasterlistController {
         }
         $header[] = 'Total Present';
         $header[] = 'Total Absent';
-        fputcsv($output, $header);
+        fputcsv($output, $header, ',', '"', "\\");
 
         foreach ($learners as $l) {
             $sid = (int)$l['student_record_id'];
@@ -330,7 +337,7 @@ class MasterlistController {
             $row[] = $totalPresent;
             $row[] = $totalAbsent;
 
-            fputcsv($output, $row);
+            fputcsv($output, $row, ',', '"', "\\");
         }
 
         fclose($output);
@@ -361,7 +368,7 @@ class MasterlistController {
         $updatedCount = 0;
         $rowNum = 0;
 
-        while (($row = fgetcsv($handle, 2000, ',')) !== false) {
+        while (($row = fgetcsv($handle, 2000, ',', '"', "\\")) !== false) {
             $rowNum++;
             if ($rowNum === 1 || empty($row[0])) {
                 continue; // skip header or empty row
@@ -457,7 +464,7 @@ class MasterlistController {
         $headers = null;
         $parsedRows = [];
 
-        while (($row = fgetcsv($handle, 2000, ',')) !== false) {
+        while (($row = fgetcsv($handle, 2000, ',', '"', "\\")) !== false) {
             if ($headers === null) {
                 // Strip UTF-8 BOM if present
                 if (isset($row[0])) {
@@ -586,6 +593,9 @@ class MasterlistController {
      * Download CSV template for bulk learner import
      */
     public function downloadImportTemplate(): void {
+        if (ob_get_level()) ob_end_clean();
+        ini_set('display_errors', '0');
+
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="SignED_Learner_Import_Template.csv"');
         header('Pragma: no-cache');
@@ -606,7 +616,7 @@ class MasterlistController {
             'Parent / Guardian Name',
             'Parent Contact Number',
             'Parent Email'
-        ]);
+        ], ',', '"', "\\");
 
         // Sample Rows
         fputcsv($output, [
@@ -620,7 +630,7 @@ class MasterlistController {
             'Maria Dela Cruz',
             '09171234567',
             'maria.delacruz@example.com'
-        ]);
+        ], ',', '"', "\\");
         fputcsv($output, [
             '129688260011',
             'Santos, Angela R.',
@@ -632,7 +642,7 @@ class MasterlistController {
             'Roberto Santos',
             '09289876543',
             'roberto.santos@example.com'
-        ]);
+        ], ',', '"', "\\");
 
         fclose($output);
         exit;

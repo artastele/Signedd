@@ -784,7 +784,7 @@ require_once __DIR__ . '/../layouts/header.php';
     <?php endif; ?>
 
     <!-- Statistics Cards - Clean & Modern -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4 dash-kpis">
         <div class="col-md-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body text-center p-3">
