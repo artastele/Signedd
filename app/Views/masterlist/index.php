@@ -77,6 +77,9 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
 
                     <div class="action-btn-group d-flex gap-2 flex-wrap">
+                        <button type="button" class="btn btn-outline-light text-white d-inline-flex align-items-center gap-2" onclick="copyUniversalGcLink()" title="Copy Universal Link for Messenger Group Chat">
+                            <i class="bi bi-chat-heart-fill text-warning"></i> Copy GC Invite Link
+                        </button>
                         <button type="button" class="btn btn-success text-white d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#bulkImportModal">
                             <i class="bi bi-file-earmark-arrow-up-fill"></i> Import Enrolled Learners
                         </button>
@@ -84,10 +87,10 @@ require_once __DIR__ . '/../layouts/header.php';
                             <i class="bi bi-cloud-arrow-up-fill"></i> Update Official LRNs
                         </button>
                         <a href="<?= $basePath ?>/masterlist/export-register" class="btn btn-primary d-inline-flex align-items-center gap-2">
-                            <i class="bi bi-file-earmark-excel-fill"></i> Export Enrollment Register
+                            <i class="bi bi-file-earmark-excel-fill"></i> Export Register
                         </a>
                         <a href="<?= $basePath ?>/masterlist/export-attendance" class="btn btn-outline-light d-inline-flex align-items-center gap-2">
-                            <i class="bi bi-calendar-check-fill"></i> Export Attendance Register
+                            <i class="bi bi-calendar-check-fill"></i> Export Attendance
                         </a>
                     </div>
                 </div>
@@ -390,8 +393,13 @@ require_once __DIR__ . '/../layouts/header.php';
                                                 </button>
                                                 <button type="button" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1" 
                                                         onclick="openQrInviteModal(<?= $l['student_record_id'] ?>, '<?= htmlspecialchars(addslashes($l['student_name'])) ?>', '<?= htmlspecialchars($l['claim_token'] ?? '') ?>')"
-                                                        style="border-radius: 6px; font-size: 0.8rem; font-weight: 500;">
-                                                    <i class="bi bi-qr-code"></i> QR Invite
+                                                        style="border-radius: 6px; font-size: 0.8rem; font-weight: 500;" title="View QR Code or Link">
+                                                    <i class="bi bi-qr-code"></i> QR
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-info d-inline-flex align-items-center gap-1" 
+                                                        onclick="sendQuickSmsInvite(<?= $l['student_record_id'] ?>, '<?= htmlspecialchars(addslashes($l['student_name'])) ?>')"
+                                                        style="border-radius: 6px; font-size: 0.8rem; font-weight: 500;" title="Send SMS Invite to Parent Phone">
+                                                    <i class="bi bi-chat-dots-fill"></i> SMS
                                                 </button>
                                                 <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1" 
                                                         data-bs-toggle="modal" 
@@ -555,11 +563,16 @@ require_once __DIR__ . '/../layouts/header.php';
                         <i class="bi bi-check-circle-fill me-1"></i> Link copied to clipboard!
                     </small>
                 </div>
-                <div class="modal-footer bg-light d-flex justify-content-between">
-                    <button type="button" class="btn btn-outline-dark btn-sm" onclick="printQrSlip()">
-                        <i class="bi bi-printer me-1"></i> Print Invite Slip
-                    </button>
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                <div class="modal-footer bg-light d-flex justify-content-between flex-wrap gap-2">
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-dark btn-sm" onclick="printQrSlip()" style="border-radius: 6px;">
+                            <i class="bi bi-printer me-1"></i> Print Slip
+                        </button>
+                        <button type="button" class="btn btn-success btn-sm" onclick="sendSmsFromModal()" style="border-radius: 6px;">
+                            <i class="bi bi-chat-text-fill me-1"></i> Send SMS Invite
+                        </button>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="border-radius: 6px;">Close</button>
                 </div>
             </div>
         </div>
@@ -569,8 +582,47 @@ require_once __DIR__ . '/../layouts/header.php';
     <script>
     let currentClaimUrl = '';
     let currentLearnerName = '';
+    let currentStudentId = 0;
+
+    function copyUniversalGcLink() {
+        const protocol = window.location.protocol;
+        const host = window.location.host;
+        const basePath = '<?= $basePath ?>';
+        const gcUrl = protocol + '//' + host + basePath + '/invite/claim';
+
+        navigator.clipboard.writeText(gcUrl).then(() => {
+            alert('Kopyado ang Universal GC Link!\n\nLink: ' + gcUrl + '\n\nPwede na nimo kini i-paste sa inyong Messenger Group Chat aron ma-claim sa ginikanan gamit ang Ngalan o Alias sa ilang anak.');
+        }).catch(() => {
+            prompt('Kopyaha kining maong Universal GC Link para sa Messenger:', gcUrl);
+        });
+    }
+
+    function sendQuickSmsInvite(studentId, learnerName) {
+        if (!confirm('Gusto ba nimong padad-an og SMS invitation ang ginikanan ni ' + learnerName + '?')) {
+            return;
+        }
+
+        fetch('<?= $basePath ?>/masterlist/send-sms-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ student_id: studentId })
+        })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message || (data.success ? 'Napadala na ang SMS!' : 'Wala mapadala.'));
+        })
+        .catch(err => {
+            alert('Adunay sayop sa koneksyon sa pagpadala sa SMS.');
+        });
+    }
+
+    function sendSmsFromModal() {
+        if (!currentStudentId) return;
+        sendQuickSmsInvite(currentStudentId, currentLearnerName);
+    }
 
     function openQrInviteModal(studentId, learnerName, token) {
+        currentStudentId = studentId;
         currentLearnerName = learnerName;
         document.getElementById('qrModalLearnerName').textContent = learnerName;
         document.getElementById('copySuccessMsg').style.display = 'none';

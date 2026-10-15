@@ -10,6 +10,7 @@ require_once __DIR__ . '/../Models/IEPModel.php';
 require_once __DIR__ . '/../Models/ResourceHubModel.php';
 require_once __DIR__ . '/../Models/ExternalMasteryModel.php';
 require_once __DIR__ . '/../Helpers/HtmlSanitizer.php';
+require_once __DIR__ . '/../Services/SmsService.php';
 
 class IEPImplementationController {
 
@@ -1049,6 +1050,38 @@ class IEPImplementationController {
                     'Your teacher published: ' . $lp['title'],
                     ['lesson_plan_id' => $lessonPlanId]
                 );
+            }
+
+            // Trigger SMS alert to parents of assigned learners
+            try {
+                $smsStmt = $db->prepare("
+                    SELECT DISTINCT 
+                        sr.student_name, 
+                        COALESCE(u.name, es.guardian_first_name, 'Parent') AS parent_name,
+                        COALESCE(u.contact_number, es.guardian_contact_number, es.mother_contact_number, es.father_contact_number) AS phone
+                    FROM lesson_assignments la
+                    JOIN student_records sr ON la.student_id = sr.id
+                    LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                    LEFT JOIN users u ON es.parent_id = u.id
+                    WHERE la.lesson_plan_id = :lpid
+                ");
+                $smsStmt->execute(['lpid' => $lessonPlanId]);
+                $parentsToSms = $smsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $smsSvc = SmsService::getInstance();
+                foreach ($parentsToSms as $pts) {
+                    if (!empty($pts['phone'])) {
+                        $smsSvc->notifyNewActivity(
+                            $pts['phone'],
+                            $pts['parent_name'],
+                            $pts['student_name'],
+                            $lp['title'],
+                            $lp['due_date'] ?? null
+                        );
+                    }
+                }
+            } catch (Throwable $e) {
+                error_log("publishLessonPlan SMS notification error: " . $e->getMessage());
             }
 
             echo json_encode(['success' => true, 'message' => 'Lesson plan published successfully.']);

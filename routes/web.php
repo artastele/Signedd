@@ -264,9 +264,16 @@ route('POST', '/masterlist/bulk-import',         'MasterlistController', 'bulkIm
 route('GET',  '/masterlist/import-template',    'MasterlistController', 'downloadImportTemplate');
 route('GET',  '/masterlist/get-qr-token',       'MasterlistController', 'getQrToken');
 
-// QR Code Parent Activation & Claim Routes
+// QR Code & Universal GC Parent Activation Routes
+route('GET',  '/invite/claim',                  'ParentClaimController', 'universalClaim');
+route('GET',  '/parent/claim',                  'ParentClaimController', 'universalClaim');
 route('GET',  '/invite/claim/{token}',          'ParentClaimController', 'claim');
 route('POST', '/invite/activate',               'ParentClaimController', 'activate');
+route('POST', '/invite/claim-by-alias',          'ParentClaimController', 'claimByAlias');
+
+// SMS Deadline Reminder & SMS Invite
+route('POST', '/learning/send-deadline-reminder', 'LearningController', 'sendDeadlineReminder');
+route('POST', '/masterlist/send-sms-invite',       'MasterlistController', 'sendSmsInvite');
 
 // Steps 16 & 17 — Parent child progress (Process 7)
 route('GET',  '/parent/child-progress',           'LearningController', 'parentChildProgress', 'parent.dashboard');

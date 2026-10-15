@@ -256,6 +256,29 @@ class MasterlistModel {
     }
 
     /**
+     * Get all active learners available for parent linking via Universal GC Claim.
+     * Orders by student_name / alias.
+     */
+    public function getClaimableLearners(): array {
+        try {
+            $stmt = $this->db->query("
+                SELECT sr.id AS student_record_id, sr.student_id, sr.lrn, sr.student_name,
+                       sr.date_of_birth, sr.section_name, sr.disability_type, sr.learning_track,
+                       es.id AS enrollment_id, es.grade_level_to_enroll, es.parent_id,
+                       u.name AS linked_parent_name
+                FROM student_records sr
+                LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                LEFT JOIN users u ON es.parent_id = u.id
+                ORDER BY sr.student_name ASC
+            ");
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            error_log("getClaimableLearners error: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * Link parent user account to the claimed learner
      */
     public function linkParentAccountToLearner(int $studentRecordId, int $parentId): ?array {

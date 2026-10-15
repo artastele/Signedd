@@ -2070,7 +2070,26 @@ INSERT IGNORE INTO db_version (version) VALUES (65);
 -- ============================================
 ALTER TABLE `student_records` ADD COLUMN IF NOT EXISTS `status` ENUM('active','mainstreamed') NOT NULL DEFAULT 'active';
 
-INSERT IGNORE INTO db_version (version) VALUES (66);
-
 -- END MIGRATION: v66
+
+-- ============================================
+-- MIGRATION: v67 - SMS Notification Logs & Gateway Setup
+-- ============================================
+CREATE TABLE IF NOT EXISTS `sms_logs` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `recipient_phone` VARCHAR(30) NOT NULL,
+    `recipient_name` VARCHAR(150) NULL,
+    `message` TEXT NOT NULL,
+    `notification_type` VARCHAR(50) DEFAULT 'general',
+    `status` ENUM('sent', 'simulated', 'failed') DEFAULT 'simulated',
+    `gateway_response` TEXT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_recipient_phone` (`recipient_phone`),
+    INDEX `idx_status` (`status`),
+    INDEX `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO db_version (version) VALUES (67);
+
+-- END MIGRATION: v67
 

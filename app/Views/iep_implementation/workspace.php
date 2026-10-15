@@ -345,9 +345,17 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <?php endif; ?>
                                     <?php if ($lpStatus === 'draft'): ?>
                                         <button class="btn btn-sm"
-                                                style="background:#3b6d11;color:#fff;border:none;font-size:0.75rem;"
+                                                style="background:#3b6d11;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
                                                 onclick="confirmPublish(<?php echo $lpId; ?>, '<?php echo htmlspecialchars(addslashes($lp['title'])); ?>')">
                                             <i class="ti ti-send me-1"></i>Publish
+                                        </button>
+                                    <?php endif; ?>
+                                    <?php if ($lpStatus === 'published'): ?>
+                                        <button class="btn btn-sm btn-outline-info"
+                                                style="font-size:0.75rem; border-radius:6px; font-weight:600;"
+                                                onclick="sendSmsDeadlineReminder(<?php echo $lpId; ?>, '<?php echo htmlspecialchars(addslashes($lp['title'])); ?>')"
+                                                title="Send SMS deadline reminder to parents of learners with pending submissions">
+                                            <i class="ti ti-bell-ringing me-1"></i>SMS Reminder
                                         </button>
                                     <?php endif; ?>
                                     <button class="btn btn-sm"
@@ -2284,6 +2292,33 @@ function confirmPublish(lpId, lpTitle) {
             }
         } catch (e) {
             Swal.fire({ icon: 'error', title: 'Network error', text: e.message, confirmButtonColor: '#a01422' });
+        }
+    });
+}
+
+function sendSmsDeadlineReminder(lpId, lpTitle) {
+    Swal.fire({
+        icon: 'question',
+        title: 'Send SMS Deadline Reminder?',
+        html: 'Ipadala ang text reminder sa mga ginikanan sa mga estudyante nga <strong>wala pa nakahuman</strong> sa activity nga <strong>' + lpTitle + '</strong>?',
+        showCancelButton: true,
+        confirmButtonColor: '#0284c7',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '<i class="ti ti-send"></i> Ipadala ang SMS'
+    }).then(async (result) => {
+        if (!result.isConfirmed) return;
+        showLoading('Nagpadala og SMS reminders…');
+        try {
+            const data = await postJSON(BASE + '/learning/send-deadline-reminder', { lesson_plan_id: lpId });
+            Swal.close();
+            if (data && data.success) {
+                showToast('success', 'SMS Sent!', data.message);
+            } else {
+                showToast('error', 'Wala mapadala', (data && data.message) ? data.message : 'Error occurred');
+            }
+        } catch (e) {
+            Swal.close();
+            showToast('error', 'Error', e.message);
         }
     });
 }

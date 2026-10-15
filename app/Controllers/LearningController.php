@@ -10,6 +10,7 @@ require_once __DIR__ . '/../Middleware/ParentGateMiddleware.php';
 require_once __DIR__ . '/../Helpers/ScoreHelper.php';
 require_once __DIR__ . '/../Helpers/FlashcardResult.php';
 require_once __DIR__ . '/../Models/ExternalMasteryModel.php';
+require_once __DIR__ . '/../Services/SmsService.php';
 
 class LearningController {
 
@@ -945,6 +946,38 @@ class LearningController {
             $db->prepare("INSERT INTO lms_logs (student_id,activity_id,material_id,action,performed_by,performed_at) VALUES (:s,:a,NULL,'submitted',:p,NOW())")
                ->execute(['s' => $studentId, 'a' => $activityId, 'p' => $this->userId]);
 
+            // Trigger parent SMS notification upon activity completion
+            try {
+                $stmtParent = $db->prepare("
+                    SELECT 
+                        sr.student_name,
+                        COALESCE(u.name, es.guardian_first_name, 'Parent') AS parent_name,
+                        COALESCE(u.contact_number, es.guardian_contact_number, es.mother_contact_number, es.father_contact_number) AS phone
+                    FROM student_records sr
+                    LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                    LEFT JOIN users u ON es.parent_id = u.id
+                    WHERE sr.id = :sid
+                    LIMIT 1
+                ");
+                $stmtParent->execute(['sid' => $studentId]);
+                $pRow = $stmtParent->fetch(PDO::FETCH_ASSOC);
+
+                if ($pRow && !empty($pRow['phone'])) {
+                    $finalScore = $autoScore !== null ? (int)$autoScore : (int)$score;
+                    $finalMax = $maxScore > 0 ? $maxScore : 10;
+                    SmsService::getInstance()->notifyActivityCompleted(
+                        $pRow['phone'],
+                        $pRow['parent_name'],
+                        $pRow['student_name'],
+                        $activity['title'] ?? 'LMS Activity',
+                        $finalScore,
+                        $finalMax
+                    );
+                }
+            } catch (\Throwable $e) {
+                error_log("LearningController submitActivity SMS notification error: " . $e->getMessage());
+            }
+
         } catch (\Throwable $e) {
             error_log('LearningController::submitActivity() gamification error: ' . $e->getMessage());
         }
@@ -1323,5 +1356,93 @@ class LearningController {
 
         $basePath = $this->basePath;
         require __DIR__ . '/../Views/dashboard/parent_student_progress.php';
+    }
+
+    /**
+     * Teacher action: Send SMS deadline reminders to parents of students
+     * who have not yet completed this activity or lesson plan.
+     */
+    public function sendDeadlineReminder(): void {
+        header('Content-Type: application/json');
+        RoleMiddleware::checkAny(['sped_teacher', 'teacher', 'master_teacher', 'admin']);
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $lessonPlanId = (int)($input['lesson_plan_id'] ?? 0);
+        $activityId = (int)($input['activity_id'] ?? 0);
+
+        if (!$lessonPlanId && !$activityId) {
+            echo json_encode(['success' => false, 'message' => 'Lesson plan or activity ID is required.']);
+            exit;
+        }
+
+        $db = Database::getInstance()->getConnection();
+        
+        $title = 'Activity';
+        $dueDate = null;
+        if ($lessonPlanId > 0) {
+            $stmt = $db->prepare("SELECT title, due_date FROM lesson_plans WHERE id = :id LIMIT 1");
+            $stmt->execute(['id' => $lessonPlanId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $title = $row['title'];
+                $dueDate = $row['due_date'];
+            }
+        } elseif ($activityId > 0) {
+            $stmt = $db->prepare("SELECT title, due_date, lesson_plan_id FROM lms_activities WHERE id = :id LIMIT 1");
+            $stmt->execute(['id' => $activityId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $title = $row['title'];
+                $dueDate = $row['due_date'];
+                $lessonPlanId = (int)$row['lesson_plan_id'];
+            }
+        }
+
+        // Find assigned students who have NOT completed all activities for this lesson
+        $stmtPending = $db->prepare("
+            SELECT DISTINCT 
+                sr.id AS student_id,
+                sr.student_name,
+                COALESCE(u.name, es.guardian_first_name, 'Parent') AS parent_name,
+                COALESCE(u.contact_number, es.guardian_contact_number, es.mother_contact_number, es.father_contact_number) AS phone
+            FROM lesson_assignments la
+            JOIN student_records sr ON la.student_id = sr.id
+            LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+            LEFT JOIN users u ON es.parent_id = u.id
+            WHERE la.lesson_plan_id = :lpid
+              AND sr.id NOT IN (
+                  SELECT sub.student_id 
+                  FROM lms_submissions sub 
+                  JOIN lms_activities act ON sub.activity_id = act.id 
+                  WHERE act.lesson_plan_id = :lpid2
+              )
+        ");
+        $stmtPending->execute(['lpid' => $lessonPlanId, 'lpid2' => $lessonPlanId]);
+        $pendingLearners = $stmtPending->fetchAll(PDO::FETCH_ASSOC);
+
+        $sentCount = 0;
+        $smsSvc = SmsService::getInstance();
+        foreach ($pendingLearners as $pl) {
+            if (!empty($pl['phone'])) {
+                $res = $smsSvc->notifyDeadlineReminder(
+                    $pl['phone'],
+                    $pl['parent_name'],
+                    $pl['student_name'],
+                    $title,
+                    $dueDate
+                );
+                if (!empty($res['success'])) {
+                    $sentCount++;
+                }
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => "Malampusong napadala ang SMS deadline reminders sa {$sentCount} ka mga ginikanan.",
+            'sent_count' => $sentCount,
+            'total_pending' => count($pendingLearners)
+        ]);
+        exit;
     }
 }

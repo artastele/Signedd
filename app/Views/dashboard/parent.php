@@ -75,6 +75,24 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     <?php endif; ?>
 
+    <!-- Quick Mobile Progress Access Card -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 text-white" style="background: linear-gradient(135deg, #1e4072 0%, #0369a1 100%);">
+        <div class="card-body p-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center bg-white bg-opacity-20 text-white" style="width: 48px; height: 48px; font-size: 1.4rem;">
+                    <i class="bi bi-trophy-fill text-warning"></i>
+                </div>
+                <div>
+                    <h5 class="fw-bold mb-1 text-white" style="font-size: 1.15rem;">Monitoring sa Pagtuon &amp; Marka</h5>
+                    <p class="text-white-50 small mb-0">Makita dinhi ang mga nakumpleto nga leksyon, marka sa quiz, stars, ug badges sa imong anak.</p>
+                </div>
+            </div>
+            <a href="<?php echo BASE_PATH; ?>/parent/child-progress" class="btn btn-warning text-dark fw-bold px-3.5 py-2 shadow-sm" style="border-radius: 8px; font-size: 0.9rem;">
+                <i class="bi bi-bar-chart-line-fill me-1"></i> Tan-awa ang Progress sa Akong Anak
+            </a>
+        </div>
+    </div>
+
     <!-- Permanent Child Learner LMS Accounts & Credentials Section -->
     <?php
     require_once __DIR__ . '/../../Helpers/CSRFHelper.php';
@@ -192,8 +210,13 @@ require_once __DIR__ . '/../layouts/header.php';
                             <small class="text-muted" style="font-size: 0.75rem;">
                                 <i class="bi bi-info-circle me-1"></i>Pwede ra mag log in gamit ang Username o Student ID.
                             </small>
-                            <div class="d-inline-flex gap-2">
+                            <div class="d-inline-flex gap-2 flex-wrap">
                                 <?php if (!empty($pl['student_record_id'])): ?>
+                                    <a href="<?php echo BASE_PATH; ?>/parent/child-progress/<?php echo (int)$pl['student_record_id']; ?>" 
+                                       class="btn btn-primary btn-sm px-3 py-1.5" 
+                                       style="border-radius: 6px; font-weight: 500; font-size: 0.82rem; background: #1e4072; border-color: #1e4072;">
+                                        <i class="bi bi-bar-chart-fill me-1"></i> Tan-awa ang Progress
+                                    </a>
                                     <button type="button" class="btn btn-outline-success btn-sm px-3 py-1.5" 
                                             data-bs-toggle="modal" 
                                             data-bs-target="#uploadParentChildDocModal_<?php echo (int)$pl['student_record_id']; ?>" 

@@ -5,6 +5,7 @@
 require_once __DIR__ . '/../Middleware/RoleMiddleware.php';
 require_once __DIR__ . '/../Models/MasterlistModel.php';
 require_once __DIR__ . '/../Models/ProgressReportModel.php';
+require_once __DIR__ . '/../Services/SmsService.php';
 
 class MasterlistController {
     private MasterlistModel $model;
@@ -659,6 +660,67 @@ class MasterlistController {
             'success' => true,
             'token' => $token,
             'claim_url' => $claimUrl
+        ]);
+        exit;
+    }
+
+    /**
+     * Send direct SMS invitation to parent from Masterlist
+     */
+    public function sendSmsInvite(): void {
+        header('Content-Type: application/json');
+        RoleMiddleware::checkAny(['sped_teacher', 'master_teacher', 'principal', 'admin']);
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $studentId = (int)($input['student_id'] ?? 0);
+
+        if ($studentId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid student ID.']);
+            exit;
+        }
+
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->prepare("
+            SELECT sr.id, sr.student_name, sr.claim_token,
+                   COALESCE(u.name, es.guardian_first_name, 'Parent') AS parent_name,
+                   COALESCE(u.contact_number, es.guardian_contact_number, es.mother_contact_number, es.father_contact_number) AS phone
+            FROM student_records sr
+            LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+            LEFT JOIN users u ON es.parent_id = u.id
+            WHERE sr.id = :id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $studentId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            echo json_encode(['success' => false, 'message' => 'Learner record not found.']);
+            exit;
+        }
+
+        if (empty($row['phone'])) {
+            echo json_encode(['success' => false, 'message' => 'Walay contact number nga narekord para sa ginikanan niini nga estudyante.']);
+            exit;
+        }
+
+        $token = $this->model->generateClaimTokenForStudent($studentId);
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $claimUrl = $protocol . $host . $this->basePath . '/invite/claim/' . $token;
+
+        $res = SmsService::getInstance()->notifyInvite(
+            $row['phone'],
+            $row['parent_name'],
+            $row['student_name'],
+            $claimUrl
+        );
+
+        echo json_encode([
+            'success' => $res['success'],
+            'message' => $res['success'] 
+                ? "Napadala na ang SMS invitation kang {$row['parent_name']} ({$row['phone']})!" 
+                : "Sayop sa pagpadala og SMS: " . ($res['message'] ?? 'Unknown error'),
+            'status' => $res['status'] ?? 'unknown'
         ]);
         exit;
     }
