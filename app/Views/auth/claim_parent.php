@@ -165,8 +165,8 @@
 
                     <div class="row g-2 mb-3">
                         <div class="col-sm-6">
-                            <label class="form-label small fw-semibold text-secondary">Create Password <span class="text-danger">*</span></label>
-                            <input type="password" name="password" class="form-control" placeholder="Min. 6 characters" required>
+                            <label class="form-label small fw-semibold text-secondary">Password <span class="text-danger">*</span></label>
+                            <input type="password" name="password" class="form-control" placeholder="Create password" required>
                         </div>
                         <div class="col-sm-6">
                             <label class="form-label small fw-semibold text-secondary">Confirm Password <span class="text-danger">*</span></label>

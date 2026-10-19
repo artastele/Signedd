@@ -30,8 +30,8 @@ class MasterlistController {
         $this->model = new MasterlistModel();
         $this->progressModel = new ProgressReportModel();
 
-        // Security check: masterlist is accessible to teachers, guidance, master teachers, principals, and admins
-        RoleMiddleware::checkAny(['sped_teacher', 'master_teacher', 'guidance', 'principal', 'admin']);
+        // Security check: masterlist is accessible to school staff (teachers, guidance, master teachers, principals)
+        RoleMiddleware::checkAny(['sped_teacher', 'master_teacher', 'guidance', 'principal']);
     }
 
     /**

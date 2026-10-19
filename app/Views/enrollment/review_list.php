@@ -18,7 +18,7 @@ require_once __DIR__ . '/../layouts/header.php';
     </h1>
 
     <!-- Statistics Cards -->
-    <div class="row mb-4">
+    <div class="row mb-4 m-grid">
         <?php
         $pending = array_filter($enrollments, fn($e) => $e['status'] === 'pending');
         $verified = array_filter($enrollments, fn($e) => $e['status'] === 'verified');

@@ -888,7 +888,8 @@ class IEPImplementationController {
 
             $validTypes = [
                 'multiple_choice', 'true_false', 'fill_in_blanks', 'matching',
-                'drag_drop_sort', 'image_label', 'flashcards', 'sequencing'
+                'drag_drop_sort', 'image_label', 'flashcards', 'sequencing',
+                'custom_printable'
             ];
             if (!in_array($activityType, $validTypes)) {
                 echo json_encode(['success' => false, 'message' => 'Invalid activity type.']);
@@ -935,6 +936,39 @@ class IEPImplementationController {
 
                 if (empty($activityDataArr['image_path'])) {
                     echo json_encode(['success' => false, 'message' => 'Please upload an image before saving this activity.']);
+                    exit;
+                }
+            }
+
+            // Upload worksheet file for custom_printable
+            if ($activityType === 'custom_printable') {
+                if (isset($_FILES['worksheet_file']) && $_FILES['worksheet_file']['error'] === UPLOAD_ERR_OK) {
+                    $file    = $_FILES['worksheet_file'];
+                    $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                    $allowed = ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'doc', 'docx'];
+                    if (!in_array($ext, $allowed)) {
+                        echo json_encode(['success' => false, 'message' => 'Allowed worksheet types: PDF, PNG, JPG, WEBP, DOC, DOCX.']);
+                        exit;
+                    }
+                    if ($file['size'] > 20 * 1024 * 1024) {
+                        echo json_encode(['success' => false, 'message' => 'Worksheet file must be under 20MB.']);
+                        exit;
+                    }
+                    $uploadDir = function_exists('public_path') ? public_path('uploads/activities/' . $lessonPlanId . '/') : (__DIR__ . '/../../public/uploads/activities/' . $lessonPlanId . '/');
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    $fileName = 'worksheet_' . time() . '_' . uniqid() . '.' . $ext;
+                    $fullPath = $uploadDir . $fileName;
+                    if (move_uploaded_file($file['tmp_name'], $fullPath)) {
+                        $activityDataArr['file_path'] = 'uploads/activities/' . $lessonPlanId . '/' . $fileName;
+                        $activityDataArr['file_name'] = htmlspecialchars($file['name']);
+                        $activityDataArr['allow_print'] = true;
+                    }
+                }
+
+                if (empty($activityDataArr['file_path'])) {
+                    echo json_encode(['success' => false, 'message' => 'Please upload a worksheet file before saving this activity.']);
                     exit;
                 }
             }
@@ -1656,6 +1690,34 @@ class IEPImplementationController {
                         $fullPath = $uploadDir . $fileName;
                         if (move_uploaded_file($file['tmp_name'], $fullPath)) {
                             $activityDataArr['image_path'] = 'uploads/activities/' . $lessonPlanId . '/' . $fileName;
+                        }
+                    }
+                }
+
+                // If custom_printable, check for new worksheet upload or keep old
+                if ($activityType === 'custom_printable') {
+                    if (isset($_FILES['worksheet_file']) && $_FILES['worksheet_file']['error'] === UPLOAD_ERR_OK) {
+                        $file    = $_FILES['worksheet_file'];
+                        $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                        $allowed = ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'doc', 'docx'];
+                        if (!in_array($ext, $allowed)) {
+                            echo json_encode(['success' => false, 'message' => 'Allowed worksheet types: PDF, PNG, JPG, WEBP, DOC, DOCX.']);
+                            exit;
+                        }
+                        if ($file['size'] > 20 * 1024 * 1024) {
+                            echo json_encode(['success' => false, 'message' => 'Worksheet file must be under 20MB.']);
+                            exit;
+                        }
+                        $uploadDir = function_exists('public_path') ? public_path('uploads/activities/' . $lessonPlanId . '/') : (__DIR__ . '/../../public/uploads/activities/' . $lessonPlanId . '/');
+                        if (!is_dir($uploadDir)) {
+                            mkdir($uploadDir, 0755, true);
+                        }
+                        $fileName = 'worksheet_' . time() . '_' . uniqid() . '.' . $ext;
+                        $fullPath = $uploadDir . $fileName;
+                        if (move_uploaded_file($file['tmp_name'], $fullPath)) {
+                            $activityDataArr['file_path'] = 'uploads/activities/' . $lessonPlanId . '/' . $fileName;
+                            $activityDataArr['file_name'] = htmlspecialchars($file['name']);
+                            $activityDataArr['allow_print'] = true;
                         }
                     }
                 }

@@ -247,6 +247,8 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
     z-index: 6;
     pointer-events: none;
     letter-spacing: 0.5px;
+}
+
 /* FSL Suggestions Panel Styles */
 .fsl-suggestion-card {
     background: #ffffff;
@@ -276,84 +278,194 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
     color: #ffffff !important;
     box-shadow: 0 1px 3px rgba(30, 64, 114, 0.25);
 }
+
+/* Studio Modern Layout & Space Optimization */
+.lesson-studio-shell {
+    padding: 0.875rem 1.25rem !important;
+    background-color: #f1f5f9;
+}
+.studio-workspace-row {
+    display: flex !important;
+    gap: 16px !important;
+    align-items: stretch !important;
+    margin: 0 !important;
+    width: 100% !important;
+}
+.slide-deck-pane {
+    flex: 0 0 250px !important;
+    width: 250px !important;
+    max-width: 260px !important;
+    padding: 0 !important;
+    transition: all 0.2s ease;
+}
+.fsl-library-pane {
+    flex: 0 0 330px !important;
+    width: 330px !important;
+    max-width: 340px !important;
+    padding: 0 !important;
+    transition: all 0.2s ease;
+}
+.slide-editor-pane {
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    transition: all 0.2s ease;
+}
+.studio-panel-toggle {
+    border-radius: 6px !important;
+    font-size: 0.8125rem !important;
+    font-weight: 600 !important;
+    padding: 5px 12px !important;
+    height: 32px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #475569 !important;
+    transition: all 0.15s ease !important;
+}
+.studio-panel-toggle:hover {
+    background: #f8fafc !important;
+    border-color: #94a3b8 !important;
+    color: #1e293b !important;
+}
+.studio-panel-toggle.active {
+    background: #e0f2fe !important;
+    border-color: #38bdf8 !important;
+    color: #0369a1 !important;
+}
+.note-editor.note-frame {
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+    overflow: hidden !important;
+}
+.note-editor .note-toolbar {
+    background: #f8fafc !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding: 6px 10px !important;
+}
+.note-editor .note-btn {
+    border-radius: 6px !important;
+    font-size: 0.8125rem !important;
+    padding: 4px 8px !important;
+    height: 30px !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+}
+.note-editor .note-btn:hover {
+    background: #f1f5f9 !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+}
+.note-editor .note-btn.active {
+    background: #e0f2fe !important;
+    border-color: #38bdf8 !important;
+    color: #0284c7 !important;
+}
+.note-editor .note-editing-area {
+    background: #ffffff !important;
+    min-height: 360px !important;
+}
+.note-editor .note-editable {
+    padding: 16px 20px !important;
+    font-size: 1rem !important;
+    line-height: 1.6 !important;
+    min-height: 360px !important;
+}
 </style>
 
 <div class="main-content">
     <div class="lesson-studio-shell">
         
         <!-- Consolidated Sleek Studio Top Header -->
-        <div class="studio-card px-3 py-2 mb-2.5 bg-white shadow-sm">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div class="studio-card p-3 mb-3 bg-white shadow-sm border" style="border-radius: 10px;">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <!-- Left: Navigation & Meta -->
                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/workspace/<?php echo $iepId; ?>" class="btn btn-xs btn-outline-secondary rounded-pill px-2.5 py-1 fw-semibold" title="Back to Workspace">
-                        <i class="ph-bold ph-arrow-left me-1"></i> Back to Workspace
+                    <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/workspace/<?php echo $iepId; ?>" class="btn btn-sm btn-outline-secondary fw-semibold d-inline-flex align-items-center gap-1.5" title="Back to Workspace" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 12px; height: 32px;">
+                        <i class="ph-bold ph-arrow-left"></i> <span>Back to Workspace</span>
                     </a>
-                    <div class="d-flex align-items-center gap-1.5 ms-1">
-                        <span class="badge bg-primary text-white rounded-pill px-2 py-0.5" style="font-size: 0.72rem;">STUDIO</span>
-                        <h4 class="fw-bold text-dark mb-0 fs-6 text-truncate" style="max-width: 440px;" title="<?php echo htmlspecialchars($lessonPlan['title'] ?? 'Lesson'); ?>">
-                            <i class="ph-bold ph-presentation me-1 text-primary"></i> <?php echo htmlspecialchars($lessonPlan['title'] ?? 'Lesson'); ?>
-                        </h4>
-                    </div>
-                    <span class="badge bg-primary-subtle text-primary px-2.5 py-0.5 rounded-pill fw-semibold" style="font-size: 0.74rem;">
+                    <div class="vr mx-1 opacity-25 d-none d-sm-block" style="height: 22px;"></div>
+                    <span class="badge bg-primary text-white rounded-2 px-2 py-1" style="font-size: 0.72rem; letter-spacing: 0.5px;">STUDIO</span>
+                    <h4 class="fw-bold text-dark mb-0 fs-6 text-truncate" style="max-width: 320px;" title="<?php echo htmlspecialchars($lessonPlan['title'] ?? 'Lesson'); ?>">
+                        <i class="ph-bold ph-presentation me-1 text-primary"></i> <?php echo htmlspecialchars($lessonPlan['title'] ?? 'Lesson'); ?>
+                    </h4>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1 rounded-2 fw-semibold" style="font-size: 0.74rem;">
                         <i class="ph-bold ph-compass me-1"></i> <?php echo htmlspecialchars(str_replace('_', ' ', $domainName)); ?>
                     </span>
                     <?php if ($studentName): ?>
-                        <span class="badge bg-light text-dark border px-2.5 py-0.5 rounded-pill fw-semibold d-none d-md-inline" style="font-size: 0.74rem;">
+                        <span class="badge bg-light text-dark border px-2.5 py-1 rounded-2 fw-semibold d-none d-xl-inline" style="font-size: 0.74rem;">
                             <i class="ph-bold ph-user me-1 text-primary"></i> <?php echo htmlspecialchars($studentName); ?>
                         </span>
                     <?php endif; ?>
                 </div>
 
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <span class="badge bg-light text-secondary border px-2.5 py-1" id="totalSlidesCountBadge" style="font-size: 0.76rem;">
+                <!-- Right: Status, Panel Toggles & Primary Actions -->
+                <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+                    <!-- Slide Counter & Status Badges -->
+                    <span class="badge bg-light text-secondary border px-2.5 py-1.5 fw-semibold" id="totalSlidesCountBadge" style="font-size: 0.76rem; border-radius: 6px;">
                         <?php echo count($pages); ?> Slides
                     </span>
-                    <span id="builderLpStatusBadge" class="badge <?php echo ($lessonPlan['status'] ?? '') === 'published' ? 'bg-success text-white' : 'bg-secondary text-white'; ?> px-2.5 py-1 fw-bold" style="font-size: 0.76rem;">
+                    <span id="builderLpStatusBadge" class="badge <?php echo ($lessonPlan['status'] ?? '') === 'published' ? 'bg-success text-white' : 'bg-secondary text-white'; ?> px-2.5 py-1.5 fw-bold" style="font-size: 0.76rem; border-radius: 6px;">
                         <i class="ph-bold <?php echo ($lessonPlan['status'] ?? '') === 'published' ? 'ph-check-circle' : 'ph-pencil-simple'; ?> me-1"></i>
                         <span id="builderLpStatusText"><?php echo ($lessonPlan['status'] ?? '') === 'published' ? 'Published' : 'Draft'; ?></span>
                     </span>
-                    <a id="btnPreviewAsLearner" href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lpId; ?>" target="_blank" class="btn btn-xs btn-outline-primary rounded-pill px-2.5 py-1 fw-bold">
-                        <i class="ph-bold ph-eye me-1"></i> Preview as Learner <i class="ph-bold ph-arrow-square-out ms-0.5"></i>
+
+                    <div class="vr mx-1 opacity-25 d-none d-md-block" style="height: 22px;"></div>
+
+                    <!-- Panel Toggles (Slide Deck & FSL Library) -->
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Toggle Sidebars">
+                        <button type="button" class="btn btn-sm btn-outline-secondary studio-panel-toggle active" id="btnToggleSlideDeck" onclick="toggleSlideDeck()" title="Toggle Slide Deck Sidebar" style="border-radius: 6px 0 0 6px; font-size: 0.8125rem; font-weight: 600; padding: 5px 11px; height: 32px;">
+                            <i class="ph-bold ph-slides me-1 text-primary"></i> Slide Deck
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary studio-panel-toggle active" id="btnToggleFslLibrary" onclick="toggleFslLibrary()" title="Toggle FSL Assistant Sidebar" style="border-radius: 0 6px 6px 0; font-size: 0.8125rem; font-weight: 600; padding: 5px 11px; height: 32px;">
+                            <i class="ph-bold ph-hand-waving me-1 text-warning"></i> FSL Assistant
+                        </button>
+                    </div>
+
+                    <div class="vr mx-1 opacity-25 d-none d-md-block" style="height: 22px;"></div>
+
+                    <!-- Action Buttons -->
+                    <a id="btnPreviewAsLearner" href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lpId; ?>" target="_blank" class="btn btn-sm btn-outline-primary fw-semibold d-inline-flex align-items-center gap-1" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 12px; height: 32px;">
+                        <i class="ph-bold ph-eye"></i> <span>Preview as Learner</span> <i class="ph-bold ph-arrow-square-out ms-0.5"></i>
                     </a>
-                    <button type="button" class="btn btn-xs btn-outline-warning rounded-pill px-2.5 py-1 fw-bold text-dark" onclick="openShareToHubModal()" title="Share as reusable Accessibility Pack">
-                        <i class="ph-bold ph-share-network me-1 text-warning"></i> Share to Hub
+                    <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-semibold d-inline-flex align-items-center gap-1" onclick="openShareToHubModal()" title="Share as reusable Accessibility Pack" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 12px; height: 32px; border-color: #f59e0b;">
+                        <i class="ph-bold ph-share-network text-warning"></i> <span>Share to Hub</span>
                     </button>
-                    <button type="button" class="btn btn-xs btn-success rounded-pill px-3 py-1 fw-bold" onclick="saveActiveSlide()">
-                        <i class="ph-bold ph-floppy-disk me-1"></i> Save Slide
+                    <button type="button" class="btn btn-sm btn-success fw-bold d-inline-flex align-items-center gap-1 shadow-sm" onclick="saveActiveSlide()" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 14px; height: 32px; background: #059669; border-color: #059669;">
+                        <i class="ph-bold ph-floppy-disk"></i> <span>Save Slide</span>
                     </button>
                     <?php if (($lessonPlan['status'] ?? '') !== 'published'): ?>
-                    <button type="button" id="btnPublishFromBuilder" class="btn btn-xs btn-primary rounded-pill px-3 py-1 fw-bold shadow-sm" onclick="publishFromBuilder()" title="Publish this lesson to assigned learners">
-                        <i class="ph-bold ph-paper-plane-tilt me-1"></i> Publish Lesson
+                    <button type="button" id="btnPublishFromBuilder" class="btn btn-sm btn-primary fw-bold d-inline-flex align-items-center gap-1 shadow-sm" onclick="publishFromBuilder()" title="Publish this lesson to assigned learners" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 14px; height: 32px; background: #a01422; border-color: #a01422;">
+                        <i class="ph-bold ph-paper-plane-tilt"></i> <span>Publish Lesson</span>
                     </button>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
 
-        <!-- Floating Re-open Button when Slide Deck is Hidden -->
-        <button type="button" id="btnOpenSlideDeck" class="btn btn-light border shadow-sm px-2.5 py-1.5 fw-semibold text-dark" onclick="toggleSlideDeck()" style="display:none; position: fixed; left: 14px; top: 116px; z-index: 1040; border-radius: 6px; font-size: 0.8125rem;">
-            <i class="ph-bold ph-slides me-1 text-primary"></i> Slide Deck <i class="ph-bold ph-caret-right ms-1"></i>
-        </button>
-
-        <!-- Floating Re-open Button when FSL Sign Library is Hidden -->
-        <button type="button" id="btnOpenFslLibrary" class="btn btn-warning shadow-sm px-2.5 py-1.5 fw-semibold" onclick="toggleFslLibrary()" style="display:none; position: fixed; right: 14px; top: 116px; z-index: 1040; border-radius: 6px; font-size: 0.8125rem; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;">
-            <i class="ph-bold ph-hand-waving me-1"></i> FSL Sign Library <i class="ph-bold ph-caret-left ms-1"></i>
-        </button>
+        <!-- Hidden Compatibility Targets for any external scripts expecting btnOpenSlideDeck/btnOpenFslLibrary -->
+        <button type="button" id="btnOpenSlideDeck" style="display:none !important;" onclick="toggleSlideDeck()"></button>
+        <button type="button" id="btnOpenFslLibrary" style="display:none !important;" onclick="toggleFslLibrary()"></button>
 
         <!-- 3-Column Studio Workspace -->
-        <div class="row g-2.5" id="studioWorkspaceRow">
+        <div class="row g-3 studio-workspace-row" id="studioWorkspaceRow">
             
-            <!-- Column 1: Slide Deck Navigator (25% / col-lg-3) -->
-            <div class="col-lg-3" id="slideDeckCol">
-                <div class="studio-card h-100 d-flex flex-column">
-                    <div class="studio-card-header">
-                        <span class="fw-bold small text-dark"><i class="ph-bold ph-slides me-1 text-primary"></i>Slide Deck</span>
-                        <div class="d-flex align-items-center gap-1">
-                            <button type="button" class="btn btn-xs btn-primary px-2 py-0.5 fw-semibold" onclick="startNewSlide()" style="font-size: 0.75rem; border-radius: 6px;">
+            <!-- Column 1: Slide Deck Navigator -->
+            <div class="col-lg-3 slide-deck-pane" id="slideDeckCol">
+                <div class="studio-card h-100 d-flex flex-column border">
+                    <div class="studio-card-header d-flex align-items-center justify-content-between py-2 px-3 bg-light border-bottom">
+                        <span class="fw-bold small text-dark"><i class="ph-bold ph-slides me-1.5 text-primary"></i>Slide Deck</span>
+                        <div class="d-flex align-items-center gap-1.5">
+                            <button type="button" class="btn btn-sm btn-primary px-2.5 py-1 fw-semibold" onclick="startNewSlide()" style="font-size: 0.75rem; border-radius: 6px;">
                                 <i class="ph-bold ph-plus me-0.5"></i> New
                             </button>
-                            <button type="button" class="btn btn-xs btn-outline-secondary px-2 py-0.5 fw-semibold" onclick="toggleSlideDeck()" title="Hide Slide Deck to expand editor" style="font-size: 0.75rem; border-radius: 6px;">
-                                <i class="ph-bold ph-caret-left me-0.5"></i> Hide
+                            <button type="button" class="btn btn-sm btn-outline-secondary px-2 py-1 fw-semibold" onclick="toggleSlideDeck()" title="Hide Slide Deck" style="font-size: 0.75rem; border-radius: 6px;">
+                                <i class="ph-bold ph-caret-left"></i>
                             </button>
                         </div>
                     </div>
@@ -363,29 +475,29 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                     </div>
                     
                     <div class="p-2 border-top bg-light text-center">
-                        <button type="button" class="btn btn-xs btn-outline-primary w-100 rounded-pill fw-bold" onclick="startNewSlide()">
+                        <button type="button" class="btn btn-sm btn-outline-primary w-100 fw-bold" onclick="startNewSlide()" style="border-radius: 6px; font-size: 0.8rem;">
                             <i class="ph-bold ph-plus-circle me-1"></i> Add Slide
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Column 2: Slide Canvas & Editor (47% / col-lg-6) -->
-            <div class="col-lg-6" id="slideEditorCol">
-                <div class="studio-card h-100 d-flex flex-column">
-                    <div class="studio-card-header">
+            <!-- Column 2: Slide Canvas & Editor -->
+            <div class="col-lg-6 slide-editor-pane" id="slideEditorCol">
+                <div class="studio-card h-100 d-flex flex-column border">
+                    <div class="studio-card-header d-flex align-items-center justify-content-between py-2 px-3 bg-light border-bottom">
                         <div class="d-flex align-items-center gap-2">
                             <span class="slide-item-number" id="activeSlideBadge">Slide 1</span>
                             <span class="fw-bold small text-dark" id="activeSlideHeaderTitle">Edit Slide Content</span>
                         </div>
                         <div class="d-flex align-items-center gap-1">
-                            <button type="button" class="btn btn-xs btn-outline-danger rounded-pill px-2 py-0.5" id="deleteSlideBtn" onclick="deleteActiveSlide()" style="display: none; font-size: 0.75rem;">
+                            <button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1" id="deleteSlideBtn" onclick="deleteActiveSlide()" style="display: none; font-size: 0.75rem; border-radius: 6px;">
                                 <i class="ph-bold ph-trash me-1"></i> Delete
                             </button>
                         </div>
                     </div>
 
-                    <div class="p-3 flex-grow-1 overflow-auto" style="max-height: calc(100vh - 270px);">
+                    <div class="p-3.5 flex-grow-1 overflow-auto" style="min-height: calc(100vh - 220px); max-height: calc(100vh - 180px);">
                         <form id="slideForm" onsubmit="event.preventDefault(); saveActiveSlide();">
                             <input type="hidden" id="slideId" value="">
                             
@@ -399,38 +511,44 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
 
                             <!-- Summernote Editor -->
                             <div class="mb-3">
-                                <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-1">
-                                    <label class="form-label fw-bold small text-dark mb-0">
-                                        Slide Content &amp; Interactive Words <span class="text-danger">*</span>
-                                    </label>
+                                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                    <div>
+                                        <label class="form-label fw-bold small text-dark mb-0">
+                                            Slide Content &amp; Interactive Words <span class="text-danger">*</span>
+                                        </label>
+                                        <span class="text-muted small ms-1 d-none d-lg-inline" style="font-size: 0.78rem;">(Click interactive words to preview FSL signs)</span>
+                                    </div>
                                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                                        <button type="button" class="btn btn-xs btn-warning text-dark fw-bold rounded-pill px-3 py-1 shadow-sm" id="btnAnalyzeSlideFsl" onclick="analyzeSlideFslSigns(true)" title="Scan slide text for matching FSL signs" style="font-size: 0.78rem; background: #fef3c7; border: 1px solid #fcd34d;">
+                                        <button type="button" class="btn btn-sm btn-warning text-dark fw-bold px-3 py-1 shadow-sm" id="btnAnalyzeSlideFsl" onclick="analyzeSlideFslSigns(true)" title="Scan slide text for matching FSL signs" style="font-size: 0.8rem; border-radius: 6px; background: #fef3c7; border: 1px solid #fcd34d;">
                                             <i class="ph-bold ph-sparkle text-warning me-1"></i> Analyze FSL Signs
                                         </button>
-                                        <button type="button" class="btn btn-xs btn-outline-secondary text-dark fw-semibold rounded-pill px-2.5 py-1" onclick="insertSampleInteractiveTemplate()" title="Insert interactive story sample" style="font-size: 0.75rem;">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary text-dark fw-semibold px-2.5 py-1" onclick="insertSampleInteractiveTemplate()" title="Insert interactive story sample" style="font-size: 0.8rem; border-radius: 6px;">
                                             <i class="ph-bold ph-file-text me-1"></i> Sample Story
                                         </button>
-                                        <button type="button" class="btn btn-xs btn-outline-danger rounded-pill px-2 py-1" onclick="clearEditorContent()" title="Papasa tanang sulod sa editor" style="font-size: 0.75rem;">
+                                        <button type="button" class="btn btn-sm btn-outline-primary fw-semibold px-2.5 py-1" id="btnToggleCenterGuide" onclick="toggleCenterGuide()" title="Toggle Center Guide Line" style="font-size: 0.8rem; border-radius: 6px;">
+                                            <i class="ph-bold ph-split-vertical me-1"></i> Center Guide: <span id="centerGuideState">ON</span>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1" onclick="clearEditorContent()" title="Papasa tanang sulod sa editor" style="font-size: 0.8rem; border-radius: 6px;">
                                             <i class="ph-bold ph-trash me-0.5"></i> Clear
                                         </button>
                                     </div>
                                 </div>
 
-                                <!-- Live Shape Quick Adjust Toolbar (Always Available above Editor) -->
-                                <div id="shapeAdjustToolbar" class="p-2 mb-2 border rounded-3 shadow-sm align-items-center justify-content-between flex-wrap gap-2" style="display: flex; border-color: #cbd5e1 !important; background: #f8fafc !important;">
+                                <!-- Live Shape Quick Adjust Toolbar (Only shown when a Shape is focused) -->
+                                <div id="shapeAdjustToolbar" class="p-2 mb-2.5 border rounded-3 shadow-sm align-items-center justify-content-between flex-wrap gap-2" style="display: none; border-color: #93c5fd !important; background: #f0f9ff !important;">
                                     <div class="d-flex align-items-center gap-2 flex-wrap">
-                                        <span class="small fw-bold text-dark">
-                                            <i class="ph-bold ph-sliders text-primary me-1"></i> Adjust Shape:
+                                        <span class="small fw-bold text-primary">
+                                            <i class="ph-bold ph-bounding-box me-1"></i> Shape Box:
                                         </span>
-                                        <div class="btn-group btn-group-xs">
-                                            <button type="button" class="btn btn-xs btn-outline-secondary fw-semibold" onclick="adjustActiveShapeWidth('360px')" title="Gamay nga gidak-on (360px)">
-                                                <i class="ph-bold ph-arrows-in-line-horizontal me-0.5"></i> Gamay
+                                        <div class="btn-group btn-group-sm">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold bg-white" onclick="adjustActiveShapeWidth('360px')" title="Gamay nga gidak-on (360px)">
+                                                Gamay (360px)
                                             </button>
-                                            <button type="button" class="btn btn-xs btn-outline-secondary fw-semibold" onclick="adjustActiveShapeWidth('540px')" title="Sakto nga gidak-on (540px)">
-                                                <i class="ph-bold ph-arrows-out-line-horizontal me-0.5"></i> Sakto
+                                            <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold bg-white" onclick="adjustActiveShapeWidth('540px')" title="Sakto nga gidak-on (540px)">
+                                                Sakto (540px)
                                             </button>
-                                            <button type="button" class="btn btn-xs btn-outline-secondary fw-semibold" onclick="adjustActiveShapeWidth('100%')" title="Lapad / Full Width (100%)">
-                                                <i class="ph-bold ph-arrows-horizontal me-0.5"></i> Lapad
+                                            <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold bg-white" onclick="adjustActiveShapeWidth('100%')" title="Lapad / Full Width (100%)">
+                                                Lapad (100%)
                                             </button>
                                         </div>
 
@@ -438,14 +556,14 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
 
                                         <!-- Pwesto / Alignment options -->
                                         <span class="small text-muted">Pwesto:</span>
-                                        <div class="btn-group btn-group-xs">
-                                            <button type="button" class="btn btn-xs btn-outline-secondary" onclick="adjustActiveShapeAlign('left')" title="I-pwesto sa Wala (Left)">
+                                        <div class="btn-group btn-group-sm">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary bg-white" onclick="adjustActiveShapeAlign('left')" title="I-pwesto sa Wala (Left)">
                                                 <i class="ph-bold ph-text-align-left"></i>
                                             </button>
-                                            <button type="button" class="btn btn-xs btn-outline-secondary" onclick="adjustActiveShapeAlign('center')" title="I-pwesto sa Tunga (Center)">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary bg-white" onclick="adjustActiveShapeAlign('center')" title="I-pwesto sa Tunga (Center)">
                                                 <i class="ph-bold ph-text-align-center"></i>
                                             </button>
-                                            <button type="button" class="btn btn-xs btn-outline-secondary" onclick="adjustActiveShapeAlign('right')" title="I-pwesto sa Tuo (Right)">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary bg-white" onclick="adjustActiveShapeAlign('right')" title="I-pwesto sa Tuo (Right)">
                                                 <i class="ph-bold ph-text-align-right"></i>
                                             </button>
                                         </div>
@@ -453,11 +571,11 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                                         <span class="text-muted">|</span>
 
                                         <!-- Balhin Ibabaw / Ilalom -->
-                                        <div class="btn-group btn-group-xs">
-                                            <button type="button" class="btn btn-xs btn-outline-secondary fw-semibold" onclick="moveActiveShape('up')" title="Isaka sa ibabaw">
+                                        <div class="btn-group btn-group-sm">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold bg-white" onclick="moveActiveShape('up')" title="Isaka sa ibabaw">
                                                 <i class="ph-bold ph-arrow-up me-0.5"></i> Isaka
                                             </button>
-                                            <button type="button" class="btn btn-xs btn-outline-secondary fw-semibold" onclick="moveActiveShape('down')" title="Ipaubos sa ilalom">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold bg-white" onclick="moveActiveShape('down')" title="Ipaubos sa ilalom">
                                                 <i class="ph-bold ph-arrow-down me-0.5"></i> Ipaubos
                                             </button>
                                         </div>
@@ -466,19 +584,16 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
 
                                         <!-- Kolor options -->
                                         <span class="small text-muted">Kolor:</span>
-                                        <div class="d-flex align-items-center gap-1">
-                                            <button type="button" class="btn btn-xs rounded-circle p-0" onclick="adjustActiveShapeTheme('yellow')" style="width:22px; height:22px; background:#fffbeb; border:2px solid #f59e0b;" title="Dilaw / Yellow"></button>
-                                            <button type="button" class="btn btn-xs rounded-circle p-0" onclick="adjustActiveShapeTheme('green')" style="width:22px; height:22px; background:#f0fdf4; border:2px solid #86efac;" title="Berde / Green"></button>
-                                            <button type="button" class="btn btn-xs rounded-circle p-0" onclick="adjustActiveShapeTheme('blue')" style="width:22px; height:22px; background:#eff6ff; border:2px solid #93c5fd;" title="Asul / Blue"></button>
-                                            <button type="button" class="btn btn-xs rounded-circle p-0" onclick="adjustActiveShapeTheme('neutral')" style="width:22px; height:22px; background:#f8fafc; border:2px solid #cbd5e1;" title="Neutral / Puti"></button>
+                                        <div class="d-flex align-items-center gap-1.5">
+                                            <button type="button" class="btn rounded-circle p-0" onclick="adjustActiveShapeTheme('yellow')" style="width:22px; height:22px; background:#fffbeb; border:2px solid #f59e0b;" title="Dilaw / Yellow"></button>
+                                            <button type="button" class="btn rounded-circle p-0" onclick="adjustActiveShapeTheme('green')" style="width:22px; height:22px; background:#f0fdf4; border:2px solid #86efac;" title="Berde / Green"></button>
+                                            <button type="button" class="btn rounded-circle p-0" onclick="adjustActiveShapeTheme('blue')" style="width:22px; height:22px; background:#eff6ff; border:2px solid #93c5fd;" title="Asul / Blue"></button>
+                                            <button type="button" class="btn rounded-circle p-0" onclick="adjustActiveShapeTheme('neutral')" style="width:22px; height:22px; background:#f8fafc; border:2px solid #cbd5e1;" title="Neutral / Puti"></button>
                                         </div>
                                     </div>
 
-                                    <div class="d-flex align-items-center gap-1.5">
-                                        <button type="button" class="btn btn-xs btn-primary text-white fw-semibold" id="btnToggleCenterGuide" onclick="toggleCenterGuide()" title="Ipakita o itago ang Center Guide Indicator (Tunga sa Slide)">
-                                            <i class="ph-bold ph-split-vertical me-1"></i> Center Guide: <span id="centerGuideState">ON</span>
-                                        </button>
-                                        <button type="button" class="btn btn-xs btn-outline-danger fw-semibold" onclick="deleteActiveShape()" title="Papasa kining maong shape">
+                                    <div>
+                                        <button type="button" class="btn btn-sm btn-outline-danger fw-semibold bg-white" onclick="deleteActiveShape()" title="Papasa kining maong shape" style="border-radius: 6px;">
                                             <i class="ph-bold ph-trash me-1"></i> Papasa
                                         </button>
                                     </div>
@@ -521,21 +636,21 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                 </div>
             </div>
 
-            <!-- Column 3: FSL Assistant & Library Drawer (28% / col-lg-3) -->
-            <div class="col-lg-3" id="fslLibraryCol">
-                <div class="studio-card h-100 d-flex flex-column">
+            <!-- Column 3: FSL Assistant & Library Drawer -->
+            <div class="col-lg-3 fsl-library-pane" id="fslLibraryCol">
+                <div class="studio-card h-100 d-flex flex-column border">
                     <!-- Drawer Header -->
-                    <div class="studio-card-header bg-warning-subtle text-warning-emphasis">
+                    <div class="studio-card-header d-flex align-items-center justify-content-between py-2 px-3 bg-warning-subtle text-warning-emphasis border-bottom">
                         <div class="d-flex align-items-center gap-1.5">
                             <i class="ph-bold ph-hand-waving fs-5 text-warning"></i>
                             <span class="fw-bold small">FSL Assistant</span>
                         </div>
-                        <div class="d-flex align-items-center gap-1">
-                            <button type="button" class="btn btn-xs btn-primary rounded-pill px-2.5 py-1 fw-bold" onclick="openAddCustomSignModal()" title="Upload your own video for a sign">
+                        <div class="d-flex align-items-center gap-1.5">
+                            <button type="button" class="btn btn-sm btn-primary px-2.5 py-1 fw-bold" onclick="openAddCustomSignModal()" title="Upload your own video for a sign" style="border-radius: 6px; font-size: 0.75rem;">
                                 <i class="ph-bold ph-video-camera me-1"></i>+ Upload
                             </button>
-                            <button type="button" class="btn btn-xs btn-outline-dark rounded-pill px-2 py-1 fw-bold" onclick="toggleFslLibrary()" title="Hide FSL Library to expand slide editor">
-                                <i class="ph-bold ph-caret-right me-0.5"></i> Hide
+                            <button type="button" class="btn btn-sm btn-outline-dark px-2 py-1 fw-bold" onclick="toggleFslLibrary()" title="Hide FSL Assistant" style="border-radius: 6px; font-size: 0.75rem;">
+                                <i class="ph-bold ph-caret-right"></i>
                             </button>
                         </div>
                     </div>
@@ -557,11 +672,11 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                     <div id="fslSuggestionsPane" class="d-flex flex-column flex-grow-1 overflow-hidden">
                         <!-- Suggestions Actions Bar -->
                         <div class="p-2 border-bottom bg-light">
-                            <div class="d-flex align-items-center justify-content-between gap-1.5 mb-1.5">
-                                <button type="button" class="btn btn-xs btn-primary fw-bold rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm" onclick="analyzeSlideFslSigns(false)" style="font-size:0.75rem;">
+                            <div class="d-flex align-items-center justify-content-between gap-1.5 mb-1.5 flex-wrap">
+                                <button type="button" class="btn btn-sm btn-primary fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm" onclick="analyzeSlideFslSigns(false)" style="font-size:0.75rem; border-radius: 6px; white-space: nowrap;">
                                     <i class="ph-bold ph-sparkle"></i> Analyze Slide Text
                                 </button>
-                                <button type="button" class="btn btn-xs btn-success fw-bold rounded-pill px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm" id="btnInsertSelectedSuggestions" onclick="insertSelectedSuggestions()" style="display:none; font-size:0.75rem;">
+                                <button type="button" class="btn btn-sm btn-success fw-bold px-2.5 py-1 d-inline-flex align-items-center gap-1 shadow-sm" id="btnInsertSelectedSuggestions" onclick="insertSelectedSuggestions()" style="display:none; font-size:0.75rem; border-radius: 6px; white-space: nowrap;">
                                     <i class="ph-bold ph-check-circle"></i> Insert Selected (<span id="selectedSuggestionsCount">0</span>)
                                 </button>
                             </div>
@@ -702,6 +817,8 @@ $(document).ready(function() {
             currentActiveShape = shape;
             const tb = document.getElementById('shapeAdjustToolbar');
             if (tb) tb.style.display = 'flex';
+        } else {
+            hideShapeAdjustToolbar();
         }
     });
 });
@@ -1145,52 +1262,67 @@ function toggleMediaInputFields() {
 }
 
 // ── Responsive Multi-Drawer Width Recalculation ──
+let isSlideDeckVisible = true;
+let isFslLibraryVisible = true;
+
 function recalcEditorWidth() {
-    const deckCol = document.getElementById('slideDeckCol');
-    const fslCol  = document.getElementById('fslLibraryCol');
-    const editor  = document.getElementById('slideEditorCol');
+    const editorCol = document.getElementById('slideEditorCol');
+    if (!editorCol) return;
 
-    const deckHidden = deckCol ? deckCol.classList.contains('d-none') : false;
-    const fslHidden  = fslCol ? fslCol.classList.contains('d-none') : false;
+    editorCol.classList.remove('col-lg-6', 'col-lg-9', 'col-lg-12');
 
-    editor.classList.remove('col-lg-6', 'col-lg-9', 'col-lg-12');
-
-    if (deckHidden && fslHidden) {
-        editor.classList.add('col-lg-12'); // 100% full width widescreen editor!
-    } else if (deckHidden || fslHidden) {
-        editor.classList.add('col-lg-9');
+    if (isSlideDeckVisible && isFslLibraryVisible) {
+        editorCol.classList.add('col-lg-6');
+    } else if (!isSlideDeckVisible && !isFslLibraryVisible) {
+        editorCol.classList.add('col-lg-12');
     } else {
-        editor.classList.add('col-lg-6');
+        editorCol.classList.add('col-lg-9');
     }
 }
 
 // ── Toggle Slide Deck Navigator (Left Drawer) ──
 function toggleSlideDeck() {
+    isSlideDeckVisible = !isSlideDeckVisible;
     const col = document.getElementById('slideDeckCol');
+    const toggleBtn = document.getElementById('btnToggleSlideDeck');
     const openBtn = document.getElementById('btnOpenSlideDeck');
-    const isHidden = col.classList.contains('d-none');
-    if (isHidden) {
-        col.classList.remove('d-none');
-        if (openBtn) openBtn.style.display = 'none';
-    } else {
-        col.classList.add('d-none');
-        if (openBtn) openBtn.style.display = 'inline-flex';
+    
+    if (col) {
+        col.style.display = isSlideDeckVisible ? 'block' : 'none';
+        if (isSlideDeckVisible) col.classList.remove('d-none');
+        else col.classList.add('d-none');
     }
+    if (toggleBtn) {
+        if (isSlideDeckVisible) {
+            toggleBtn.classList.add('active');
+        } else {
+            toggleBtn.classList.remove('active');
+        }
+    }
+    if (openBtn) openBtn.style.display = 'none';
     recalcEditorWidth();
 }
 
 // ── Toggle FSL Sign Library Drawer (Right Drawer) ──
 function toggleFslLibrary() {
+    isFslLibraryVisible = !isFslLibraryVisible;
     const col = document.getElementById('fslLibraryCol');
+    const toggleBtn = document.getElementById('btnToggleFslLibrary');
     const openBtn = document.getElementById('btnOpenFslLibrary');
-    const isHidden = col.classList.contains('d-none');
-    if (isHidden) {
-        col.classList.remove('d-none');
-        if (openBtn) openBtn.style.display = 'none';
-    } else {
-        col.classList.add('d-none');
-        if (openBtn) openBtn.style.display = 'inline-flex';
+    
+    if (col) {
+        col.style.display = isFslLibraryVisible ? 'block' : 'none';
+        if (isFslLibraryVisible) col.classList.remove('d-none');
+        else col.classList.add('d-none');
     }
+    if (toggleBtn) {
+        if (isFslLibraryVisible) {
+            toggleBtn.classList.add('active');
+        } else {
+            toggleBtn.classList.remove('active');
+        }
+    }
+    if (openBtn) openBtn.style.display = 'none';
     recalcEditorWidth();
 }
 
@@ -2040,42 +2172,7 @@ $(document).ready(function() {
     if (arrowBtn) arrowBtn.setAttribute('title', 'Show Sidebar');
 });
 
-// ── Dynamic Workspace Column Expansion (Slide Deck & FSL Library Toggles) ──
-let isSlideDeckVisible = true;
-let isFslLibraryVisible = true;
-
-function recalcEditorWidth() {
-    const editorCol = document.getElementById('slideEditorCol');
-    if (!editorCol) return;
-
-    editorCol.classList.remove('col-lg-6', 'col-lg-9', 'col-lg-12');
-
-    if (isSlideDeckVisible && isFslLibraryVisible) {
-        editorCol.classList.add('col-lg-6');
-    } else if (!isSlideDeckVisible && !isFslLibraryVisible) {
-        editorCol.classList.add('col-lg-12');
-    } else {
-        editorCol.classList.add('col-lg-9');
-    }
-}
-
-function toggleSlideDeck() {
-    isSlideDeckVisible = !isSlideDeckVisible;
-    const col = document.getElementById('slideDeckCol');
-    const openBtn = document.getElementById('btnOpenSlideDeck');
-    if (col) col.style.display = isSlideDeckVisible ? 'block' : 'none';
-    if (openBtn) openBtn.style.display = isSlideDeckVisible ? 'none' : 'inline-flex';
-    recalcEditorWidth();
-}
-
-function toggleFslLibrary() {
-    isFslLibraryVisible = !isFslLibraryVisible;
-    const col = document.getElementById('fslLibraryCol');
-    const openBtn = document.getElementById('btnOpenFslLibrary');
-    if (col) col.style.display = isFslLibraryVisible ? 'block' : 'none';
-    if (openBtn) openBtn.style.display = isFslLibraryVisible ? 'none' : 'inline-flex';
-    recalcEditorWidth();
-}
+// Dynamic Workspace Column Expansion hooks handled above
 
 // ── Teacher Custom FSL Sign Video (Camera Recording + Upload) ──
 let currentVideoSourceMode = 'record';
@@ -2716,7 +2813,10 @@ function moveActiveShape(direction) {
 function hideShapeAdjustToolbar() {
     if (currentActiveShape) {
         currentActiveShape.classList.remove('shape-active-focus');
+        currentActiveShape = null;
     }
+    const tb = document.getElementById('shapeAdjustToolbar');
+    if (tb) tb.style.display = 'none';
 }
 
 // ── Center Guide Indicator Toggle ──

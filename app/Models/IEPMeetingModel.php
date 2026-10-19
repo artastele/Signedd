@@ -333,6 +333,7 @@ class IEPMeetingModel {
                     u.name as scheduled_by_name
                 FROM iep_meetings m
                 JOIN student_records s ON m.student_id = s.id
+                LEFT JOIN enrollment_submissions es ON s.enrollment_id = es.id
                 JOIN users u ON m.scheduled_by = u.id
                 WHERE 1=1
             ";
@@ -355,6 +356,28 @@ class IEPMeetingModel {
                     SELECT id FROM enrollment_submissions WHERE parent_id = :parent_id
                 )";
                 $params['parent_id'] = $filters['parent_id'];
+            }
+
+            // Filter by school
+            if (!empty($filters['school_id'])) {
+                $sql .= " AND (s.school_id = :sch_1 OR es.target_school_id = :sch_2)";
+                $params['sch_1'] = $filters['school_id'];
+                $params['sch_2'] = $filters['school_id'];
+            }
+
+            // Filter by teacher
+            if (!empty($filters['teacher_id'])) {
+                $sql .= " AND (m.scheduled_by = :tid_1
+                             OR s.assigned_teacher_id = :tid_2
+                             OR es.assigned_teacher_id = :tid_3
+                             OR s.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_4)
+                             OR (s.section_name IS NOT NULL AND s.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_5))
+                            )";
+                $params['tid_1'] = $filters['teacher_id'];
+                $params['tid_2'] = $filters['teacher_id'];
+                $params['tid_3'] = $filters['teacher_id'];
+                $params['tid_4'] = $filters['teacher_id'];
+                $params['tid_5'] = $filters['teacher_id'];
             }
             
             // Upcoming = scheduled or rescheduled (active meetings)

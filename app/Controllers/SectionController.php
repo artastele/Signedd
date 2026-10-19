@@ -16,8 +16,8 @@ class SectionController {
             session_start();
         }
 
-        // Allow Principal, Admin, and Master Teacher
-        RoleMiddleware::checkAny(['principal', 'admin', 'master_teacher', 'sped_teacher']);
+        // Allow Principal, Master Teacher, and SPED Teacher (Admin cannot view school section management)
+        RoleMiddleware::checkAny(['principal', 'master_teacher', 'sped_teacher']);
 
         $this->sectionModel = new SectionModel();
         $this->userModel = new UserModel();
@@ -33,8 +33,45 @@ class SectionController {
         $userId = $_SESSION['user_id'] ?? 0;
         $schoolId = $_SESSION['school_id'] ?? null;
 
-        // Fetch teachers in same school for adviser assignment
         $db = Database::getInstance()->getConnection();
+
+        // Self-heal: link imported learners where section_id is null but section_name matches a section
+        try {
+            $db->exec("
+                UPDATE student_records sr
+                JOIN sections s ON (
+                    (sr.school_id = s.school_id OR sr.school_id IS NULL OR s.school_id IS NULL)
+                    AND LOWER(TRIM(sr.section_name)) = LOWER(TRIM(s.section_name))
+                )
+                SET sr.section_id = s.id,
+                    sr.school_id = COALESCE(sr.school_id, s.school_id)
+                WHERE sr.section_id IS NULL OR sr.section_id = 0
+            ");
+            // Also link section adviser to assigned_teacher_id if unassigned
+            $db->exec("
+                UPDATE student_records sr
+                JOIN sections s ON sr.section_id = s.id
+                SET sr.assigned_teacher_id = s.adviser_teacher_id
+                WHERE (sr.assigned_teacher_id IS NULL OR sr.assigned_teacher_id = 0)
+                  AND s.adviser_teacher_id IS NOT NULL
+            ");
+            // Sync current_count on sections
+            $db->exec("
+                UPDATE sections s
+                SET current_count = (
+                    SELECT COUNT(*) 
+                    FROM student_records sr 
+                    WHERE (sr.section_id = s.id 
+                           OR (sr.section_id IS NULL AND LOWER(TRIM(sr.section_name)) = LOWER(TRIM(s.section_name)))
+                          )
+                      AND (s.school_id IS NULL OR sr.school_id = s.school_id OR sr.school_id IS NULL)
+                )
+            ");
+        } catch (\Throwable $syncErr) {
+            error_log('SectionController sync error: ' . $syncErr->getMessage());
+        }
+
+        // Fetch teachers in same school for adviser assignment
         $stmt = $db->prepare("
             SELECT id, name, email 
             FROM users 

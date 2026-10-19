@@ -114,7 +114,7 @@ $domainNameMap = [
     </div>
 
     <!-- 4 High-Level Metric Cards -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4 m-grid">
         <div class="col-md-3 col-6">
             <div class="card border-0 shadow-sm rounded-3 p-3 text-center h-100 bg-white">
                 <div class="text-primary mb-1"><i class="bi bi-pie-chart-fill fs-2"></i></div>

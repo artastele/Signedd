@@ -31,6 +31,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+*.bak*
 *.swp
 *~
 
@@ -38,6 +39,7 @@ Thumbs.db
 scratch/
 check_live_db.php
 deploy_sync.php
+public/db_reset_tool.php
 
 # Large archives and extracted test folders
 *.zip

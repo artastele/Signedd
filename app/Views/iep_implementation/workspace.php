@@ -28,9 +28,51 @@ require_once __DIR__ . '/../layouts/header.php';
     border-radius: 4px !important;
     font-size: 0.8rem !important;
 }
+/* Clean & Modern Workspace Tab Navigation */
+.workspace-tabs-container {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 6px 6px 0 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.workspace-nav-tabs {
+    border-bottom: 2px solid #e2e8f0;
+    gap: 4px;
+}
+.workspace-nav-tabs .nav-link {
+    color: #475569;
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 6px 6px 0 0;
+    background: transparent;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    border-bottom: 3px solid transparent;
+}
+.workspace-nav-tabs .nav-link:hover {
+    color: #1e4072;
+    background: #f8fafc;
+}
+.workspace-nav-tabs .nav-link.active {
+    color: #1e4072;
+    font-weight: 600;
+    background: #ffffff;
+    border-bottom: 3px solid #1e4072;
+}
+.workspace-nav-tabs .nav-link .badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    transition: background-color 0.2s ease;
+}
+.workspace-nav-tabs .nav-link.active .badge {
+    background-color: #1e4072 !important;
+    color: #ffffff;
+}
 </style>
-
-<body data-logged-in="true">
 
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
@@ -68,75 +110,46 @@ require_once __DIR__ . '/../layouts/header.php';
         </span>
     </div>
 
-
     <!-- ============================================================
-         STAGE 2 DUAL-TRACK STATUS & TRADITIONAL IEP RECORD-KEEPING
+         WORKSPACE TABS NAVIGATION
          ============================================================ -->
-    <?php 
-        $currentTrack = $studentTrackInfo['learning_track'] ?? 'unassigned';
-        $isTraditional = ($currentTrack === 'traditional');
-    ?>
-    <div class="card mb-4 border-<?= $isTraditional ? 'secondary' : 'primary' ?> shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
-             style="background: <?= $isTraditional ? '#475569' : '#1e4072' ?>; color:#fff; border-radius:6px 6px 0 0;">
-            <span class="fw-semibold">
-                <i class="bi bi-<?= $isTraditional ? 'folder2-open' : 'laptop-fill' ?> me-2"></i>
-                Dual-Track Mode: <?= $isTraditional ? '🏫 SEN Traditional F2F Track (Record-Keeping Active)' : '💻 SignED Interactive LMS Track' ?>
-            </span>
-            <button type="button" class="btn btn-sm btn-light py-1 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#uploadTraditionalDocModal">
-                <i class="bi bi-cloud-arrow-up-fill me-1"></i> Upload Traditional Document (DLL / Physical IEP)
-            </button>
-        </div>
-        <div class="card-body p-3 bg-light">
-            <?php if (empty($traditionalDocs)): ?>
-                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 text-muted small">
-                    <span><i class="bi bi-info-circle me-1"></i>No uploaded traditional Daily Lesson Logs (DLL) or physical IEP forms yet for this learner.</span>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#uploadTraditionalDocModal">
-                        <i class="bi bi-plus-circle me-1"></i>Add DLL / Scanned Form
-                    </button>
-                </div>
-            <?php else: ?>
-                <h6 class="fw-bold text-dark mb-2" style="font-size:0.875rem;"><i class="bi bi-file-earmark-medical me-1 text-primary"></i>Uploaded Traditional Documents &amp; Lesson Logs (DLL):</h6>
-                <div class="row g-2">
-                    <?php foreach ($traditionalDocs as $td): ?>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="card bg-white p-2 border rounded shadow-sm h-100">
-                                <div class="d-flex align-items-start justify-content-between gap-1">
-                                    <div>
-                                        <span class="badge bg-<?= $td['document_type'] === 'dll' ? 'primary' : 'secondary' ?> text-uppercase" style="font-size:0.7rem;">
-                                            <?= htmlspecialchars($td['document_type']) ?> &bull; <?= htmlspecialchars($td['quarter'] ?? 'Q1') ?>
-                                        </span>
-                                        <h6 class="fw-bold mb-1 mt-1 text-dark" style="font-size:0.85rem;"><?= htmlspecialchars($td['title']) ?></h6>
-                                        <div class="small text-muted" style="font-size:0.75rem;">
-                                            <i class="bi bi-person me-1"></i><?= htmlspecialchars($td['uploaded_by_name'] ?? 'Teacher') ?> &bull; <?= date('M j, Y', strtotime($td['created_at'])) ?>
-                                        </div>
-                                    </div>
-                                    <div class="d-flex flex-column gap-1">
-                                        <a href="<?= $basePath . '/' . ltrim($td['file_path'], '/') ?>" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-1" title="View Document">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
-                                        <form method="POST" action="<?= $basePath ?>/iep/implementation/traditional-doc/delete/<?= $td['id'] ?>" onsubmit="return confirm('Remove this document?');">
-                                            <input type="hidden" name="iep_id" value="<?= $iepId ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </div>
-                                <?php if (!empty($td['notes'])): ?>
-                                    <div class="mt-1 pt-1 border-top text-muted small" style="font-size:0.75rem;">
-                                        <em><?= htmlspecialchars($td['notes']) ?></em>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </div>
+    <div class="workspace-tabs-container mb-4">
+        <ul class="nav nav-tabs workspace-nav-tabs" id="workspaceTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-lesson-plans-btn" data-bs-toggle="tab" data-bs-target="#tab-lesson-plans" type="button" role="tab" aria-controls="tab-lesson-plans" aria-selected="true">
+                    <i class="ti ti-book me-1.5"></i>Lesson Plans
+                    <span class="badge bg-secondary ms-1.5 rounded-pill"><?php echo count($lessonPlans ?? []); ?></span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-activities-btn" data-bs-toggle="tab" data-bs-target="#tab-activities" type="button" role="tab" aria-controls="tab-activities" aria-selected="false">
+                    <i class="ti ti-activity me-1.5"></i>Activities
+                    <span class="badge bg-secondary ms-1.5 rounded-pill"><?php echo count($activities ?? []); ?></span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-materials-btn" data-bs-toggle="tab" data-bs-target="#tab-materials" type="button" role="tab" aria-controls="tab-materials" aria-selected="false">
+                    <i class="ti ti-files me-1.5"></i>Learning Materials
+                    <span class="badge bg-secondary ms-1.5 rounded-pill"><?php echo count($materials ?? []); ?></span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-publish-btn" data-bs-toggle="tab" data-bs-target="#tab-publish" type="button" role="tab" aria-controls="tab-publish" aria-selected="false">
+                    <i class="ti ti-send me-1.5"></i>Publish &amp; Submissions
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-traditional-btn" data-bs-toggle="tab" data-bs-target="#tab-traditional" type="button" role="tab" aria-controls="tab-traditional" aria-selected="false">
+                    <i class="bi bi-folder2-open me-1.5"></i>Traditional DLL &amp; Records
+                    <?php if (!empty($traditionalDocs)): ?>
+                        <span class="badge bg-secondary ms-1.5 rounded-pill"><?php echo count($traditionalDocs); ?></span>
+                    <?php endif; ?>
+                </button>
+            </li>
+        </ul>
     </div>
 
-    <!-- Upload Traditional Document Modal -->
+    <!-- Upload Traditional Document Modal (Accessible from anywhere) -->
     <div class="modal fade" id="uploadTraditionalDocModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content text-dark">
@@ -191,10 +204,13 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     </div>
 
-    <!-- ====================================================
-         SECTION 1 — LESSON PLANS
-         ==================================================== -->
-    <div class="card mb-4" id="sectionLessonPlans">
+    <div class="tab-content" id="workspaceTabContent">
+
+        <!-- ====================================================
+             TAB 1 — LESSON PLANS
+             ==================================================== -->
+        <div class="tab-pane fade show active" id="tab-lesson-plans" role="tabpanel" aria-labelledby="tab-lesson-plans-btn">
+            <div class="card mb-4" id="sectionLessonPlans">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
              style="background:#1e4072;color:#fff;border-radius:6px 6px 0 0;">
             <span class="fw-semibold">
@@ -270,8 +286,12 @@ require_once __DIR__ . '/../layouts/header.php';
                                 </div>
 
                                 <div class="d-flex gap-3 mb-3 small text-muted">
-                                    <span><i class="ti ti-files me-1"></i><?php echo $lpMaterialCount; ?> material<?php echo $lpMaterialCount !== 1 ? 's' : ''; ?></span>
-                                    <span><i class="ti ti-activity me-1"></i><?php echo $lpActivityCount; ?> activit<?php echo $lpActivityCount !== 1 ? 'ies' : 'y'; ?></span>
+                                    <a href="javascript:void(0)" onclick="switchToTab('materials')" class="text-decoration-none text-muted" title="View Materials in Materials tab">
+                                        <i class="ti ti-files me-1 text-primary"></i><?php echo $lpMaterialCount; ?> material<?php echo $lpMaterialCount !== 1 ? 's' : ''; ?>
+                                    </a>
+                                    <a href="javascript:void(0)" onclick="switchToTab('activities')" class="text-decoration-none text-muted" title="View Activities in Activities tab">
+                                        <i class="ti ti-activity me-1 text-primary"></i><?php echo $lpActivityCount; ?> activit<?php echo $lpActivityCount !== 1 ? 'ies' : 'y'; ?>
+                                    </a>
                                 </div>
 
                                 <?php 
@@ -336,6 +356,12 @@ require_once __DIR__ . '/../layouts/header.php';
                                             Linked from the IEP step table. Deleting removes the plan here; unlink on the IEP form if the step should stay without this plan.
                                         </p>
                                     <?php endif; ?>
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            style="font-size:0.75rem; border-radius:6px; font-weight:600;"
+                                            onclick="startNewActivityForLp(<?php echo $lpId; ?>)"
+                                            title="Build an Activity for this Lesson Plan">
+                                        <i class="ti ti-plus me-1"></i>Add Activity
+                                    </button>
                                     <?php if (!$lpDoc): ?>
                                         <button class="btn btn-sm"
                                                 style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;"
@@ -379,12 +405,222 @@ require_once __DIR__ . '/../layouts/header.php';
 
         </div>
     </div><!-- /Section 1 -->
+</div><!-- /tab-lesson-plans -->
 
+        <!-- ====================================================
+             TAB 2 — ACTIVITIES
+             ==================================================== -->
+        <div class="tab-pane fade" id="tab-activities" role="tabpanel" aria-labelledby="tab-activities-btn">
+            <div class="card mb-4" id="sectionActivities">
+        <div class="card-header" style="background:#1e4072;color:#fff;border-radius:6px 6px 0 0;">
+            <span class="fw-semibold"><i class="ti ti-activity me-2"></i>Activities</span>
+        </div>
+        <div class="card-body p-3">
 
-    <!-- ====================================================
-         SECTION 2 — LEARNING MATERIALS
-         ==================================================== -->
-    <div class="card mb-4" id="sectionMaterials">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-semibold mb-0" style="color:#1e4072;">Select an activity type to build:</h6>
+                <button class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;" onclick="openImportActivityModal()">
+                    <i class="ti ti-file-import me-1"></i>Import from CSV
+                </button>
+            </div>
+
+            <!-- Activity type grid -->
+            <div class="row g-2 mb-3" id="activityTypeGrid">
+                <?php
+                $activityTypes = [
+                    ['key' => 'custom_printable', 'icon' => 'ti-printer',          'label' => 'Custom / Printable Worksheet', 'desc' => 'Upload printable worksheet for learner'],
+                    ['key' => 'multiple_choice', 'icon' => 'ti-list-check',      'label' => 'Multiple Choice',   'desc' => 'Pick the correct answer'],
+                    ['key' => 'true_false',      'icon' => 'ti-check',            'label' => 'True / False',      'desc' => 'True or false statement'],
+                    ['key' => 'fill_in_blanks',  'icon' => 'ti-forms',            'label' => 'Fill in the Blanks','desc' => 'Complete the sentence'],
+                    ['key' => 'matching',        'icon' => 'ti-arrows-exchange',  'label' => 'Matching',          'desc' => 'Match items together'],
+                    ['key' => 'drag_drop_sort',  'icon' => 'ti-drag-drop',        'label' => 'Drag & Drop Sort',  'desc' => 'Arrange in correct order'],
+                    ['key' => 'image_label',     'icon' => 'ti-photo',            'label' => 'Image Label',       'desc' => 'Label parts of an image'],
+                    ['key' => 'flashcards',       'icon' => 'ti-cards',            'label' => 'Flashcards',        'desc' => 'Flip and learn'],
+                    ['key' => 'sequencing',       'icon' => 'ti-sort-ascending',   'label' => 'Sequencing',        'desc' => 'Put events in order'],
+                ];
+                foreach ($activityTypes as $at):
+                ?>
+                <div class="col-6 col-md-3">
+                    <div class="activity-type-card" id="actCard_<?php echo $at['key']; ?>"
+                         data-type="<?php echo $at['key']; ?>"
+                         onclick="selectActivityType('<?php echo $at['key']; ?>')"
+                         tabindex="0" role="button">
+                        <i class="ti <?php echo $at['icon']; ?> activity-type-icon"></i>
+                        <div class="activity-type-label"><?php echo $at['label']; ?></div>
+                        <div class="activity-type-desc"><?php echo $at['desc']; ?></div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+
+            <!-- Activity Builder (slides in below grid) -->
+            <div id="activityBuilder" style="display:none;overflow:hidden;">
+                <div class="activity-builder-inner p-3 border rounded mb-3"
+                     style="border-color:#1e4072 !important;background:#f8f9fa;">
+
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold mb-0" style="color:#1e4072;">
+                            <i class="ti ti-pencil me-1"></i>
+                            <span id="builderTypeLabel">Activity Builder</span>
+                        </h6>
+                        <div class="d-flex align-items-center gap-2">
+                            <a href="#" id="builderLearnerPreviewBtn" target="_blank" class="btn btn-sm d-none align-items-center gap-1" style="background:#6c5ce7;color:#fff;border:none;font-size:0.75rem;border-radius:6px;font-weight:600;text-decoration:none;">
+                                <i class="ti ti-device-gamepad"></i><span>Preview as Learner</span>
+                            </a>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="closeActivityBuilder()" style="border-radius:6px;font-size:0.75rem;">
+                                <i class="ti ti-x me-1"></i>Cancel
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Common fields -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Lesson Plan <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-sm" id="builderLessonPlan" required>
+                                <option value="">— Select lesson plan —</option>
+                                <?php foreach ($lessonPlans as $lp): ?>
+                                    <option value="<?php echo (int)$lp['id']; ?>">
+                                        <?php echo htmlspecialchars($lp['title']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Activity Title <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="builderTitle" placeholder="Enter title" required>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small fw-semibold mb-0">Instructions / Mga Panuto</label>
+                                <span class="badge bg-light text-primary border" style="font-size:0.7rem;"><i class="ti ti-typography me-1"></i>WYSIWYG: Tables &amp; Images Supported</span>
+                            </div>
+                            <textarea class="form-control form-control-sm" id="builderInstructions" rows="3"
+                                      placeholder="Instructions for the learner (tables, formatted text, and images supported)..."></textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Due Date <span class="text-muted">(optional)</span></label>
+                            <input type="date" class="form-control form-control-sm" id="builderDueDate">
+                        </div>
+                        <div class="col-md-4" id="builderMaxScoreWrap">
+                            <label class="form-label small fw-semibold">Max Score</label>
+                            <input type="number" class="form-control form-control-sm" id="builderMaxScore"
+                                   min="0" value="10" placeholder="10">
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end mb-1">
+                            <div class="form-check form-switch mb-1">
+                                <input class="form-check-input" type="checkbox" id="builderIsF2F" onchange="toggleF2FFields()">
+                                <label class="form-check-label small fw-semibold" for="builderIsF2F">Face-to-Face / Direct Observation</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Type-specific builder area -->
+                    <div id="builderTypeArea"></div>
+
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;"
+                                onclick="saveActivity()">
+                            <i class="ti ti-device-floppy me-1"></i>Save Activity
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="closeActivityBuilder()">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activities list -->
+            <?php if (empty($activities)): ?>
+                <div class="text-center py-4" id="activitiesEmptyState">
+                    <i class="ti ti-mood-empty" style="font-size:2.5rem;color:#ccc;"></i>
+                    <p class="text-muted small mt-2 mb-0">No activities added yet.</p>
+                </div>
+            <?php endif; ?>
+
+            <div id="activitiesList" <?php echo empty($activities) ? 'style="display:none;"' : ''; ?>>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0" style="font-size:0.85rem;">
+                        <thead style="background:#1e4072;color:#fff;">
+                            <tr>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Lesson Plan</th>
+                                <th>Due Date</th>
+                                <th>Max Score</th>
+                                <th style="min-width:200px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activitiesTableBody">
+                        <?php foreach ($activities as $act): ?>
+                            <?php
+                            $actType = $act['activity_type'] ?? '';
+                            $actTypeColors = [
+                                'multiple_choice' => '#1e4072',
+                                'true_false'      => '#3b6d11',
+                                'fill_in_blanks'  => '#a01422',
+                                'matching'        => '#6c757d',
+                                'drag_drop_sort'  => '#e67e22',
+                                'image_label'     => '#8e44ad',
+                                'flashcards'       => '#2980b9',
+                                'sequencing'       => '#16a085',
+                                'custom_printable' => '#0d9488',
+                            ];
+                            $actColor = $actTypeColors[$actType] ?? '#6c757d';
+                            $actTypeLabel = ucwords(str_replace('_', ' ', $actType));
+                            ?>
+                            <tr id="actRow_<?php echo (int)$act['id']; ?>">
+                                <td class="fw-semibold"><?php echo htmlspecialchars($act['title']); ?></td>
+                                <td>
+                                    <span class="badge" style="background:<?php echo $actColor; ?>;font-size:0.7rem;">
+                                        <?php echo htmlspecialchars($actTypeLabel); ?>
+                                    </span>
+                                    <?php if (!empty($act['is_f2f'])): ?>
+                                        <span class="badge bg-success ms-1" style="font-size:0.7rem;">F2F</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="text-muted"><?php echo htmlspecialchars($act['lesson_plan_title'] ?? '—'); ?></td>
+                                <td class="text-muted"><?php echo $act['due_date'] ? htmlspecialchars($act['due_date']) : '—'; ?></td>
+                                <td><?php echo !empty($act['is_f2f']) ? '—' : (int)($act['max_score'] ?? 0); ?></td>
+                                <td>
+                                    <div class="d-flex gap-1 flex-wrap">
+                                        <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/learning/activity/<?php echo (int)$act['id']; ?>"
+                                           target="_blank"
+                                           class="btn btn-sm"
+                                           style="background:#6c5ce7;color:#fff;border:none;font-size:0.75rem; border-radius:6px; text-decoration:none; display:inline-flex; align-items:center;"
+                                           title="Open Learner's Interactive Preview">
+                                            <i class="ti ti-device-gamepad me-1"></i>Preview
+                                        </a>
+                                        <button class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
+                                                onclick="viewActivity(<?php echo htmlspecialchars(json_encode($act), ENT_QUOTES); ?>)">
+                                            <i class="ti ti-eye me-1"></i>View
+                                        </button>
+                                        <button class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
+                                                onclick="openEditActivity(<?php echo htmlspecialchars(json_encode($act), ENT_QUOTES); ?>)">
+                                            <i class="ti ti-pencil me-1"></i>Edit
+                                        </button>
+                                        <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
+                                                onclick="confirmDeleteActivity(<?php echo (int)$act['id']; ?>, '<?php echo htmlspecialchars(addslashes($act['title'])); ?>')">
+                                            <i class="ti ti-trash me-1"></i>Delete
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div><!-- /Section 3 -->
+</div><!-- /tab-activities -->
+
+        <!-- ====================================================
+             TAB 3 — LEARNING MATERIALS
+             ==================================================== -->
+        <div class="tab-pane fade" id="tab-materials" role="tabpanel" aria-labelledby="tab-materials-btn">
+            <div class="card mb-4" id="sectionMaterials">
         <div class="card-header" style="background:#1e4072;color:#fff;border-radius:6px 6px 0 0;">
             <span class="fw-semibold"><i class="ti ti-files me-2"></i>Learning Materials</span>
         </div>
@@ -513,218 +749,13 @@ require_once __DIR__ . '/../layouts/header.php';
 
         </div>
     </div><!-- /Section 2 -->
+</div><!-- /tab-materials -->
 
-
-    <!-- ====================================================
-         SECTION 3 — ACTIVITIES
-         ==================================================== -->
-    <div class="card mb-4" id="sectionActivities">
-        <div class="card-header" style="background:#1e4072;color:#fff;border-radius:6px 6px 0 0;">
-            <span class="fw-semibold"><i class="ti ti-activity me-2"></i>Activities</span>
-        </div>
-        <div class="card-body p-3">
-
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="fw-semibold mb-0" style="color:#1e4072;">Select an activity type to build:</h6>
-                <button class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;" onclick="openImportActivityModal()">
-                    <i class="ti ti-file-import me-1"></i>Import from CSV
-                </button>
-            </div>
-
-            <!-- Activity type grid -->
-            <div class="row g-2 mb-3" id="activityTypeGrid">
-                <?php
-                $activityTypes = [
-                    ['key' => 'multiple_choice', 'icon' => 'ti-list-check',      'label' => 'Multiple Choice',   'desc' => 'Pick the correct answer'],
-                    ['key' => 'true_false',      'icon' => 'ti-check',            'label' => 'True / False',      'desc' => 'True or false statement'],
-                    ['key' => 'fill_in_blanks',  'icon' => 'ti-forms',            'label' => 'Fill in the Blanks','desc' => 'Complete the sentence'],
-                    ['key' => 'matching',        'icon' => 'ti-arrows-exchange',  'label' => 'Matching',          'desc' => 'Match items together'],
-                    ['key' => 'drag_drop_sort',  'icon' => 'ti-drag-drop',        'label' => 'Drag & Drop Sort',  'desc' => 'Arrange in correct order'],
-                    ['key' => 'image_label',     'icon' => 'ti-photo',            'label' => 'Image Label',       'desc' => 'Label parts of an image'],
-                    ['key' => 'flashcards',      'icon' => 'ti-cards',            'label' => 'Flashcards',        'desc' => 'Flip and learn'],
-                    ['key' => 'sequencing',      'icon' => 'ti-sort-ascending',   'label' => 'Sequencing',        'desc' => 'Put events in order'],
-                ];
-                foreach ($activityTypes as $at):
-                ?>
-                <div class="col-6 col-md-3">
-                    <div class="activity-type-card" id="actCard_<?php echo $at['key']; ?>"
-                         data-type="<?php echo $at['key']; ?>"
-                         onclick="selectActivityType('<?php echo $at['key']; ?>')"
-                         tabindex="0" role="button">
-                        <i class="ti <?php echo $at['icon']; ?> activity-type-icon"></i>
-                        <div class="activity-type-label"><?php echo $at['label']; ?></div>
-                        <div class="activity-type-desc"><?php echo $at['desc']; ?></div>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-
-            <!-- Activity Builder (slides in below grid) -->
-            <div id="activityBuilder" style="display:none;overflow:hidden;">
-                <div class="activity-builder-inner p-3 border rounded mb-3"
-                     style="border-color:#1e4072 !important;background:#f8f9fa;">
-
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="fw-bold mb-0" style="color:#1e4072;">
-                            <i class="ti ti-pencil me-1"></i>
-                            <span id="builderTypeLabel">Activity Builder</span>
-                        </h6>
-                        <div class="d-flex align-items-center gap-2">
-                            <a href="#" id="builderLearnerPreviewBtn" target="_blank" class="btn btn-sm d-none align-items-center gap-1" style="background:#6c5ce7;color:#fff;border:none;font-size:0.75rem;border-radius:6px;font-weight:600;text-decoration:none;">
-                                <i class="ti ti-device-gamepad"></i><span>Preview as Learner</span>
-                            </a>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="closeActivityBuilder()" style="border-radius:6px;font-size:0.75rem;">
-                                <i class="ti ti-x me-1"></i>Cancel
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Common fields -->
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Lesson Plan <span class="text-danger">*</span></label>
-                            <select class="form-select form-select-sm" id="builderLessonPlan" required>
-                                <option value="">— Select lesson plan —</option>
-                                <?php foreach ($lessonPlans as $lp): ?>
-                                    <option value="<?php echo (int)$lp['id']; ?>">
-                                        <?php echo htmlspecialchars($lp['title']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Activity Title <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control form-control-sm" id="builderTitle" placeholder="Enter title" required>
-                        </div>
-                        <div class="col-12">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="form-label small fw-semibold mb-0">Instructions / Mga Panuto</label>
-                                <span class="badge bg-light text-primary border" style="font-size:0.7rem;"><i class="ti ti-typography me-1"></i>WYSIWYG: Tables &amp; Images Supported</span>
-                            </div>
-                            <textarea class="form-control form-control-sm" id="builderInstructions" rows="3"
-                                      placeholder="Instructions for the learner (tables, formatted text, and images supported)..."></textarea>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Due Date <span class="text-muted">(optional)</span></label>
-                            <input type="date" class="form-control form-control-sm" id="builderDueDate">
-                        </div>
-                        <div class="col-md-4" id="builderMaxScoreWrap">
-                            <label class="form-label small fw-semibold">Max Score</label>
-                            <input type="number" class="form-control form-control-sm" id="builderMaxScore"
-                                   min="0" value="10" placeholder="10">
-                        </div>
-                        <div class="col-md-4 d-flex align-items-end mb-1">
-                            <div class="form-check form-switch mb-1">
-                                <input class="form-check-input" type="checkbox" id="builderIsF2F" onchange="toggleF2FFields()">
-                                <label class="form-check-label small fw-semibold" for="builderIsF2F">Face-to-Face / Direct Observation</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Type-specific builder area -->
-                    <div id="builderTypeArea"></div>
-
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;"
-                                onclick="saveActivity()">
-                            <i class="ti ti-device-floppy me-1"></i>Save Activity
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="closeActivityBuilder()">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Activities list -->
-            <?php if (empty($activities)): ?>
-                <div class="text-center py-4" id="activitiesEmptyState">
-                    <i class="ti ti-mood-empty" style="font-size:2.5rem;color:#ccc;"></i>
-                    <p class="text-muted small mt-2 mb-0">No activities added yet.</p>
-                </div>
-            <?php endif; ?>
-
-            <div id="activitiesList" <?php echo empty($activities) ? 'style="display:none;"' : ''; ?>>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0" style="font-size:0.85rem;">
-                        <thead style="background:#1e4072;color:#fff;">
-                            <tr>
-                                <th>Title</th>
-                                <th>Type</th>
-                                <th>Lesson Plan</th>
-                                <th>Due Date</th>
-                                <th>Max Score</th>
-                                <th style="min-width:200px;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="activitiesTableBody">
-                        <?php foreach ($activities as $act): ?>
-                            <?php
-                            $actType = $act['activity_type'] ?? '';
-                            $actTypeColors = [
-                                'multiple_choice' => '#1e4072',
-                                'true_false'      => '#3b6d11',
-                                'fill_in_blanks'  => '#a01422',
-                                'matching'        => '#6c757d',
-                                'drag_drop_sort'  => '#e67e22',
-                                'image_label'     => '#8e44ad',
-                                'flashcards'      => '#2980b9',
-                                'sequencing'      => '#16a085',
-                            ];
-                            $actColor = $actTypeColors[$actType] ?? '#6c757d';
-                            $actTypeLabel = ucwords(str_replace('_', ' ', $actType));
-                            ?>
-                            <tr id="actRow_<?php echo (int)$act['id']; ?>">
-                                <td class="fw-semibold"><?php echo htmlspecialchars($act['title']); ?></td>
-                                <td>
-                                    <span class="badge" style="background:<?php echo $actColor; ?>;font-size:0.7rem;">
-                                        <?php echo htmlspecialchars($actTypeLabel); ?>
-                                    </span>
-                                    <?php if (!empty($act['is_f2f'])): ?>
-                                        <span class="badge bg-success ms-1" style="font-size:0.7rem;">F2F</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="text-muted"><?php echo htmlspecialchars($act['lesson_plan_title'] ?? '—'); ?></td>
-                                <td class="text-muted"><?php echo $act['due_date'] ? htmlspecialchars($act['due_date']) : '—'; ?></td>
-                                <td><?php echo !empty($act['is_f2f']) ? '—' : (int)($act['max_score'] ?? 0); ?></td>
-                                <td>
-                                    <div class="d-flex gap-1 flex-wrap">
-                                        <a href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/learning/activity/<?php echo (int)$act['id']; ?>"
-                                           target="_blank"
-                                           class="btn btn-sm"
-                                           style="background:#6c5ce7;color:#fff;border:none;font-size:0.75rem; border-radius:6px; text-decoration:none; display:inline-flex; align-items:center;"
-                                           title="Open Learner's Interactive Preview">
-                                            <i class="ti ti-device-gamepad me-1"></i>Preview
-                                        </a>
-                                        <button class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
-                                                onclick="viewActivity(<?php echo htmlspecialchars(json_encode($act), ENT_QUOTES); ?>)">
-                                            <i class="ti ti-eye me-1"></i>View
-                                        </button>
-                                        <button class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
-                                                onclick="openEditActivity(<?php echo htmlspecialchars(json_encode($act), ENT_QUOTES); ?>)">
-                                            <i class="ti ti-pencil me-1"></i>Edit
-                                        </button>
-                                        <button class="btn btn-sm" style="background:#a01422;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
-                                                onclick="confirmDeleteActivity(<?php echo (int)$act['id']; ?>, '<?php echo htmlspecialchars(addslashes($act['title'])); ?>')">
-                                            <i class="ti ti-trash me-1"></i>Delete
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </div>
-    </div><!-- /Section 3 -->
-
-
-    <!-- ====================================================
-         SECTION 4 — PUBLISH & SUBMISSIONS
-         ==================================================== -->
-    <div class="card mb-4" id="sectionPublish">
+        <!-- ====================================================
+             TAB 4 — PUBLISH & SUBMISSIONS
+             ==================================================== -->
+        <div class="tab-pane fade" id="tab-publish" role="tabpanel" aria-labelledby="tab-publish-btn">
+            <div class="card mb-4" id="sectionPublish">
         <div class="card-header" style="background:#1e4072;color:#fff;border-radius:6px 6px 0 0;">
             <span class="fw-semibold"><i class="ti ti-send me-2"></i>Publish &amp; Submissions</span>
         </div>
@@ -805,6 +836,78 @@ require_once __DIR__ . '/../layouts/header.php';
 
         </div>
     </div><!-- /Section 4 -->
+</div><!-- /tab-publish -->
+
+        <!-- ============================================================
+             TAB 5 — TRADITIONAL DLL & RECORDS
+             ============================================================ -->
+        <div class="tab-pane fade" id="tab-traditional" role="tabpanel" aria-labelledby="tab-traditional-btn">
+            <?php 
+                $currentTrack = $studentTrackInfo['learning_track'] ?? 'unassigned';
+                $isTraditional = ($currentTrack === 'traditional');
+            ?>
+            <div class="card mb-4 border-<?= $isTraditional ? 'secondary' : 'primary' ?> shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
+                     style="background: <?= $isTraditional ? '#475569' : '#1e4072' ?>; color:#fff; border-radius:6px 6px 0 0;">
+                    <span class="fw-semibold">
+                        <i class="bi bi-<?= $isTraditional ? 'folder2-open' : 'laptop-fill' ?> me-2"></i>
+                        Dual-Track Mode: <?= $isTraditional ? '🏫 SEN Traditional F2F Track (Record-Keeping Active)' : '💻 SignED Interactive LMS Track' ?>
+                    </span>
+                    <button type="button" class="btn btn-sm btn-light py-1 px-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#uploadTraditionalDocModal">
+                        <i class="bi bi-cloud-arrow-up-fill me-1"></i> Upload Traditional Document (DLL / Physical IEP)
+                    </button>
+                </div>
+                <div class="card-body p-3 bg-light">
+                    <?php if (empty($traditionalDocs)): ?>
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 text-muted small">
+                            <span><i class="bi bi-info-circle me-1"></i>No uploaded traditional Daily Lesson Logs (DLL) or physical IEP forms yet for this learner.</span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#uploadTraditionalDocModal">
+                                <i class="bi bi-plus-circle me-1"></i>Add DLL / Scanned Form
+                            </button>
+                        </div>
+                    <?php else: ?>
+                        <h6 class="fw-bold text-dark mb-2" style="font-size:0.875rem;"><i class="bi bi-file-earmark-medical me-1 text-primary"></i>Uploaded Traditional Documents &amp; Lesson Logs (DLL):</h6>
+                        <div class="row g-2">
+                            <?php foreach ($traditionalDocs as $td): ?>
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="card bg-white p-2 border rounded shadow-sm h-100">
+                                        <div class="d-flex align-items-start justify-content-between gap-1">
+                                            <div>
+                                                <span class="badge bg-<?= $td['document_type'] === 'dll' ? 'primary' : 'secondary' ?> text-uppercase" style="font-size:0.7rem;">
+                                                    <?= htmlspecialchars($td['document_type']) ?> &bull; <?= htmlspecialchars($td['quarter'] ?? 'Q1') ?>
+                                                </span>
+                                                <h6 class="fw-bold mb-1 mt-1 text-dark" style="font-size:0.85rem;"><?= htmlspecialchars($td['title']) ?></h6>
+                                                <div class="small text-muted" style="font-size:0.75rem;">
+                                                    <i class="bi bi-person me-1"></i><?= htmlspecialchars($td['uploaded_by_name'] ?? 'Teacher') ?> &bull; <?= date('M j, Y', strtotime($td['created_at'])) ?>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex flex-column gap-1">
+                                                <a href="<?= $basePath . '/' . ltrim($td['file_path'], '/') ?>" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-1" title="View Document">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                <form method="POST" action="<?= $basePath ?>/iep/implementation/traditional-doc/delete/<?= $td['id'] ?>" onsubmit="return confirm('Remove this document?');">
+                                                    <input type="hidden" name="iep_id" value="<?= $iepId ?>">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                        <?php if (!empty($td['notes'])): ?>
+                                            <div class="mt-1 pt-1 border-top text-muted small" style="font-size:0.75rem;">
+                                                <em><?= htmlspecialchars($td['notes']) ?></em>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div><!-- /tab-traditional -->
+
+</div><!-- /workspaceTabContent -->
 
 </div><!-- /container-fluid -->
 </div><!-- /main-content -->
@@ -1930,7 +2033,8 @@ const actTypeLabels = {
     multiple_choice: 'Multiple Choice', true_false: 'True / False',
     fill_in_blanks: 'Fill in the Blanks', matching: 'Matching',
     drag_drop_sort: 'Drag & Drop Sort', image_label: 'Image Label',
-    flashcards: 'Flashcards', sequencing: 'Sequencing'
+    flashcards: 'Flashcards', sequencing: 'Sequencing',
+    custom_printable: 'Custom / Printable Worksheet'
 };
 
 function viewActivity(act) {
@@ -2013,6 +2117,22 @@ function viewActivity(act) {
             if (data.image_path) html += `<img src="${BASE}/${data.image_path}" class="img-fluid rounded mb-2" alt="activity image">`;
             (data.labels || []).forEach(l => { html += `<div class="small text-muted">Label at (${l.x},${l.y}): <strong>${l.answer}</strong></div>`; });
             break;
+        case 'custom_printable': {
+            const filePath = data.file_path ? `${BASE}/${data.file_path}` : '#';
+            const fileName = data.file_name || (data.file_path ? data.file_path.split('/').pop() : 'Worksheet File');
+            const isImage = data.file_path && /\.(png|jpe?g|webp|gif)$/i.test(data.file_path);
+            html += `
+                <div class="p-3 border rounded bg-light mb-3">
+                    <h6 class="fw-semibold mb-2" style="color:#1e4072;"><i class="ti ti-printer me-1"></i>Printable Worksheet Material</h6>
+                    ${isImage ? `<div class="mb-3 text-center"><img src="${filePath}" class="img-fluid rounded border shadow-sm" style="max-height:260px;" alt="Worksheet"></div>` : ''}
+                    <div class="d-flex align-items-center justify-content-between p-2 bg-white rounded border">
+                        <span class="small fw-semibold text-dark"><i class="ti ti-paperclip me-1"></i>${escHtml(fileName)}</span>
+                        <a href="${filePath}" target="_blank" class="btn btn-sm" style="background:#1e4072;color:#fff;border:none;font-size:0.75rem;" download><i class="ti ti-download me-1"></i>Download</a>
+                    </div>
+                </div>
+            `;
+            break;
+        }
         default:
             html += `<pre class="bg-light p-2 rounded small">${JSON.stringify(data, null, 2)}</pre>`;
     }
@@ -2819,8 +2939,9 @@ const activityTypeLabels = {
     matching:        'Matching',
     drag_drop_sort:  'Drag & Drop Sort',
     image_label:     'Image Label',
-    flashcards:      'Flashcards',
-    sequencing:      'Sequencing',
+    flashcards:       'Flashcards',
+    sequencing:       'Sequencing',
+    custom_printable: 'Custom / Printable Worksheet',
 };
 
 function initActivitySummernote() {
@@ -3036,6 +3157,34 @@ function populateBuilderData(type, data) {
     if (!data) return;
 
     switch (type) {
+        case 'custom_printable': {
+            if (data.file_path) {
+                const existingPathInput = document.getElementById('customPrintableExistingPath');
+                if (existingPathInput) existingPathInput.value = data.file_path;
+                const preview = document.getElementById('customPrintablePreview');
+                const nameEl = document.getElementById('customPrintableFileName');
+                const actions = document.getElementById('customPrintableActions');
+                const thumbWrap = document.getElementById('customPrintableImgThumb');
+                const thumbImg = thumbWrap ? thumbWrap.querySelector('img') : null;
+
+                if (preview) preview.style.display = 'block';
+                const fName = data.file_name || data.file_path.split('/').pop();
+                if (nameEl) nameEl.textContent = fName;
+                if (actions) {
+                    actions.innerHTML = `
+                        <a href="${BASE}/${data.file_path}" target="_blank" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;">
+                            <i class="ti ti-download me-1"></i>Current File
+                        </a>
+                    `;
+                }
+                const isImg = /\.(png|jpe?g|webp|gif)$/i.test(data.file_path);
+                if (isImg && thumbImg) {
+                    thumbImg.src = BASE + '/' + data.file_path;
+                    if (thumbWrap) thumbWrap.style.display = 'block';
+                }
+            }
+            break;
+        }
         case 'multiple_choice': {
             const list = document.getElementById('mcQuestionList');
             if (list) list.innerHTML = '';
@@ -3419,8 +3568,65 @@ function renderBuilderTypeArea(type) {
         case 'image_label':     area.innerHTML = buildImageLabel();      break;
         case 'flashcards':      area.innerHTML = buildFlashcards();      break;
         case 'sequencing':      area.innerHTML = buildSequencing();      break;
+        case 'custom_printable': area.innerHTML = buildCustomPrintable(); break;
     }
     initDragHandles();
+}
+
+/* ---- Custom / Printable Worksheet ---- */
+function buildCustomPrintable() {
+    return `
+    <div id="customPrintableArea" class="p-3 bg-white border rounded">
+        <div class="alert alert-info py-2 px-3 small mb-3">
+            <i class="ti ti-info-circle me-1"></i>
+            <strong>Custom / Printable Worksheet:</strong> Upload a printable assignment or worksheet (PDF, Image, or Word Document). The learner can download and print it, complete the exercises with pen or pencil, and upload a photo or scan of their completed work for you to review and grade.
+        </div>
+        <div class="mb-3">
+            <label class="form-label small fw-semibold" style="color:#1e4072;">Worksheet File Attachment <span class="text-danger">*</span></label>
+            <input type="file" id="customPrintableFile" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx" onchange="handleCustomPrintableSelect(this)">
+            <div class="form-text small text-muted">Accepted formats: PDF, JPG, PNG, WEBP, DOC, DOCX (Max 20MB).</div>
+        </div>
+        <div id="customPrintablePreview" class="p-2 border rounded bg-light mt-2" style="display:none;">
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="ti ti-file-text fs-4" id="customPrintableIcon" style="color:#1e4072;"></i>
+                    <div>
+                        <span id="customPrintableFileName" class="fw-semibold small text-dark"></span>
+                        <div id="customPrintableFileInfo" class="small text-muted"></div>
+                    </div>
+                </div>
+                <div id="customPrintableActions"></div>
+            </div>
+            <div id="customPrintableImgThumb" class="mt-2 text-center" style="display:none;">
+                <img src="" class="img-fluid rounded border shadow-sm" style="max-height:220px;" alt="Worksheet Preview">
+            </div>
+        </div>
+        <input type="hidden" id="customPrintableExistingPath" value="">
+    </div>
+    `;
+}
+
+function handleCustomPrintableSelect(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    const preview = document.getElementById('customPrintablePreview');
+    const nameEl = document.getElementById('customPrintableFileName');
+    const infoEl = document.getElementById('customPrintableFileInfo');
+    const thumbWrap = document.getElementById('customPrintableImgThumb');
+    const thumbImg = thumbWrap ? thumbWrap.querySelector('img') : null;
+    const actions = document.getElementById('customPrintableActions');
+
+    if (preview) preview.style.display = 'block';
+    if (nameEl) nameEl.textContent = file.name;
+    if (infoEl) infoEl.textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+    if (actions) actions.innerHTML = '';
+
+    if (file.type.startsWith('image/') && thumbImg) {
+        thumbImg.src = URL.createObjectURL(file);
+        if (thumbWrap) thumbWrap.style.display = 'block';
+    } else if (thumbWrap) {
+        thumbWrap.style.display = 'none';
+    }
 }
 
 /* ---- Image upload helper for activity items ---- */
@@ -4348,6 +4554,14 @@ function collectActivityData() {
             data = { sets, cards: sets[0]?.cards || [] };
             break;
         }
+        case 'custom_printable': {
+            const existingPath = document.getElementById('customPrintableExistingPath')?.value || '';
+            data = {
+                file_path: existingPath,
+                allow_print: true
+            };
+            break;
+        }
         case 'sequencing': {
             const sets = [];
             document.querySelectorAll('.sequence-question').forEach((set, setIndex) => {
@@ -4437,6 +4651,13 @@ function validateActivityData(type, data) {
         const labels = (data.labels || []).filter(l => (l.answer || '').trim() !== '');
         if (labels.length < 1) return 'Add at least one image label marker and answer.';
     }
+    if (type === 'custom_printable') {
+        const fileInput = document.getElementById('customPrintableFile');
+        const existingPath = document.getElementById('customPrintableExistingPath')?.value;
+        if ((!fileInput || !fileInput.files.length) && !existingPath) {
+            return 'Please choose a worksheet file to upload.';
+        }
+    }
     return '';
 }
 
@@ -4487,9 +4708,7 @@ async function saveActivity() {
             ? `${BASE}/iep/implementation/activity/${editingActivityId}/edit` 
             : `${BASE}/iep/implementation/activity/create`;
 
-        if (selectedActivityType === 'image_label') {
-            const fileInput = document.getElementById('imageLabelFile');
-            const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+        if (selectedActivityType === 'image_label' || selectedActivityType === 'custom_printable') {
             const formData = new FormData();
             formData.append('lesson_plan_id', parseInt(lpId));
             formData.append('title', title);
@@ -4499,8 +4718,14 @@ async function saveActivity() {
             formData.append('max_score', maxScore);
             formData.append('is_f2f', isF2F);
             if (dueDate) formData.append('due_date', dueDate);
-            if (file) {
-                formData.append('image_file', file);
+            if (selectedActivityType === 'image_label') {
+                const fileInput = document.getElementById('imageLabelFile');
+                const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+                if (file) formData.append('image_file', file);
+            } else if (selectedActivityType === 'custom_printable') {
+                const fileInput = document.getElementById('customPrintableFile');
+                const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+                if (file) formData.append('worksheet_file', file);
             }
             data = await postForm(targetUrl, formData);
         } else {
@@ -4611,7 +4836,7 @@ async function saveActivity() {
 const actTypeColors = {
     multiple_choice: '#1e4072', true_false: '#3b6d11', fill_in_blanks: '#a01422',
     matching: '#6c757d', drag_drop_sort: '#e67e22', image_label: '#8e44ad',
-    flashcards: '#2980b9', sequencing: '#16a085',
+    flashcards: '#2980b9', sequencing: '#16a085', custom_printable: '#0d9488',
 };
 
 function appendActivityRow(act) {
@@ -5272,6 +5497,83 @@ async function submitConfigureMastery(e) {
         btn.innerHTML = origHtml;
     }
 }
+
+// ── Workspace Tab Helper & State Persistence ─────────────────
+function switchToTab(tabId, targetElId) {
+    var btn = document.getElementById('tab-' + tabId + '-btn');
+    if (btn) {
+        var tabTrigger = new bootstrap.Tab(btn);
+        tabTrigger.show();
+        if (targetElId) {
+            setTimeout(function() {
+                var el = document.getElementById(targetElId);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 120);
+        }
+    }
+}
+
+function startNewActivityForLp(lpId) {
+    switchToTab('activities');
+    setTimeout(function() {
+        var sel = document.getElementById('builderLessonPlan');
+        if (sel) sel.value = String(lpId);
+        var actGrid = document.getElementById('activityTypeGrid');
+        if (actGrid) actGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+}
+
+function startNewMaterialForLp(lpId) {
+    switchToTab('materials');
+    setTimeout(function() {
+        var sel = document.getElementById('matFileLp');
+        if (sel) sel.value = String(lpId);
+        var selLink = document.getElementById('matLinkLp');
+        if (selLink) selLink.value = String(lpId);
+        var selQuiz = document.getElementById('matQuizLp');
+        if (selQuiz) selQuiz.value = String(lpId);
+        var matSection = document.getElementById('sectionMaterials');
+        if (matSection) matSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+}
+
+// Restore & Remember Active Tab
+document.addEventListener('DOMContentLoaded', function() {
+    var iepIdKey = 'signedd_ws_tab_' + <?php echo (int)$iepId; ?>;
+    var hash = window.location.hash;
+    var urlParams = new URLSearchParams(window.location.search);
+    var tabParam = urlParams.get('tab');
+    var activeTabKey = tabParam || sessionStorage.getItem(iepIdKey);
+
+    if (hash) {
+        if (hash === '#activities' || hash === '#sectionActivities' || hash.indexOf('act') !== -1) {
+            activeTabKey = 'activities';
+        } else if (hash === '#materials' || hash === '#sectionMaterials' || hash.indexOf('mat') !== -1) {
+            activeTabKey = 'materials';
+        } else if (hash === '#publish' || hash === '#sectionPublish' || hash === '#submissions') {
+            activeTabKey = 'publish';
+        } else if (hash === '#traditional' || hash.indexOf('traditional') !== -1) {
+            activeTabKey = 'traditional';
+        } else if (hash === '#lesson-plans' || hash === '#sectionLessonPlans' || hash.indexOf('lp-') !== -1) {
+            activeTabKey = 'lesson-plans';
+        }
+    }
+
+    if (activeTabKey) {
+        var btn = document.getElementById('tab-' + activeTabKey + '-btn');
+        if (btn) {
+            var tabTrigger = new bootstrap.Tab(btn);
+            tabTrigger.show();
+        }
+    }
+
+    document.querySelectorAll('#workspaceTabs button[data-bs-toggle="tab"]').forEach(function(tabBtn) {
+        tabBtn.addEventListener('shown.bs.tab', function(e) {
+            var key = e.target.id.replace('tab-', '').replace('-btn', '');
+            sessionStorage.setItem(iepIdKey, key);
+        });
+    });
+});
 </script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

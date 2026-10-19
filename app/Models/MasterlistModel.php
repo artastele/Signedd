@@ -441,6 +441,49 @@ class MasterlistModel {
             $parentName = !empty($r['parent_name']) ? trim($r['parent_name']) : 'Parent / Guardian';
             $parentContact = !empty($r['parent_contact']) ? trim($r['parent_contact']) : '';
 
+            // Resolve section_id and adviser from sections table
+            $sectionId = null;
+            if (!empty($section)) {
+                try {
+                    $secStmt = $this->db->prepare("
+                        SELECT id, adviser_teacher_id 
+                        FROM sections 
+                        WHERE (school_id = :school_id OR :school_id_check IS NULL)
+                          AND (LOWER(TRIM(section_name)) = LOWER(TRIM(:sname)) OR id = :sid)
+                          AND status = 'active'
+                        LIMIT 1
+                    ");
+                    $secStmt->execute([
+                        'school_id' => $schoolId,
+                        'school_id_check' => $schoolId,
+                        'sname' => $section,
+                        'sid' => is_numeric($section) ? (int)$section : 0
+                    ]);
+                    $secRow = $secStmt->fetch(PDO::FETCH_ASSOC);
+                    if ($secRow) {
+                        $sectionId = (int)$secRow['id'];
+                        if (!$teacherId && !empty($secRow['adviser_teacher_id'])) {
+                            $teacherId = (int)$secRow['adviser_teacher_id'];
+                        }
+                    } elseif ($schoolId) {
+                        // Auto-create section if it doesn't exist
+                        $createSec = $this->db->prepare("
+                            INSERT INTO sections (school_id, name, section_name, grade_level, max_capacity, school_year, status)
+                            VALUES (:school_id, :sec_name, :sec_name, :grade, 15, :sy, 'active')
+                        ");
+                        $createSec->execute([
+                            'school_id' => $schoolId,
+                            'sec_name' => $section,
+                            'grade' => $grade ?: 'SPED',
+                            'sy' => date('Y') . '-' . (date('Y') + 1)
+                        ]);
+                        $sectionId = (int)$this->db->lastInsertId();
+                    }
+                } catch (\Throwable $secErr) {
+                    error_log('bulkImportLearners section resolve error: ' . $secErr->getMessage());
+                }
+            }
+
             // Check if learner already exists by LRN or by Name + DOB
             $existing = null;
             if (!empty($lrn)) {
@@ -460,6 +503,7 @@ class MasterlistModel {
                     UPDATE student_records 
                     SET lrn = COALESCE(:lrn, lrn),
                         section_name = :section,
+                        section_id = COALESCE(:section_id, section_id),
                         disability_type = :disability,
                         lis_status = 'synced',
                         updated_at = NOW()
@@ -468,6 +512,7 @@ class MasterlistModel {
                 $upStmt->execute([
                     'lrn' => $lrn,
                     'section' => $section,
+                    'section_id' => $sectionId,
                     'disability' => $disability,
                     'id' => $existing['id']
                 ]);
@@ -493,12 +538,12 @@ class MasterlistModel {
                         target_school_id, assigned_teacher_id, status, is_draft, enrollment_type,
                         school_year, lrn, first_name, last_name, birth_date, sex,
                         grade_level_to_enroll, guardian_first_name, guardian_contact_number,
-                        learning_track, submitted_at, verified_at, verified_by, created_at, updated_at
+                        learning_track, section_id, submitted_at, verified_at, verified_by, created_at, updated_at
                     ) VALUES (
                         :school_id, :teacher_id, 'verified', 0, 'new',
                         :sy, :lrn, :fname, :lname, :dob, :sex,
                         :grade, :pname, :pcontact,
-                        :track, NOW(), NOW(), :verified_by, NOW(), NOW()
+                        :track, :section_id, NOW(), NOW(), :verified_by, NOW(), NOW()
                     )
                 ");
 
@@ -519,6 +564,7 @@ class MasterlistModel {
                     'pname' => $parentName,
                     'pcontact' => $parentContact,
                     'track' => $track,
+                    'section_id' => $sectionId,
                     'verified_by' => $teacherId
                 ]);
                 $enrollmentId = (int)$this->db->lastInsertId();
@@ -527,12 +573,12 @@ class MasterlistModel {
                 $stmtSr = $this->db->prepare("
                     INSERT INTO student_records (
                         enrollment_id, school_id, assigned_teacher_id, student_id, lrn,
-                        student_name, date_of_birth, disability_type, section_name,
+                        student_name, date_of_birth, disability_type, section_name, section_id,
                         learning_track, lms_invite_status, lis_status, claim_token,
                         verified_by, created_at, updated_at
                     ) VALUES (
                         :eid, :school_id, :teacher_id, :sid_code, :lrn,
-                        :sname, :dob, :disability, :section,
+                        :sname, :dob, :disability, :section, :section_id,
                         :track, 'none', :lis_status, :claim_token,
                         :verified_by, NOW(), NOW()
                     )
@@ -547,6 +593,7 @@ class MasterlistModel {
                     'dob' => $dob,
                     'disability' => $disability,
                     'section' => $section,
+                    'section_id' => $sectionId,
                     'track' => $track,
                     'lis_status' => (!empty($lrn) && strlen($lrn) === 12) ? 'synced' : 'pending',
                     'claim_token' => $claimToken,
@@ -562,6 +609,23 @@ class MasterlistModel {
                 $errors[] = "Row {$line} ({$name}): " . $e->getMessage();
                 $skipped++;
             }
+        }
+
+        // Synchronize section counts
+        try {
+            $this->db->exec("
+                UPDATE sections s
+                SET current_count = (
+                    SELECT COUNT(*) 
+                    FROM student_records sr 
+                    WHERE (sr.section_id = s.id 
+                           OR (sr.section_id IS NULL AND LOWER(TRIM(sr.section_name)) = LOWER(TRIM(s.section_name)))
+                          )
+                      AND (s.school_id IS NULL OR sr.school_id = s.school_id OR sr.school_id IS NULL)
+                )
+            ");
+        } catch (\Throwable $e) {
+            error_log('bulkImportLearners sync count error: ' . $e->getMessage());
         }
 
         return [

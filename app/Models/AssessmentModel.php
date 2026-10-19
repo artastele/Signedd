@@ -621,7 +621,34 @@ class AssessmentModel {
     /**
      * Get all assessments with student info (for history view)
      */
-    public function getAllWithStudentInfo() {
+    public function getAllWithStudentInfo(?int $schoolId = null, ?int $teacherId = null) {
+        $where = [];
+        $params = [];
+
+        if ($schoolId) {
+            $where[] = "(sr.school_id = :sch_1 OR es.target_school_id = :sch_2)";
+            $params['sch_1'] = $schoolId;
+            $params['sch_2'] = $schoolId;
+        }
+
+        if ($teacherId) {
+            $where[] = "(ar.conducted_by = :tid_1
+                         OR ar.assessed_by = :tid_2
+                         OR sr.assigned_teacher_id = :tid_3
+                         OR es.assigned_teacher_id = :tid_4
+                         OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_5)
+                         OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_6))
+                        )";
+            $params['tid_1'] = $teacherId;
+            $params['tid_2'] = $teacherId;
+            $params['tid_3'] = $teacherId;
+            $params['tid_4'] = $teacherId;
+            $params['tid_5'] = $teacherId;
+            $params['tid_6'] = $teacherId;
+        }
+
+        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
         $stmt = $this->db->prepare("
             SELECT 
                 ar.id,
@@ -635,10 +662,12 @@ class AssessmentModel {
                 u.name as conducted_by_name
             FROM assessment_records ar
             JOIN student_records sr ON ar.student_id = sr.id
+            LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
             LEFT JOIN users u ON ar.conducted_by = u.id
+            {$whereClause}
             ORDER BY ar.created_at DESC
         ");
-        $stmt->execute();
+        $stmt->execute($params);
         $assessments = $stmt->fetchAll();
         
         // Get services and documents for each assessment

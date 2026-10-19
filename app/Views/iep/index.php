@@ -43,7 +43,7 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
     $iepListStudentModel = new StudentModel();
     $iepListStudentCodeCache = [];
     ?>
-    <form method="GET" class="row g-2 mb-4">
+    <form method="GET" class="row g-2 mb-3">
         <div class="col-auto">
             <select name="school_year" class="form-select form-select-sm" style="min-width:140px;">
                 <option value="">All School Years</option>
@@ -67,6 +67,19 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                 <?php endforeach; ?>
             </select>
         </div>
+        <?php if (!empty($availableSections)): ?>
+        <div class="col-auto">
+            <select name="section" class="form-select form-select-sm" style="min-width:150px;">
+                <option value="">All Sections</option>
+                <?php foreach ($availableSections as $sec): ?>
+                <option value="<?php echo htmlspecialchars($sec['section_name']); ?>"
+                        <?php echo (($filterSection ?? '') === $sec['section_name'] || ($filterSection ?? '') == $sec['id']) ? 'selected' : ''; ?>>
+                    <?php echo htmlspecialchars($sec['section_name']); ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php endif; ?>
         <div class="col-auto">
             <button type="submit" class="btn btn-sm" style="background:#1e4072;color:white;">
                 <i class="bi bi-funnel me-1"></i>Filter
@@ -74,6 +87,27 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
             <a href="<?php echo $basePath; ?>/iep" class="btn btn-sm btn-outline-secondary ms-1">Clear</a>
         </div>
     </form>
+
+    <?php if (!empty($availableSections) && in_array($role, ['principal', 'master_teacher', 'sped_teacher'])): ?>
+    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+        <span class="small fw-bold text-muted"><i class="bi bi-diagram-3 me-1"></i>Sections:</span>
+        <a href="<?php echo $basePath; ?>/iep" 
+           class="badge text-decoration-none px-2.5 py-1.5 <?php echo empty($filterSection) ? 'bg-primary text-white' : 'bg-light text-dark border'; ?>" 
+           style="font-size: 0.8rem; border-radius: 6px;">
+            All Sections
+        </a>
+        <?php foreach ($availableSections as $sec): ?>
+            <?php 
+                $isActiveSec = ($filterSection === $sec['section_name'] || (string)$filterSection === (string)$sec['id']); 
+            ?>
+            <a href="<?php echo $basePath; ?>/iep?section=<?php echo urlencode($sec['section_name']); ?>" 
+               class="badge text-decoration-none px-2.5 py-1.5 <?php echo $isActiveSec ? 'bg-primary text-white' : 'bg-light text-dark border'; ?>"
+               style="font-size: 0.8rem; border-radius: 6px;">
+                <?php echo htmlspecialchars($sec['section_name']); ?>
+            </a>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
 
     <!-- IEP Table -->
     <div class="card">
@@ -120,6 +154,11 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                         <td>
                             <strong><?php echo htmlspecialchars($iep['student_name']); ?></strong><br>
                             <small class="text-muted">Student ID: <?php echo htmlspecialchars(StudentDisplayHelper::formatStudentId($iepListStudentCodeCache[$iepFk] ?? null)); ?> · DepEd LRN: <?php echo htmlspecialchars(StudentDisplayHelper::formatDepEdLrn($iep['lrn'] ?? null)); ?></small>
+                            <div class="mt-1">
+                                <span class="badge bg-light text-secondary border" style="font-size: 0.72rem;">
+                                    <i class="bi bi-diagram-3 me-1"></i>Section: <?php echo htmlspecialchars($iep['section_name'] ?? 'Unassigned Section'); ?>
+                                </span>
+                            </div>
                         </td>
                         <td><?php echo htmlspecialchars($iep['school_year']); ?></td>
                         <td>
@@ -162,13 +201,13 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                                 </a>
                                 <?php endif; ?>
                                 <?php if (RoleMiddleware::hasPermission('transition_readiness.view') || RoleMiddleware::hasPermission('transition_readiness.create')): ?>
-                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/transition-management/readiness"
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/transition-readiness"
                                    class="btn btn-sm btn-outline-success">
                                     <i class="bi bi-check2-circle me-1"></i>Readiness
                                 </a>
                                 <?php endif; ?>
                                 <?php if (RoleMiddleware::hasPermission('itp.view') || RoleMiddleware::hasPermission('itp.view_own_child') || RoleMiddleware::hasPermission('itp.create')): ?>
-                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/inclusion-planning/itp"
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/individual-transition-plan"
                                    class="btn btn-sm btn-outline-info">
                                     <i class="bi bi-people me-1"></i>ITP
                                 </a>
@@ -180,7 +219,7 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                                 </a>
                                 <?php endif; ?>
                                 <?php if (RoleMiddleware::hasPermission('class_placement.view') || RoleMiddleware::hasPermission('class_placement.review')): ?>
-                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/placement-management/notices"
+                                <a href="<?php echo $basePath; ?>/iep/<?php echo (int)$iep['id']; ?>/placement-notice"
                                    class="btn btn-sm btn-outline-dark">
                                     <i class="bi bi-envelope me-1"></i>Notices
                                 </a>

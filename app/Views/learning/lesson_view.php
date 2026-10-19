@@ -45,8 +45,9 @@ $typeMap = [
     'matching'        => ['Pagtambalin', 'ph-bold ph-link', 'Pagtatambal ng mga Bagay'],
     'drag_drop_sort'  => ['Pagsasaayos', 'ph-bold ph-arrows-down-up', 'Pagsusunod-sunod'],
     'image_label'     => ['Pangalanan ang Larawan', 'ph-bold ph-tag', 'Paglalagay ng Pangalan'],
-    'flashcards'      => ['Mga Flashcard', 'ph-bold ph-cards', 'Kard ng Aralin'],
-    'sequencing'      => ['Pagkakasunod-sunod', 'ph-bold ph-list-numbers', 'Tamang Pagkakasunod'],
+    'flashcards'       => ['Mga Flashcard', 'ph-bold ph-cards', 'Kard ng Aralin'],
+    'sequencing'       => ['Pagkakasunod-sunod', 'ph-bold ph-list-numbers', 'Tamang Pagkakasunod'],
+    'custom_printable' => ['Printable Worksheet', 'ph-bold ph-printer', 'Gawaing Papel / Worksheet'],
 ];
 ?>
 

@@ -15,25 +15,29 @@ class SectionModel {
      * Get all sections for a school
      */
     public function getSectionsBySchool(?int $schoolId): array {
-        if (!$schoolId) {
-            $stmt = $this->db->query("
-                SELECT s.*, u.name as adviser_name 
-                FROM sections s
-                LEFT JOIN users u ON s.adviser_teacher_id = u.id
-                ORDER BY s.grade_level ASC, s.section_name ASC
-            ");
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $where = "s.status = 'active'";
+        $params = [];
+        if ($schoolId) {
+            $where .= " AND s.school_id = :school_id";
+            $params['school_id'] = $schoolId;
         }
 
         $stmt = $this->db->prepare("
             SELECT s.*, u.name as adviser_name,
-                   (SELECT COUNT(*) FROM student_records sr WHERE sr.section_id = s.id) as enrolled_students_count
+                   (
+                       SELECT COUNT(*) 
+                       FROM student_records sr 
+                       WHERE (sr.section_id = s.id 
+                              OR (sr.section_id IS NULL AND LOWER(TRIM(sr.section_name)) = LOWER(TRIM(s.section_name)))
+                             )
+                         AND (s.school_id IS NULL OR sr.school_id = s.school_id OR sr.school_id IS NULL)
+                   ) as enrolled_students_count
             FROM sections s
             LEFT JOIN users u ON s.adviser_teacher_id = u.id
-            WHERE s.school_id = :school_id AND s.status = 'active'
+            WHERE {$where}
             ORDER BY s.grade_level ASC, s.section_name ASC
         ");
-        $stmt->execute(['school_id' => $schoolId]);
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 

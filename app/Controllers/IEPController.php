@@ -38,13 +38,24 @@ class IEPController {
             exit;
         }
 
+        // Multi-tenant school scoping
+        $schoolId = $_SESSION['school_id'] ?? null;
+        if (!$schoolId && $this->userId) {
+            $userRec = (new \UserModel())->findById($this->userId);
+            $schoolId = !empty($userRec['school_id']) ? (int)$userRec['school_id'] : null;
+            if ($schoolId) {
+                $_SESSION['school_id'] = $schoolId;
+            }
+        }
+
         // Filter params
-        $filterYear   = $_GET['school_year'] ?? '';
-        $filterStatus = $_GET['status'] ?? '';
+        $filterYear    = $_GET['school_year'] ?? '';
+        $filterStatus  = $_GET['status'] ?? '';
+        $filterSection = trim($_GET['section'] ?? '');
 
         if ($role === 'sped_teacher') {
             $ieps = $this->iepModel->getByTeacher($this->userId);
-            foreach ($this->iepModel->getSignedForRole($role, $this->userId) as $signedIep) {
+            foreach ($this->iepModel->getSignedForRole($role, $this->userId, $schoolId) as $signedIep) {
                 $exists = false;
                 foreach ($ieps as $existingIep) {
                     if ((int)$existingIep['id'] === (int)$signedIep['id']) {
@@ -59,19 +70,25 @@ class IEPController {
         } elseif ($role === 'general_teacher') {
             $ieps = $this->iepModel->getByGeneralTeacher($this->userId);
         } elseif ($role === 'admin') {
-            $ieps = $this->iepModel->getSignedForRole($role, $this->userId);
+            $ieps = $this->iepModel->getSignedForRole($role, $this->userId, $schoolId);
         } elseif ($role === 'parent') {
             $ieps = $this->iepModel->getSignedForRole('parent', $this->userId);
         } else {
-            $ieps = $this->iepModel->getSignedForRole($role, $this->userId);
+            $ieps = $this->iepModel->getSignedForRole($role, $this->userId, $schoolId);
         }
 
         // Apply filters
         if ($filterYear) {
-            $ieps = array_filter($ieps, fn($i) => $i['school_year'] === $filterYear);
+            $ieps = array_filter($ieps, fn($i) => ($i['school_year'] ?? '') === $filterYear);
         }
         if ($filterStatus) {
-            $ieps = array_filter($ieps, fn($i) => $i['status'] === $filterStatus);
+            $ieps = array_filter($ieps, fn($i) => ($i['status'] ?? '') === $filterStatus);
+        }
+        if ($filterSection !== '') {
+            $ieps = array_filter($ieps, function($i) use ($filterSection) {
+                return (string)($i['section_id'] ?? '') === (string)$filterSection 
+                    || strcasecmp(trim($i['section_name'] ?? ''), trim($filterSection)) === 0;
+            });
         }
 
         // Eligible students for new IEP (sped_teacher only)
@@ -79,6 +96,11 @@ class IEPController {
         if ($role === 'sped_teacher' || $role === 'admin') {
             $eligibleStudents = $this->iepModel->getEligibleStudents($this->userId);
         }
+
+        // Available sections for filtering
+        require_once __DIR__ . '/../Models/SectionModel.php';
+        $sectionModel = new SectionModel();
+        $availableSections = $sectionModel->getSectionsBySchool($schoolId);
 
         require __DIR__ . '/../Views/iep/index.php';
     }
@@ -244,13 +266,36 @@ class IEPController {
         $studentIdForInd = (int) ($iep['student_id'] ?? 0);
         $dbForInd = Database::getInstance()->getConnection();
         $stmtForInd = $dbForInd->prepare("
-            SELECT DISTINCT indicator_text 
+            SELECT DISTINCT domain, indicator_text 
             FROM student_quarterly_ratings 
             WHERE student_id = :sid 
-            ORDER BY indicator_text ASC
+            ORDER BY domain ASC, indicator_text ASC
         ");
         $stmtForInd->execute(['sid' => $studentIdForInd]);
-        $availableIndicators = $stmtForInd->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        $indicatorsByDomain = [];
+        $availableIndicators = [];
+        while ($row = $stmtForInd->fetch(PDO::FETCH_ASSOC)) {
+            $dom = !empty($row['domain']) ? trim($row['domain']) : 'General Developmental Skills';
+            $ind = trim($row['indicator_text'] ?? '');
+            if ($ind !== '') {
+                $indicatorsByDomain[$dom][] = $ind;
+                $availableIndicators[] = $ind;
+            }
+        }
+        if (empty($indicatorsByDomain)) {
+            $sf9Path = dirname(__DIR__, 2) . '/config/sf9_indicators.php';
+            if (file_exists($sf9Path)) {
+                $sf9 = require $sf9Path;
+                if (is_array($sf9)) {
+                    $indicatorsByDomain = $sf9;
+                    foreach ($sf9 as $dom => $inds) {
+                        foreach ($inds as $i) {
+                            $availableIndicators[] = $i;
+                        }
+                    }
+                }
+            }
+        }
 
         $basePath = BASE_PATH;
         require __DIR__ . '/../Views/iep/form_simplified.php';

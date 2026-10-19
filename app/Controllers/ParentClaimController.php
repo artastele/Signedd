@@ -150,13 +150,11 @@ class ParentClaimController {
         $password = $_POST['password'] ?? '';
         $confirmPassword = $_POST['confirm_password'] ?? '';
 
-        $errors = [];
-        if (empty($name)) $errors[] = 'Gikinahanglan ang imong kompletong ngalan.';
-        if (empty($contact)) $errors[] = 'Gikinahanglan ang imong active contact number para sa SMS updates.';
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Gikinahanglan ang balidong email address.';
-        if (empty($password)) $errors[] = 'Gikinahanglan ang password.';
-        if (strlen($password) < 6) $errors[] = 'Ang password kinahanglan labing menus 6 ka mga karakter.';
-        if ($password !== $confirmPassword) $errors[] = 'Wala magkatugma ang mga password.';
+        if (empty($password)) {
+            $errors[] = 'Palihug ibutang ang imong password.';
+        } elseif ($password !== $confirmPassword) {
+            $errors[] = 'Wala magkatugma ang mga password.';
+        }
         if (empty($_POST['privacy_consent'])) $errors[] = 'Palihug tsekki ang Data Privacy Act (RA 10173) consent aron makapadayon.';
 
         if ($this->userModel->emailExists($email)) {
@@ -285,9 +283,12 @@ class ParentClaimController {
         if (empty($name)) $errors[] = 'Your full name is required.';
         if (empty($contact)) $errors[] = 'Your mobile contact number is required for SMS notifications.';
         if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'A valid email address is required.';
-        if (empty($password)) $errors[] = 'Password is required.';
-        if (strlen($password) < 6) $errors[] = 'Password must be at least 6 characters.';
-        if ($password !== $confirmPassword) $errors[] = 'Passwords do not match.';
+        
+        if (empty($password)) {
+            $errors[] = 'Password is required.';
+        } elseif ($password !== $confirmPassword) {
+            $errors[] = 'Passwords do not match.';
+        }
         if (empty($_POST['privacy_consent'])) $errors[] = 'You must agree to the Data Privacy Act (RA 10173) statement to proceed.';
 
         if ($this->userModel->emailExists($email)) {

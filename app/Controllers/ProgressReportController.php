@@ -32,12 +32,23 @@ class ProgressReportController {
     }
 
     public function index(): void {
+        $schoolId = $_SESSION['school_id'] ?? null;
+        if (!$schoolId && $this->userId) {
+            $stmtSch = Database::getInstance()->getConnection()->prepare("SELECT school_id FROM users WHERE id = :uid LIMIT 1");
+            $stmtSch->execute(['uid' => $this->userId]);
+            $schoolId = $stmtSch->fetchColumn() ?: null;
+            if ($schoolId) $_SESSION['school_id'] = $schoolId;
+        }
+
         if ($this->userRole === 'parent') {
             RoleMiddleware::check('progress_report.view_own_child');
             $reports = $this->model->getProgressReportsForParent($this->userId);
+        } elseif ($this->userRole === 'sped_teacher') {
+            RoleMiddleware::check('progress_report.view');
+            $reports = $this->model->getProgressReports($schoolId ? (int)$schoolId : null, $this->userId);
         } else {
             RoleMiddleware::check('progress_report.view');
-            $reports = $this->model->getProgressReports();
+            $reports = $this->model->getProgressReports($schoolId ? (int)$schoolId : null);
         }
 
         $success = $_SESSION['success'] ?? null;
@@ -52,10 +63,20 @@ class ProgressReportController {
     public function attendanceIndex(): void {
         RoleMiddleware::check('progress_report.view');
 
+        $schoolId = $_SESSION['school_id'] ?? null;
+        if (!$schoolId && $this->userId) {
+            $stmtSch = Database::getInstance()->getConnection()->prepare("SELECT school_id FROM users WHERE id = :uid LIMIT 1");
+            $stmtSch->execute(['uid' => $this->userId]);
+            $schoolId = $stmtSch->fetchColumn() ?: null;
+            if ($schoolId) $_SESSION['school_id'] = $schoolId;
+        }
+
         if ($this->userRole === 'parent') {
             $learners = $this->model->getAttendanceLearnersForParent($this->userId);
+        } elseif ($this->userRole === 'sped_teacher') {
+            $learners = $this->model->getAttendanceLearners($schoolId ? (int)$schoolId : null, $this->userId);
         } else {
-            $learners = $this->model->getAttendanceLearners();
+            $learners = $this->model->getAttendanceLearners($schoolId ? (int)$schoolId : null);
         }
         $success = $_SESSION['success'] ?? null;
         $error = $_SESSION['error'] ?? null;

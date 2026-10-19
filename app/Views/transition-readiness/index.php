@@ -67,7 +67,7 @@ $isFinalized = (!empty($readiness['status']) && $readiness['status'] === 'finali
                                     <?= isset($progressSnapshot['avg_auto_score']) ? number_format($progressSnapshot['avg_auto_score'], 1) : '0.0' ?>%
                                 </h2>
                             </div>
-                            <div class="row g-2">
+                            <div class="row g-2 m-grid">
                                 <div class="col-6">
                                     <div class="p-3 border rounded-3 text-center bg-light" style="border-color: #e2e8f0 !important;">
                                         <span class="d-block text-muted small">Submissions</span>

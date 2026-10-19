@@ -1970,3 +1970,51 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
   .dash-page .dash-help .card-body { padding: .6rem !important; }
   .dash-page .dash-help p { font-size: .75rem; }
 }
+
+/* ==========================================================================
+   Section E: System-Wide Mobile Grid for Small KPI / Stat Tiles (.m-grid)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .main-content .m-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: .5rem;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .main-content .m-grid > * {
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex: 1 1 0 !important;
+  }
+  .main-content .m-grid .card-body,
+  .main-content .m-grid > * > div { padding: .6rem .7rem; }
+  .main-content .m-grid h2,
+  .main-content .m-grid h3,
+  .main-content .m-grid h4,
+  .main-content .m-grid .h3,
+  .main-content .m-grid .fs-1,
+  .main-content .m-grid .display-6 { font-size: 1.25rem !important; line-height: 1.1; }
+  .main-content .m-grid .small,
+  .main-content .m-grid small { font-size: .68rem !important; line-height: 1.25; }
+  .main-content .m-grid .badge,
+  .main-content .m-grid .pill,
+  .main-content .m-grid .status-pill,
+  .main-content .m-grid .chip,
+  .main-content .m-grid [class*="status-badge"],
+  .main-content .m-grid .btn:not(.btn-primary):not(.btn-outline-primary) {
+    width: auto !important;
+    display: inline-flex !important;
+    align-items: center;
+    font-size: .65rem;
+    padding: .25rem .6rem;
+    min-height: 0;
+    margin: 0;
+  }
+  /* action buttons inside tiles keep a proper tap size */
+  .main-content .m-grid .btn-primary,
+  .main-content .m-grid .btn-outline-primary { width: 100%; min-height: 40px; font-size: .8rem; }
+}

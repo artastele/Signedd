@@ -179,30 +179,60 @@ class UserModel {
             $ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         }
 
-        // Try to get user_id from email (if user exists)
+        // Try to get user_id from email or username
         $userId = null;
         try {
             $userStmt = $this->db->prepare("SELECT id FROM users WHERE email = :email LIMIT 1");
             $userStmt->execute(['email' => $email]);
             $user = $userStmt->fetch();
             if ($user) {
-                $userId = $user['id'];
+                $userId = (int)$user['id'];
             }
-        } catch (Exception $e) {
-            // If user doesn't exist, userId stays null
+        } catch (\Throwable $e) {
+            // User ID stays null
         }
 
-        $stmt = $this->db->prepare("
-            INSERT INTO login_log (user_id, email, ip_address, result)
-            VALUES (:user_id, :email, :ip_address, :result)
-        ");
-
-        $stmt->execute([
-            'user_id' => $userId,
-            'email' => $email,
-            'ip_address' => $ipAddress,
-            'result' => $result
-        ]);
+        try {
+            $stmt = $this->db->prepare("
+                INSERT INTO login_log (user_id, email, ip_address, result, attempted_at)
+                VALUES (:user_id, :email, :ip_address, :result, NOW())
+            ");
+            $stmt->execute([
+                'user_id'    => $userId,
+                'email'      => $email,
+                'ip_address' => $ipAddress,
+                'result'     => in_array($result, ['success', 'failure']) ? $result : 'failure'
+            ]);
+        } catch (\Throwable $e) {
+            // Auto-heal table if missing
+            try {
+                $this->db->exec("
+                    CREATE TABLE IF NOT EXISTS login_log (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id INT NULL,
+                        email VARCHAR(255) NOT NULL,
+                        ip_address VARCHAR(45) NOT NULL,
+                        result ENUM('success','failure') NOT NULL,
+                        attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_user_id (user_id),
+                        INDEX idx_attempted_at (attempted_at),
+                        INDEX idx_email (email)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ");
+                $stmt = $this->db->prepare("
+                    INSERT INTO login_log (user_id, email, ip_address, result, attempted_at)
+                    VALUES (:user_id, :email, :ip_address, :result, NOW())
+                ");
+                $stmt->execute([
+                    'user_id'    => $userId,
+                    'email'      => $email,
+                    'ip_address' => $ipAddress,
+                    'result'     => in_array($result, ['success', 'failure']) ? $result : 'failure'
+                ]);
+            } catch (\Throwable $e2) {
+                error_log('logLoginAttempt failed: ' . $e2->getMessage());
+            }
+        }
     }
 
     /**

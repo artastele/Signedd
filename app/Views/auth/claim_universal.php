@@ -224,13 +224,13 @@
                             <label class="form-label fw-semibold small text-dark mb-1">
                                 Password: <span class="text-danger">*</span>
                             </label>
-                            <input type="password" name="password" class="form-control" placeholder="Min. 6 chars" required minlength="6" autocomplete="new-password">
+                            <input type="password" name="password" class="form-control" placeholder="Paghimo og password" required autocomplete="new-password">
                         </div>
                         <div class="col-6">
                             <label class="form-label fw-semibold small text-dark mb-1">
                                 Kumpirma: <span class="text-danger">*</span>
                             </label>
-                            <input type="password" name="confirm_password" class="form-control" placeholder="Balika" required minlength="6" autocomplete="new-password">
+                            <input type="password" name="confirm_password" class="form-control" placeholder="I-type usab ang password" required autocomplete="new-password">
                         </div>
                     </div>
 

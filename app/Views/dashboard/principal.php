@@ -241,7 +241,7 @@ if ($schoolId) {
                     </div>
                     <!-- School Analytics Summary Cards: General Objective, SO2, SO3 -->
                     <div class="col-lg-6 col-md-12 border-start">
-                        <div class="row g-2">
+                        <div class="row g-2 m-grid">
                             <!-- Card 1: Distance Learning Inclusion (General Objective) -->
                             <div class="col-4 text-center" title="General Objective: Inclusion of learners with special educational needs in distance learning programs to at least 85% participation.">
                                 <div class="p-2 bg-light rounded-3 border h-100 d-flex flex-column justify-content-between">
@@ -337,7 +337,7 @@ if ($schoolId) {
             </span>
         </div>
         <div class="card-body p-4">
-            <div class="row g-3">
+            <div class="row g-3 m-grid">
                 <!-- Pillar 1a: Instructional Leadership - Lesson Plans (DLL/DLP) -->
                 <div class="col-md-6 col-lg-4 col-xl-2" style="flex: 0 0 20%; max-width: 20%;">
                     <div class="p-3 rounded-3 border <?php echo $p1_dll > 0 ? 'bg-success bg-opacity-10 border-success' : 'bg-light border-warning'; ?> h-100">

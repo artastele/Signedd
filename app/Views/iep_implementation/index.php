@@ -40,7 +40,7 @@ require_once __DIR__ . '/../layouts/header.php';
         <?php endif; ?>
 
         <!-- Stats Row -->
-        <div class="row g-3 mb-4">
+        <div class="row g-3 mb-4 m-grid">
             <div class="col-6 col-lg-3">
                 <div class="card h-100" style="border-top:3px solid #1e4072;">
                     <div class="card-body text-center py-3">

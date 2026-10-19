@@ -250,10 +250,6 @@ if ($role === 'learner') {
                 <i class="bi bi-file-earmark-medical"></i>
                 <span>IEP Documents</span>
             </a>
-            <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
-                <i class="bi bi-file-earmark-bar-graph"></i>
-                <span>Progress Reports</span>
-            </a>
             <a href="<?php echo $basePath; ?>/cot/observations" class="<?php echo isActive('/cot/observations'); ?>">
                 <i class="bi bi-eye"></i>
                 <span>Observations</span>
@@ -290,10 +286,6 @@ if ($role === 'learner') {
                 <i class="bi bi-person-check"></i>
                 <span>Principal &amp; School Requests</span>
             </a>
-            <a href="<?php echo $basePath; ?>/sections" class="<?php echo isActive('/sections'); ?>">
-                <i class="bi bi-grid-3x3-gap-fill"></i>
-                <span>Section Management</span>
-            </a>
             <a href="<?php echo $basePath; ?>/admin/manage-users" class="<?php echo isActive('/admin/manage-users'); ?>">
                 <i class="bi bi-people"></i>
                 <span>Manage Users</span>
@@ -316,8 +308,8 @@ if ($role === 'learner') {
             </a>
         <?php endif; ?>
 
-        <?php if ($role !== 'parent' && $role !== 'user' && $role !== 'learner'): ?>
-            <!-- Student Records & Masterlist - Available for all staff roles -->
+        <?php if ($role !== 'parent' && $role !== 'user' && $role !== 'learner' && $role !== 'admin'): ?>
+            <!-- Student Records & Masterlist - Available for all school staff roles -->
             <div class="sidebar-divider"></div>
             <a href="<?php echo $basePath; ?>/masterlist" class="<?php echo isActive('/masterlist'); ?>">
                 <i class="bi bi-people-fill"></i>

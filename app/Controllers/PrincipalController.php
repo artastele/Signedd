@@ -216,14 +216,14 @@ class PrincipalController {
         $principalUser = $this->userModel->findById($_SESSION['user_id']);
         $schoolId = $principalUser['school_id'] ?? null;
 
-        $name = trim($_POST['name'] ?? '');
+        $name = trim($_POST['name'] ?? $_POST['alias'] ?? '');
         $email = trim($_POST['email'] ?? '');
         $role = $_POST['role'] ?? 'sped_teacher';
         $employeeNumber = trim($_POST['employee_number'] ?? '');
-        $password = $_POST['password'] ?? 'Teacher123!';
+        $password = !empty($_POST['password']) ? $_POST['password'] : 'signED';
 
         if (empty($name) || empty($email)) {
-            $_SESSION['error'] = 'Staff Name and Email are required.';
+            $_SESSION['error'] = 'Staff Name/Alias and Email are required.';
             header('Location: ' . $this->basePath . '/dashboard');
             exit;
         }

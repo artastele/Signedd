@@ -173,6 +173,7 @@ class AuthController {
         $_SESSION['name'] = $user['name'];  // Add for compatibility
         $_SESSION['email'] = $user['email'];  // Add for compatibility
         $_SESSION['role'] = $user['role'];
+        $_SESSION['school_id'] = !empty($user['school_id']) ? (int)$user['school_id'] : null;
         $_SESSION['email_verified'] = $this->userModel->isEmailVerified($user['id']);
         $_SESSION['last_activity'] = time();
 
@@ -253,11 +254,7 @@ class AuthController {
         $errors = [];
 
         if (empty($firstName)) {
-            $errors[] = 'First name is required.';
-        }
-
-        if (empty($lastName)) {
-            $errors[] = 'Last name is required.';
+            $errors[] = 'Full name or alias is required.';
         }
 
         if (empty($email)) {
@@ -274,13 +271,10 @@ class AuthController {
             $errors[] = 'Contact number must be 11 digits.';
         }
 
+        // Password is required, but no complexity rules enforced
         if (empty($password)) {
             $errors[] = 'Password is required.';
-        } elseif (!$this->validatePassword($password)) {
-            $errors[] = 'Password must be at least 8 characters with 1 uppercase, 1 number, and 1 special character.';
-        }
-
-        if ($password !== $confirmPassword) {
+        } elseif ($password !== $confirmPassword) {
             $errors[] = 'Passwords do not match.';
         }
 
@@ -300,8 +294,9 @@ class AuthController {
             exit;
         }
 
-        // Create full name
-        $fullName = $firstName . ' ' . ($middleName ? $middleName . ' ' : '') . $lastName . ($suffix ? ' ' . $suffix : '');
+        // Create full name (handles single alias or full name)
+        $nameParts = array_filter([$firstName, $middleName, $lastName, $suffix]);
+        $fullName = !empty($nameParts) ? implode(' ', $nameParts) : $firstName;
 
         // Create user
         $userId = $this->userModel->create($fullName, $firstName, $middleName, $lastName, $suffix, $email, $contactNumber, $password);
@@ -668,6 +663,7 @@ class AuthController {
         $_SESSION['name'] = $user['name'];  // Add for compatibility
         $_SESSION['email'] = $user['email'];  // Add for compatibility
         $_SESSION['role'] = $user['role'];
+        $_SESSION['school_id'] = !empty($user['school_id']) ? (int)$user['school_id'] : null;
         $_SESSION['email_verified'] = (bool)($user['email_verified'] ?? false);
         $_SESSION['last_activity'] = time();
         
@@ -677,23 +673,10 @@ class AuthController {
     }
 
     /**
-     * Validate password strength
+     * Validate password
      */
     private function validatePassword($password) {
-        // Min 8 chars, 1 uppercase, 1 number, 1 special character
-        if (strlen($password) < 8) {
-            return false;
-        }
-        if (!preg_match('/[A-Z]/', $password)) {
-            return false;
-        }
-        if (!preg_match('/[0-9]/', $password)) {
-            return false;
-        }
-        if (!preg_match('/[^A-Za-z0-9]/', $password)) {
-            return false;
-        }
-        return true;
+        return !empty($password);
     }
 
     /**

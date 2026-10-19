@@ -42,11 +42,20 @@ class LessonPlanModel {
                 ) AS published_count
             FROM iep_records ir
             JOIN student_records sr ON ir.student_id = sr.id
-            WHERE ir.drafted_by = :teacher_id
-              AND ir.status = 'signed'
+            WHERE (ir.drafted_by = :tid_1
+                   OR sr.assigned_teacher_id = :tid_2
+                   OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_3)
+                   OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_4))
+                  )
+              AND ir.status IN ('signed', 'locked')
             ORDER BY ir.created_at DESC
         ");
-        $stmt->execute(['teacher_id' => $teacherId]);
+        $stmt->execute([
+            'tid_1' => $teacherId,
+            'tid_2' => $teacherId,
+            'tid_3' => $teacherId,
+            'tid_4' => $teacherId,
+        ]);
         return $stmt->fetchAll();
     }
 
@@ -517,10 +526,21 @@ class LessonPlanModel {
      */
     public function countStudentsForTeacher($teacherId) {
         $stmt = $this->db->prepare("
-            SELECT COUNT(*) FROM iep_records
-            WHERE drafted_by = :teacher_id AND status = 'signed'
+            SELECT COUNT(*) FROM iep_records ir
+            JOIN student_records sr ON ir.student_id = sr.id
+            WHERE (ir.drafted_by = :tid_1
+                   OR sr.assigned_teacher_id = :tid_2
+                   OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_3)
+                   OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_4))
+                  )
+              AND ir.status IN ('signed', 'locked')
         ");
-        $stmt->execute(['teacher_id' => $teacherId]);
+        $stmt->execute([
+            'tid_1' => $teacherId,
+            'tid_2' => $teacherId,
+            'tid_3' => $teacherId,
+            'tid_4' => $teacherId,
+        ]);
         return (int) $stmt->fetchColumn();
     }
 
@@ -827,15 +847,16 @@ class LessonPlanModel {
     /**
      * Save a submission (INSERT … ON DUPLICATE KEY UPDATE)
      */
-    public function saveSubmission($activityId, $studentId, $submittedBy, $answers, $autoScore) {
+    public function saveSubmission($activityId, $studentId, $submittedBy, $answers, $autoScore, $filePath = null) {
         $stmt = $this->db->prepare("
             INSERT INTO lms_submissions
-                (activity_id, student_id, submitted_by, answers, auto_score, submitted_at)
+                (activity_id, student_id, submitted_by, answers, auto_score, file_path, submitted_at)
             VALUES
-                (:activity_id, :student_id, :submitted_by, :answers, :auto_score, NOW())
+                (:activity_id, :student_id, :submitted_by, :answers, :auto_score, :file_path, NOW())
             ON DUPLICATE KEY UPDATE
                 answers      = VALUES(answers),
                 auto_score   = VALUES(auto_score),
+                file_path    = COALESCE(VALUES(file_path), file_path),
                 submitted_at = NOW()
         ");
         return $stmt->execute([
@@ -844,6 +865,7 @@ class LessonPlanModel {
             'submitted_by' => $submittedBy,
             'answers'      => $answers,
             'auto_score'   => $autoScore,
+            'file_path'    => $filePath,
         ]);
     }
 

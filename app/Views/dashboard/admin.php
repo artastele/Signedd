@@ -180,7 +180,7 @@ $pendingCount = count($pendingRoleRequests);
     ?>
 
     <!-- Core Research Objectives Performance Overview (General Objective, SO2, SO3) -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4 m-grid">
         <!-- Card 1: General Objective — Distance Learning Program Inclusion & Participation -->
         <div class="col-lg-4 col-md-12">
             <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 5px solid #0d6efd !important; background: #fff;">
@@ -275,7 +275,7 @@ $pendingCount = count($pendingRoleRequests);
     </div>
 
     <!-- User Analytics Cards Grid -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4 m-grid">
         <!-- Total Users -->
         <div class="col-md-3">
             <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #1e4072 !important;">

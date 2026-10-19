@@ -199,11 +199,23 @@ require_once __DIR__ . '/../layouts/header.php';
                                         <small class="text-muted d-block" style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase;">
                                             Kasamtangang Password:
                                         </small>
+                                        <?php 
+                                            $learnerPassId = 'lp_' . ($pl['student_record_id'] ?? $pl['enrollment_id'] ?? rand(100,999));
+                                            $learnerDefaultPass = 'signED';
+                                        ?>
                                         <div class="d-flex align-items-center gap-1 mt-1">
-                                            <span class="font-monospace text-muted" style="font-size: 0.95rem;">••••••••</span>
+                                            <span id="<?php echo $learnerPassId; ?>" class="font-monospace fw-bold text-primary" style="font-size: 0.95rem; letter-spacing: 1px;" data-pass="<?php echo htmlspecialchars($learnerDefaultPass); ?>">
+                                                ••••••
+                                            </span>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary p-1 lh-1 ms-1" title="Ipakita / Itago ang Password" onclick="(function(){ var el = document.getElementById('<?php echo $learnerPassId; ?>'); if (el.innerText.trim() === '••••••') { el.innerText = el.getAttribute('data-pass'); } else { el.innerText = '••••••'; } })();" style="border-radius: 6px;">
+                                                <i class="bi bi-eye" style="font-size: 0.8rem;"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary p-1 lh-1" title="Kopyahon ang password" onclick="navigator.clipboard.writeText('<?php echo addslashes($learnerDefaultPass); ?>'); alert('Kopyado ang password: <?php echo addslashes($learnerDefaultPass); ?>');" style="border-radius: 6px;">
+                                                <i class="bi bi-clipboard" style="font-size: 0.8rem;"></i>
+                                            </button>
                                         </div>
                                         <small class="text-muted d-block mt-0.5" style="font-size: 0.7rem;">
-                                            Default: <code class="text-dark">Learner@<?php echo date('Y'); ?></code>
+                                            Default Password: <code class="text-dark fw-bold"><?php echo htmlspecialchars($learnerDefaultPass); ?></code>
                                         </small>
                                     </div>
                                 </div>
@@ -1021,6 +1033,10 @@ require_once __DIR__ . '/../layouts/header.php';
                                     $notifLink = BASE_PATH . '/iep/sign/' . $notifData['iep_id'] . '/' . $notifData['signatory_id'];
                                 } else if ($notif['type'] === 'placement_confirmed' && !empty($notifData['iep_id'])) {
                                     $notifLink = BASE_PATH . '/iep/' . $notifData['iep_id'] . '/placement-notice';
+                                } else if ($notif['type'] === 'activity_submitted' && !empty($notifData['student_id'])) {
+                                    $notifLink = BASE_PATH . '/parent/child-progress/' . (int)$notifData['student_id'];
+                                } else if ($notif['type'] === 'activity_submitted') {
+                                    $notifLink = BASE_PATH . '/parent/child-progress';
                                 } else if (!empty($notifData['iep_id'])) {
                                     $notifLink = BASE_PATH . '/iep';
                                 }
@@ -1034,6 +1050,10 @@ require_once __DIR__ . '/../layouts/header.php';
                                     case 'placement_confirmed':
                                         $bgType = 'success';
                                         $iconName = 'check-circle-fill';
+                                        break;
+                                    case 'activity_submitted':
+                                        $bgType = 'success';
+                                        $iconName = 'file-earmark-check-fill';
                                         break;
                                     case 'role_rejected':
                                     case 'enrollment_rejected':

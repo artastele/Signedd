@@ -120,7 +120,7 @@ require_once __DIR__ . '/../layouts/header.php';
 
                                 <!-- Col 2: Metrics Summary Grid -->
                                 <div class="col-lg-5 col-md-7">
-                                    <div class="row g-2 text-center mb-3">
+                                    <div class="row g-2 text-center mb-3 m-grid">
                                         <div class="col-6 col-sm-3">
                                             <div class="p-2 bg-light rounded-3 border">
                                                 <span class="d-block fw-bold text-success fs-5">

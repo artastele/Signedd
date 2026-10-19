@@ -60,6 +60,37 @@ class IEPMeetingController {
                     exit;
                 }
             }
+
+            // SPED teacher ownership check — can only view meetings for their assigned learners
+            if ($this->userRole === 'sped_teacher') {
+                $db = Database::getInstance()->getConnection();
+                $stmt = $db->prepare("
+                    SELECT COUNT(*) FROM iep_meetings im
+                    JOIN student_records sr ON im.student_id = sr.id
+                    LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                    WHERE im.id = :mid
+                      AND (im.scheduled_by = :tid_1
+                           OR sr.assigned_teacher_id = :tid_2
+                           OR es.assigned_teacher_id = :tid_3
+                           OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_4)
+                           OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_5))
+                          )
+                ");
+                $stmt->execute([
+                    'mid' => $meetingId,
+                    'tid_1' => $this->userId,
+                    'tid_2' => $this->userId,
+                    'tid_3' => $this->userId,
+                    'tid_4' => $this->userId,
+                    'tid_5' => $this->userId,
+                ]);
+                if ($stmt->fetchColumn() == 0) {
+                    http_response_code(403);
+                    $_SESSION['error'] = 'Access denied. You can only view meetings for your assigned students.';
+                    header('Location: ' . BASE_PATH . '/iep/meetings');
+                    exit;
+                }
+            }
             
             // Only SPED Teacher can access PDSP — all others are read-only viewers
             $canAccessPDSP = in_array($this->userRole, ['sped_teacher', 'admin']);
@@ -923,14 +954,26 @@ class IEPMeetingController {
                 exit;
             }
             
-            // For parent: only show meetings for their children
-            if ($this->userRole === 'parent') {
-                $upcomingMeetings = $this->meetingModel->getAll(['upcoming' => true,  'parent_id' => $this->userId]);
-                $pastMeetings     = $this->meetingModel->getAll(['past' => true, 'parent_id' => $this->userId]);
-            } else {
-                $upcomingMeetings = $this->meetingModel->getAll(['upcoming' => true]);
-                $pastMeetings     = $this->meetingModel->getAll(['past' => true]);
+            $schoolId = $_SESSION['school_id'] ?? null;
+            if (!$schoolId && $this->userId) {
+                $stmtSch = Database::getInstance()->getConnection()->prepare("SELECT school_id FROM users WHERE id = :uid LIMIT 1");
+                $stmtSch->execute(['uid' => $this->userId]);
+                $schoolId = $stmtSch->fetchColumn() ?: null;
+                if ($schoolId) $_SESSION['school_id'] = $schoolId;
             }
+
+            $filters = [];
+            if ($schoolId && $this->userRole !== 'admin') {
+                $filters['school_id'] = (int)$schoolId;
+            }
+            if ($this->userRole === 'sped_teacher') {
+                $filters['teacher_id'] = (int)$this->userId;
+            } elseif ($this->userRole === 'parent') {
+                $filters['parent_id'] = (int)$this->userId;
+            }
+
+            $upcomingMeetings = $this->meetingModel->getAll(array_merge($filters, ['upcoming' => true]));
+            $pastMeetings     = $this->meetingModel->getAll(array_merge($filters, ['past' => true]));
             
             // Pass data to view
             $basePath = BASE_PATH;
@@ -969,15 +1012,41 @@ class IEPMeetingController {
             $assessmentModel = new AssessmentModel();
             $studentModel = new StudentModel();
             
-            // Get students with finalized assessments
+            // Get students with finalized assessments (scoped to teacher/school)
             $db = Database::getInstance()->getConnection();
-            $stmt = $db->query("
-                SELECT DISTINCT s.id, s.student_name, s.lrn
-                FROM student_records s
-                JOIN assessment_records ar ON s.id = ar.student_id
-                WHERE ar.status = 'finalized'
-                ORDER BY s.student_name
-            ");
+            if ($this->userRole === 'sped_teacher') {
+                $stmt = $db->prepare("
+                    SELECT DISTINCT s.id, s.student_name, s.lrn
+                    FROM student_records s
+                    JOIN assessment_records ar ON s.id = ar.student_id
+                    LEFT JOIN enrollment_submissions es ON s.enrollment_id = es.id
+                    WHERE ar.status = 'finalized'
+                      AND (ar.conducted_by = :tid_1
+                           OR ar.assessed_by = :tid_2
+                           OR s.assigned_teacher_id = :tid_3
+                           OR es.assigned_teacher_id = :tid_4
+                           OR s.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_5)
+                           OR (s.section_name IS NOT NULL AND s.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_6))
+                          )
+                    ORDER BY s.student_name
+                ");
+                $stmt->execute([
+                    'tid_1' => $this->userId,
+                    'tid_2' => $this->userId,
+                    'tid_3' => $this->userId,
+                    'tid_4' => $this->userId,
+                    'tid_5' => $this->userId,
+                    'tid_6' => $this->userId,
+                ]);
+            } else {
+                $stmt = $db->query("
+                    SELECT DISTINCT s.id, s.student_name, s.lrn
+                    FROM student_records s
+                    JOIN assessment_records ar ON s.id = ar.student_id
+                    WHERE ar.status = 'finalized'
+                    ORDER BY s.student_name
+                ");
+            }
             $students = $stmt->fetchAll();
             
             // Get suggested dates (when all participants available)

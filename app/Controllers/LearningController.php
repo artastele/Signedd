@@ -586,7 +586,10 @@ class LearningController {
             exit;
         }
 
-        $input   = json_decode(file_get_contents('php://input'), true) ?? [];
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input)) {
+            $input = $_POST;
+        }
         $answers = $input['answers'] ?? [];
         $attempts = $input['attempts'] ?? [];
         $accuracyPercentage = isset($input['accuracy_percentage']) ? (int)$input['accuracy_percentage'] : null;
@@ -633,6 +636,30 @@ class LearningController {
                 error_log("Failed to log activity attempt: " . $e->getMessage());
             }
         };
+
+        $uploadedFilePath = null;
+        if (isset($_FILES['submission_file']) && $_FILES['submission_file']['error'] === UPLOAD_ERR_OK) {
+            $file    = $_FILES['submission_file'];
+            $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $allowed = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
+            if (!in_array($ext, $allowed)) {
+                echo json_encode(['success' => false, 'message' => 'Allowed file types for submission: JPG, PNG, WEBP, PDF.']);
+                exit;
+            }
+            if ($file['size'] > 25 * 1024 * 1024) {
+                echo json_encode(['success' => false, 'message' => 'Uploaded file must be under 25MB.']);
+                exit;
+            }
+            $uploadDir = function_exists('public_path') ? public_path('uploads/submissions/' . $activityId . '/') : (__DIR__ . '/../../public/uploads/submissions/' . $activityId . '/');
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            $fileName = 'sub_' . $studentId . '_' . time() . '_' . uniqid() . '.' . $ext;
+            $fullPath = $uploadDir . $fileName;
+            if (move_uploaded_file($file['tmp_name'], $fullPath)) {
+                $uploadedFilePath = 'uploads/submissions/' . $activityId . '/' . $fileName;
+            }
+        }
 
         switch ($type) {
             case 'multiple_choice':
@@ -835,9 +862,49 @@ class LearningController {
             case 'flashcards':
                 $autoScore = null;
                 break;
+
+            case 'custom_printable':
+                if (!$uploadedFilePath) {
+                    echo json_encode(['success' => false, 'message' => 'Please select a photo or PDF of your completed worksheet.']);
+                    exit;
+                }
+                $answers = [
+                    'notes'         => trim($input['notes'] ?? ''),
+                    'file_path'     => $uploadedFilePath,
+                    'original_name' => htmlspecialchars($_FILES['submission_file']['name'] ?? 'worksheet_submission'),
+                ];
+                $autoScore = null;
+                break;
         }
 
-        $this->model->saveSubmission($activityId, $studentId, $this->userId, json_encode($answers), $autoScore);
+        $this->model->saveSubmission($activityId, $studentId, $this->userId, json_encode($answers), $autoScore, $uploadedFilePath);
+
+        // Parent in-app notification when student submits worksheet
+        try {
+            $stmtParent = $db->prepare("
+                SELECT es.parent_id 
+                FROM student_records sr
+                JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                WHERE sr.id = :student_id
+                LIMIT 1
+            ");
+            $stmtParent->execute(['student_id' => $studentId]);
+            $parentId = $stmtParent->fetchColumn();
+            if ($parentId) {
+                require_once __DIR__ . '/../Models/NotificationModel.php';
+                $notifModel = new NotificationModel();
+                $stName = $this->getStudentName($studentId);
+                $notifModel->create(
+                    (int)$parentId,
+                    'activity_submitted',
+                    'Worksheet Submitted: ' . $activity['title'],
+                    $stName . ' has submitted the completed worksheet for "' . $activity['title'] . '".',
+                    ['activity_id' => $activityId, 'student_id' => $studentId]
+                );
+            }
+        } catch (\Throwable $e) {
+            error_log('Parent notification error: ' . $e->getMessage());
+        }
 
         if ($type === 'flashcards' && !empty($input['flashcard_results'])) {
             $flashcardResultsJson = json_encode($input['flashcard_results']);
@@ -1022,9 +1089,11 @@ class LearningController {
                 ? ($needsRemediation
                     ? "Score: {$autoScore} / {$maxScore} ({$scorePercentage}%). Girekomenda nga mo-review una sa Remedial Module aron mas masabtan ang leksyon!"
                     : "Excellent work! Score: {$autoScore} / {$maxScore} ({$scorePercentage}%). Nakapasar ka!")
-                : ($type === 'image_label'
-                    ? 'Submitted! Your teacher will review and grade this.'
-                    : 'Great job reviewing!'),
+                : ($type === 'custom_printable'
+                    ? 'Worksheet submitted successfully! Your teacher will review and grade your work.'
+                    : ($type === 'image_label'
+                        ? 'Submitted! Your teacher will review and grade this.'
+                        : 'Great job reviewing!')),
         ]);
 
         exit;
