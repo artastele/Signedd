@@ -130,7 +130,7 @@ foreach ($signatories ?? [] as $sig) {
                     <?= nl2br(htmlspecialchars(trim((string) ($st['step_objective'] ?? '')))) ?>
                     <?php if (!empty($st['pdsp_indicator_text'])): ?>
                         <div style="margin-top: 1mm; font-size: 8pt; color: #555; font-style: italic;">
-                            Targeted Developmental Domain Skill: <?= htmlspecialchars($st['pdsp_indicator_text']) ?>
+                            Targeted Developmental Domain: <?= htmlspecialchars($st['pdsp_indicator_text']) ?>
                         </div>
                     <?php endif; ?>
                 </td>

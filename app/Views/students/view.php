@@ -42,33 +42,6 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     </div>
 
-    <!-- Process Lifecycle Journey Banner -->
-    <div class="card shadow-sm border-0 mb-4 bg-white" style="border-radius: 12px; border-left: 4px solid #1e4072 !important;">
-        <div class="card-body py-3 px-4">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-                <h6 class="mb-0 fw-bold" style="color: #1e4072;">
-                    <i class="bi bi-diagram-3-fill me-1"></i> SPED 13-Process Lifecycle Status
-                </h6>
-                <span class="badge bg-success">Active Learner</span>
-            </div>
-            <div class="d-flex align-items-center gap-2 flex-wrap small text-muted">
-                <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check-circle-fill me-1"></i>P1: Enrolled</span>
-                <i class="bi bi-chevron-right text-muted" style="font-size: 0.75rem;"></i>
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-circle-fill me-1" style="font-size: 0.5rem;"></i>P2-P3: Assessment</span>
-                <i class="bi bi-chevron-right text-muted" style="font-size: 0.75rem;"></i>
-                <span class="badge bg-light text-secondary border"><i class="bi bi-calendar-event me-1"></i>P4: Meeting & PDSP</span>
-                <i class="bi bi-chevron-right text-muted" style="font-size: 0.75rem;"></i>
-                <span class="badge bg-light text-secondary border"><i class="bi bi-file-earmark-text me-1"></i>P5: IEP Formulation</span>
-                <i class="bi bi-chevron-right text-muted" style="font-size: 0.75rem;"></i>
-                <span class="badge bg-light text-secondary border"><i class="bi bi-laptop me-1"></i>P6-P7: Teaching & LMS</span>
-                <i class="bi bi-chevron-right text-muted" style="font-size: 0.75rem;"></i>
-                <span class="badge bg-light text-secondary border"><i class="bi bi-bar-chart me-1"></i>P8-P9: Monitoring & SF2</span>
-                <i class="bi bi-chevron-right text-muted" style="font-size: 0.75rem;"></i>
-                <span class="badge bg-light text-secondary border"><i class="bi bi-arrow-up-right-circle me-1"></i>P10-P13: Transition & Placement</span>
-            </div>
-        </div>
-    </div>
-
     <h1 class="mb-4">
         <i class="bi bi-person-badge text-primary"></i> Student Record
     </h1>

@@ -286,7 +286,7 @@ class ResourceHubModel {
                 ) VALUES (
                     :iep_id, :student_id, :created_by, :title, :pdsp_domain,
                     'individual', :cloned_from_pack_id, :mastery_url, :mastery_title,
-                    'draft', NOW(), NOW()
+                    'published', NOW(), NOW()
                 )
             ");
 

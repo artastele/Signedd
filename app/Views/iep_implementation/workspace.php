@@ -417,11 +417,8 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
         <div class="card-body p-3">
 
-            <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="mb-3">
                 <h6 class="fw-semibold mb-0" style="color:#1e4072;">Select an activity type to build:</h6>
-                <button class="btn btn-sm" style="background:#3b6d11;color:#fff;border:none;" onclick="openImportActivityModal()">
-                    <i class="ti ti-file-import me-1"></i>Import from CSV
-                </button>
             </div>
 
             <!-- Activity type grid -->
@@ -498,20 +495,18 @@ require_once __DIR__ . '/../layouts/header.php';
                             <textarea class="form-control form-control-sm" id="builderInstructions" rows="3"
                                       placeholder="Instructions for the learner (tables, formatted text, and images supported)..."></textarea>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <label class="form-label small fw-semibold">Due Date <span class="text-muted">(optional)</span></label>
                             <input type="date" class="form-control form-control-sm" id="builderDueDate">
                         </div>
-                        <div class="col-md-4" id="builderMaxScoreWrap">
-                            <label class="form-label small fw-semibold">Max Score</label>
-                            <input type="number" class="form-control form-control-sm" id="builderMaxScore"
-                                   min="0" value="10" placeholder="10">
-                        </div>
-                        <div class="col-md-4 d-flex align-items-end mb-1">
+                        <div class="col-md-6 d-flex align-items-end mb-1">
                             <div class="form-check form-switch mb-1">
                                 <input class="form-check-input" type="checkbox" id="builderIsF2F" onchange="toggleF2FFields()">
                                 <label class="form-check-label small fw-semibold" for="builderIsF2F">Face-to-Face / Direct Observation</label>
                             </div>
+                        </div>
+                        <div id="builderMaxScoreWrap" style="display: none !important;">
+                            <input type="hidden" id="builderMaxScore" value="10">
                         </div>
                     </div>
 
@@ -1243,11 +1238,10 @@ require_once __DIR__ . '/../layouts/header.php';
                     <textarea class="form-control" id="editActInstructions" rows="4" placeholder="Instructions for the learner..."></textarea>
                 </div>
                 <div class="row g-2">
-                    <div class="col-md-6">
-                        <label class="form-label fw-semibold small">Max Score</label>
-                        <input type="number" class="form-control" id="editActMaxScore" min="0">
+                    <div id="editActMaxScoreWrap" style="display: none !important;">
+                        <input type="hidden" id="editActMaxScore" value="10">
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-12">
                         <label class="form-label fw-semibold small">Due Date <span class="text-muted">(optional)</span></label>
                         <input type="date" class="form-control" id="editActDueDate">
                     </div>
@@ -2997,7 +2991,7 @@ function selectActivityType(type) {
 
     // Show/hide max score (hidden for flashcards)
     const maxScoreWrap = document.getElementById('builderMaxScoreWrap');
-    if (maxScoreWrap) maxScoreWrap.style.display = type === 'flashcards' ? 'none' : '';
+    if (maxScoreWrap) maxScoreWrap.style.display = 'none';
 
     // Render type-specific builder
     renderBuilderTypeArea(type);
@@ -3129,8 +3123,8 @@ function openEditActivity(act) {
     }
 
     const maxScoreWrap = document.getElementById('builderMaxScoreWrap');
-    if (maxScoreWrap && !isF2F) {
-        maxScoreWrap.style.display = act.activity_type === 'flashcards' ? 'none' : '';
+    if (maxScoreWrap) {
+        maxScoreWrap.style.display = 'none';
     }
 
     // Render builder type area & populate content

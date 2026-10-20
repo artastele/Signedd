@@ -174,4 +174,25 @@ class SectionModel {
 
         return true;
     }
+
+    /**
+     * Get enrolled learners for a specific section
+     */
+    public function getStudentsBySection(int $sectionId, ?string $sectionName = null): array {
+        $stmt = $this->db->prepare("
+            SELECT sr.*, 
+                   COALESCE(u.name, 'Unassigned') as teacher_name
+            FROM student_records sr
+            LEFT JOIN users u ON sr.assigned_teacher_id = u.id
+            WHERE sr.section_id = :sid 
+               OR (sr.section_id IS NULL AND :sname IS NOT NULL AND LOWER(TRIM(sr.section_name)) = LOWER(TRIM(:sname2)))
+            ORDER BY sr.student_name ASC
+        ");
+        $stmt->execute([
+            'sid'    => $sectionId,
+            'sname'  => $sectionName,
+            'sname2' => $sectionName
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }

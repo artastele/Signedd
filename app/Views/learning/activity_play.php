@@ -1124,10 +1124,13 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                                 </div>
                                 <?php if ($fullWorksheetUrl): ?>
                                     <div class="d-flex gap-2">
-                                        <a href="<?php echo htmlspecialchars($fullWorksheetUrl); ?>" target="_blank" class="btn btn-bubble px-3 py-2 d-inline-flex align-items-center gap-1.5" download>
+                                        <a href="<?php echo htmlspecialchars($fullWorksheetUrl); ?>" target="_blank" rel="noopener noreferrer" class="btn btn-bubble-outline px-3 py-2 d-inline-flex align-items-center gap-1.5" style="border-radius: 6px; font-weight: 500;">
+                                            <i class="ph-bold ph-eye"></i> <span>View</span>
+                                        </a>
+                                        <a href="<?php echo htmlspecialchars($fullWorksheetUrl); ?>" target="_blank" class="btn btn-bubble px-3 py-2 d-inline-flex align-items-center gap-1.5" style="border-radius: 6px; font-weight: 500;" download>
                                             <i class="ph-bold ph-download-simple"></i> <span>Download</span>
                                         </a>
-                                        <button type="button" class="btn btn-bubble-outline px-3 py-2 d-inline-flex align-items-center gap-1.5" onclick="printWorksheet('<?php echo htmlspecialchars($fullWorksheetUrl); ?>', <?php echo $isImgWorksheet ? 'true' : 'false'; ?>)">
+                                        <button type="button" class="btn btn-bubble-outline px-3 py-2 d-inline-flex align-items-center gap-1.5" style="border-radius: 6px; font-weight: 500;" onclick="printWorksheet('<?php echo htmlspecialchars($fullWorksheetUrl); ?>', <?php echo $isImgWorksheet ? 'true' : 'false'; ?>)">
                                             <i class="ph-bold ph-printer"></i> <span>Print</span>
                                         </button>
                                     </div>

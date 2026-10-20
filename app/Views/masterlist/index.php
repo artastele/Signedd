@@ -201,8 +201,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <i class="bi bi-laptop fs-4"></i>
                                 </div>
                                 <div>
-                                    <h4 class="fw-bold mb-0 text-primary"><?= (int)($candidateCount ?? $lmsCount ?? 0) ?></h4>
-                                    <small class="text-secondary fw-semibold">SignED Candidates</small>
+                                    <h4 class="fw-bold mb-0 text-primary"><?= (int)($lmsCount ?? ($candidateCount + $lmsActiveCount)) ?></h4>
+                                    <small class="text-secondary fw-semibold">SignED Candidates &amp; LMS</small>
                                 </div>
                             </div>
                         </div>
@@ -336,10 +336,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                             <span class="font-monospace fw-bold text-dark"><?= htmlspecialchars($l['lrn'] ?? $l['student_id'] ?? 'Pending LRN') ?></span>
                                         </td>
                                         <td>
-                                            <div>
-                                                <a href="<?= $basePath ?>/students/view/<?= $l['student_record_id'] ?>" class="fw-semibold text-primary text-decoration-none" title="View Full Learner Profile">
-                                                    <?= htmlspecialchars($l['student_name']) ?> <i class="bi bi-box-arrow-up-right small ms-1" style="font-size: 0.75rem;"></i>
-                                                </a>
+                                            <div class="fw-semibold text-dark">
+                                                <?= htmlspecialchars($l['student_name']) ?>
                                             </div>
                                             <div class="small text-muted">
                                                 Parent: <?= htmlspecialchars($l['guardian_first_name'] ? ($l['guardian_first_name'] . ' ' . $l['guardian_last_name']) : ($l['parent_name'] ?? 'N/A')) ?>
@@ -351,7 +349,9 @@ require_once __DIR__ . '/../layouts/header.php';
                                         </td>
                                         <td>
                                             <span class="badge bg-secondary text-wrap"><?= htmlspecialchars($l['grade_level_to_enroll'] ?? 'Kinder') ?></span>
-                                            <small class="d-block text-muted mt-1"><?= htmlspecialchars($l['section_name'] ?? 'SPED Section A') ?></small>
+                                            <a href="<?= $basePath ?>/sections" class="text-decoration-none" title="View in Section Management">
+                                                <small class="d-block text-primary fw-semibold mt-1"><i class="bi bi-grid-3x3-gap-fill me-1"></i><?= htmlspecialchars($l['section_name'] ?? 'SPED Section A') ?></small>
+                                            </a>
                                         </td>
                                         <td>
                                             <?php if ($hasActiveAccount): ?>

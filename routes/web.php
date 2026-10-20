@@ -279,6 +279,8 @@ route('POST', '/masterlist/send-invite',           'MasterlistController', 'send
 // Steps 16 & 17 — Parent child progress (Process 7)
 route('GET',  '/parent/child-progress',           'LearningController', 'parentChildProgress', 'parent.dashboard');
 route('GET',  '/parent/child-progress/{id}',      'LearningController', 'parentStudentProgress', 'parent.dashboard');
+route('GET',  '/parent/worksheets',               'LearningController', 'parentWorksheets', 'parent.dashboard');
+route('POST', '/parent/submit-worksheet',         'LearningController', 'parentSubmitWorksheet', 'parent.dashboard');
 route('POST', '/parent/update-child-credentials',  'DashboardController', 'updateChildCredentials');
 
 

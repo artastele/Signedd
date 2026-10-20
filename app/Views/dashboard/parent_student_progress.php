@@ -348,15 +348,30 @@ $domainNameMap = [
                                                     <p class="text-muted small mb-0">No supplementary materials attached to this lesson.</p>
                                                 <?php else: ?>
                                                     <ul class="list-unstyled mb-0 small">
-                                                        <?php foreach ($les['materials'] as $mat): ?>
+                                                        <?php foreach ($les['materials'] as $mat): 
+                                                            $matFile = !empty($mat['file_path']) ? ltrim($mat['file_path'], '/') : '';
+                                                        ?>
                                                             <li class="d-flex align-items-center justify-content-between py-1 border-bottom border-light">
                                                                 <span class="text-truncate me-2">
                                                                     <i class="bi bi-file-earmark-arrow-up text-primary me-1"></i>
-                                                                    <?php echo htmlspecialchars($mat['title']); ?>
+                                                                    <?php if ($matFile): ?>
+                                                                        <a href="<?php echo $basePath . '/' . htmlspecialchars($matFile); ?>" target="_blank" class="text-decoration-none text-dark fw-semibold">
+                                                                            <?php echo htmlspecialchars($mat['title']); ?>
+                                                                        </a>
+                                                                    <?php else: ?>
+                                                                        <?php echo htmlspecialchars($mat['title']); ?>
+                                                                    <?php endif; ?>
                                                                 </span>
-                                                                <span class="badge bg-secondary-subtle text-secondary text-uppercase" style="font-size: 0.65rem;">
-                                                                    <?php echo htmlspecialchars($mat['material_type'] ?? 'file'); ?>
-                                                                </span>
+                                                                <div class="d-flex align-items-center gap-1.5">
+                                                                    <span class="badge bg-secondary-subtle text-secondary text-uppercase" style="font-size: 0.65rem;">
+                                                                        <?php echo htmlspecialchars($mat['material_type'] ?? 'file'); ?>
+                                                                    </span>
+                                                                    <?php if ($matFile): ?>
+                                                                        <a href="<?php echo $basePath . '/' . htmlspecialchars($matFile); ?>" target="_blank" download class="btn btn-xs btn-outline-primary py-0 px-1.5" style="font-size: 0.7rem; border-radius: 4px;">
+                                                                            <i class="bi bi-download"></i>
+                                                                        </a>
+                                                                    <?php endif; ?>
+                                                                </div>
                                                             </li>
                                                         <?php endforeach; ?>
                                                     </ul>
@@ -396,6 +411,23 @@ $domainNameMap = [
                                                             <tr>
                                                                 <td>
                                                                     <strong><?php echo htmlspecialchars($act['title']); ?></strong>
+                                                                    <?php if ($act['activity_type'] === 'custom_printable'): 
+                                                                        $wsData = json_decode($act['activity_data'] ?? '{}', true) ?: [];
+                                                                        $wsFile = !empty($wsData['file_path']) ? ltrim($wsData['file_path'], '/') : '';
+                                                                        $wsName = $wsData['file_name'] ?? (basename($wsFile) ?: 'Worksheet PDF');
+                                                                    ?>
+                                                                        <div class="mt-1 d-flex align-items-center gap-1 flex-wrap">
+                                                                            <span class="badge text-white" style="background:#0d9488; font-size:0.7rem;"><i class="bi bi-printer-fill me-1"></i>Printable</span>
+                                                                            <?php if ($wsFile): ?>
+                                                                                <a href="<?php echo $basePath . '/' . htmlspecialchars($wsFile); ?>" target="_blank" class="btn btn-xs btn-outline-primary py-0 px-2" style="font-size: 0.72rem; border-radius: 4px;">
+                                                                                    <i class="bi bi-eye"></i> View
+                                                                                </a>
+                                                                                <a href="<?php echo $basePath . '/' . htmlspecialchars($wsFile); ?>" target="_blank" download class="btn btn-xs text-white py-0 px-2" style="background:#0d9488; border-color:#0d9488; font-size: 0.72rem; border-radius: 4px;">
+                                                                                    <i class="bi bi-download"></i> Download PDF
+                                                                                </a>
+                                                                            <?php endif; ?>
+                                                                        </div>
+                                                                    <?php endif; ?>
                                                                 </td>
                                                                 <td>
                                                                     <span class="badge bg-light text-dark border"><?php echo htmlspecialchars($actTypeNice); ?></span>
@@ -426,10 +458,20 @@ $domainNameMap = [
                                                                         <span class="badge bg-success-subtle text-success border border-success-subtle">
                                                                             <i class="bi bi-check-circle me-1"></i> Answered <small class="fst-italic">(Nasagutan)</small>
                                                                         </span>
+                                                                        <?php if (!empty($act['submitted_file'])): ?>
+                                                                            <a href="<?php echo $basePath . '/' . htmlspecialchars(ltrim($act['submitted_file'], '/')); ?>" target="_blank" class="d-block small text-success mt-1" style="font-size:0.72rem;">
+                                                                                <i class="bi bi-paperclip"></i> View Submission
+                                                                            </a>
+                                                                        <?php endif; ?>
                                                                     <?php else: ?>
                                                                         <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
                                                                             <i class="bi bi-hourglass-split me-1"></i> Pending <small class="fst-italic">(Hindi Pa)</small>
                                                                         </span>
+                                                                        <?php if ($act['activity_type'] === 'custom_printable'): ?>
+                                                                            <a href="<?php echo $basePath; ?>/parent/worksheets" class="d-block btn btn-xs btn-outline-success mt-1 py-0 px-1.5" style="font-size:0.72rem; border-radius:4px;">
+                                                                                <i class="bi bi-cloud-arrow-up"></i> Upload Answered
+                                                                            </a>
+                                                                        <?php endif; ?>
                                                                     <?php endif; ?>
                                                                 </td>
                                                                 <td class="text-muted">

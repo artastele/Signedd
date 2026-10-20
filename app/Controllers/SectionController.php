@@ -84,6 +84,10 @@ class SectionController {
         $teachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $sections = $this->sectionModel->getSectionsBySchool($schoolId);
+        foreach ($sections as &$sec) {
+            $sec['students'] = $this->sectionModel->getStudentsBySection((int)$sec['id'], $sec['section_name'] ?? '');
+        }
+        unset($sec);
 
         $success = $_SESSION['flash_success'] ?? null;
         $error = $_SESSION['flash_error'] ?? null;
@@ -125,6 +129,25 @@ class SectionController {
             'school_year'        => '2026-2027'
         ]);
 
+        if ($adviserId) {
+            try {
+                require_once __DIR__ . '/../Models/TeacherAssignmentModel.php';
+                $taModel = new TeacherAssignmentModel();
+                $taModel->assignTeacher(
+                    $schoolId,
+                    $adviserId,
+                    $gradeLevel,
+                    $sectionName,
+                    'Main Building',
+                    $roomNumber,
+                    '',
+                    $_SESSION['user_id'] ?? $adviserId
+                );
+            } catch (\Throwable $taErr) {
+                error_log('SectionController sync to teacher_assignments error: ' . $taErr->getMessage());
+            }
+        }
+
         $_SESSION['flash_success'] = "Section '{$sectionName}' created successfully!";
         header('Location: ' . $this->basePath . '/sections');
         exit;
@@ -160,6 +183,26 @@ class SectionController {
             'adviser_teacher_id' => $adviserId,
             'school_year'        => '2026-2027'
         ]);
+
+        if ($adviserId) {
+            $schoolId = $_SESSION['school_id'] ?? 1;
+            try {
+                require_once __DIR__ . '/../Models/TeacherAssignmentModel.php';
+                $taModel = new TeacherAssignmentModel();
+                $taModel->assignTeacher(
+                    $schoolId,
+                    $adviserId,
+                    $gradeLevel,
+                    $sectionName,
+                    'Main Building',
+                    $roomNumber,
+                    '',
+                    $_SESSION['user_id'] ?? $adviserId
+                );
+            } catch (\Throwable $taErr) {
+                error_log('SectionController sync to teacher_assignments error: ' . $taErr->getMessage());
+            }
+        }
 
         $_SESSION['flash_success'] = "Section updated successfully!";
         header('Location: ' . $this->basePath . '/sections');

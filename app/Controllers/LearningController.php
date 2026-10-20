@@ -1369,10 +1369,12 @@ class LearningController {
                     'id'            => $actId,
                     'title'         => $act['title'],
                     'activity_type' => $act['activity_type'],
+                    'activity_data' => $act['activity_data'] ?? null,
                     'max_score'     => LessonPlanModel::displayMaxScoreForActivity($act),
                     'is_submitted'  => $isSubmitted,
                     'score'         => $actStatus['score'] ?? $actStatus['auto_score'] ?? null,
                     'submitted_at'  => $actStatus['submitted_at'] ?? null,
+                    'submitted_file'=> $actStatus['file_path'] ?? null,
                     'remarks'       => $actStatus['remarks'] ?? null,
                     'attempts'      => $attemptsCount > 0 ? $attemptsCount : ($isSubmitted ? 1 : 0)
                 ];
@@ -1538,6 +1540,122 @@ class LearningController {
             'sent_count' => $sentCount,
             'total_pending' => count($pendingLearners)
         ]);
+        exit;
+    }
+
+    // ----------------------------------------------------------------
+    // GET /parent/worksheets — Printable Worksheets Hub for Parents
+    // ----------------------------------------------------------------
+    public function parentWorksheets(): void {
+        ParentGateMiddleware::check();
+        if ($this->userRole !== 'parent') {
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
+        }
+
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->prepare("
+            SELECT la.id AS activity_id,
+                   la.title AS activity_title,
+                   la.instructions,
+                   la.activity_type,
+                   la.activity_data,
+                   la.max_score,
+                   la.due_date,
+                   la.created_at,
+                   lp.id AS lesson_id,
+                   lp.title AS lesson_title,
+                   lp.pdsp_domain,
+                   sr.id AS student_id,
+                   sr.student_name,
+                   sr.section_name,
+                   sub.id AS submission_id,
+                   sub.auto_score AS score,
+                   sub.submitted_at,
+                   sub.file_path AS submitted_file
+            FROM lms_activities la
+            JOIN lesson_plans lp ON la.lesson_plan_id = lp.id
+            JOIN lesson_assignments lass ON lp.id = lass.lesson_plan_id
+            JOIN student_records sr ON lass.student_id = sr.id
+            JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+            LEFT JOIN lms_submissions sub ON (sub.activity_id = la.id AND sub.student_id = sr.id)
+            WHERE es.parent_id = :pid
+              AND es.status = 'verified'
+              AND lp.status = 'published'
+              AND la.activity_type = 'custom_printable'
+            ORDER BY la.id DESC
+        ");
+        $stmt->execute(['pid' => $this->userId]);
+        $allWorksheets = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $basePath = $this->basePath;
+        require __DIR__ . '/../Views/dashboard/parent_worksheets.php';
+    }
+
+    // ----------------------------------------------------------------
+    // POST /parent/submit-worksheet — Parent completed worksheet upload
+    // ----------------------------------------------------------------
+    public function parentSubmitWorksheet(): void {
+        ParentGateMiddleware::check();
+        if ($this->userRole !== 'parent') {
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
+        }
+
+        $activityId = (int)($_POST['activity_id'] ?? 0);
+        $studentId  = (int)($_POST['student_id'] ?? 0);
+
+        $db = Database::getInstance()->getConnection();
+        $check = $db->prepare("
+            SELECT sr.id 
+            FROM student_records sr
+            JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+            WHERE sr.id = :sid AND es.parent_id = :pid
+            LIMIT 1
+        ");
+        $check->execute(['sid' => $studentId, 'pid' => $this->userId]);
+        if (!$check->fetchColumn()) {
+            $_SESSION['error'] = 'Access denied or invalid learner.';
+            header('Location: ' . ($this->basePath . '/parent/worksheets'));
+            exit;
+        }
+
+        if (empty($_FILES['submission_file']['name']) || $_FILES['submission_file']['error'] !== UPLOAD_ERR_OK) {
+            $_SESSION['error'] = 'Palihug pagpili og litrato o PDF sa nahuman nga worksheet.';
+            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? ($this->basePath . '/parent/worksheets')));
+            exit;
+        }
+
+        $uploadDir = dirname(__DIR__, 2) . '/public/uploads/submissions/' . $activityId;
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $ext = strtolower(pathinfo($_FILES['submission_file']['name'], PATHINFO_EXTENSION));
+        $allowed = ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'doc', 'docx'];
+        if (!in_array($ext, $allowed)) {
+            $_SESSION['error'] = 'Invalid file type. Palihug gamit og litrato (JPG, PNG) o PDF.';
+            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? ($this->basePath . '/parent/worksheets')));
+            exit;
+        }
+
+        $filename = 'parent_sub_' . $studentId . '_' . time() . '.' . $ext;
+        $dest = $uploadDir . '/' . $filename;
+        if (move_uploaded_file($_FILES['submission_file']['tmp_name'], $dest)) {
+            $relPath = 'uploads/submissions/' . $activityId . '/' . $filename;
+            $answers = [
+                'notes'               => trim($_POST['notes'] ?? ''),
+                'file_path'           => $relPath,
+                'original_name'       => htmlspecialchars($_FILES['submission_file']['name']),
+                'submitted_by_parent' => true
+            ];
+            $this->model->saveSubmission($activityId, $studentId, $this->userId, json_encode($answers), null, $relPath);
+            $_SESSION['success'] = 'Malampusong na-submit ang nahuman nga worksheet ngadto sa SPED Teacher!';
+        } else {
+            $_SESSION['error'] = 'Failed to upload completed worksheet file.';
+        }
+
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? ($this->basePath . '/parent/worksheets')));
         exit;
     }
 }

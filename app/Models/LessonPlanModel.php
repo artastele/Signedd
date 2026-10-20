@@ -67,13 +67,15 @@ class LessonPlanModel {
      * Create a new lesson plan
      */
     public function create($data) {
+        $status = $data['status'] ?? 'published';
+        $publishedAt = ($status === 'published') ? date('Y-m-d H:i:s') : null;
         $stmt = $this->db->prepare("
             INSERT INTO lesson_plans
                 (iep_id, student_id, created_by, title, pdsp_domain, assignment_type,
-                 document_path, status, created_at, updated_at)
+                 document_path, status, published_at, created_at, updated_at)
             VALUES
                 (:iep_id, :student_id, :created_by, :title, :pdsp_domain, :assignment_type,
-                 :document_path, 'draft', NOW(), NOW())
+                 :document_path, :status, :published_at, NOW(), NOW())
         ");
         $stmt->execute([
             'iep_id'          => $data['iep_id'],
@@ -83,6 +85,8 @@ class LessonPlanModel {
             'pdsp_domain'     => $data['pdsp_domain'],
             'assignment_type' => $data['assignment_type'],
             'document_path'   => $data['document_path'] ?? null,
+            'status'          => $status,
+            'published_at'    => $publishedAt,
         ]);
         return $this->db->lastInsertId();
     }

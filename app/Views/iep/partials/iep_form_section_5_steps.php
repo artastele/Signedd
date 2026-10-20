@@ -46,27 +46,28 @@ $wsUrl = $basePath . '/iep/implementation/workspace/' . (int) $iep['id'];
                                 <?php if ($readOnly): ?>
                                     <div><?= nl2br(htmlspecialchars($objective)) ?></div>
                                     <?php if (!empty($st['pdsp_indicator_text'])): ?>
-                                        <div class="mt-1"><span class="badge bg-secondary" style="font-size:0.75rem;"><i class="ti ti-target me-1"></i>Targeted Domain Skill: <?= htmlspecialchars($st['pdsp_indicator_text']) ?></span></div>
+                                        <div class="mt-1"><span class="badge bg-secondary" style="font-size:0.75rem;"><i class="ti ti-target me-1"></i>Targeted Domain: <?= htmlspecialchars($st['pdsp_indicator_text']) ?></span></div>
                                     <?php endif; ?>
                                 <?php else: ?>
                                     <textarea class="form-control form-control-sm step-objective" rows="2" name="step_objective[]" placeholder="Enabling objective"><?= htmlspecialchars($objective) ?></textarea>
                                     <div class="mt-2">
-                                        <label class="small text-muted mb-1 d-block" style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Targeted Developmental Domain Skill (Optional)</label>
-                                        <select class="form-select form-select-sm step-pdsp-indicator" style="font-size:0.8rem;">
-                                            <option value="">-- No linked skill --</option>
-                                            <?php if (!empty($indicatorsByDomain)): ?>
-                                                <?php foreach ($indicatorsByDomain as $domName => $inds): ?>
-                                                    <optgroup label="<?= htmlspecialchars($domName) ?>">
-                                                        <?php foreach ($inds as $ind): ?>
-                                                            <option value="<?= htmlspecialchars($ind) ?>" <?= ($st['pdsp_indicator_text'] ?? '') === $ind ? 'selected' : '' ?>><?= htmlspecialchars($ind) ?></option>
-                                                        <?php endforeach; ?>
-                                                    </optgroup>
-                                                <?php endforeach; ?>
-                                            <?php else: ?>
-                                                <?php foreach ($availableIndicators ?? [] as $ind): ?>
-                                                    <option value="<?= htmlspecialchars($ind) ?>" <?= ($st['pdsp_indicator_text'] ?? '') === $ind ? 'selected' : '' ?>><?= htmlspecialchars($ind) ?></option>
-                                                <?php endforeach; ?>
-                                            <?php endif; ?>
+                                        <label class="small text-muted mb-1 d-block" style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Targeted Developmental Domain <span class="text-danger">*</span></label>
+                                        <select class="form-select form-select-sm step-pdsp-indicator" style="font-size:0.8rem;" required>
+                                            <option value="">-- Select Developmental Domain --</option>
+                                            <?php 
+                                            $devDomainsList = [
+                                                'Daily Living Skills',
+                                                'Socio-Emotional',
+                                                'Language Development',
+                                                'Psychomotor',
+                                                'Cognitive',
+                                                'Aesthetic/Creative',
+                                                'Behavioral Development',
+                                                'Orientation and Mobility'
+                                            ];
+                                            foreach ($devDomainsList as $dom): ?>
+                                                <option value="<?= htmlspecialchars($dom) ?>" <?= ($st['pdsp_indicator_text'] ?? '') === $dom ? 'selected' : '' ?>><?= htmlspecialchars($dom) ?></option>
+                                            <?php endforeach; ?>
                                         </select>
                                     </div>
                                 <?php endif; ?>
@@ -272,19 +273,19 @@ $wsUrl = $basePath . '/iep/implementation/workspace/' . (int) $iep['id'];
 </div>
 
 <?php
-$optionsHtml = '<option value="">-- No linked skill --</option>';
-if (!empty($indicatorsByDomain)) {
-    foreach ($indicatorsByDomain as $domName => $inds) {
-        $optionsHtml .= '<optgroup label="' . htmlspecialchars($domName, ENT_QUOTES) . '">';
-        foreach ($inds as $ind) {
-            $optionsHtml .= '<option value="' . htmlspecialchars($ind, ENT_QUOTES) . '">' . htmlspecialchars($ind, ENT_QUOTES) . '</option>';
-        }
-        $optionsHtml .= '</optgroup>';
-    }
-} else {
-    foreach ($availableIndicators ?? [] as $ind) {
-        $optionsHtml .= '<option value="' . htmlspecialchars($ind, ENT_QUOTES) . '">' . htmlspecialchars($ind, ENT_QUOTES) . '</option>';
-    }
+$devDomainsList = [
+    'Daily Living Skills',
+    'Socio-Emotional',
+    'Language Development',
+    'Psychomotor',
+    'Cognitive',
+    'Aesthetic/Creative',
+    'Behavioral Development',
+    'Orientation and Mobility'
+];
+$optionsHtml = '<option value="">-- Select Developmental Domain --</option>';
+foreach ($devDomainsList as $dom) {
+    $optionsHtml .= '<option value="' . htmlspecialchars($dom, ENT_QUOTES) . '">' . htmlspecialchars($dom, ENT_QUOTES) . '</option>';
 }
 ?>
 <script>
@@ -540,7 +541,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 '<td class="text-center step-num-cell"></td>'+
                 '<td><textarea class="form-control form-control-sm step-objective" rows="2" name="step_objective[]" placeholder="Enabling objective"></textarea>'+
                 '<div class="mt-2">'+
-                '  <label class="small text-muted mb-1 d-block" style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Targeted Developmental Domain Skill (Optional)</label>'+
+                '  <label class="small text-muted mb-1 d-block" style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Targeted Developmental Domain <span class="text-danger">*</span></label>'+
                 '  <select class="form-select form-select-sm step-pdsp-indicator" style="font-size:0.8rem;">'+
                 availableIndicatorsOptionsHtml+
                 '  </select>'+

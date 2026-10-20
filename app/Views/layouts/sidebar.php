@@ -122,6 +122,11 @@ if ($role === 'learner') {
                 <i class="bi bi-bar-chart-line"></i>
                 <span>My Child's Progress</span>
             </a>
+            <!-- Printable Worksheets -->
+            <a href="<?php echo $basePath; ?>/parent/worksheets" class="<?php echo isActive('/parent/worksheets'); ?>">
+                <i class="bi bi-printer"></i>
+                <span>Printable Worksheets</span>
+            </a>
             <a href="<?php echo $basePath; ?>/iep/meetings" class="<?php echo isActive('/iep/meetings'); ?>">
                 <i class="bi bi-calendar-check"></i>
                 <span>IEP Meetings</span>
@@ -249,10 +254,6 @@ if ($role === 'learner') {
             <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !isActive('/iep/meetings') && !isActive('/iep/availability') ? 'active' : ''; ?>">
                 <i class="bi bi-file-earmark-medical"></i>
                 <span>IEP Documents</span>
-            </a>
-            <a href="<?php echo $basePath; ?>/cot/observations" class="<?php echo isActive('/cot/observations'); ?>">
-                <i class="bi bi-eye"></i>
-                <span>Observations</span>
             </a>
 
         <?php elseif ($role === 'master_teacher'): ?>
