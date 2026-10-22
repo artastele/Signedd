@@ -36,6 +36,11 @@ class ProgressReportModel {
             }
         };
 
+        $addColumnSafe('lms_submissions', 'is_remedial_attempt', 'TINYINT(1) NOT NULL DEFAULT 0');
+        $addColumnSafe('lms_submissions', 'needs_remediation', 'TINYINT(1) NOT NULL DEFAULT 0');
+        $addColumnSafe('activity_attempts', 'is_remedial_attempt', 'TINYINT(1) NOT NULL DEFAULT 0');
+        $addColumnSafe('activity_attempts', 'needs_remediation', 'TINYINT(1) NOT NULL DEFAULT 0');
+
         $statements = [
             "CREATE TABLE IF NOT EXISTS attendance_records (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -101,16 +106,45 @@ class ProgressReportModel {
         $addColumnSafe('report_remarks', 'signature_data', 'MEDIUMTEXT NULL', 'signature_name');
     }
 
-    public function getProgressReports(): array {
+    public function getProgressReports(?int $schoolId = null, ?int $teacherId = null): array {
+        $where = [];
+        $params = [];
+
+        if ($schoolId) {
+            $where[] = "(sr.school_id = :sch_1 OR es.target_school_id = :sch_2)";
+            $params['sch_1'] = $schoolId;
+            $params['sch_2'] = $schoolId;
+        }
+
+        if ($teacherId) {
+            $where[] = "(sr.assigned_teacher_id = :tid_1 
+                         OR es.assigned_teacher_id = :tid_2 
+                         OR sr.verified_by = :tid_3 
+                         OR ir.drafted_by = :tid_4
+                         OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_5)
+                         OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_6))
+                        )";
+            $params['tid_1'] = $teacherId;
+            $params['tid_2'] = $teacherId;
+            $params['tid_3'] = $teacherId;
+            $params['tid_4'] = $teacherId;
+            $params['tid_5'] = $teacherId;
+            $params['tid_6'] = $teacherId;
+        }
+
+        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
         $stmt = $this->db->prepare(
             "SELECT sr.id AS student_id, sr.student_name, sr.lrn, ir.id AS iep_id,
                     pr.id AS progress_report_id, pr.status, pr.school_year, pr.quarter, pr.updated_at
              FROM student_records sr
              JOIN iep_records ir ON ir.student_id = sr.id
+             LEFT JOIN enrollment_submissions es ON es.id = sr.enrollment_id
              LEFT JOIN progress_reports pr ON pr.iep_record_id = ir.id
+             {$whereClause}
              ORDER BY COALESCE(pr.updated_at, ir.created_at) DESC"
         );
-        $stmt->execute();
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -316,7 +350,32 @@ class ProgressReportModel {
         return $stats;
     }
 
-    public function getAttendanceLearners(): array {
+    public function getAttendanceLearners(?int $schoolId = null, ?int $teacherId = null): array {
+        $where = [];
+        $params = [];
+
+        if ($schoolId) {
+            $where[] = "(sr.school_id = :sch_1 OR es.target_school_id = :sch_2)";
+            $params['sch_1'] = $schoolId;
+            $params['sch_2'] = $schoolId;
+        }
+
+        if ($teacherId) {
+            $where[] = "(sr.assigned_teacher_id = :tid_1 
+                         OR es.assigned_teacher_id = :tid_2 
+                         OR sr.verified_by = :tid_3 
+                         OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_4)
+                         OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_5))
+                        )";
+            $params['tid_1'] = $teacherId;
+            $params['tid_2'] = $teacherId;
+            $params['tid_3'] = $teacherId;
+            $params['tid_4'] = $teacherId;
+            $params['tid_5'] = $teacherId;
+        }
+
+        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
         $stmt = $this->db->prepare(
             "SELECT sr.id AS student_id,
                     sr.student_name,
@@ -335,10 +394,11 @@ class ProgressReportModel {
                 GROUP BY student_id
              ) ir ON ir.student_id = sr.id
              LEFT JOIN attendance_records ar ON ar.student_id = sr.id
+             {$whereClause}
              GROUP BY sr.id, sr.student_name, sr.lrn, es.school_year, es.grade_level_to_enroll, ir.id
              ORDER BY sr.student_name ASC"
         );
-        $stmt->execute();
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -679,7 +739,7 @@ class ProgressReportModel {
         $nameIndex = null;
         $targetRow = null;
 
-        while (($row = fgetcsv($handle)) !== false) {
+        while (($row = fgetcsv($handle, 0, ',', '"', "\\")) !== false) {
             if ($header === null) {
                 $candidate = array_map(fn($cell) => trim((string)$cell), $row);
                 $nonEmpty = array_filter($candidate, fn($cell) => $cell !== '');

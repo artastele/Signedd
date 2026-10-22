@@ -28,7 +28,7 @@ require __DIR__ . '/../layouts/topbar.php';
         </div>
 
         <!-- Statistics Cards -->
-        <div class="row mb-4">
+        <div class="row mb-4 m-grid">
             <div class="col-md-3">
                 <div class="card text-center" style="border-top: 3px solid #3b6d11;">
                     <div class="card-body">

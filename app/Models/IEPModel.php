@@ -198,10 +198,13 @@ class IEPModel {
      */
     public function getByTeacher($userId) {
         $stmt = $this->db->prepare("
-            SELECT ir.*, sr.student_name, sr.lrn, u.name AS drafted_by_name
+            SELECT ir.*, sr.student_name, sr.lrn, u.name AS drafted_by_name,
+                   COALESCE(sec.section_name, sr.section_name, 'Unassigned Section') AS section_name,
+                   sec.id AS section_id
             FROM iep_records ir
             JOIN student_records sr ON ir.student_id = sr.id
             JOIN users u ON ir.drafted_by = u.id
+            LEFT JOIN sections sec ON sr.section_id = sec.id
             WHERE ir.drafted_by = :user_id
             ORDER BY ir.created_at DESC
         ");
@@ -225,32 +228,62 @@ class IEPModel {
     }
 
     /**
-     * Get IEPs visible to guidance / principal / parent (completed or in signing)
+     * Get IEPs visible to guidance / principal / parent / teacher (completed or in signing)
      */
-    public function getSignedForRole($role, $userId) {
+    public function getSignedForRole($role, $userId, ?int $schoolId = null) {
         if ($role === 'parent') {
             $stmt = $this->db->prepare("
-                SELECT ir.*, sr.student_name, sr.lrn, u.name AS drafted_by_name
+                SELECT ir.*, sr.student_name, sr.lrn, u.name AS drafted_by_name,
+                       COALESCE(sec.section_name, sr.section_name, 'Unassigned Section') AS section_name,
+                       sec.id AS section_id
                 FROM iep_records ir
                 JOIN student_records sr ON ir.student_id = sr.id
                 JOIN enrollment_submissions es ON sr.enrollment_id = es.id
                 JOIN users u ON ir.drafted_by = u.id
+                LEFT JOIN sections sec ON sr.section_id = sec.id
                 WHERE ir.status IN ('signed','signing','locked')
                 AND es.parent_id = :user_id
                 ORDER BY ir.created_at DESC
             ");
             $stmt->execute(['user_id' => $userId]);
-        } else {
-            $stmt = $this->db->prepare("
-                SELECT ir.*, sr.student_name, sr.lrn, u.name AS drafted_by_name
-                FROM iep_records ir
-                JOIN student_records sr ON ir.student_id = sr.id
-                JOIN users u ON ir.drafted_by = u.id
-                WHERE ir.status IN ('signed','signing','locked')
-                ORDER BY ir.created_at DESC
-            ");
-            $stmt->execute();
+            return $stmt->fetchAll();
         }
+
+        $where = ["ir.status IN ('signed','signing','locked')"];
+        $params = [];
+
+        if ($schoolId) {
+            $where[] = "(sr.school_id = :sch_1 OR u.school_id = :sch_2)";
+            $params['sch_1'] = $schoolId;
+            $params['sch_2'] = $schoolId;
+        }
+
+        if ($role === 'sped_teacher') {
+            $where[] = "(ir.drafted_by = :uid_1 
+                         OR sr.assigned_teacher_id = :uid_2 
+                         OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :uid_3)
+                         OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :uid_4))
+                        )";
+            $params['uid_1'] = $userId;
+            $params['uid_2'] = $userId;
+            $params['uid_3'] = $userId;
+            $params['uid_4'] = $userId;
+        }
+
+        $whereClause = implode(' AND ', $where);
+
+        $stmt = $this->db->prepare("
+            SELECT ir.*, sr.student_name, sr.lrn, u.name AS drafted_by_name,
+                   COALESCE(sec.section_name, sr.section_name, 'Unassigned Section') AS section_name,
+                   sec.id AS section_id
+            FROM iep_records ir
+            JOIN student_records sr ON ir.student_id = sr.id
+            JOIN users u ON ir.drafted_by = u.id
+            LEFT JOIN sections sec ON sr.section_id = sec.id
+            WHERE {$whereClause}
+            ORDER BY ir.created_at DESC
+        ");
+        $stmt->execute($params);
         return $stmt->fetchAll();
     }
 
@@ -587,6 +620,22 @@ class IEPModel {
      * Ensure baseline meeting and PDSP record exists for an enrolled/invited learner
      */
     public function ensureBaselinePdspForStudent(int $studentId, int $userId): array {
+        // Ensure userId exists in users table, fallback to first active staff/admin user if needed
+        $authorId = (int)$userId;
+        if ($authorId > 0) {
+            $checkU = $this->db->prepare("SELECT id FROM users WHERE id = :uid LIMIT 1");
+            $checkU->execute(['uid' => $authorId]);
+            if (!$checkU->fetchColumn()) {
+                $authorId = 0;
+            }
+        }
+        if ($authorId === 0) {
+            $authorId = (int)$this->db->query("SELECT id FROM users WHERE role IN ('admin', 'sped_teacher') ORDER BY id ASC LIMIT 1")->fetchColumn();
+            if (!$authorId) {
+                $authorId = (int)$this->db->query("SELECT id FROM users ORDER BY id ASC LIMIT 1")->fetchColumn() ?: 1;
+            }
+        }
+
         // 1. Check if meeting already exists
         $stmtM = $this->db->prepare("SELECT id FROM iep_meetings WHERE student_id = :sid ORDER BY id DESC LIMIT 1");
         $stmtM->execute(['sid' => $studentId]);
@@ -606,21 +655,49 @@ class IEPModel {
                             section_a_data, services_checked, screening_types,
                             created_at, updated_at
                         ) VALUES (
-                            :sid, :uid, :uid, 'finalized', 1,
+                            :sid, :assessed_by, :conducted_by, 'finalized', 1,
                             '{}', '[]', '[]',
                             NOW(), NOW()
                         )
                     ");
-                    $insA->execute(['sid' => $studentId, 'uid' => $userId]);
+                    $insA->execute([
+                        'sid'          => $studentId,
+                        'assessed_by'  => $authorId,
+                        'conducted_by' => $authorId
+                    ]);
                     $assessmentId = (int)$this->db->lastInsertId();
                 }
             } catch (\Throwable $e) {
                 error_log("Baseline assessment notice: " . $e->getMessage());
             }
 
-            // Absolute fallback to guarantee foreign key iep_meetings_ibfk_2 is satisfied
+            // Fallback: locate existing record for this student or any in table
             if (!$assessmentId) {
-                $assessmentId = (int)$this->db->query("SELECT id FROM assessment_records ORDER BY id ASC LIMIT 1")->fetchColumn() ?: 1;
+                $assessmentId = (int)$this->db->query("SELECT id FROM assessment_records WHERE student_id = " . (int)$studentId . " ORDER BY id DESC LIMIT 1")->fetchColumn();
+            }
+            if (!$assessmentId) {
+                $assessmentId = (int)$this->db->query("SELECT id FROM assessment_records ORDER BY id ASC LIMIT 1")->fetchColumn();
+            }
+
+            // Guaranteed insert if table is still empty
+            if (!$assessmentId) {
+                $insDirect = $this->db->prepare("
+                    INSERT INTO assessment_records (
+                        student_id, assessed_by, conducted_by, status, version,
+                        section_a_data, services_checked, screening_types,
+                        created_at, updated_at
+                    ) VALUES (
+                        :sid, :assessed_by, :conducted_by, 'finalized', 1,
+                        '{}', '[]', '[]',
+                        NOW(), NOW()
+                    )
+                ");
+                $insDirect->execute([
+                    'sid'          => $studentId,
+                    'assessed_by'  => $authorId,
+                    'conducted_by' => $authorId
+                ]);
+                $assessmentId = (int)$this->db->lastInsertId();
             }
 
             $stmtInsM = $this->db->prepare("
@@ -635,7 +712,7 @@ class IEPModel {
             $stmtInsM->execute([
                 'sid' => $studentId,
                 'aid' => $assessmentId,
-                'uid' => $userId
+                'uid' => $authorId
             ]);
             $meetingId = (int)$this->db->lastInsertId();
         }
@@ -653,7 +730,7 @@ class IEPModel {
             $stmtInsP->execute([
                 'mid' => $meetingId,
                 'sid' => $studentId,
-                'uid' => $userId
+                'uid' => $authorId
             ]);
             $pdspId = (int)$this->db->lastInsertId();
             $pdsp = ['id' => $pdspId, 'status' => 'signed'];
@@ -1057,6 +1134,22 @@ class IEPModel {
         }
         $tpl = $templates[$templateKey] ?? $templates['general_sped'];
 
+        // Ensure userId exists in users table, fallback to first active staff/admin user if needed
+        $authorId = (int)$userId;
+        if ($authorId > 0) {
+            $checkU = $this->db->prepare("SELECT id FROM users WHERE id = :uid LIMIT 1");
+            $checkU->execute(['uid' => $authorId]);
+            if (!$checkU->fetchColumn()) {
+                $authorId = 0;
+            }
+        }
+        if ($authorId === 0) {
+            $authorId = (int)$this->db->query("SELECT id FROM users WHERE role IN ('admin', 'sped_teacher') ORDER BY id ASC LIMIT 1")->fetchColumn();
+            if (!$authorId) {
+                $authorId = (int)$this->db->query("SELECT id FROM users ORDER BY id ASC LIMIT 1")->fetchColumn() ?: 1;
+            }
+        }
+
         // 1. Ensure meeting
         $stmtM = $this->db->prepare("SELECT id FROM iep_meetings WHERE student_id = :sid ORDER BY id DESC LIMIT 1");
         $stmtM->execute(['sid' => $studentId]);
@@ -1075,21 +1168,49 @@ class IEPModel {
                             section_a_data, services_checked, screening_types,
                             created_at, updated_at
                         ) VALUES (
-                            :sid, :uid, :uid, 'finalized', 1,
+                            :sid, :assessed_by, :conducted_by, 'finalized', 1,
                             '{}', '[]', '[]',
                             NOW(), NOW()
                         )
                     ");
-                    $insA->execute(['sid' => $studentId, 'uid' => $userId]);
+                    $insA->execute([
+                        'sid'          => $studentId,
+                        'assessed_by'  => $authorId,
+                        'conducted_by' => $authorId
+                    ]);
                     $assessmentId = (int)$this->db->lastInsertId();
                 }
             } catch (\Throwable $e) {
                 error_log("Baseline assessment notice: " . $e->getMessage());
             }
 
-            // Absolute fallback to guarantee foreign key iep_meetings_ibfk_2 is satisfied
+            // Fallback: locate existing record for this student or any in table
             if (!$assessmentId) {
-                $assessmentId = (int)$this->db->query("SELECT id FROM assessment_records ORDER BY id ASC LIMIT 1")->fetchColumn() ?: 1;
+                $assessmentId = (int)$this->db->query("SELECT id FROM assessment_records WHERE student_id = " . (int)$studentId . " ORDER BY id DESC LIMIT 1")->fetchColumn();
+            }
+            if (!$assessmentId) {
+                $assessmentId = (int)$this->db->query("SELECT id FROM assessment_records ORDER BY id ASC LIMIT 1")->fetchColumn();
+            }
+
+            // Guaranteed insert if table is still empty
+            if (!$assessmentId) {
+                $insDirect = $this->db->prepare("
+                    INSERT INTO assessment_records (
+                        student_id, assessed_by, conducted_by, status, version,
+                        section_a_data, services_checked, screening_types,
+                        created_at, updated_at
+                    ) VALUES (
+                        :sid, :assessed_by, :conducted_by, 'finalized', 1,
+                        '{}', '[]', '[]',
+                        NOW(), NOW()
+                    )
+                ");
+                $insDirect->execute([
+                    'sid'          => $studentId,
+                    'assessed_by'  => $authorId,
+                    'conducted_by' => $authorId
+                ]);
+                $assessmentId = (int)$this->db->lastInsertId();
             }
 
             $stmtInsM = $this->db->prepare("
@@ -1104,7 +1225,7 @@ class IEPModel {
             $stmtInsM->execute([
                 'sid' => $studentId,
                 'aid' => $assessmentId,
-                'uid' => $userId
+                'uid' => $authorId
             ]);
             $meetingId = (int)$this->db->lastInsertId();
         }
@@ -1121,7 +1242,7 @@ class IEPModel {
             $stmtInsP->execute([
                 'mid' => $meetingId,
                 'sid' => $studentId,
-                'uid' => $userId,
+                'uid' => $authorId,
                 'doc' => !empty($uploadedDocPath) ? $uploadedDocPath : null,
             ]);
             $pdspId = (int)$this->db->lastInsertId();

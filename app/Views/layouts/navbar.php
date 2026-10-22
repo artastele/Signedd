@@ -18,8 +18,8 @@
                 
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-person-circle"></i> <?php echo htmlspecialchars($_SESSION['user_name']); ?>
-                        <span class="badge bg-secondary ms-1"><?php echo ucwords(str_replace('_', ' ', $_SESSION['role'])); ?></span>
+                        <i class="bi bi-person-circle"></i> <?php echo htmlspecialchars($_SESSION['user_name'] ?? $_SESSION['name'] ?? 'User'); ?>
+                        <span class="badge bg-secondary ms-1"><?php echo ucwords(str_replace('_', ' ', $_SESSION['role'] ?? 'User')); ?></span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
                         <?php if ($_SESSION['role'] === 'user'): ?>

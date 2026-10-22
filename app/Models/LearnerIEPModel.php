@@ -18,13 +18,13 @@ class LearnerIEPModel {
     public function assignIEP($studentId, $iepId, $teacherId, $startDate, $notes = '') {
         try {
             $stmt = $this->db->prepare("
-                INSERT INTO learner_iep (student_id, iep_id, teacher_id, start_date, notes, implementation_status)
-                VALUES (:student_id, :iep_id, :teacher_id, :start_date, :notes, 'not_started')
+                INSERT INTO learner_iep (student_id, iep_p3_id, teacher_id, start_date, notes, implementation_status)
+                VALUES (:student_id, :iep_p3_id, :teacher_id, :start_date, :notes, 'not_started')
             ");
             
             $stmt->execute([
                 'student_id' => $studentId,
-                'iep_id' => $iepId,
+                'iep_p3_id' => $iepId,
                 'teacher_id' => $teacherId,
                 'start_date' => $startDate,
                 'notes' => $notes

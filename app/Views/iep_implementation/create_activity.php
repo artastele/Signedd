@@ -425,7 +425,20 @@ document.getElementById('activityForm').addEventListener('submit', async functio
             const correct = parseInt(document.getElementById(`mcq-correct-${i}`).value);
             const points = parseInt(document.getElementById(`mcq-points-${i}`).value);
             
-            activityData.questions.push({ question: text, choices, correct_answer: correct, points });
+            // Standardize into options array of objects with text and is_correct
+            const options = choices.map((choiceText, idx) => ({
+                text: choiceText,
+                is_correct: idx === correct ? 1 : 0
+            }));
+            
+            activityData.questions.push({
+                question: text,
+                text: text,
+                options: options,
+                choices: choices,
+                correct_answer: correct,
+                points: points
+            });
             totalPoints += points;
         });
     } else if (activityType === 'true_false') {

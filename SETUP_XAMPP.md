@@ -51,7 +51,6 @@ Sulod sa `C:\xampp\htdocs\Signedd`:
 6. I-click ang **Import** tab sa ibabaw nga menu bar.
 7. I-click ang **Choose File** / **Browse** button, unya pilia ang file:
    `C:\xampp\htdocs\Signedd\database.sql`
-   *(o naa sab sa `config/database_dump.sql`)*
 8. I-scroll paubos ug i-click ang **Import** (o **Go**).
 9. Hulata mahuman hangtod mogawas ang green checkmark "Import has been successfully finished".
 

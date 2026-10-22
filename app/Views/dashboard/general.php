@@ -13,7 +13,7 @@ require_once __DIR__ . '/../layouts/header.php';
 <?php require_once __DIR__ . '/../layouts/sidebar.php'; ?>
 <?php require_once __DIR__ . '/../layouts/topbar.php'; ?>
 
-<div class="main-content">
+<div class="main-content dash-page">
     <!-- Success/Error Messages -->
     <?php if (isset($_SESSION['success'])): ?>
         <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -94,7 +94,7 @@ require_once __DIR__ . '/../layouts/header.php';
     <?php endif; ?>
 
     <!-- Welcome Banner -->
-    <div class="card mb-4" style="background: linear-gradient(135deg, #1e4072 0%, #a01422 100%); color: white; border: none;">
+    <div class="card mb-4 dash-welcome" style="background: linear-gradient(135deg, #1e4072 0%, #a01422 100%); color: white; border: none;">
         <div class="card-body p-4">
                 <div class="col-md-12">
                     <h1 class="mb-2">Welcome to SignED, <?php echo htmlspecialchars($userName); ?>!</h1>
@@ -231,7 +231,7 @@ require_once __DIR__ . '/../layouts/header.php';
     ?>
 
     <!-- 4 Core KPI Summary Cards (General Objective, SO2, SO3, & Registered Schools) -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4 dash-kpis">
         <!-- Stat 1: Distance Learning Program Inclusion (General Objective) -->
         <div class="col-xl-3 col-md-6" title="General Objective: Inclusion of learners with special educational needs in distance learning programs to at least 85% participation.">
             <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 4px solid #0d6efd !important; background: #fff;">
@@ -303,7 +303,7 @@ require_once __DIR__ . '/../layouts/header.php';
 
     <!-- Featured Registered SPED Centers Hero Carousel -->
 
-    <div class="card mb-4 border-0 shadow-sm overflow-hidden" style="border-top: 4px solid #a01422 !important; background: #ffffff; border-radius: 12px;">
+    <div class="card mb-4 border-0 shadow-sm overflow-hidden dash-schools" style="border-top: 4px solid #a01422 !important; background: #ffffff; border-radius: 12px;">
         <div class="card-header bg-white py-3 px-4 border-0 d-flex justify-content-between align-items-center">
             <h5 class="mb-0 fw-bold text-dark">
                 <i class="bi bi-building-check text-danger me-2"></i> Registered SPED Schools & Regional Hubs
@@ -314,7 +314,7 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
         <div class="card-body p-4 pt-2">
             <?php if (empty($registeredSchools)): ?>
-                <div class="text-center py-4 bg-light rounded-3 border">
+                <div class="text-center py-4 bg-light rounded-3 border dash-empty">
                     <i class="bi bi-building-exclamation text-muted" style="font-size: 2.5rem;"></i>
                     <h5 class="fw-bold text-secondary mt-2 mb-1">No SPED Schools Registered Yet</h5>
                     <p class="small text-muted mb-3">Be the first Principal to register your school in the SignED regional network.</p>
@@ -395,7 +395,7 @@ require_once __DIR__ . '/../layouts/header.php';
 
     <!-- Get Started Section -->
     <?php if (!isset($pendingRequest) || !$pendingRequest): ?>
-        <div class="row">
+        <div class="row dash-gs-head">
             <div class="col-12 mb-3">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -414,7 +414,7 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
 
         <!-- Separate Role Application Banners: Principal & Staff -->
-        <div class="row g-3 mb-4">
+        <div class="row g-3 mb-4 dash-roles">
             <!-- Principal Banner -->
             <div class="col-md-6">
                 <div class="card border-0 shadow-sm h-100" style="border-left: 4px solid #1e4072 !important; background: #f8fafc;">
@@ -461,7 +461,7 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
 
         <!-- Primary Focus: Enroll Your Child (Parent) - Wide Landscape Banner -->
-        <div class="row">
+        <div class="row dash-enroll">
             <div class="col-12 mb-4">
                 <div class="card border-0 shadow-sm overflow-hidden" style="border: 2px solid #a01422 !important; border-radius: 14px; background: linear-gradient(135deg, #ffffff 60%, #fff5f5 100%);">
                     <div class="card-body p-4 p-md-5">
@@ -478,7 +478,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                     </div>
                                 </div>
                                 
-                                <div class="row g-2 mt-2">
+                                <div class="row g-2 mt-2 enroll-features">
                                     <div class="col-sm-6">
                                         <div class="d-flex align-items-center text-dark small">
                                             <i class="bi bi-check-circle-fill text-success me-2 fs-5"></i>
@@ -508,7 +508,7 @@ require_once __DIR__ . '/../layouts/header.php';
 
                             <!-- Right Column: Action Button + Badge -->
                             <div class="col-lg-4 text-lg-end text-center">
-                                <div class="alert alert-success border-0 py-2 px-3 mb-3 d-inline-block text-start" style="background-color: #e8f5e9;">
+                                <div class="alert alert-success border-0 py-2 px-3 mb-3 d-inline-block text-start enroll-instant" style="background-color: #e8f5e9;">
                                     <small class="fw-semibold text-success">
                                         <i class="bi bi-lightning-fill text-warning me-1"></i> Instant Access — Start Immediately
                                     </small>
@@ -527,7 +527,7 @@ require_once __DIR__ . '/../layouts/header.php';
     <?php endif; ?>
 
     <!-- About Our System Card -->
-    <div class="row mt-4 mb-3">
+    <div class="row mt-4 mb-3 dash-about">
         <div class="col-md-12">
             <div class="card border-0 shadow-sm" style="border-left: 4px solid #a01422 !important; background: #ffffff;">
                 <div class="card-body p-4">
@@ -549,7 +549,7 @@ require_once __DIR__ . '/../layouts/header.php';
     </div>
 
     <!-- Help Section (Below About Our System) -->
-    <div class="row mt-3 mb-2">
+    <div class="row mt-3 mb-2 dash-help">
         <div class="col-12">
             <div class="card" style="background-color: #f9f9f9; border: none;">
                 <div class="card-body p-3 text-center">

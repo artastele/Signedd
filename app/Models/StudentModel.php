@@ -623,8 +623,33 @@ class StudentModel {
         return $stmt->fetch();
     }
 
-    public function getVerifiedStudents() {
-        $stmt = $this->db->query("
+    public function getVerifiedStudents(?int $schoolId = null, ?int $teacherId = null) {
+        $where = ["es.status = 'verified'"];
+        $params = [];
+
+        if ($schoolId) {
+            $where[] = "(sr.school_id = :sch_1 OR es.target_school_id = :sch_2)";
+            $params['sch_1'] = $schoolId;
+            $params['sch_2'] = $schoolId;
+        }
+
+        if ($teacherId) {
+            $where[] = "(sr.assigned_teacher_id = :tid_1 
+                         OR es.assigned_teacher_id = :tid_2 
+                         OR sr.verified_by = :tid_3 
+                         OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_4)
+                         OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_5))
+                        )";
+            $params['tid_1'] = $teacherId;
+            $params['tid_2'] = $teacherId;
+            $params['tid_3'] = $teacherId;
+            $params['tid_4'] = $teacherId;
+            $params['tid_5'] = $teacherId;
+        }
+
+        $whereClause = implode(' AND ', $where);
+
+        $stmt = $this->db->prepare("
             SELECT DISTINCT
                 sr.id,
                 sr.student_id,
@@ -636,9 +661,10 @@ class StudentModel {
                 es.grade_level_to_enroll
             FROM student_records sr
             JOIN enrollment_submissions es ON sr.enrollment_id = es.id
-            WHERE es.status = 'verified'
+            WHERE {$whereClause}
             ORDER BY sr.student_name ASC
         ");
+        $stmt->execute($params);
         return $stmt->fetchAll();
     }
 

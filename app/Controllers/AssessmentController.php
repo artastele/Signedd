@@ -43,8 +43,18 @@ class AssessmentController {
                 exit;
             }
             
-            // Get all assessments with student info
-            $allAssessments = $this->assessmentModel->getAllWithStudentInfo();
+            $schoolId = $_SESSION['school_id'] ?? null;
+            if (!$schoolId && $this->userId) {
+                $stmtSch = Database::getInstance()->getConnection()->prepare("SELECT school_id FROM users WHERE id = :uid LIMIT 1");
+                $stmtSch->execute(['uid' => $this->userId]);
+                $schoolId = $stmtSch->fetchColumn() ?: null;
+                if ($schoolId) $_SESSION['school_id'] = $schoolId;
+            }
+
+            $teacherFilter = ($this->userRole === 'sped_teacher') ? $this->userId : null;
+
+            // Get all assessments with student info (scoped to school & teacher)
+            $allAssessments = $this->assessmentModel->getAllWithStudentInfo($schoolId ? (int)$schoolId : null, $teacherFilter);
             
             // Separate by status
             $finalized = array_filter($allAssessments, fn($a) => $a['status'] === 'finalized');
@@ -76,8 +86,17 @@ class AssessmentController {
                 exit;
             }
             
-            // Get verified students for selector
-            $students = $this->studentModel->getVerifiedStudents();
+            $schoolId = $_SESSION['school_id'] ?? null;
+            if (!$schoolId && $this->userId) {
+                $stmtSch = Database::getInstance()->getConnection()->prepare("SELECT school_id FROM users WHERE id = :uid LIMIT 1");
+                $stmtSch->execute(['uid' => $this->userId]);
+                $schoolId = $stmtSch->fetchColumn() ?: null;
+                if ($schoolId) $_SESSION['school_id'] = $schoolId;
+            }
+
+            // Get verified students for selector (scoped by school and SPED teacher section)
+            $teacherFilter = ($this->userRole === 'sped_teacher') ? $this->userId : null;
+            $students = $this->studentModel->getVerifiedStudents($schoolId ? (int)$schoolId : null, $teacherFilter);
             
             // If student ID provided, get their details for auto-fill
             $studentData = null;
@@ -634,6 +653,39 @@ class AssessmentController {
                 return;
             }
             
+            // Check SPED teacher ownership
+            if ($this->userRole === 'sped_teacher') {
+                $db = Database::getInstance()->getConnection();
+                $stmt = $db->prepare("
+                    SELECT COUNT(*) FROM assessment_records ar
+                    JOIN student_records sr ON ar.student_id = sr.id
+                    LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                    WHERE ar.id = :aid
+                      AND (ar.conducted_by = :tid_1
+                           OR ar.assessed_by = :tid_2
+                           OR sr.assigned_teacher_id = :tid_3
+                           OR es.assigned_teacher_id = :tid_4
+                           OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_5)
+                           OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_6))
+                          )
+                ");
+                $stmt->execute([
+                    'aid' => $assessmentId,
+                    'tid_1' => $this->userId,
+                    'tid_2' => $this->userId,
+                    'tid_3' => $this->userId,
+                    'tid_4' => $this->userId,
+                    'tid_5' => $this->userId,
+                    'tid_6' => $this->userId,
+                ]);
+                if ($stmt->fetchColumn() == 0) {
+                    http_response_code(403);
+                    $_SESSION['error'] = 'Access denied. You can only view assessments for your assigned learners.';
+                    header('Location: ' . BASE_PATH . '/assessment');
+                    exit;
+                }
+            }
+
             // Get MDT services with documents
             require_once __DIR__ . '/../Models/AssessmentServiceModel.php';
             $serviceModel = new AssessmentServiceModel();
@@ -768,7 +820,34 @@ class AssessmentController {
                     header('Location: ' . BASE_PATH . '/dashboard');
                     exit;
                 }
-            } elseif (!in_array($this->userRole, ['sped_teacher', 'guidance', 'principal', 'admin'])) {
+            } elseif ($this->userRole === 'sped_teacher') {
+                $db = Database::getInstance()->getConnection();
+                $stmt = $db->prepare("
+                    SELECT COUNT(*) FROM student_records sr
+                    LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                    WHERE sr.id = :sid
+                      AND (sr.assigned_teacher_id = :tid_1
+                           OR es.assigned_teacher_id = :tid_2
+                           OR sr.verified_by = :tid_3
+                           OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_4)
+                           OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_5))
+                          )
+                ");
+                $stmt->execute([
+                    'sid' => $studentId,
+                    'tid_1' => $this->userId,
+                    'tid_2' => $this->userId,
+                    'tid_3' => $this->userId,
+                    'tid_4' => $this->userId,
+                    'tid_5' => $this->userId,
+                ]);
+                if ($stmt->fetchColumn() == 0) {
+                    http_response_code(403);
+                    $_SESSION['error'] = 'Access denied. You can only view assessments for your assigned learners.';
+                    header('Location: ' . BASE_PATH . '/assessment');
+                    exit;
+                }
+            } elseif (!in_array($this->userRole, ['guidance', 'principal', 'admin'])) {
                 http_response_code(403);
                 $_SESSION['error'] = 'Access denied';
                 header('Location: ' . BASE_PATH . '/dashboard');

@@ -152,14 +152,13 @@ class SessionMiddleware {
             }
         }
 
-        // Check if email is verified
-        if (isset($_SESSION['email_verified']) && $_SESSION['email_verified'] === false) {
-            // Redirect to verification page
-            $basePath = defined('BASE_PATH') ? BASE_PATH : '';
-            $redirectPath = $basePath . '/auth/verify-email';
-            header('Location: ' . $redirectPath);
-            exit;
-        }
+        // Check if email is verified (bypassed for testing & smooth user registration)
+        // if (isset($_SESSION['email_verified']) && $_SESSION['email_verified'] === false) {
+        //     $basePath = defined('BASE_PATH') ? BASE_PATH : '';
+        //     $redirectPath = $basePath . '/auth/verify-email';
+        //     header('Location: ' . $redirectPath);
+        //     exit;
+        // }
     }
 
     public static function destroy() {

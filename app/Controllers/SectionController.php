@@ -16,8 +16,8 @@ class SectionController {
             session_start();
         }
 
-        // Allow Principal, Admin, and Master Teacher
-        RoleMiddleware::checkAny(['principal', 'admin', 'master_teacher', 'sped_teacher']);
+        // Allow Principal, Master Teacher, and SPED Teacher (Admin cannot view school section management)
+        RoleMiddleware::checkAny(['principal', 'master_teacher', 'sped_teacher']);
 
         $this->sectionModel = new SectionModel();
         $this->userModel = new UserModel();
@@ -33,8 +33,45 @@ class SectionController {
         $userId = $_SESSION['user_id'] ?? 0;
         $schoolId = $_SESSION['school_id'] ?? null;
 
-        // Fetch teachers in same school for adviser assignment
         $db = Database::getInstance()->getConnection();
+
+        // Self-heal: link imported learners where section_id is null but section_name matches a section
+        try {
+            $db->exec("
+                UPDATE student_records sr
+                JOIN sections s ON (
+                    (sr.school_id = s.school_id OR sr.school_id IS NULL OR s.school_id IS NULL)
+                    AND LOWER(TRIM(sr.section_name)) = LOWER(TRIM(s.section_name))
+                )
+                SET sr.section_id = s.id,
+                    sr.school_id = COALESCE(sr.school_id, s.school_id)
+                WHERE sr.section_id IS NULL OR sr.section_id = 0
+            ");
+            // Also link section adviser to assigned_teacher_id if unassigned
+            $db->exec("
+                UPDATE student_records sr
+                JOIN sections s ON sr.section_id = s.id
+                SET sr.assigned_teacher_id = s.adviser_teacher_id
+                WHERE (sr.assigned_teacher_id IS NULL OR sr.assigned_teacher_id = 0)
+                  AND s.adviser_teacher_id IS NOT NULL
+            ");
+            // Sync current_count on sections
+            $db->exec("
+                UPDATE sections s
+                SET current_count = (
+                    SELECT COUNT(*) 
+                    FROM student_records sr 
+                    WHERE (sr.section_id = s.id 
+                           OR (sr.section_id IS NULL AND LOWER(TRIM(sr.section_name)) = LOWER(TRIM(s.section_name)))
+                          )
+                      AND (s.school_id IS NULL OR sr.school_id = s.school_id OR sr.school_id IS NULL)
+                )
+            ");
+        } catch (\Throwable $syncErr) {
+            error_log('SectionController sync error: ' . $syncErr->getMessage());
+        }
+
+        // Fetch teachers in same school for adviser assignment
         $stmt = $db->prepare("
             SELECT id, name, email 
             FROM users 
@@ -46,7 +83,15 @@ class SectionController {
         $stmt->execute(['school_id' => $schoolId, 'school_id_null' => $schoolId]);
         $teachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $sections = $this->sectionModel->getSectionsBySchool($schoolId);
+        if ($userRole === 'sped_teacher') {
+            $sections = $this->sectionModel->getSectionsByAdviser((int)$userId, $schoolId);
+        } else {
+            $sections = $this->sectionModel->getSectionsBySchool($schoolId);
+        }
+        foreach ($sections as &$sec) {
+            $sec['students'] = $this->sectionModel->getStudentsBySection((int)$sec['id'], $sec['section_name'] ?? '');
+        }
+        unset($sec);
 
         $success = $_SESSION['flash_success'] ?? null;
         $error = $_SESSION['flash_error'] ?? null;
@@ -60,6 +105,13 @@ class SectionController {
      * Create section
      */
     public function store() {
+        $userRole = $_SESSION['role'] ?? 'user';
+        if (!in_array($userRole, ['principal', 'master_teacher'])) {
+            $_SESSION['flash_error'] = 'Access restricted: Only School Principals and Master Teachers can create sections.';
+            header('Location: ' . $this->basePath . '/sections');
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . $this->basePath . '/sections');
             exit;
@@ -88,6 +140,25 @@ class SectionController {
             'school_year'        => '2026-2027'
         ]);
 
+        if ($adviserId) {
+            try {
+                require_once __DIR__ . '/../Models/TeacherAssignmentModel.php';
+                $taModel = new TeacherAssignmentModel();
+                $taModel->assignTeacher(
+                    $schoolId,
+                    $adviserId,
+                    $gradeLevel,
+                    $sectionName,
+                    'Main Building',
+                    $roomNumber,
+                    '',
+                    $_SESSION['user_id'] ?? $adviserId
+                );
+            } catch (\Throwable $taErr) {
+                error_log('SectionController sync to teacher_assignments error: ' . $taErr->getMessage());
+            }
+        }
+
         $_SESSION['flash_success'] = "Section '{$sectionName}' created successfully!";
         header('Location: ' . $this->basePath . '/sections');
         exit;
@@ -97,6 +168,13 @@ class SectionController {
      * Update section
      */
     public function update($id) {
+        $userRole = $_SESSION['role'] ?? 'user';
+        if (!in_array($userRole, ['principal', 'master_teacher'])) {
+            $_SESSION['flash_error'] = 'Access restricted: Only School Principals and Master Teachers can update sections.';
+            header('Location: ' . $this->basePath . '/sections');
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . $this->basePath . '/sections');
             exit;
@@ -124,6 +202,26 @@ class SectionController {
             'school_year'        => '2026-2027'
         ]);
 
+        if ($adviserId) {
+            $schoolId = $_SESSION['school_id'] ?? 1;
+            try {
+                require_once __DIR__ . '/../Models/TeacherAssignmentModel.php';
+                $taModel = new TeacherAssignmentModel();
+                $taModel->assignTeacher(
+                    $schoolId,
+                    $adviserId,
+                    $gradeLevel,
+                    $sectionName,
+                    'Main Building',
+                    $roomNumber,
+                    '',
+                    $_SESSION['user_id'] ?? $adviserId
+                );
+            } catch (\Throwable $taErr) {
+                error_log('SectionController sync to teacher_assignments error: ' . $taErr->getMessage());
+            }
+        }
+
         $_SESSION['flash_success'] = "Section updated successfully!";
         header('Location: ' . $this->basePath . '/sections');
         exit;
@@ -133,6 +231,13 @@ class SectionController {
      * Delete / archive section
      */
     public function delete($id) {
+        $userRole = $_SESSION['role'] ?? 'user';
+        if (!in_array($userRole, ['principal', 'master_teacher'])) {
+            $_SESSION['flash_error'] = 'Access restricted: Only School Principals and Master Teachers can archive sections.';
+            header('Location: ' . $this->basePath . '/sections');
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . $this->basePath . '/sections');
             exit;

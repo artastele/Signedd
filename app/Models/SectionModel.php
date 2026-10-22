@@ -15,26 +15,76 @@ class SectionModel {
      * Get all sections for a school
      */
     public function getSectionsBySchool(?int $schoolId): array {
-        if (!$schoolId) {
-            $stmt = $this->db->query("
-                SELECT s.*, u.name as adviser_name 
-                FROM sections s
-                LEFT JOIN users u ON s.adviser_teacher_id = u.id
-                ORDER BY s.grade_level ASC, s.section_name ASC
-            ");
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $where = "s.status = 'active'";
+        $params = [];
+        if ($schoolId) {
+            $where .= " AND s.school_id = :school_id";
+            $params['school_id'] = $schoolId;
         }
 
         $stmt = $this->db->prepare("
             SELECT s.*, u.name as adviser_name,
-                   (SELECT COUNT(*) FROM student_records sr WHERE sr.section_id = s.id) as enrolled_students_count
+                   (
+                       SELECT COUNT(*) 
+                       FROM student_records sr 
+                       WHERE (sr.section_id = s.id 
+                              OR (sr.section_id IS NULL AND LOWER(TRIM(sr.section_name)) = LOWER(TRIM(s.section_name)))
+                             )
+                         AND (s.school_id IS NULL OR sr.school_id = s.school_id OR sr.school_id IS NULL)
+                   ) as enrolled_students_count
             FROM sections s
             LEFT JOIN users u ON s.adviser_teacher_id = u.id
-            WHERE s.school_id = :school_id AND s.status = 'active'
+            WHERE {$where}
             ORDER BY s.grade_level ASC, s.section_name ASC
         ");
-        $stmt->execute(['school_id' => $schoolId]);
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get sections where a specific teacher is the assigned adviser
+     */
+    public function getSectionsByAdviser(int $teacherId, ?int $schoolId = null): array {
+        $where = "s.status = 'active' AND (
+            s.adviser_teacher_id = :teacher_id1 
+            OR s.assigned_teacher_id = :teacher_id2
+            OR s.section_name IN (SELECT ta.section_name FROM teacher_assignments ta WHERE ta.teacher_id = :teacher_id3)
+        )";
+        $params = [
+            'teacher_id1' => $teacherId,
+            'teacher_id2' => $teacherId,
+            'teacher_id3' => $teacherId
+        ];
+        if ($schoolId) {
+            $where .= " AND (s.school_id = :school_id OR s.school_id IS NULL)";
+            $params['school_id'] = $schoolId;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT s.*, u.name as adviser_name,
+                   (
+                       SELECT COUNT(*) 
+                       FROM student_records sr 
+                       WHERE (sr.section_id = s.id 
+                              OR (sr.section_id IS NULL AND LOWER(TRIM(sr.section_name)) = LOWER(TRIM(s.section_name)))
+                             )
+                         AND (s.school_id IS NULL OR sr.school_id = s.school_id OR sr.school_id IS NULL)
+                   ) as enrolled_students_count
+            FROM sections s
+            LEFT JOIN users u ON s.adviser_teacher_id = u.id
+            WHERE {$where}
+            ORDER BY s.grade_level ASC, s.section_name ASC
+        ");
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get the primary active advisory section for a teacher
+     */
+    public function getActiveSectionForTeacher(int $teacherId, ?int $schoolId = null): ?array {
+        $sections = $this->getSectionsByAdviser($teacherId, $schoolId);
+        return !empty($sections) ? $sections[0] : null;
     }
 
     /**
@@ -169,5 +219,26 @@ class SectionModel {
         ")->execute(['sid' => $sectionId, 'sid2' => $sectionId]);
 
         return true;
+    }
+
+    /**
+     * Get enrolled learners for a specific section
+     */
+    public function getStudentsBySection(int $sectionId, ?string $sectionName = null): array {
+        $stmt = $this->db->prepare("
+            SELECT sr.*, 
+                   COALESCE(u.name, 'Unassigned') as teacher_name
+            FROM student_records sr
+            LEFT JOIN users u ON sr.assigned_teacher_id = u.id
+            WHERE sr.section_id = :sid 
+               OR (sr.section_id IS NULL AND :sname IS NOT NULL AND LOWER(TRIM(sr.section_name)) = LOWER(TRIM(:sname2)))
+            ORDER BY sr.student_name ASC
+        ");
+        $stmt->execute([
+            'sid'    => $sectionId,
+            'sname'  => $sectionName,
+            'sname2' => $sectionName
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

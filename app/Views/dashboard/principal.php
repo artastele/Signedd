@@ -98,7 +98,7 @@ $schoolCotCount = 0;
 $p1_cot = 0;
 $schoolResCount = 0;
 $p2 = 0;
-$p3 = ($fslRatio >= 75) ? 25 : round(($fslRatio / 75) * 25, 1);
+$p3 = ($certifiedFacultyCount > 0 || $fslRatio >= 75) ? 25 : 0;
 $p4 = $hasSip ? 25 : 0;
 $overallCompliance = 0;
 
@@ -241,7 +241,7 @@ if ($schoolId) {
                     </div>
                     <!-- School Analytics Summary Cards: General Objective, SO2, SO3 -->
                     <div class="col-lg-6 col-md-12 border-start">
-                        <div class="row g-2">
+                        <div class="row g-2 m-grid">
                             <!-- Card 1: Distance Learning Inclusion (General Objective) -->
                             <div class="col-4 text-center" title="General Objective: Inclusion of learners with special educational needs in distance learning programs to at least 85% participation.">
                                 <div class="p-2 bg-light rounded-3 border h-100 d-flex flex-column justify-content-between">
@@ -274,20 +274,20 @@ if ($schoolId) {
                                         <div class="small fw-bold text-dark mb-1" style="font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                                             <i class="bi bi-award-fill text-warning me-1"></i> FSL Adoption
                                         </div>
-                                        <div class="h5 fw-bold mb-0 <?php echo $fslRatio >= 75 ? 'text-success' : ($totalFacultyCount > 0 ? 'text-danger' : 'text-muted'); ?>">
-                                            <?php echo $totalFacultyCount > 0 ? $fslRatio . '%' : '0%'; ?>
+                                        <div class="h5 fw-bold mb-0 <?php echo $certifiedFacultyCount >= 1 ? 'text-success' : 'text-danger'; ?>">
+                                            <?php echo $certifiedFacultyCount >= 1 ? '1 / 1' : '0 / 1'; ?>
                                         </div>
                                         <div class="progress my-1" style="height: 4px;">
-                                            <div class="progress-bar <?php echo $fslRatio >= 75 ? 'bg-success' : ($totalFacultyCount > 0 ? 'bg-danger' : 'bg-secondary'); ?>" 
+                                            <div class="progress-bar <?php echo $certifiedFacultyCount >= 1 ? 'bg-success' : 'bg-danger'; ?>" 
                                                  role="progressbar" 
-                                                 style="width: <?php echo min(100, (float)$fslRatio); ?>%;" 
-                                                 aria-valuenow="<?php echo $fslRatio; ?>" 
+                                                 style="width: <?php echo $certifiedFacultyCount >= 1 ? '100' : '0'; ?>%;" 
+                                                 aria-valuenow="<?php echo $certifiedFacultyCount >= 1 ? '100' : '0'; ?>" 
                                                  aria-valuemin="0" 
                                                  aria-valuemax="100"></div>
                                         </div>
                                     </div>
-                                    <span class="badge <?php echo $fslRatio >= 75 ? 'bg-success' : 'bg-warning text-dark'; ?>" style="font-size: 0.62rem;">
-                                        <?php echo $fslRatio >= 75 ? '✓ Target (≥75%)' : '○ Below Target'; ?>
+                                    <span class="badge <?php echo $certifiedFacultyCount >= 1 ? 'bg-success' : 'bg-warning text-dark'; ?>" style="font-size: 0.62rem;">
+                                        <?php echo $certifiedFacultyCount >= 1 ? '✓ Target Met (1 Required)' : '○ Below Target'; ?>
                                     </span>
                                 </div>
                             </div>
@@ -337,7 +337,7 @@ if ($schoolId) {
             </span>
         </div>
         <div class="card-body p-4">
-            <div class="row g-3">
+            <div class="row g-3 m-grid">
                 <!-- Pillar 1a: Instructional Leadership - Lesson Plans (DLL/DLP) -->
                 <div class="col-md-6 col-lg-4 col-xl-2" style="flex: 0 0 20%; max-width: 20%;">
                     <div class="p-3 rounded-3 border <?php echo $p1_dll > 0 ? 'bg-success bg-opacity-10 border-success' : 'bg-light border-warning'; ?> h-100">
@@ -374,12 +374,12 @@ if ($schoolId) {
                             <strong>MOV:</strong> Class Observation Tool (COT)
                         </div>
                         <?php if ($p1_cot > 0): ?>
-                            <a href="<?php echo $basePath; ?>/cot/observations" class="text-success fw-bold small text-decoration-none" style="font-size: 0.75rem;">
+                            <span class="text-success fw-bold small" style="font-size: 0.75rem;">
                                 <i class="bi bi-check-circle-fill me-1"></i> Verified & Active (<?php echo $schoolCotCount; ?> Record<?php echo $schoolCotCount > 1 ? 's' : ''; ?>)
-                            </a>
+                            </span>
                         <?php else: ?>
-                            <span class="text-warning fw-bold small d-block" style="font-size: 0.75rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i> No Finalized COT Conducted</span>
-                            <a href="<?php echo $basePath; ?>/cot/observations/schedule" class="btn btn-xs btn-outline-primary mt-1" style="font-size: 0.68rem; padding: 2px 6px;">Schedule Observation</a>
+                            <span class="text-secondary fw-semibold small d-block" style="font-size: 0.75rem;"><i class="bi bi-info-circle me-1"></i> Master Teacher / Observers</span>
+                            <small class="text-muted d-block" style="font-size: 0.65rem;">Conducted via Master Teacher COT portal.</small>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -408,10 +408,10 @@ if ($schoolId) {
 
                 <!-- Pillar 3: Faculty Development (Teacher Skills) -->
                 <div class="col-md-6 col-lg-4 col-xl-2" style="flex: 0 0 20%; max-width: 20%;">
-                    <div class="p-3 rounded-3 border <?php echo $fslRatio >= 75 ? 'bg-success bg-opacity-10 border-success' : 'bg-light border-danger'; ?> h-100">
+                    <div class="p-3 rounded-3 border <?php echo ($certifiedFacultyCount > 0 || $fslRatio >= 75) ? 'bg-success bg-opacity-10 border-success' : 'bg-light border-danger'; ?> h-100">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <span class="fw-bold small text-dark" style="font-size: 0.8rem;">3. Faculty Development</span>
-                            <span class="badge <?php echo $fslRatio >= 75 ? 'bg-success' : 'bg-danger'; ?>"><?php echo $fslRatio >= 75 ? '+25%' : '0%'; ?></span>
+                            <span class="badge <?php echo ($certifiedFacultyCount > 0 || $fslRatio >= 75) ? 'bg-success' : 'bg-danger'; ?>"><?php echo ($certifiedFacultyCount > 0 || $fslRatio >= 75) ? '+25%' : '0%'; ?></span>
                         </div>
                         <p class="small text-secondary mb-2" style="font-size: 0.72rem;">
                             <strong>Teacher Skills:</strong> Teachers trained in FSL / inclusive education participating in discussions.
@@ -419,11 +419,12 @@ if ($schoolId) {
                         <div class="bg-white p-2 rounded border mb-2" style="font-size: 0.68rem;">
                             <strong>MOV:</strong> Training Certificates
                         </div>
-                        <?php if ($fslRatio >= 75): ?>
-                            <span class="text-success fw-bold small" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Target Met (<?php echo $fslRatio; ?>%)</span>
+                        <?php if ($certifiedFacultyCount > 0): ?>
+                            <span class="text-success fw-bold small d-block mb-1" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Verified & Active (1 / 1 Certified)</span>
+                            <small class="text-muted d-block" style="font-size: 0.65rem;">Training certificate verified via staff registry.</small>
                         <?php else: ?>
-                            <span class="text-danger fw-bold small d-block mb-1" style="font-size: 0.72rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i> <?php echo $certifiedFacultyCount; ?> / <?php echo $totalFacultyCount; ?> Certified</span>
-                            <small class="text-muted d-block" style="font-size: 0.65rem;">Teachers upload certs via staff registration.</small>
+                            <span class="text-danger fw-bold small d-block mb-1" style="font-size: 0.72rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i> 0 / 1 Certified</span>
+                            <small class="text-muted d-block" style="font-size: 0.65rem;">At least 1 trained teacher required via staff registry.</small>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -609,9 +610,9 @@ if ($schoolId) {
                                         </span>
                                     </td>
                                     <td>
-                                        <?php if ($assign): ?>
+                                        <?php if ($assign && !empty($assign['section_name'])): ?>
                                             <span class="badge bg-primary px-2.5 py-1.5 fs-6">
-                                                <i class="bi bi-bookmark-fill me-1"></i> <?php echo htmlspecialchars($assign['grade_level']); ?> — <?php echo htmlspecialchars($assign['section_name']); ?>
+                                                <i class="bi bi-bookmark-fill me-1"></i> <?php echo htmlspecialchars($assign['grade_level'] ?: 'SPED'); ?> — <?php echo htmlspecialchars($assign['section_name']); ?>
                                             </span>
                                         <?php else: ?>
                                             <span class="badge bg-light text-secondary border px-2 py-1">
@@ -620,9 +621,24 @@ if ($schoolId) {
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <?php if ($assign): ?>
+                                        <?php 
+                                            $bldg = trim($assign['building_name'] ?? '');
+                                            $room = trim($assign['room_number'] ?? '');
+                                            $hasRoom = $assign && ($bldg !== '' || $room !== '');
+                                        ?>
+                                        <?php if ($hasRoom): ?>
                                             <span class="badge bg-secondary px-2.5 py-1.5 fs-6">
-                                                <i class="bi bi-door-open-fill me-1"></i> <?php echo htmlspecialchars($assign['building_name']); ?> | Room <?php echo htmlspecialchars($assign['room_number']); ?>
+                                                <i class="bi bi-door-open-fill me-1"></i> 
+                                                <?php 
+                                                    if ($bldg !== '' && $room !== '') {
+                                                        $roomText = (stripos($room, 'room') === 0 ? $room : 'Room ' . $room);
+                                                        echo htmlspecialchars($bldg . ' | ' . $roomText);
+                                                    } elseif ($room !== '') {
+                                                        echo htmlspecialchars(stripos($room, 'room') === 0 ? $room : 'Room ' . $room);
+                                                    } else {
+                                                        echo htmlspecialchars($bldg);
+                                                    }
+                                                ?>
                                             </span>
                                         <?php else: ?>
                                             <span class="badge bg-light text-secondary border px-2 py-1">
@@ -641,7 +657,7 @@ if ($schoolId) {
                                     </td>
                                     <td class="text-end">
                                         <button type="button" class="btn btn-sm btn-outline-primary fw-semibold px-3" onclick="openAssignModal(<?php echo $staff['id']; ?>, '<?php echo addslashes(htmlspecialchars($staff['name'])); ?>', '<?php echo addslashes(htmlspecialchars($assign['grade_level'] ?? '')); ?>', '<?php echo addslashes(htmlspecialchars($assign['section_name'] ?? '')); ?>', '<?php echo addslashes(htmlspecialchars($assign['building_name'] ?? '')); ?>', '<?php echo addslashes(htmlspecialchars($assign['room_number'] ?? '')); ?>', '<?php echo addslashes(htmlspecialchars($assign['optional_message'] ?? '')); ?>')">
-                                            <i class="bi bi-pencil-square me-1"></i> <?php echo $assign ? 'Edit Room' : 'Assign Room'; ?>
+                                            <i class="bi bi-pencil-square me-1"></i> <?php echo ($assign && !empty($assign['section_name'])) ? 'Edit Room' : 'Assign Room'; ?>
                                         </button>
                                     </td>
                                 </tr>

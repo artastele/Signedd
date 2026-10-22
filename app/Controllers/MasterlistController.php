@@ -5,6 +5,7 @@
 require_once __DIR__ . '/../Middleware/RoleMiddleware.php';
 require_once __DIR__ . '/../Models/MasterlistModel.php';
 require_once __DIR__ . '/../Models/ProgressReportModel.php';
+require_once __DIR__ . '/../Services/SmsService.php';
 
 class MasterlistController {
     private MasterlistModel $model;
@@ -29,8 +30,8 @@ class MasterlistController {
         $this->model = new MasterlistModel();
         $this->progressModel = new ProgressReportModel();
 
-        // Security check: masterlist is accessible to teachers, guidance, master teachers, principals, and admins
-        RoleMiddleware::checkAny(['sped_teacher', 'master_teacher', 'guidance', 'principal', 'admin']);
+        // Security check: masterlist is accessible to school staff (teachers, guidance, master teachers, principals)
+        RoleMiddleware::checkAny(['sped_teacher', 'master_teacher', 'guidance', 'principal']);
     }
 
     /**
@@ -93,6 +94,17 @@ class MasterlistController {
 
         $syncLogs = $this->model->getSyncLogs(5);
 
+        // Fetch section context for bulk import modal
+        $allActiveSections = [];
+        $teacherSection = null;
+        require_once __DIR__ . '/../Models/SectionModel.php';
+        $secModel = new SectionModel();
+        if (in_array($this->userRole, ['principal', 'master_teacher'])) {
+            $allActiveSections = $secModel->getSectionsBySchool($_SESSION['school_id'] ?? null);
+        } elseif ($this->userRole === 'sped_teacher') {
+            $teacherSection = $secModel->getActiveSectionForTeacher($this->userId, $_SESSION['school_id'] ?? null);
+        }
+
         $success = $_SESSION['success'] ?? null;
         $error = $_SESSION['error'] ?? null;
         unset($_SESSION['success'], $_SESSION['error']);
@@ -119,6 +131,10 @@ class MasterlistController {
         // Log export action
         $this->model->logSyncAction($this->userId, 'enrollment_register_export', $filename, count($learners));
 
+        // Clear any previous output buffering and disable display_errors for clean binary/CSV output
+        if (ob_get_level()) ob_end_clean();
+        ini_set('display_errors', '0');
+
         // HTTP Headers for file download
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -144,12 +160,12 @@ class MasterlistController {
             'Division: ' . $division,
             'Region: ' . $region,
             'School Year: ' . $schoolYear
-        ]);
+        ], ',', '"', "\\");
         fputcsv($output, [
             'Generated: ' . date('F d, Y'),
             'Total Enrolled Learners: ' . count($learners)
-        ]);
-        fputcsv($output, []); // blank row
+        ], ',', '"', "\\");
+        fputcsv($output, [], ',', '"', "\\"); // blank row
 
         // Detailed Header Columns
         fputcsv($output, [
@@ -248,7 +264,7 @@ class MasterlistController {
                 $trackLabel,
                 ucfirst($l['enrollment_status'] ?? 'Verified'),
                 $regStatus
-            ]);
+            ], ',', '"', "\\");
         }
 
         fclose($output);
@@ -277,6 +293,9 @@ class MasterlistController {
         // Log export action
         $this->model->logSyncAction($this->userId, 'attendance_register_export', $filename, count($learners));
 
+        if (ob_get_level()) ob_end_clean();
+        ini_set('display_errors', '0');
+
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
         header('Pragma: no-cache');
@@ -285,9 +304,9 @@ class MasterlistController {
         $output = fopen('php://output', 'w');
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
 
-        fputcsv($output, ['SignED — Monthly Learner Attendance Register']);
-        fputcsv($output, ['Month:', date('F Y', strtotime($yearMonth . '-01'))]);
-        fputcsv($output, []);
+        fputcsv($output, ['SignED — Monthly Learner Attendance Register'], ',', '"', "\\");
+        fputcsv($output, ['Month:', date('F Y', strtotime($yearMonth . '-01'))], ',', '"', "\\");
+        fputcsv($output, [], ',', '"', "\\");
 
         // Build header row: LRN, Name, Day 1..Day N, Total Present, Total Absent
         $header = ['LRN', 'Learner Name'];
@@ -296,7 +315,7 @@ class MasterlistController {
         }
         $header[] = 'Total Present';
         $header[] = 'Total Absent';
-        fputcsv($output, $header);
+        fputcsv($output, $header, ',', '"', "\\");
 
         foreach ($learners as $l) {
             $sid = (int)$l['student_record_id'];
@@ -329,7 +348,7 @@ class MasterlistController {
             $row[] = $totalPresent;
             $row[] = $totalAbsent;
 
-            fputcsv($output, $row);
+            fputcsv($output, $row, ',', '"', "\\");
         }
 
         fclose($output);
@@ -360,7 +379,7 @@ class MasterlistController {
         $updatedCount = 0;
         $rowNum = 0;
 
-        while (($row = fgetcsv($handle, 2000, ',')) !== false) {
+        while (($row = fgetcsv($handle, 2000, ',', '"', "\\")) !== false) {
             $rowNum++;
             if ($rowNum === 1 || empty($row[0])) {
                 continue; // skip header or empty row
@@ -456,7 +475,7 @@ class MasterlistController {
         $headers = null;
         $parsedRows = [];
 
-        while (($row = fgetcsv($handle, 2000, ',')) !== false) {
+        while (($row = fgetcsv($handle, 2000, ',', '"', "\\")) !== false) {
             if ($headers === null) {
                 // Strip UTF-8 BOM if present
                 if (isset($row[0])) {
@@ -569,7 +588,8 @@ class MasterlistController {
             exit;
         }
 
-        $result = $this->model->bulkImportLearners($parsedRows, $schoolId, $this->userId);
+        $targetSectionId = !empty($_POST['target_section_id']) ? (int)$_POST['target_section_id'] : null;
+        $result = $this->model->bulkImportLearners($parsedRows, $schoolId, $this->userId, $targetSectionId);
 
         $msg = "Bulk import complete! Newly Enrolled: {$result['imported']}, Updated: {$result['updated']}.";
         if ($result['skipped'] > 0) {
@@ -585,6 +605,9 @@ class MasterlistController {
      * Download CSV template for bulk learner import
      */
     public function downloadImportTemplate(): void {
+        if (ob_get_level()) ob_end_clean();
+        ini_set('display_errors', '0');
+
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="SignED_Learner_Import_Template.csv"');
         header('Pragma: no-cache');
@@ -600,12 +623,11 @@ class MasterlistController {
             'Sex',
             'Birth Date (YYYY-MM-DD)',
             'Grade Level',
-            'Section',
             'Disability Category',
             'Parent / Guardian Name',
             'Parent Contact Number',
             'Parent Email'
-        ]);
+        ], ',', '"', "\\");
 
         // Sample Rows
         fputcsv($output, [
@@ -614,24 +636,22 @@ class MasterlistController {
             'Male',
             '2018-05-14',
             'Kinder',
-            'SPED Section A',
             'Hearing Impaired (DHH)',
             'Maria Dela Cruz',
             '09171234567',
             'maria.delacruz@example.com'
-        ]);
+        ], ',', '"', "\\");
         fputcsv($output, [
             '129688260011',
             'Santos, Angela R.',
             'Female',
             '2017-10-22',
             'Grade 1',
-            'SPED Section B',
             'Visual Impairment',
             'Roberto Santos',
             '09289876543',
             'roberto.santos@example.com'
-        ]);
+        ], ',', '"', "\\");
 
         fclose($output);
         exit;
@@ -659,6 +679,102 @@ class MasterlistController {
             'success' => true,
             'token' => $token,
             'claim_url' => $claimUrl
+        ]);
+        exit;
+    }
+
+    /**
+     * Send direct SMS invitation to parent from Masterlist
+     */
+    public function sendSmsInvite(): void {
+        header('Content-Type: application/json');
+        RoleMiddleware::checkAny(['sped_teacher', 'master_teacher', 'principal', 'admin']);
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $studentId = (int)($input['student_id'] ?? 0);
+        $action = $input['action'] ?? 'get_details'; // 'get_details' or 'send_email'
+        $customEmail = trim($input['email'] ?? '');
+
+        if ($studentId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid student ID.']);
+            exit;
+        }
+
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->prepare("
+            SELECT sr.id, sr.student_name, sr.claim_token,
+                   COALESCE(u.name, es.guardian_first_name, 'Parent') AS parent_name,
+                   COALESCE(u.contact_number, es.guardian_contact_number, es.mother_contact_number, es.father_contact_number, '') AS phone,
+                   COALESCE(u.email, '') AS email
+            FROM student_records sr
+            LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+            LEFT JOIN users u ON es.parent_id = u.id
+            WHERE sr.id = :id
+            LIMIT 1
+        ");
+        $stmt->execute(['id' => $studentId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            echo json_encode(['success' => false, 'message' => 'Learner record not found.']);
+            exit;
+        }
+
+        $token = $this->model->generateClaimTokenForStudent($studentId);
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $claimUrl = $protocol . $host . $this->basePath . '/invite/claim/' . $token;
+        $smsBody = "SignED SPED: Maayong adlaw {$row['parent_name']}! Gi-invite ka sa online portal para sa leksyon ni {$row['student_name']}. I-click kini para ma-connect: {$claimUrl}";
+        $targetEmail = !empty($customEmail) ? $customEmail : $row['email'];
+
+        // If action is to send automated email
+        if ($action === 'send_email') {
+            if (empty($targetEmail) || !filter_var($targetEmail, FILTER_VALIDATE_EMAIL)) {
+                echo json_encode(['success' => false, 'message' => 'Palihog butangi og sakto nga email address ang ginikanan.']);
+                exit;
+            }
+
+            require_once __DIR__ . '/../Helpers/MailHelper.php';
+            $subject = "SignED SPED: Parent Portal Invitation para kang {$row['student_name']}";
+            $html = "
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;'>
+                <div style='background: linear-gradient(135deg, #1e4072 0%, #0ea5e9 100%); padding: 24px; text-align: center; color: #ffffff;'>
+                    <h2 style='margin: 0; font-size: 22px;'>SignED SPED LMS</h2>
+                    <p style='margin: 5px 0 0; opacity: 0.9; font-size: 14px;'>Inclusive Learning & Progress Portal</p>
+                </div>
+                <div style='padding: 24px; background: #ffffff;'>
+                    <p style='font-size: 16px; color: #1e293b;'>Maayong adlaw <strong>" . htmlspecialchars($row['parent_name']) . "</strong>,</p>
+                    <p style='color: #475569; line-height: 1.6;'>Gi-invite ka sa SPED teacher sa imong anak nga si <strong>" . htmlspecialchars($row['student_name']) . "</strong> aron ma-access nimo ang SignED Parent Portal.</p>
+                    <div style='text-align: center; margin: 25px 0;'>
+                        <a href='{$claimUrl}' style='background: #1e4072; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: bold; display: inline-block;'>I-konekta ang Parent Account</a>
+                    </div>
+                    <p style='font-size: 13px; color: #64748b; word-break: break-all;'>O kopyaha kini nga link sa imong browser: <br><a href='{$claimUrl}'>{$claimUrl}</a></p>
+                </div>
+                <div style='background: #f8fafc; padding: 12px; text-align: center; color: #94a3b8; font-size: 12px;'>
+                    SignED Digital SPED System • DepEd Division Pilot
+                </div>
+            </div>
+            ";
+
+            $sent = MailHelper::sendNotification($targetEmail, $row['parent_name'], $subject, $html);
+
+            echo json_encode([
+                'success' => $sent,
+                'email_sent' => $sent,
+                'message' => $sent ? "Napadala na ang email invitation kang {$targetEmail}!" : "Adunay sayop sa pagpadala sa email. Palihog sulayi pag-usab."
+            ]);
+            exit;
+        }
+
+        echo json_encode([
+            'success'   => true,
+            'phone'     => $row['phone'],
+            'email'     => $targetEmail,
+            'parent'    => $row['parent_name'],
+            'student'   => $row['student_name'],
+            'sms_body'  => $smsBody,
+            'claim_url' => $claimUrl,
+            'message'   => "Andam na ang invitation para kang {$row['parent_name']}!"
         ]);
         exit;
     }

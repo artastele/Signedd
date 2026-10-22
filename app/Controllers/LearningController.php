@@ -9,11 +9,14 @@ require_once __DIR__ . '/../Models/GamificationModel.php';
 require_once __DIR__ . '/../Middleware/ParentGateMiddleware.php';
 require_once __DIR__ . '/../Helpers/ScoreHelper.php';
 require_once __DIR__ . '/../Helpers/FlashcardResult.php';
+require_once __DIR__ . '/../Models/ExternalMasteryModel.php';
+require_once __DIR__ . '/../Services/SmsService.php';
 
 class LearningController {
 
-    private LessonPlanModel   $model;
-    private GamificationModel $gamification;
+    private LessonPlanModel      $model;
+    private GamificationModel    $gamification;
+    private ExternalMasteryModel $masteryModel;
     private int    $userId;
     private string $userRole;
     private string $basePath;
@@ -23,11 +26,12 @@ class LearningController {
             header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/login');
             exit;
         }
-        $this->userId   = (int) $_SESSION['user_id'];
-        $this->userRole = $_SESSION['role'] ?? '';
+        $this->userId        = (int) $_SESSION['user_id'];
+        $this->userRole      = $_SESSION['role'] ?? '';
         $this->basePath      = defined('BASE_PATH') ? BASE_PATH : '';
         $this->model         = new LessonPlanModel();
         $this->gamification  = new GamificationModel();
+        $this->masteryModel  = new ExternalMasteryModel();
     }
 
     // ----------------------------------------------------------------
@@ -189,6 +193,15 @@ class LearningController {
             exit;
         }
 
+        if (!$isTeacherPreview) {
+            if (!$studentId || !$this->model->isAssignedToStudent($lessonPlanId, $studentId)) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied. This lesson plan is not assigned to you.';
+                header('Location: ' . $this->basePath . '/learning/dashboard');
+                exit;
+            }
+        }
+
         $materials   = $this->model->getMaterials($lessonPlanId);
         $activities  = $this->model->getActivities($lessonPlanId);
         $lessonPages = $this->model->getPagesByLessonPlan($lessonPlanId);
@@ -222,7 +235,263 @@ class LearningController {
             }
         }
 
+        // Fetch external mainstream mastery result for learner if recorded
+        $masteryResult = $studentId ? $this->masteryModel->getResultByLessonAndStudent($lessonPlanId, $studentId) : null;
+
         require __DIR__ . '/../Views/learning/lesson_view.php';
+    }
+
+    // ----------------------------------------------------------------
+    // GET /learning/lesson/{id}/offline-manifest
+    // Generates targeted asset manifest for Offline Read-Only Lesson MVP
+    // ----------------------------------------------------------------
+    public function offlineLessonManifest(string $lessonPlanId): void {
+        header('Content-Type: application/json');
+        try {
+            $lessonPlanId     = (int) $lessonPlanId;
+            $studentId        = $this->getStudentId();
+            $basePath         = $this->basePath;
+            $isTeacherPreview = in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin', 'principal', 'guidance', 'general_teacher'], true);
+
+            $lessonPlan = $this->model->findById($lessonPlanId);
+            if (!$lessonPlan || (!$isTeacherPreview && $lessonPlan['status'] !== 'published')) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Lesson plan not found.']);
+                exit;
+            }
+
+            if (!$isTeacherPreview) {
+                if (!$studentId || !$this->model->isAssignedToStudent($lessonPlanId, $studentId)) {
+                    http_response_code(403);
+                    echo json_encode(['success' => false, 'message' => 'Access denied. This lesson is not assigned to you.']);
+                    exit;
+                }
+            }
+
+            $lessonPages = $this->model->getPagesByLessonPlan($lessonPlanId);
+            if (empty($lessonPages)) {
+                echo json_encode(['success' => false, 'message' => 'This lesson has no slide pages to download.']);
+                exit;
+            }
+
+            require_once __DIR__ . '/../Models/FSLModel.php';
+            $fslModel = new FSLModel();
+            $allFslSigns = $fslModel->getAll(null, '', true);
+
+            $publicDir = realpath(__DIR__ . '/../../public') ?: (__DIR__ . '/../../public');
+            $assetUrls = [];
+            $referencedSigns = [];
+            $totalBytes = 0;
+
+            // 1. Core static shell assets required by offline reader
+            $coreShellAssets = [
+                '/css/custom.css',
+                '/css/learner.css',
+                '/css/phosphor/style.css',
+                '/css/phosphor/Phosphor-Bold.woff2',
+                '/css/poppins.css',
+                '/fonts/poppins/poppins-v24-latin-400.woff2',
+                '/fonts/poppins/poppins-v24-latin-500.woff2',
+                '/fonts/poppins/poppins-v24-latin-600.woff2',
+                '/fonts/poppins/poppins-v24-latin-700.woff2',
+                '/js/fsl-modal.js',
+                '/js/app.js',
+                '/js/offline-manager.js',
+                '/images/fsl/default_sign.svg',
+                '/images/logo-large.png',
+                '/images/favicon.ico',
+                '/offline-reader.html'
+            ];
+
+            foreach ($coreShellAssets as $assetRel) {
+                $fullUrl = ($basePath ? rtrim($basePath, '/') : '') . $assetRel;
+                $assetUrls[$fullUrl] = true;
+                $diskPath = $publicDir . $assetRel;
+                if (file_exists($diskPath)) {
+                    $totalBytes += (int)filesize($diskPath);
+                }
+            }
+
+            // 2. Scan each slide for referenced media & FSL terms
+            $allCombinedText = '';
+            foreach ($lessonPages as $p) {
+                $content = $p['content'] ?? '';
+                $allCombinedText .= ' ' . strip_tags($content) . ' ' . ($p['title'] ?? '') . ' ' . ($p['guide_questions'] ?? '');
+
+                // A. Slide images in <img src="...">
+                if (preg_match_all('/<img\s+[^>]*?src=["\']([^"\']+)["\']/i', $content, $imgMatches)) {
+                    foreach ($imgMatches[1] as $imgSrc) {
+                        $clean = trim($imgSrc);
+                        if (!preg_match('/^data:image\//i', $clean) && !preg_match('/^https?:\/\//i', $clean)) {
+                            if (preg_match('/(?:uploads\/(?:lesson_editor|lesson_pages|fsl_custom_videos)\/[^\s"\'?#]+)/i', $clean, $m)) {
+                                $rel = $m[0];
+                                $fullUrl = ($basePath ? rtrim($basePath, '/') : '') . '/' . $rel;
+                                $assetUrls[$fullUrl] = true;
+                                $diskPath = $publicDir . '/' . $rel;
+                                if (file_exists($diskPath)) {
+                                    $totalBytes += (int)filesize($diskPath);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // B. Page column media_path
+                if (!empty($p['media_path'])) {
+                    $rel = ltrim($p['media_path'], '/');
+                    $fullUrl = ($basePath ? rtrim($basePath, '/') : '') . '/' . $rel;
+                    $assetUrls[$fullUrl] = true;
+                    $diskPath = $publicDir . '/' . $rel;
+                    if (file_exists($diskPath)) {
+                        $totalBytes += (int)filesize($diskPath);
+                    }
+                }
+
+                // C. Teacher-inserted manual .fsl-word spans
+                if (preg_match_all('/<span\s+[^>]*?class=["\'][^"\']*?fsl-word[^"\']*?["\'][^>]*?>/i', $content, $spanMatches)) {
+                    foreach ($spanMatches[0] as $spanTag) {
+                        $video = '';
+                        $word = '';
+                        $desc = '';
+                        $cat = 'General';
+                        if (preg_match('/data-video=["\']([^"\']+)["\']/i', $spanTag, $mv)) $video = trim($mv[1]);
+                        if (preg_match('/data-word=["\']([^"\']+)["\']/i', $spanTag, $mw)) $word = trim($mw[1]);
+                        if (preg_match('/data-desc=["\']([^"\']+)["\']/i', $spanTag, $md)) $desc = trim($md[1]);
+                        if (preg_match('/data-category=["\']([^"\']+)["\']/i', $spanTag, $mc)) $cat = trim($mc[1]);
+
+                        if ($word && !isset($referencedSigns[strtolower($word)])) {
+                            $referencedSigns[strtolower($word)] = [
+                                'word' => $word,
+                                'video_path' => $video,
+                                'category' => $cat,
+                                'description' => $desc
+                            ];
+                        }
+
+                        if ($video) {
+                            $rel = ltrim($video, '/');
+                            $fullUrl = ($basePath ? rtrim($basePath, '/') : '') . '/' . $rel;
+                            $assetUrls[$fullUrl] = true;
+                            $diskPath = $publicDir . '/' . $rel;
+                            if (file_exists($diskPath)) {
+                                $totalBytes += (int)filesize($diskPath);
+                            }
+                            if (preg_match('/\.mov$/i', $rel)) {
+                                $mp4Rel = preg_replace('/\.mov$/i', '.mp4', $rel);
+                                $mp4Disk = $publicDir . '/' . $mp4Rel;
+                                if (file_exists($mp4Disk)) {
+                                    $mp4Url = ($basePath ? rtrim($basePath, '/') : '') . '/' . $mp4Rel;
+                                    $assetUrls[$mp4Url] = true;
+                                    $totalBytes += (int)filesize($mp4Disk);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Match learner-side auto-FSL keywords in combined lesson text
+            $normalizedAllText = preg_replace('/\s+/', ' ', $allCombinedText);
+            foreach ($allFslSigns as $s) {
+                if (empty($s['word'])) continue;
+                $w = trim($s['word']);
+                $tagWord = '';
+                if (!empty($s['description']) && strpos($s['description'], '-') !== false) {
+                    $parts = explode('-', $s['description']);
+                    $tagWord = trim($parts[0]);
+                }
+
+                $matched = false;
+                $patternW = '/\b' . preg_quote($w, '/') . '\b/i';
+                if (preg_match($patternW, $normalizedAllText)) {
+                    $matched = true;
+                } elseif ($tagWord && strlen($tagWord) > 2) {
+                    $patternT = '/\b' . preg_quote($tagWord, '/') . '\b/i';
+                    if (preg_match($patternT, $normalizedAllText)) {
+                        $matched = true;
+                    }
+                }
+
+                if ($matched) {
+                    $key = strtolower($w);
+                    if (!isset($referencedSigns[$key])) {
+                        $referencedSigns[$key] = [
+                            'word' => $s['word'],
+                            'video_path' => $s['video_path'] ?? '',
+                            'category' => $s['category'] ?? 'General',
+                            'description' => $s['description'] ?? ''
+                        ];
+                    }
+
+                    if (!empty($s['video_path'])) {
+                        $rel = ltrim($s['video_path'], '/');
+                        $fullUrl = ($basePath ? rtrim($basePath, '/') : '') . '/' . $rel;
+                        $assetUrls[$fullUrl] = true;
+                        $diskPath = $publicDir . '/' . $rel;
+                        if (file_exists($diskPath)) {
+                            $totalBytes += (int)filesize($diskPath);
+                        }
+                        if (preg_match('/\.mov$/i', $rel)) {
+                            $mp4Rel = preg_replace('/\.mov$/i', '.mp4', $rel);
+                            $mp4Disk = $publicDir . '/' . $mp4Rel;
+                            if (file_exists($mp4Disk)) {
+                                $mp4Url = ($basePath ? rtrim($basePath, '/') : '') . '/' . $mp4Rel;
+                                $assetUrls[$mp4Url] = true;
+                                $totalBytes += (int)filesize($mp4Disk);
+                            }
+                        }
+                    }
+                    if (!empty($s['gif_path'])) {
+                        $rel = ltrim($s['gif_path'], '/');
+                        $fullUrl = ($basePath ? rtrim($basePath, '/') : '') . '/' . $rel;
+                        $assetUrls[$fullUrl] = true;
+                        $diskPath = $publicDir . '/' . $rel;
+                        if (file_exists($diskPath)) {
+                            $totalBytes += (int)filesize($diskPath);
+                        }
+                    }
+                }
+            }
+
+            // Human-readable size
+            $sizeFormatted = $totalBytes < 1048576
+                ? round($totalBytes / 1024, 1) . ' KB'
+                : round($totalBytes / 1048576, 1) . ' MB';
+
+            echo json_encode([
+                'success' => true,
+                'learner_id' => (int)($studentId ?: $this->userId),
+                'lesson' => [
+                    'id' => (int)$lessonPlan['id'],
+                    'title' => $lessonPlan['title'],
+                    'domain' => $lessonPlan['pdsp_domain'] ?? 'Aralin',
+                    'school_year' => $lessonPlan['school_year'] ?? '',
+                    'total_pages' => count($lessonPages),
+                    'pages' => array_map(function($pg) {
+                        return [
+                            'id' => (int)$pg['id'],
+                            'page_number' => (int)$pg['page_number'],
+                            'title' => $pg['title'] ?? '',
+                            'content' => $pg['content'] ?? '',
+                            'guide_questions' => $pg['guide_questions'] ?? '',
+                            'media_type' => $pg['media_type'] ?? null,
+                            'media_path' => $pg['media_path'] ?? null
+                        ];
+                    }, $lessonPages),
+                    'fsl_signs' => array_values($referencedSigns),
+                    'mainstream_mastery_url'   => $lessonPlan['mainstream_mastery_url'] ?? null,
+                    'mainstream_mastery_title' => $lessonPlan['mainstream_mastery_title'] ?? null
+                ],
+                'assets' => array_values(array_keys($assetUrls)),
+                'estimated_bytes' => $totalBytes,
+                'estimated_size' => $sizeFormatted
+            ]);
+            exit;
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Manifest error: ' . $e->getMessage()]);
+            exit;
+        }
     }
 
     // ----------------------------------------------------------------
@@ -236,6 +505,15 @@ class LearningController {
             if (!$studentId) {
                 echo json_encode(['success' => true, 'message' => 'Teacher preview mode (progress not persisted to student record).']);
                 exit;
+            }
+
+            $isTeacherPreview = in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin', 'principal', 'guidance', 'general_teacher']);
+            if (!$isTeacherPreview) {
+                if (!$this->model->isAssignedToStudent($lessonPlanId, $studentId)) {
+                    http_response_code(403);
+                    echo json_encode(['success' => false, 'message' => 'Access denied. This lesson is not assigned to you.']);
+                    exit;
+                }
             }
 
             $pageNumber  = (int)($_POST['page_number'] ?? 1);
@@ -275,6 +553,17 @@ class LearningController {
             exit;
         }
 
+        $isTeacherPreview = in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin', 'principal', 'guidance', 'general_teacher']);
+        if (!$isTeacherPreview) {
+            $lessonPlanId = (int)($activity['lesson_plan_id'] ?? 0);
+            if (!$studentId || !$this->model->isAssignedToStudent($lessonPlanId, $studentId)) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied. This activity is not assigned to you.';
+                header('Location: ' . $this->basePath . '/learning/dashboard');
+                exit;
+            }
+        }
+
         $activity['activity_data'] = json_decode($activity['activity_data'] ?? '{}', true) ?? [];
 
         $submission = $studentId
@@ -297,7 +586,10 @@ class LearningController {
             exit;
         }
 
-        $input   = json_decode(file_get_contents('php://input'), true) ?? [];
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input)) {
+            $input = $_POST;
+        }
         $answers = $input['answers'] ?? [];
         $attempts = $input['attempts'] ?? [];
         $accuracyPercentage = isset($input['accuracy_percentage']) ? (int)$input['accuracy_percentage'] : null;
@@ -305,6 +597,13 @@ class LearningController {
         $activity = $this->model->getActivityById($activityId);
         if (!$activity) {
             echo json_encode(['success' => false, 'message' => 'Activity not found.']);
+            exit;
+        }
+
+        $lessonPlanId = (int)($activity['lesson_plan_id'] ?? 0);
+        if (!$this->model->isAssignedToStudent($lessonPlanId, $studentId)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Access denied. This activity is not assigned to you.']);
             exit;
         }
 
@@ -338,45 +637,118 @@ class LearningController {
             }
         };
 
+        $uploadedFilePath = null;
+        if (isset($_FILES['submission_file']) && $_FILES['submission_file']['error'] === UPLOAD_ERR_OK) {
+            $file    = $_FILES['submission_file'];
+            $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $allowed = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
+            if (!in_array($ext, $allowed)) {
+                echo json_encode(['success' => false, 'message' => 'Allowed file types for submission: JPG, PNG, WEBP, PDF.']);
+                exit;
+            }
+            if ($file['size'] > 25 * 1024 * 1024) {
+                echo json_encode(['success' => false, 'message' => 'Uploaded file must be under 25MB.']);
+                exit;
+            }
+            $uploadDir = function_exists('public_path') ? public_path('uploads/submissions/' . $activityId . '/') : (__DIR__ . '/../../public/uploads/submissions/' . $activityId . '/');
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            $fileName = 'sub_' . $studentId . '_' . time() . '_' . uniqid() . '.' . $ext;
+            $fullPath = $uploadDir . $fileName;
+            if (move_uploaded_file($file['tmp_name'], $fullPath)) {
+                $uploadedFilePath = 'uploads/submissions/' . $activityId . '/' . $fileName;
+            }
+        }
+
         switch ($type) {
             case 'multiple_choice':
                 $score = 0;
+                $extractOptionText = static function ($opt): string {
+                    if (is_array($opt)) {
+                        return (string)($opt['text'] ?? $opt['label'] ?? '');
+                    }
+                    return (string)$opt;
+                };
+
                 foreach ($activityData['questions'] ?? [] as $qi => $q) {
                     $userAnswer = $answers[$qi] ?? null;
                     $questionPoints = (int) ($q['points'] ?? 1);
+
+                    // Support options (standard) or choices (legacy/builder)
+                    $options = !empty($q['options']) && is_array($q['options'])
+                        ? $q['options']
+                        : (!empty($q['choices']) && is_array($q['choices']) ? $q['choices'] : []);
+
+                    // Resolve correct option index
                     $correctIndex = null;
-                    
-                    if (isset($q['correct_answer'])) {
-                        $correctIndex = $q['correct_answer'];
+                    if (isset($q['correct_answer']) && is_numeric($q['correct_answer'])) {
+                        $correctIndex = (int)$q['correct_answer'];
+                    } elseif (isset($q['correct']) && is_numeric($q['correct'])) {
+                        // Legacy 0-based index field (e.g. warm-up seed)
+                        $correctIndex = (int)$q['correct'];
                     } else {
-                        foreach ($q['options'] ?? [] as $oi => $opt) {
-                            $isCorrectOpt = null;
-                            if (isset($opt['is_correct'])) {
-                                $isCorrectOpt = $opt['is_correct'];
-                            } elseif (isset($opt['isCorrect'])) {
-                                $isCorrectOpt = $opt['isCorrect'];
-                            } elseif (isset($opt['correct_answer'])) {
-                                $isCorrectOpt = $opt['correct_answer'];
-                            }
+                        foreach ($options as $oi => $opt) {
+                            $isCorrectOpt = is_array($opt) 
+                                ? ($opt['is_correct'] ?? $opt['isCorrect'] ?? $opt['correct_answer'] ?? null) 
+                                : null;
                             if (!empty($isCorrectOpt)) {
-                                $correctIndex = $oi;
+                                $correctIndex = (int)$oi;
                                 break;
                             }
                         }
                     }
 
-                    $isCorrect = ($correctIndex !== null && (string)$correctIndex === (string)$userAnswer);
+                    // Evaluate learner response
+                    $isCorrect = false;
+                    $userAnswerText = '';
+
+                    // 1. Numeric index submission (standard frontend player format)
+                    if ($userAnswer !== null && is_numeric($userAnswer) && isset($options[(int)$userAnswer])) {
+                        $userIndex = (int)$userAnswer;
+                        $userAnswerText = $extractOptionText($options[$userIndex]);
+                        if ($correctIndex !== null && $userIndex === $correctIndex) {
+                            $isCorrect = true;
+                        }
+                    } elseif ($userAnswer !== null && is_string($userAnswer) && trim($userAnswer) !== '') {
+                        // 2. Legacy text-based answer submission
+                        $trimmedAnswer = trim($userAnswer);
+                        
+                        // Collect all matching option indices
+                        $matchingIndices = [];
+                        foreach ($options as $oi => $opt) {
+                            if (strcasecmp(trim($extractOptionText($opt)), $trimmedAnswer) === 0) {
+                                $matchingIndices[] = (int)$oi;
+                            }
+                        }
+
+                        if (!empty($matchingIndices)) {
+                            // If option labels are duplicated, check if correctIndex is among them
+                            if ($correctIndex !== null && in_array($correctIndex, $matchingIndices, true)) {
+                                $isCorrect = true;
+                                $userAnswerText = $extractOptionText($options[$correctIndex]);
+                            } else {
+                                $isCorrect = false;
+                                $userAnswerText = $extractOptionText($options[$matchingIndices[0]]);
+                            }
+                        } else {
+                            $isCorrect = false;
+                            $userAnswerText = $trimmedAnswer;
+                        }
+                    } else {
+                        // Malformed or unanswered
+                        $isCorrect = false;
+                        $userAnswerText = is_scalar($userAnswer) ? (string)$userAnswer : '';
+                    }
+
                     if ($isCorrect) {
                         $score += $questionPoints;
                     }
-                    
-                    $userAnswerText = isset(($q['options'] ?? [])[$userAnswer]) 
-                        ? (is_array($q['options'][$userAnswer]) ? ($q['options'][$userAnswer]['text'] ?? $q['options'][$userAnswer]['label'] ?? '') : $q['options'][$userAnswer])
-                        : (string)$userAnswer;
-                    $correctAnswerText = isset(($q['options'] ?? [])[$correctIndex]) 
-                        ? (is_array($q['options'][$correctIndex]) ? ($q['options'][$correctIndex]['text'] ?? $q['options'][$correctIndex]['label'] ?? '') : $q['options'][$correctIndex])
-                        : (string)$correctIndex;
-                    
+
+                    $correctAnswerText = ($correctIndex !== null && isset($options[$correctIndex]))
+                        ? $extractOptionText($options[$correctIndex])
+                        : ($correctIndex !== null ? (string)$correctIndex : '');
+
                     $logAttempt($qi, $userAnswerText, $correctAnswerText, $isCorrect);
                 }
                 $autoScore = $score;
@@ -539,9 +911,49 @@ class LearningController {
             case 'flashcards':
                 $autoScore = null;
                 break;
+
+            case 'custom_printable':
+                if (!$uploadedFilePath) {
+                    echo json_encode(['success' => false, 'message' => 'Please select a photo or PDF of your completed worksheet.']);
+                    exit;
+                }
+                $answers = [
+                    'notes'         => trim($input['notes'] ?? ''),
+                    'file_path'     => $uploadedFilePath,
+                    'original_name' => htmlspecialchars($_FILES['submission_file']['name'] ?? 'worksheet_submission'),
+                ];
+                $autoScore = null;
+                break;
         }
 
-        $this->model->saveSubmission($activityId, $studentId, $this->userId, json_encode($answers), $autoScore);
+        $this->model->saveSubmission($activityId, $studentId, $this->userId, json_encode($answers), $autoScore, $uploadedFilePath);
+
+        // Parent in-app notification when student submits worksheet
+        try {
+            $stmtParent = $db->prepare("
+                SELECT es.parent_id 
+                FROM student_records sr
+                JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                WHERE sr.id = :student_id
+                LIMIT 1
+            ");
+            $stmtParent->execute(['student_id' => $studentId]);
+            $parentId = $stmtParent->fetchColumn();
+            if ($parentId) {
+                require_once __DIR__ . '/../Models/NotificationModel.php';
+                $notifModel = new NotificationModel();
+                $stName = $this->getStudentName($studentId);
+                $notifModel->create(
+                    (int)$parentId,
+                    'activity_submitted',
+                    'Worksheet Submitted: ' . $activity['title'],
+                    $stName . ' has submitted the completed worksheet for "' . $activity['title'] . '".',
+                    ['activity_id' => $activityId, 'student_id' => $studentId]
+                );
+            }
+        } catch (\Throwable $e) {
+            error_log('Parent notification error: ' . $e->getMessage());
+        }
 
         if ($type === 'flashcards' && !empty($input['flashcard_results'])) {
             $flashcardResultsJson = json_encode($input['flashcard_results']);
@@ -601,7 +1013,9 @@ class LearningController {
             }
 
             // Step 14 — Badges auto-check
-            $totalSubs = (int) $db->query("SELECT COUNT(*) FROM lms_submissions WHERE student_id={$studentId}")->fetchColumn();
+            $stmtSubs = $db->prepare("SELECT COUNT(*) FROM lms_submissions WHERE student_id = :sid");
+            $stmtSubs->execute(['sid' => $studentId]);
+            $totalSubs = (int) $stmtSubs->fetchColumn();
             if ($totalSubs >= 1)  $this->gamification->awardBadge($studentId, 'first_activity');
             if ($totalSubs >= 5)  $this->gamification->awardBadge($studentId, 'five_in_a_row');
             if ($autoScore !== null && $maxScore > 0 && $autoScore >= $maxScore)
@@ -611,8 +1025,13 @@ class LearningController {
             $totalStarsEarned = $this->gamification->getTotalStars($studentId);
             if ($totalStarsEarned >= 10) $this->gamification->awardBadge($studentId, 'star_collector');
             // all_done: all published plans fully complete
-            $allDone = $db->query("SELECT COUNT(*) FROM lesson_plans lp JOIN lesson_assignments la ON lp.id=la.lesson_plan_id WHERE la.student_id={$studentId} AND lp.status='published'")->fetchColumn();
-            $allDoneSub = $db->query("SELECT COUNT(DISTINCT act.lesson_plan_id) FROM lms_submissions sub JOIN lms_activities act ON sub.activity_id=act.id WHERE sub.student_id={$studentId}")->fetchColumn();
+            $stmtAllDone = $db->prepare("SELECT COUNT(*) FROM lesson_plans lp JOIN lesson_assignments la ON lp.id=la.lesson_plan_id WHERE la.student_id = :sid AND lp.status='published'");
+            $stmtAllDone->execute(['sid' => $studentId]);
+            $allDone = (int) $stmtAllDone->fetchColumn();
+
+            $stmtAllDoneSub = $db->prepare("SELECT COUNT(DISTINCT act.lesson_plan_id) FROM lms_submissions sub JOIN lms_activities act ON sub.activity_id=act.id WHERE sub.student_id = :sid");
+            $stmtAllDoneSub->execute(['sid' => $studentId]);
+            $allDoneSub = (int) $stmtAllDoneSub->fetchColumn();
             if ($allDone > 0 && $allDoneSub >= $allDone) $this->gamification->awardBadge($studentId, 'all_done');
 
             // Badge XP bonus (+15 per new badge)
@@ -643,8 +1062,62 @@ class LearningController {
             $db->prepare("INSERT INTO lms_logs (student_id,activity_id,material_id,action,performed_by,performed_at) VALUES (:s,:a,NULL,'submitted',:p,NOW())")
                ->execute(['s' => $studentId, 'a' => $activityId, 'p' => $this->userId]);
 
+            // Trigger parent SMS notification upon activity completion
+            try {
+                $stmtParent = $db->prepare("
+                    SELECT 
+                        sr.student_name,
+                        COALESCE(u.name, es.guardian_first_name, 'Parent') AS parent_name,
+                        COALESCE(u.contact_number, es.guardian_contact_number, es.mother_contact_number, es.father_contact_number) AS phone
+                    FROM student_records sr
+                    LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                    LEFT JOIN users u ON es.parent_id = u.id
+                    WHERE sr.id = :sid
+                    LIMIT 1
+                ");
+                $stmtParent->execute(['sid' => $studentId]);
+                $pRow = $stmtParent->fetch(PDO::FETCH_ASSOC);
+
+                if ($pRow && !empty($pRow['phone'])) {
+                    $finalScore = $autoScore !== null ? (int)$autoScore : (int)$score;
+                    $finalMax = $maxScore > 0 ? $maxScore : 10;
+                    SmsService::getInstance()->notifyActivityCompleted(
+                        $pRow['phone'],
+                        $pRow['parent_name'],
+                        $pRow['student_name'],
+                        $activity['title'] ?? 'LMS Activity',
+                        $finalScore,
+                        $finalMax
+                    );
+                }
+            } catch (\Throwable $e) {
+                error_log("LearningController submitActivity SMS notification error: " . $e->getMessage());
+            }
+
         } catch (\Throwable $e) {
             error_log('LearningController::submitActivity() gamification error: ' . $e->getMessage());
+        }
+
+        // Query legitimate next published lesson assigned to this student (if any)
+        $parentLessonId = (int)($activity['lesson_plan_id'] ?? 0);
+        $nextLesson = null;
+        if ($studentId && $parentLessonId > 0) {
+            try {
+                $stmtNext = $db->prepare("
+                    SELECT lp.id, lp.title
+                    FROM lesson_plans lp
+                    JOIN lesson_assignments la ON lp.id = la.lesson_plan_id
+                    WHERE la.student_id = :sid 
+                      AND lp.status = 'published'
+                      AND lp.id > :current_id
+                    ORDER BY lp.id ASC
+                    LIMIT 1
+                ");
+                $stmtNext->execute(['sid' => $studentId, 'current_id' => $parentLessonId]);
+                $nextLesson = $stmtNext->fetch(PDO::FETCH_ASSOC) ?: null;
+            } catch (\Throwable $e) {
+                error_log('Failed to query next lesson: ' . $e->getMessage());
+            }
         }
 
         echo json_encode([
@@ -656,13 +1129,20 @@ class LearningController {
             'threshold'           => $threshold ?? 70,
             'needs_remediation'   => $needsRemediation ?? false,
             'type'                => $type,
+            'parent_lesson_id'    => $parentLessonId,
+            'parent_lesson_url'   => $parentLessonId > 0 ? ($this->basePath . '/learning/lesson/' . $parentLessonId) : null,
+            'next_lesson_id'      => $nextLesson ? (int)$nextLesson['id'] : null,
+            'next_lesson_title'   => $nextLesson ? $nextLesson['title'] : null,
+            'next_lesson_url'     => $nextLesson ? ($this->basePath . '/learning/lesson/' . (int)$nextLesson['id']) : null,
             'message'             => $autoScore !== null
                 ? ($needsRemediation
                     ? "Score: {$autoScore} / {$maxScore} ({$scorePercentage}%). Girekomenda nga mo-review una sa Remedial Module aron mas masabtan ang leksyon!"
                     : "Excellent work! Score: {$autoScore} / {$maxScore} ({$scorePercentage}%). Nakapasar ka!")
-                : ($type === 'image_label'
-                    ? 'Submitted! Your teacher will review and grade this.'
-                    : 'Great job reviewing!'),
+                : ($type === 'custom_printable'
+                    ? 'Worksheet submitted successfully! Your teacher will review and grade your work.'
+                    : ($type === 'image_label'
+                        ? 'Submitted! Your teacher will review and grade this.'
+                        : 'Great job reviewing!')),
         ]);
 
         exit;
@@ -938,10 +1418,12 @@ class LearningController {
                     'id'            => $actId,
                     'title'         => $act['title'],
                     'activity_type' => $act['activity_type'],
+                    'activity_data' => $act['activity_data'] ?? null,
                     'max_score'     => LessonPlanModel::displayMaxScoreForActivity($act),
                     'is_submitted'  => $isSubmitted,
                     'score'         => $actStatus['score'] ?? $actStatus['auto_score'] ?? null,
                     'submitted_at'  => $actStatus['submitted_at'] ?? null,
+                    'submitted_file'=> $actStatus['file_path'] ?? null,
                     'remarks'       => $actStatus['remarks'] ?? null,
                     'attempts'      => $attemptsCount > 0 ? $attemptsCount : ($isSubmitted ? 1 : 0)
                 ];
@@ -994,5 +1476,235 @@ class LearningController {
 
         $basePath = $this->basePath;
         require __DIR__ . '/../Views/dashboard/parent_student_progress.php';
+    }
+
+    /**
+     * Teacher action: Send SMS deadline reminders to parents of students
+     * who have not yet completed this activity or lesson plan.
+     */
+    public function sendDeadlineReminder(): void {
+        header('Content-Type: application/json');
+        RoleMiddleware::checkAny(['sped_teacher', 'teacher', 'master_teacher', 'admin']);
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+        $lessonPlanId = (int)($input['lesson_plan_id'] ?? 0);
+        $activityId = (int)($input['activity_id'] ?? 0);
+
+        if (!$lessonPlanId && !$activityId) {
+            echo json_encode(['success' => false, 'message' => 'Lesson plan or activity ID is required.']);
+            exit;
+        }
+
+        $db = Database::getInstance()->getConnection();
+        
+        $title = 'Activity';
+        $dueDate = null;
+        if ($lessonPlanId > 0) {
+            $stmt = $db->prepare("SELECT title, due_date FROM lesson_plans WHERE id = :id LIMIT 1");
+            $stmt->execute(['id' => $lessonPlanId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $title = $row['title'];
+                $dueDate = $row['due_date'];
+            }
+        } elseif ($activityId > 0) {
+            $stmt = $db->prepare("SELECT title, due_date, lesson_plan_id FROM lms_activities WHERE id = :id LIMIT 1");
+            $stmt->execute(['id' => $activityId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $title = $row['title'];
+                $dueDate = $row['due_date'];
+                $lessonPlanId = (int)$row['lesson_plan_id'];
+            }
+        }
+
+        // Find assigned students who have NOT completed all activities for this lesson
+        $stmtPending = $db->prepare("
+            SELECT DISTINCT 
+                sr.id AS student_id,
+                sr.student_name,
+                COALESCE(u.name, es.guardian_first_name, 'Parent') AS parent_name,
+                COALESCE(u.contact_number, es.guardian_contact_number, es.mother_contact_number, es.father_contact_number) AS phone,
+                COALESCE(u.email, '') AS email
+            FROM lesson_assignments la
+            JOIN student_records sr ON la.student_id = sr.id
+            LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+            LEFT JOIN users u ON es.parent_id = u.id
+            WHERE la.lesson_plan_id = :lpid
+              AND sr.id NOT IN (
+                  SELECT sub.student_id 
+                  FROM lms_submissions sub 
+                  JOIN lms_activities act ON sub.activity_id = act.id 
+                  WHERE act.lesson_plan_id = :lpid2
+              )
+        ");
+        $stmtPending->execute(['lpid' => $lessonPlanId, 'lpid2' => $lessonPlanId]);
+        $pendingLearners = $stmtPending->fetchAll(PDO::FETCH_ASSOC);
+
+        $sentCount = 0;
+        $smsSvc = SmsService::getInstance();
+        require_once __DIR__ . '/../Helpers/MailHelper.php';
+
+        foreach ($pendingLearners as $pl) {
+            $notified = false;
+            // 1. Send free automated email
+            if (!empty($pl['email'])) {
+                $dueStr = !empty($dueDate) ? date('M d, Y', strtotime($dueDate)) : 'Hapit na';
+                $emailSubj = "SignED SPED: Pahinumdom sa Deadline para kang {$pl['student_name']} ({$title})";
+                $emailHtml = "
+                <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;'>
+                    <h3 style='color: #1e4072; margin-top: 0;'>SignED SPED LMS — Deadline Reminder</h3>
+                    <p>Maayong adlaw <strong>" . htmlspecialchars($pl['parent_name']) . "</strong>,</p>
+                    <p>Pahinumdom gikan sa SPED teacher nga ang leksyon o activity nga <strong>" . htmlspecialchars($title) . "</strong> para kang <strong>" . htmlspecialchars($pl['student_name']) . "</strong> kay kinahanglan nang mahuman.</p>
+                    <p><strong>Petsa sa Deadline:</strong> {$dueStr}</p>
+                    <p>Palihog dasiga ug giyahi ang bata sa pag-login sa <a href='" . $this->basePath . "/login'>SignED Learner Portal</a> aron makatubag.</p>
+                </div>
+                ";
+                @MailHelper::sendNotification($pl['email'], $pl['parent_name'], $emailSubj, $emailHtml);
+                $notified = true;
+            }
+
+            // 2. Also log/send SMS
+            if (!empty($pl['phone'])) {
+                $res = $smsSvc->notifyDeadlineReminder(
+                    $pl['phone'],
+                    $pl['parent_name'],
+                    $pl['student_name'],
+                    $title,
+                    $dueDate
+                );
+                if (!empty($res['success'])) {
+                    $notified = true;
+                }
+            }
+
+            if ($notified) {
+                $sentCount++;
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => "Malampusong napadala ang automated reminders sa {$sentCount} ka mga ginikanan.",
+            'sent_count' => $sentCount,
+            'total_pending' => count($pendingLearners)
+        ]);
+        exit;
+    }
+
+    // ----------------------------------------------------------------
+    // GET /parent/worksheets — Printable Worksheets Hub for Parents
+    // ----------------------------------------------------------------
+    public function parentWorksheets(): void {
+        ParentGateMiddleware::check();
+        if ($this->userRole !== 'parent') {
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
+        }
+
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->prepare("
+            SELECT la.id AS activity_id,
+                   la.title AS activity_title,
+                   la.instructions,
+                   la.activity_type,
+                   la.activity_data,
+                   la.max_score,
+                   la.due_date,
+                   la.created_at,
+                   lp.id AS lesson_id,
+                   lp.title AS lesson_title,
+                   lp.pdsp_domain,
+                   sr.id AS student_id,
+                   sr.student_name,
+                   sr.section_name,
+                   sub.id AS submission_id,
+                   sub.auto_score AS score,
+                   sub.submitted_at,
+                   sub.file_path AS submitted_file
+            FROM lms_activities la
+            JOIN lesson_plans lp ON la.lesson_plan_id = lp.id
+            JOIN lesson_assignments lass ON lp.id = lass.lesson_plan_id
+            JOIN student_records sr ON lass.student_id = sr.id
+            JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+            LEFT JOIN lms_submissions sub ON (sub.activity_id = la.id AND sub.student_id = sr.id)
+            WHERE es.parent_id = :pid
+              AND es.status = 'verified'
+              AND lp.status = 'published'
+              AND la.activity_type = 'custom_printable'
+            ORDER BY la.id DESC
+        ");
+        $stmt->execute(['pid' => $this->userId]);
+        $allWorksheets = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $basePath = $this->basePath;
+        require __DIR__ . '/../Views/dashboard/parent_worksheets.php';
+    }
+
+    // ----------------------------------------------------------------
+    // POST /parent/submit-worksheet — Parent completed worksheet upload
+    // ----------------------------------------------------------------
+    public function parentSubmitWorksheet(): void {
+        ParentGateMiddleware::check();
+        if ($this->userRole !== 'parent') {
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
+        }
+
+        $activityId = (int)($_POST['activity_id'] ?? 0);
+        $studentId  = (int)($_POST['student_id'] ?? 0);
+
+        $db = Database::getInstance()->getConnection();
+        $check = $db->prepare("
+            SELECT sr.id 
+            FROM student_records sr
+            JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+            WHERE sr.id = :sid AND es.parent_id = :pid
+            LIMIT 1
+        ");
+        $check->execute(['sid' => $studentId, 'pid' => $this->userId]);
+        if (!$check->fetchColumn()) {
+            $_SESSION['error'] = 'Access denied or invalid learner.';
+            header('Location: ' . ($this->basePath . '/parent/worksheets'));
+            exit;
+        }
+
+        if (empty($_FILES['submission_file']['name']) || $_FILES['submission_file']['error'] !== UPLOAD_ERR_OK) {
+            $_SESSION['error'] = 'Palihug pagpili og litrato o PDF sa nahuman nga worksheet.';
+            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? ($this->basePath . '/parent/worksheets')));
+            exit;
+        }
+
+        $uploadDir = dirname(__DIR__, 2) . '/public/uploads/submissions/' . $activityId;
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $ext = strtolower(pathinfo($_FILES['submission_file']['name'], PATHINFO_EXTENSION));
+        $allowed = ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'doc', 'docx'];
+        if (!in_array($ext, $allowed)) {
+            $_SESSION['error'] = 'Invalid file type. Palihug gamit og litrato (JPG, PNG) o PDF.';
+            header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? ($this->basePath . '/parent/worksheets')));
+            exit;
+        }
+
+        $filename = 'parent_sub_' . $studentId . '_' . time() . '.' . $ext;
+        $dest = $uploadDir . '/' . $filename;
+        if (move_uploaded_file($_FILES['submission_file']['tmp_name'], $dest)) {
+            $relPath = 'uploads/submissions/' . $activityId . '/' . $filename;
+            $answers = [
+                'notes'               => trim($_POST['notes'] ?? ''),
+                'file_path'           => $relPath,
+                'original_name'       => htmlspecialchars($_FILES['submission_file']['name']),
+                'submitted_by_parent' => true
+            ];
+            $this->model->saveSubmission($activityId, $studentId, $this->userId, json_encode($answers), null, $relPath);
+            $_SESSION['success'] = 'Malampusong na-submit ang nahuman nga worksheet ngadto sa SPED Teacher!';
+        } else {
+            $_SESSION['error'] = 'Failed to upload completed worksheet file.';
+        }
+
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? ($this->basePath . '/parent/worksheets')));
+        exit;
     }
 }

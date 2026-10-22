@@ -42,11 +42,20 @@ class LessonPlanModel {
                 ) AS published_count
             FROM iep_records ir
             JOIN student_records sr ON ir.student_id = sr.id
-            WHERE ir.drafted_by = :teacher_id
-              AND ir.status = 'signed'
+            WHERE (ir.drafted_by = :tid_1
+                   OR sr.assigned_teacher_id = :tid_2
+                   OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_3)
+                   OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_4))
+                  )
+              AND ir.status IN ('signed', 'locked')
             ORDER BY ir.created_at DESC
         ");
-        $stmt->execute(['teacher_id' => $teacherId]);
+        $stmt->execute([
+            'tid_1' => $teacherId,
+            'tid_2' => $teacherId,
+            'tid_3' => $teacherId,
+            'tid_4' => $teacherId,
+        ]);
         return $stmt->fetchAll();
     }
 
@@ -58,13 +67,15 @@ class LessonPlanModel {
      * Create a new lesson plan
      */
     public function create($data) {
+        $status = $data['status'] ?? 'published';
+        $publishedAt = ($status === 'published') ? date('Y-m-d H:i:s') : null;
         $stmt = $this->db->prepare("
             INSERT INTO lesson_plans
                 (iep_id, student_id, created_by, title, pdsp_domain, assignment_type,
-                 document_path, status, created_at, updated_at)
+                 document_path, status, published_at, created_at, updated_at)
             VALUES
                 (:iep_id, :student_id, :created_by, :title, :pdsp_domain, :assignment_type,
-                 :document_path, 'draft', NOW(), NOW())
+                 :document_path, :status, :published_at, NOW(), NOW())
         ");
         $stmt->execute([
             'iep_id'          => $data['iep_id'],
@@ -74,6 +85,8 @@ class LessonPlanModel {
             'pdsp_domain'     => $data['pdsp_domain'],
             'assignment_type' => $data['assignment_type'],
             'document_path'   => $data['document_path'] ?? null,
+            'status'          => $status,
+            'published_at'    => $publishedAt,
         ]);
         return $this->db->lastInsertId();
     }
@@ -86,7 +99,7 @@ class LessonPlanModel {
             SELECT
                 lp.*,
                 ir.school_year, ir.status AS iep_status, ir.signed_document_path,
-                ir.re_evaluation_date,
+                ir.re_evaluation_date, ir.drafted_by,
                 sr.student_name, sr.lrn,
                 u.name AS created_by_name
             FROM lesson_plans lp
@@ -119,7 +132,7 @@ class LessonPlanModel {
      * Update allowed fields on a lesson plan
      */
     public function update($id, $data) {
-        $allowed = ['title', 'pdsp_domain', 'document_path', 'status', 'published_at'];
+        $allowed = ['title', 'pdsp_domain', 'document_path', 'status', 'published_at', 'mainstream_mastery_url', 'mainstream_mastery_title'];
         $sets    = [];
         $params  = ['id' => $id];
         foreach ($allowed as $col) {
@@ -134,6 +147,24 @@ class LessonPlanModel {
             "UPDATE lesson_plans SET " . implode(', ', $sets) . " WHERE id = :id"
         );
         return $stmt->execute($params);
+    }
+
+    /**
+     * Update mainstream mastery link on a lesson plan
+     */
+    public function updateMasteryResource(int $id, ?string $url, ?string $title): bool {
+        $stmt = $this->db->prepare("
+            UPDATE lesson_plans
+            SET mainstream_mastery_url = :url,
+                mainstream_mastery_title = :title,
+                updated_at = NOW()
+            WHERE id = :id
+        ");
+        return $stmt->execute([
+            'id'    => $id,
+            'url'   => $url ?: null,
+            'title' => $title ?: null
+        ]);
     }
 
     /**
@@ -499,10 +530,21 @@ class LessonPlanModel {
      */
     public function countStudentsForTeacher($teacherId) {
         $stmt = $this->db->prepare("
-            SELECT COUNT(*) FROM iep_records
-            WHERE drafted_by = :teacher_id AND status = 'signed'
+            SELECT COUNT(*) FROM iep_records ir
+            JOIN student_records sr ON ir.student_id = sr.id
+            WHERE (ir.drafted_by = :tid_1
+                   OR sr.assigned_teacher_id = :tid_2
+                   OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_3)
+                   OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_4))
+                  )
+              AND ir.status IN ('signed', 'locked')
         ");
-        $stmt->execute(['teacher_id' => $teacherId]);
+        $stmt->execute([
+            'tid_1' => $teacherId,
+            'tid_2' => $teacherId,
+            'tid_3' => $teacherId,
+            'tid_4' => $teacherId,
+        ]);
         return (int) $stmt->fetchColumn();
     }
 
@@ -753,6 +795,19 @@ class LessonPlanModel {
     }
 
     /**
+     * Check if a lesson plan is assigned to a specific student
+     */
+    public function isAssignedToStudent(int $lessonPlanId, int $studentId): bool {
+        $stmt = $this->db->prepare("
+            SELECT 1 FROM lesson_assignments
+            WHERE lesson_plan_id = :lp_id AND student_id = :sid
+            LIMIT 1
+        ");
+        $stmt->execute(['lp_id' => $lessonPlanId, 'sid' => $studentId]);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    /**
      * Get activity count and completed count for a lesson plan + student
      * Returns ['total' => N, 'completed' => N]
      */
@@ -796,15 +851,16 @@ class LessonPlanModel {
     /**
      * Save a submission (INSERT … ON DUPLICATE KEY UPDATE)
      */
-    public function saveSubmission($activityId, $studentId, $submittedBy, $answers, $autoScore) {
+    public function saveSubmission($activityId, $studentId, $submittedBy, $answers, $autoScore, $filePath = null) {
         $stmt = $this->db->prepare("
             INSERT INTO lms_submissions
-                (activity_id, student_id, submitted_by, answers, auto_score, submitted_at)
+                (activity_id, student_id, submitted_by, answers, auto_score, file_path, submitted_at)
             VALUES
-                (:activity_id, :student_id, :submitted_by, :answers, :auto_score, NOW())
+                (:activity_id, :student_id, :submitted_by, :answers, :auto_score, :file_path, NOW())
             ON DUPLICATE KEY UPDATE
                 answers      = VALUES(answers),
                 auto_score   = VALUES(auto_score),
+                file_path    = COALESCE(VALUES(file_path), file_path),
                 submitted_at = NOW()
         ");
         return $stmt->execute([
@@ -813,6 +869,7 @@ class LessonPlanModel {
             'submitted_by' => $submittedBy,
             'answers'      => $answers,
             'auto_score'   => $autoScore,
+            'file_path'    => $filePath,
         ]);
     }
 

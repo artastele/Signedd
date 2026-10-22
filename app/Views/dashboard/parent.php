@@ -32,7 +32,22 @@ require_once __DIR__ . '/../layouts/header.php';
         </div>
     <?php endif; ?>
 
-    <!-- Newly Generated Learner Credentials Banner -->
+    <!-- Browser Push Notifications Permission Alert -->
+    <div id="parentPushAlert" class="alert alert-light border shadow-sm d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4" style="display:none; border-radius: 12px; border-left: 4px solid #0284c7 !important;">
+        <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle bg-primary-subtle text-primary p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                <i class="bi bi-bell-fill fs-5"></i>
+            </div>
+            <div>
+                <strong class="d-block text-dark">Instant Mobile Alerts</strong>
+                <small class="text-muted">I-on ang notifications aron mo-tingog ang imong cellphone kung mag-upload si teacher og bag-ong leksyon o feedback.</small>
+            </div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm fw-semibold px-3" onclick="requestBrowserPush()" style="border-radius: 6px;">
+            <i class="bi bi-check2-circle me-1"></i> Allow Notifications
+        </button>
+    </div>
+
     <?php if (!empty($_SESSION['generated_learner_credentials'])): ?>
         <?php $glc = $_SESSION['generated_learner_credentials']; unset($_SESSION['generated_learner_credentials']); ?>
         <div class="card border-0 shadow-sm rounded-4 mb-4" style="background: linear-gradient(135deg, #1e4072 0%, #0f172a 100%); color: #ffffff;">
@@ -74,6 +89,24 @@ require_once __DIR__ . '/../layouts/header.php';
             </div>
         </div>
     <?php endif; ?>
+
+    <!-- Quick Mobile Progress Access Card -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 text-white" style="background: linear-gradient(135deg, #1e4072 0%, #0369a1 100%);">
+        <div class="card-body p-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center bg-white bg-opacity-20 text-white" style="width: 48px; height: 48px; font-size: 1.4rem;">
+                    <i class="bi bi-trophy-fill text-warning"></i>
+                </div>
+                <div>
+                    <h5 class="fw-bold mb-1 text-white" style="font-size: 1.15rem;">Monitoring sa Pagtuon &amp; Marka</h5>
+                    <p class="text-white-50 small mb-0">Makita dinhi ang mga nakumpleto nga leksyon, marka sa quiz, stars, ug badges sa imong anak.</p>
+                </div>
+            </div>
+            <a href="<?php echo BASE_PATH; ?>/parent/child-progress" class="btn btn-warning text-dark fw-bold px-3.5 py-2 shadow-sm" style="border-radius: 8px; font-size: 0.9rem;">
+                <i class="bi bi-bar-chart-line-fill me-1"></i> Tan-awa ang Progress sa Akong Anak
+            </a>
+        </div>
+    </div>
 
     <!-- Permanent Child Learner LMS Accounts & Credentials Section -->
     <?php
@@ -166,11 +199,23 @@ require_once __DIR__ . '/../layouts/header.php';
                                         <small class="text-muted d-block" style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase;">
                                             Kasamtangang Password:
                                         </small>
+                                        <?php 
+                                            $learnerPassId = 'lp_' . ($pl['student_record_id'] ?? $pl['enrollment_id'] ?? rand(100,999));
+                                            $learnerDefaultPass = 'signED';
+                                        ?>
                                         <div class="d-flex align-items-center gap-1 mt-1">
-                                            <span class="font-monospace text-muted" style="font-size: 0.95rem;">••••••••</span>
+                                            <span id="<?php echo $learnerPassId; ?>" class="font-monospace fw-bold text-primary" style="font-size: 0.95rem; letter-spacing: 1px;" data-pass="<?php echo htmlspecialchars($learnerDefaultPass); ?>">
+                                                ••••••
+                                            </span>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary p-1 lh-1 ms-1" title="Ipakita / Itago ang Password" onclick="(function(){ var el = document.getElementById('<?php echo $learnerPassId; ?>'); if (el.innerText.trim() === '••••••') { el.innerText = el.getAttribute('data-pass'); } else { el.innerText = '••••••'; } })();" style="border-radius: 6px;">
+                                                <i class="bi bi-eye" style="font-size: 0.8rem;"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary p-1 lh-1" title="Kopyahon ang password" onclick="navigator.clipboard.writeText('<?php echo addslashes($learnerDefaultPass); ?>'); alert('Kopyado ang password: <?php echo addslashes($learnerDefaultPass); ?>');" style="border-radius: 6px;">
+                                                <i class="bi bi-clipboard" style="font-size: 0.8rem;"></i>
+                                            </button>
                                         </div>
                                         <small class="text-muted d-block mt-0.5" style="font-size: 0.7rem;">
-                                            Default: <code class="text-dark">Learner@<?php echo date('Y'); ?></code>
+                                            Default Password: <code class="text-dark fw-bold"><?php echo htmlspecialchars($learnerDefaultPass); ?></code>
                                         </small>
                                     </div>
                                 </div>
@@ -192,8 +237,13 @@ require_once __DIR__ . '/../layouts/header.php';
                             <small class="text-muted" style="font-size: 0.75rem;">
                                 <i class="bi bi-info-circle me-1"></i>Pwede ra mag log in gamit ang Username o Student ID.
                             </small>
-                            <div class="d-inline-flex gap-2">
+                            <div class="d-inline-flex gap-2 flex-wrap">
                                 <?php if (!empty($pl['student_record_id'])): ?>
+                                    <a href="<?php echo BASE_PATH; ?>/parent/child-progress/<?php echo (int)$pl['student_record_id']; ?>" 
+                                       class="btn btn-primary btn-sm px-3 py-1.5" 
+                                       style="border-radius: 6px; font-weight: 500; font-size: 0.82rem; background: #1e4072; border-color: #1e4072;">
+                                        <i class="bi bi-bar-chart-fill me-1"></i> Tan-awa ang Progress
+                                    </a>
                                     <button type="button" class="btn btn-outline-success btn-sm px-3 py-1.5" 
                                             data-bs-toggle="modal" 
                                             data-bs-target="#uploadParentChildDocModal_<?php echo (int)$pl['student_record_id']; ?>" 
@@ -640,6 +690,36 @@ require_once __DIR__ . '/../layouts/header.php';
                         }
 
                         $cPct = $cTotalTasks > 0 ? round(($cCompletedTasks / $cTotalTasks) * 100) : 0;
+
+                        // Check for printable worksheets assigned to this child
+                        $cPrintStmt = $parentDb->prepare("
+                            SELECT la.id AS activity_id,
+                                   la.title AS activity_title,
+                                   la.instructions,
+                                   la.activity_type,
+                                   la.activity_data,
+                                   la.max_score,
+                                   la.due_date,
+                                   la.created_at,
+                                   lp.id AS lesson_id,
+                                   lp.title AS lesson_title,
+                                   lp.pdsp_domain,
+                                   sub.id AS submission_id,
+                                   sub.auto_score AS score,
+                                   sub.submitted_at,
+                                   sub.file_path AS submitted_file
+                            FROM lms_activities la
+                            JOIN lesson_plans lp ON la.lesson_plan_id = lp.id
+                            JOIN lesson_assignments lass ON lp.id = lass.lesson_plan_id
+                            LEFT JOIN lms_submissions sub ON (sub.activity_id = la.id AND sub.student_id = :sid)
+                            WHERE lass.student_id = :sid2
+                              AND lp.status = 'published'
+                              AND la.activity_type = 'custom_printable'
+                            ORDER BY la.id DESC
+                        ");
+                        $cPrintStmt->execute(['sid' => $cSid, 'sid2' => $cSid]);
+                        $cPrintables = $cPrintStmt->fetchAll(PDO::FETCH_ASSOC);
+                        $hasPrintables = count($cPrintables) > 0;
                         ?>
                         <div class="col-12">
                             <div class="p-3 bg-light rounded-3 border d-flex align-items-center justify-content-between flex-wrap gap-3">
@@ -690,6 +770,16 @@ require_once __DIR__ . '/../layouts/header.php';
                                         </div>
                                     </div>
                                     <div class="d-flex align-items-center gap-2">
+                                        <?php if ($hasPrintables): ?>
+                                            <button type="button" class="btn text-white px-2.5 py-1.5 text-nowrap d-flex align-items-center gap-1.5 shadow-sm" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#parentWorksheetsModal_<?php echo $cSid; ?>" 
+                                                    style="border-radius: 8px; font-size: 0.82rem; font-weight: 600; height: 36px; background: #0d9488; border-color: #0d9488;" 
+                                                    title="Tan-awa ug i-print ang worksheets">
+                                                <i class="bi bi-printer-fill"></i>
+                                                <span>Worksheets (<?php echo count($cPrintables); ?>)</span>
+                                            </button>
+                                        <?php endif; ?>
                                         <button type="button" class="btn btn-outline-success px-2.5 py-1.5 text-nowrap d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#uploadParentDashChildDocModal_<?php echo $cSid; ?>" style="border-radius: 8px; font-size: 0.82rem; font-weight: 500; height: 36px;">
                                             <i class="bi bi-file-earmark-arrow-up-fill"></i>
                                             <span>Docs</span>
@@ -698,6 +788,144 @@ require_once __DIR__ . '/../layouts/header.php';
                                             <i class="bi bi-bar-chart-line"></i>
                                             <span>Track <small class="fst-italic opacity-75" style="font-size: 0.75rem;">(Sundan)</small></span>
                                         </a>
+                                    </div>
+                                </div>
+
+                                <?php if ($hasPrintables): ?>
+                                    <div class="w-100 alert border-0 rounded-3 mt-2 mb-0 p-2.5 d-flex align-items-center justify-content-between flex-wrap gap-2" style="background: #f0fdfa; border: 1px solid #ccfbf1 !important; border-left: 4px solid #0d9488 !important;">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="bi bi-printer-fill fs-5" style="color: #0d9488;"></i>
+                                            <span class="small text-dark">
+                                                <strong>Adunay <?php echo count($cPrintables); ?> ka Printable Worksheet</strong> nga gi-upload sa SPED Teacher para kang <?php echo htmlspecialchars($child['student_name']); ?>.
+                                            </span>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-sm text-white fw-semibold px-2.5 py-1" style="background: #0d9488; border-radius: 6px; font-size: 0.78rem;" data-bs-toggle="modal" data-bs-target="#parentWorksheetsModal_<?php echo $cSid; ?>">
+                                                <i class="bi bi-file-earmark-arrow-down-fill me-1"></i> I-print / I-download ang Worksheet
+                                            </button>
+                                            <a href="<?php echo BASE_PATH; ?>/parent/worksheets" class="btn btn-sm btn-outline-secondary fw-semibold px-2.5 py-1" style="border-radius: 6px; font-size: 0.78rem;">
+                                                <i class="bi bi-grid-fill me-1"></i> Worksheets Hub
+                                            </a>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <!-- Printable Worksheets Modal for Child in Parent Dashboard -->
+                        <div class="modal fade text-start" id="parentWorksheetsModal_<?php echo $cSid; ?>" tabindex="-1">
+                            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                                <div class="modal-content border-0 shadow-lg rounded-4">
+                                    <div class="modal-header border-bottom py-3" style="background: #0f766e; color: #ffffff;">
+                                        <h5 class="modal-title fw-bold text-white fs-6 d-flex align-items-center gap-2">
+                                            <i class="bi bi-printer-fill text-warning"></i> Printable Worksheets ni <?php echo htmlspecialchars($child['student_name']); ?>
+                                        </h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body p-4">
+                                        <div class="alert alert-info border-0 rounded-3 small mb-3" style="background:#f0fdfa;color:#0f766e;">
+                                            <i class="bi bi-info-circle-fill me-1"></i>
+                                            <strong>Giya sa Ginikanan:</strong> Mahimo nimong i-print o i-download kining mga worksheet aron masagutan kini sa imong anak sa balay gamit ang bolpen o lapis. Pagkahuman, mahimo nimong i-upload ang litrato sa nahuman nga papel aron ma-check ug mamarkahan sa SPED Teacher.
+                                        </div>
+
+                                        <?php if (empty($cPrintables)): ?>
+                                            <div class="text-center py-4 text-muted">
+                                                <i class="bi bi-printer fs-1 d-block mb-2 text-secondary"></i>
+                                                <p class="mb-0 fw-semibold">Walay bag-ong printable worksheets sa pagkakaron.</p>
+                                            </div>
+                                        <?php else: ?>
+                                            <div class="d-flex flex-column gap-3">
+                                                <?php foreach ($cPrintables as $pWs): 
+                                                    $pActData = json_decode($pWs['activity_data'] ?? '{}', true) ?: [];
+                                                    $pFilePath = !empty($pActData['file_path']) ? ltrim($pActData['file_path'], '/') : '';
+                                                    $pFileUrl = $pFilePath ? (BASE_PATH . '/' . $pFilePath) : '';
+                                                    $pFileName = $pActData['file_name'] ?? (basename($pFilePath) ?: 'Worksheet Document');
+                                                    $pIsDone = !empty($pWs['submission_id']);
+                                                ?>
+                                                    <div class="p-3 rounded-3 border bg-light">
+                                                        <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
+                                                            <div>
+                                                                <h6 class="fw-bold text-dark mb-1"><?php echo htmlspecialchars($pWs['activity_title']); ?></h6>
+                                                                <div class="small text-muted">
+                                                                    <i class="bi bi-journal-bookmark me-1 text-primary"></i> <strong>Aralin:</strong> <?php echo htmlspecialchars($pWs['lesson_title']); ?>
+                                                                    • <span class="badge bg-secondary-subtle text-secondary"><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $pWs['pdsp_domain'] ?? 'General'))); ?></span>
+                                                                </div>
+                                                            </div>
+                                                            <?php if ($pIsDone): ?>
+                                                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1">
+                                                                    <i class="bi bi-check-circle-fill me-1"></i> Na-submit Na
+                                                                    <?php if ($pWs['score'] !== null): ?>
+                                                                        (Marka: <?php echo (int)$pWs['score']; ?>/<?php echo (int)$pWs['max_score']; ?>)
+                                                                    <?php endif; ?>
+                                                                </span>
+                                                            <?php else: ?>
+                                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2.5 py-1">
+                                                                    <i class="bi bi-hourglass-split me-1"></i> Pending Worksheet
+                                                                </span>
+                                                            <?php endif; ?>
+                                                        </div>
+
+                                                        <?php if (!empty($pWs['instructions'])): ?>
+                                                            <div class="p-2.5 bg-white rounded-2 border mb-3 small text-secondary">
+                                                                <strong>Tagubilin sa Guro:</strong> <?php echo nl2br(htmlspecialchars(strip_tags($pWs['instructions']))); ?>
+                                                            </div>
+                                                        <?php endif; ?>
+
+                                                        <!-- File action bar -->
+                                                        <div class="p-2.5 bg-white rounded-3 border d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                                            <div class="d-flex align-items-center gap-2">
+                                                                <i class="bi bi-file-earmark-pdf-fill fs-3 text-danger"></i>
+                                                                <div>
+                                                                    <strong class="text-dark small d-block"><?php echo htmlspecialchars($pFileName); ?></strong>
+                                                                    <small class="text-muted">PDF / Image Worksheet</small>
+                                                                </div>
+                                                            </div>
+                                                            <?php if ($pFileUrl): ?>
+                                                                <div class="d-flex gap-2">
+                                                                    <a href="<?php echo htmlspecialchars($pFileUrl); ?>" target="_blank" class="btn btn-sm btn-outline-primary" style="border-radius:6px;">
+                                                                        <i class="bi bi-eye me-1"></i> View
+                                                                    </a>
+                                                                    <a href="<?php echo htmlspecialchars($pFileUrl); ?>" target="_blank" download class="btn btn-sm text-white" style="background:#0d9488; border-radius:6px; font-weight:600;">
+                                                                        <i class="bi bi-download me-1"></i> Download PDF
+                                                                    </a>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                        </div>
+
+                                                        <!-- Upload form toggle -->
+                                                        <div class="pt-2 border-top">
+                                                            <form action="<?php echo BASE_PATH; ?>/parent/submit-worksheet" method="POST" enctype="multipart/form-data">
+                                                                <input type="hidden" name="activity_id" value="<?php echo (int)$pWs['activity_id']; ?>">
+                                                                <input type="hidden" name="student_id" value="<?php echo $cSid; ?>">
+                                                                
+                                                                <div class="row g-2 align-items-center">
+                                                                    <div class="col-md-7 col-12">
+                                                                        <label class="form-label small fw-semibold text-secondary mb-1">
+                                                                            <i class="bi bi-camera-fill me-1 text-success"></i> <?php echo $pIsDone ? 'I-upload Pag-usab ang Litrato / PDF:' : 'I-upload ang Litrato sa Nahuman nga Papel:'; ?>
+                                                                        </label>
+                                                                        <input type="file" name="submission_file" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" required>
+                                                                    </div>
+                                                                    <div class="col-md-5 col-12 text-md-end pt-md-3">
+                                                                        <button type="submit" class="btn btn-success btn-sm w-100" style="border-radius:6px; font-weight:600;">
+                                                                            <i class="bi bi-cloud-arrow-up-fill me-1"></i> I-submit ngadto sa Guro
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                                <?php if ($pIsDone && !empty($pWs['submitted_file'])): ?>
+                                                                    <div class="small mt-2 text-muted">
+                                                                        <i class="bi bi-check-circle-fill text-success me-1"></i> Gi-upload kaniadtong: <?php echo date('M d, Y h:i A', strtotime($pWs['submitted_at'])); ?> &bull; 
+                                                                        <a href="<?php echo BASE_PATH . '/' . htmlspecialchars(ltrim($pWs['submitted_file'], '/')); ?>" target="_blank" class="text-decoration-underline text-success">Tan-awa ang Imong Gi-upload</a>
+                                                                    </div>
+                                                                <?php endif; ?>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="modal-footer bg-light py-2">
+                                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="border-radius:6px;">Close</button>
                                     </div>
                                 </div>
                             </div>
@@ -761,7 +989,7 @@ require_once __DIR__ . '/../layouts/header.php';
     <?php endif; ?>
 
     <!-- Statistics Cards - Clean & Modern -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4 dash-kpis">
         <div class="col-md-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body text-center p-3">
@@ -983,6 +1211,10 @@ require_once __DIR__ . '/../layouts/header.php';
                                     $notifLink = BASE_PATH . '/iep/sign/' . $notifData['iep_id'] . '/' . $notifData['signatory_id'];
                                 } else if ($notif['type'] === 'placement_confirmed' && !empty($notifData['iep_id'])) {
                                     $notifLink = BASE_PATH . '/iep/' . $notifData['iep_id'] . '/placement-notice';
+                                } else if ($notif['type'] === 'activity_submitted' && !empty($notifData['student_id'])) {
+                                    $notifLink = BASE_PATH . '/parent/child-progress/' . (int)$notifData['student_id'];
+                                } else if ($notif['type'] === 'activity_submitted') {
+                                    $notifLink = BASE_PATH . '/parent/child-progress';
                                 } else if (!empty($notifData['iep_id'])) {
                                     $notifLink = BASE_PATH . '/iep';
                                 }
@@ -996,6 +1228,10 @@ require_once __DIR__ . '/../layouts/header.php';
                                     case 'placement_confirmed':
                                         $bgType = 'success';
                                         $iconName = 'check-circle-fill';
+                                        break;
+                                    case 'activity_submitted':
+                                        $bgType = 'success';
+                                        $iconName = 'file-earmark-check-fill';
                                         break;
                                     case 'role_rejected':
                                     case 'enrollment_rejected':

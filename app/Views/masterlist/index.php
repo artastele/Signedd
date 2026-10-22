@@ -77,6 +77,9 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
 
                     <div class="action-btn-group d-flex gap-2 flex-wrap">
+                        <button type="button" class="btn btn-outline-light text-white d-inline-flex align-items-center gap-2" onclick="copyUniversalGcLink()" title="Copy Universal Link for Messenger Group Chat">
+                            <i class="bi bi-chat-heart-fill text-warning"></i> Copy GC Invite Link
+                        </button>
                         <button type="button" class="btn btn-success text-white d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#bulkImportModal">
                             <i class="bi bi-file-earmark-arrow-up-fill"></i> Import Enrolled Learners
                         </button>
@@ -84,10 +87,10 @@ require_once __DIR__ . '/../layouts/header.php';
                             <i class="bi bi-cloud-arrow-up-fill"></i> Update Official LRNs
                         </button>
                         <a href="<?= $basePath ?>/masterlist/export-register" class="btn btn-primary d-inline-flex align-items-center gap-2">
-                            <i class="bi bi-file-earmark-excel-fill"></i> Export Enrollment Register
+                            <i class="bi bi-file-earmark-excel-fill"></i> Export Register
                         </a>
                         <a href="<?= $basePath ?>/masterlist/export-attendance" class="btn btn-outline-light d-inline-flex align-items-center gap-2">
-                            <i class="bi bi-calendar-check-fill"></i> Export Attendance Register
+                            <i class="bi bi-calendar-check-fill"></i> Export Attendance
                         </a>
                     </div>
                 </div>
@@ -105,6 +108,37 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <p class="small text-muted mb-3">
                                         Upload your school's existing spreadsheet of enrolled SPED learners to quickly onboard them into SignED for this school year.
                                     </p>
+
+                                    <?php if ($role === 'sped_teacher'): ?>
+                                        <?php if (!empty($teacherSection)): ?>
+                                            <div class="alert alert-primary border-0 small mb-3 d-flex align-items-center gap-2">
+                                                <i class="bi bi-info-circle-fill text-primary fs-5"></i>
+                                                <div>
+                                                    Target Advisory Section: <strong><?= htmlspecialchars($teacherSection['section_name']) ?></strong>
+                                                    <div class="text-muted" style="font-size: 0.75rem;">Imported learners will automatically be assigned to your designated classroom section.</div>
+                                                </div>
+                                            </div>
+                                        <?php else: ?>
+                                            <div class="alert alert-warning border-0 small mb-3">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                <strong>Notice:</strong> You are not currently assigned as an adviser to an active section. Please coordinate with your School Principal.
+                                            </div>
+                                        <?php endif; ?>
+                                    <?php elseif (in_array($role, ['principal', 'master_teacher']) && !empty($allActiveSections)): ?>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold small">Target Section (Optional)</label>
+                                            <select name="target_section_id" class="form-select form-select-sm">
+                                                <option value="">-- Auto-Assign / Existing School Sections --</option>
+                                                <?php foreach ($allActiveSections as $sec): ?>
+                                                    <option value="<?= $sec['id'] ?>">
+                                                        <?= htmlspecialchars($sec['section_name']) ?> (<?= htmlspecialchars($sec['adviser_name'] ?? 'Unassigned') ?>)
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <div class="form-text" style="font-size: 0.75rem;">If unspecified, learners will be matched against existing active sections.</div>
+                                        </div>
+                                    <?php endif; ?>
+
                                     <div class="d-flex justify-content-between align-items-center mb-3 p-2.5 bg-light rounded border">
                                         <div class="small">
                                             <i class="bi bi-filetype-csv text-success fs-5 me-1"></i>
@@ -119,7 +153,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                         <input type="file" name="bulk_csv" class="form-control" accept=".csv,text/csv" required>
                                     </div>
                                     <div class="alert alert-light border small text-muted mb-0">
-                                        <i class="bi bi-info-circle me-1"></i> Supported headers: <code>LRN</code>, <code>Learner Name</code>, <code>Sex</code>, <code>Birth Date</code>, <code>Grade Level</code>, <code>Section</code>, <code>Disability Category</code>, <code>Parent Name</code>, <code>Parent Contact</code>.
+                                        <i class="bi bi-info-circle me-1"></i> Supported headers: <code>LRN</code>, <code>Learner Name</code>, <code>Sex</code>, <code>Birth Date</code>, <code>Grade Level</code>, <code>Disability Category</code>, <code>Parent Name</code>, <code>Parent Contact</code>.
                                     </div>
                                 </div>
                                 <div class="modal-footer bg-light">
@@ -177,7 +211,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 <?php endif; ?>
 
                 <!-- Summary Statistics Bar -->
-                <div class="row g-3 mb-4">
+                <div class="row g-3 mb-4 m-grid">
                     <div class="col-6 col-md-3">
                         <div class="card border-0 shadow-sm">
                             <div class="card-body p-3 d-flex align-items-center gap-3">
@@ -198,8 +232,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <i class="bi bi-laptop fs-4"></i>
                                 </div>
                                 <div>
-                                    <h4 class="fw-bold mb-0 text-primary"><?= (int)($candidateCount ?? $lmsCount ?? 0) ?></h4>
-                                    <small class="text-secondary fw-semibold">SignED Candidates</small>
+                                    <h4 class="fw-bold mb-0 text-primary"><?= (int)($lmsCount ?? ($candidateCount + $lmsActiveCount)) ?></h4>
+                                    <small class="text-secondary fw-semibold">SignED Candidates &amp; LMS</small>
                                 </div>
                             </div>
                         </div>
@@ -333,10 +367,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                             <span class="font-monospace fw-bold text-dark"><?= htmlspecialchars($l['lrn'] ?? $l['student_id'] ?? 'Pending LRN') ?></span>
                                         </td>
                                         <td>
-                                            <div>
-                                                <a href="<?= $basePath ?>/students/view/<?= $l['student_record_id'] ?>" class="fw-semibold text-primary text-decoration-none" title="View Full Learner Profile">
-                                                    <?= htmlspecialchars($l['student_name']) ?> <i class="bi bi-box-arrow-up-right small ms-1" style="font-size: 0.75rem;"></i>
-                                                </a>
+                                            <div class="fw-semibold text-dark">
+                                                <?= htmlspecialchars($l['student_name']) ?>
                                             </div>
                                             <div class="small text-muted">
                                                 Parent: <?= htmlspecialchars($l['guardian_first_name'] ? ($l['guardian_first_name'] . ' ' . $l['guardian_last_name']) : ($l['parent_name'] ?? 'N/A')) ?>
@@ -348,7 +380,9 @@ require_once __DIR__ . '/../layouts/header.php';
                                         </td>
                                         <td>
                                             <span class="badge bg-secondary text-wrap"><?= htmlspecialchars($l['grade_level_to_enroll'] ?? 'Kinder') ?></span>
-                                            <small class="d-block text-muted mt-1"><?= htmlspecialchars($l['section_name'] ?? 'SPED Section A') ?></small>
+                                            <a href="<?= $basePath ?>/sections" class="text-decoration-none" title="View in Section Management">
+                                                <small class="d-block text-primary fw-semibold mt-1"><i class="bi bi-grid-3x3-gap-fill me-1"></i><?= htmlspecialchars($l['section_name'] ?? 'SPED Section A') ?></small>
+                                            </a>
                                         </td>
                                         <td>
                                             <?php if ($hasActiveAccount): ?>
@@ -390,8 +424,13 @@ require_once __DIR__ . '/../layouts/header.php';
                                                 </button>
                                                 <button type="button" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1" 
                                                         onclick="openQrInviteModal(<?= $l['student_record_id'] ?>, '<?= htmlspecialchars(addslashes($l['student_name'])) ?>', '<?= htmlspecialchars($l['claim_token'] ?? '') ?>')"
-                                                        style="border-radius: 6px; font-size: 0.8rem; font-weight: 500;">
-                                                    <i class="bi bi-qr-code"></i> QR Invite
+                                                        style="border-radius: 6px; font-size: 0.8rem; font-weight: 500;" title="View QR Code or Link">
+                                                    <i class="bi bi-qr-code"></i> QR
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-info d-inline-flex align-items-center gap-1" 
+                                                        onclick="sendQuickSmsInvite(<?= $l['student_record_id'] ?>, '<?= htmlspecialchars(addslashes($l['student_name'])) ?>')"
+                                                        style="border-radius: 6px; font-size: 0.8rem; font-weight: 500;" title="Invite Parent via Email, Messenger, or Phone">
+                                                    <i class="bi bi-envelope-paper-heart"></i> Invite
                                                 </button>
                                                 <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1" 
                                                         data-bs-toggle="modal" 
@@ -555,11 +594,75 @@ require_once __DIR__ . '/../layouts/header.php';
                         <i class="bi bi-check-circle-fill me-1"></i> Link copied to clipboard!
                     </small>
                 </div>
-                <div class="modal-footer bg-light d-flex justify-content-between">
-                    <button type="button" class="btn btn-outline-dark btn-sm" onclick="printQrSlip()">
-                        <i class="bi bi-printer me-1"></i> Print Invite Slip
-                    </button>
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                <div class="modal-footer bg-light d-flex justify-content-between flex-wrap gap-2">
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-dark btn-sm" onclick="printQrSlip()" style="border-radius: 6px;">
+                            <i class="bi bi-printer me-1"></i> Print Slip
+                        </button>
+                        <button type="button" class="btn btn-success btn-sm" onclick="sendSmsFromModal()" style="border-radius: 6px;">
+                            <i class="bi bi-chat-text-fill me-1"></i> Send SMS Invite
+                        </button>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="border-radius: 6px;">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Direct Parent Invitation Modal (Email, Messenger, Phone) -->
+    <div class="modal fade" id="directSmsModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content text-dark border-0 shadow-lg" style="border-radius: 12px;">
+                <div class="modal-header bg-primary-subtle py-3">
+                    <h6 class="modal-title fw-bold text-primary mb-0">
+                        <i class="bi bi-envelope-paper-heart-fill me-2"></i>Invite Parent / Guardian
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="small text-muted">Recipient Parent / Learner</div>
+                            <strong id="smsModalParentName" class="text-dark fs-6">—</strong>
+                        </div>
+                        <span id="smsModalPhoneBadge" class="badge bg-light text-secondary border px-2.5 py-1.5 font-monospace">09xxxxxxxxx</span>
+                    </div>
+
+                    <!-- Option 1: Instant Email Invite (100% Free Google SMTP) -->
+                    <div class="card border-0 bg-light p-3 mb-3" style="border-radius: 10px;">
+                        <label class="form-label small fw-bold text-dark mb-1">
+                            <i class="bi bi-envelope-at-fill text-primary me-1"></i> Option 1: Send Automated Email (Free)
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <input type="email" id="inviteModalEmailInput" class="form-control" placeholder="Enter parent's email address...">
+                            <button class="btn btn-primary fw-semibold px-3" type="button" id="sendEmailInviteBtn" onclick="sendAutomatedEmailInvite()">
+                                <i class="bi bi-send-fill me-1"></i> Send Email
+                            </button>
+                        </div>
+                        <div id="emailSendResult" class="small mt-2" style="display:none;"></div>
+                    </div>
+
+                    <!-- Option 2: Messenger / Viber Group Chat (Free) -->
+                    <div class="mb-2">
+                        <button type="button" class="btn btn-outline-primary d-flex align-items-center justify-content-center gap-2 w-100 py-2 fw-semibold" onclick="copyDirectSmsText()" style="border-radius: 7px; font-size: 0.875rem;">
+                            <i class="bi bi-chat-heart-fill"></i> Option 2: Copy Link &amp; Text for Messenger / GC
+                        </button>
+                    </div>
+
+                    <!-- Option 3: Phone Messages App (Free Unli-Text) -->
+                    <div>
+                        <a id="nativeSmsBtn" href="#" class="btn btn-outline-success d-flex align-items-center justify-content-center gap-2 w-100 py-2 fw-semibold" style="border-radius: 7px; font-size: 0.875rem;">
+                            <i class="bi bi-phone-fill"></i> Option 3: Open in Phone SMS App (Free Unli-Text)
+                        </a>
+                    </div>
+
+                    <div id="smsCopySuccess" class="alert alert-success border-0 small py-2 px-3 mt-3 text-center mb-0" style="display: none; border-radius: 6px;">
+                        <i class="bi bi-check-circle-fill me-1"></i> Na-kopyar na ang text! Pwede na nimo i-paste sa inyong Messenger chat o GC.
+                    </div>
+
+                    <div class="alert alert-light border small text-muted mt-3 mb-0" style="border-radius: 8px;">
+                        <i class="bi bi-info-circle me-1 text-primary"></i> <strong>100% Cost-Free:</strong> Walay bayad o SMS credits nga kaltason. Ang automated email diretsong moabot sa Gmail/Inbox sa ginikanan.
+                    </div>
                 </div>
             </div>
         </div>
@@ -569,8 +672,136 @@ require_once __DIR__ . '/../layouts/header.php';
     <script>
     let currentClaimUrl = '';
     let currentLearnerName = '';
+    let currentStudentId = 0;
+    let currentSmsPhone = '';
+    let currentSmsBody = '';
+    let currentParentEmail = '';
+
+    function copyUniversalGcLink() {
+        const protocol = window.location.protocol;
+        const host = window.location.host;
+        const basePath = '<?= $basePath ?>';
+        const gcUrl = protocol + '//' + host + basePath + '/invite/claim';
+
+        navigator.clipboard.writeText(gcUrl).then(() => {
+            alert('Kopyado ang Universal GC Link!\n\nLink: ' + gcUrl + '\n\nPwede na nimo kini i-paste sa inyong Messenger Group Chat aron ma-claim sa ginikanan gamit ang Ngalan o Alias sa ilang anak.');
+        }).catch(() => {
+            prompt('Kopyaha kining maong Universal GC Link para sa Messenger:', gcUrl);
+        });
+    }
+
+    function sendQuickSmsInvite(studentId, learnerName) {
+        currentStudentId = studentId;
+        currentLearnerName = learnerName;
+
+        fetch('<?= $basePath ?>/masterlist/send-sms-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ student_id: studentId, action: 'get_details' })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) {
+                alert(data.message || 'Wala makuha ang mga detalye.');
+                return;
+            }
+
+            // Populate Modal
+            currentSmsPhone = data.phone || '';
+            currentSmsBody = data.sms_body || '';
+            currentParentEmail = data.email || '';
+
+            document.getElementById('smsModalParentName').textContent = data.parent + ' (Parent of ' + data.student + ')';
+            document.getElementById('smsModalPhoneBadge').textContent = currentSmsPhone || 'No Phone';
+            document.getElementById('inviteModalEmailInput').value = currentParentEmail;
+            document.getElementById('smsCopySuccess').style.display = 'none';
+            document.getElementById('emailSendResult').style.display = 'none';
+
+            // Prepare native sms: URI scheme (supports both iOS and Android)
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const separator = isIOS ? '&' : '?';
+            const nativeUrl = 'sms:' + currentSmsPhone + separator + 'body=' + encodeURIComponent(currentSmsBody);
+            document.getElementById('nativeSmsBtn').setAttribute('href', nativeUrl);
+
+            const smsModal = new bootstrap.Modal(document.getElementById('directSmsModal'));
+            smsModal.show();
+        })
+        .catch(err => {
+            alert('Adunay sayop sa koneksyon sa pagkuha sa invitation details.');
+        });
+    }
+
+    function sendAutomatedEmailInvite() {
+        const emailInput = document.getElementById('inviteModalEmailInput');
+        const targetEmail = emailInput.value.trim();
+        const resultEl = document.getElementById('emailSendResult');
+        const btn = document.getElementById('sendEmailInviteBtn');
+
+        if (!targetEmail || !targetEmail.includes('@')) {
+            alert('Palihog pagbutang og sakto nga email address.');
+            emailInput.focus();
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
+        resultEl.style.display = 'none';
+
+        fetch('<?= $basePath ?>/masterlist/send-sms-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                student_id: currentStudentId,
+                action: 'send_email',
+                email: targetEmail
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-send-fill me-1"></i> Send Email';
+            resultEl.style.display = 'block';
+
+            if (data.success) {
+                resultEl.className = 'small mt-2 text-success fw-semibold';
+                resultEl.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> ' + (data.message || 'Napadala na ang email invitation!');
+            } else {
+                resultEl.className = 'small mt-2 text-danger fw-semibold';
+                resultEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + (data.message || 'Wala napadala ang email.');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-send-fill me-1"></i> Send Email';
+            resultEl.style.display = 'block';
+            resultEl.className = 'small mt-2 text-danger fw-semibold';
+            resultEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Error sa koneksyon sa email server.';
+        });
+    }
+
+    function copyDirectSmsText() {
+        navigator.clipboard.writeText(currentSmsBody).then(() => {
+            const el = document.getElementById('smsCopySuccess');
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 4000);
+        }).catch(() => {
+            prompt('Kopyaha ang mensahe para sa Messenger:', currentSmsBody);
+        });
+    }
+
+    function sendSmsFromModal() {
+        if (!currentStudentId) return;
+        // Close QR modal first then open Invite
+        const qrEl = document.getElementById('qrInviteModal');
+        const qrModalInstance = bootstrap.Modal.getInstance(qrEl);
+        if (qrModalInstance) {
+            qrModalInstance.hide();
+        }
+        sendQuickSmsInvite(currentStudentId, currentLearnerName);
+    }
 
     function openQrInviteModal(studentId, learnerName, token) {
+        currentStudentId = studentId;
         currentLearnerName = learnerName;
         document.getElementById('qrModalLearnerName').textContent = learnerName;
         document.getElementById('copySuccessMsg').style.display = 'none';

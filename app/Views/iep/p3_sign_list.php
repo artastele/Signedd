@@ -26,7 +26,7 @@ $basePath = defined('BASE_PATH') ? BASE_PATH : '';
         <div id="alertContainer"></div>
 
         <!-- Statistics Cards -->
-        <div class="row mb-4">
+        <div class="row mb-4 m-grid">
             <div class="col-md-4">
                 <div class="card text-center" style="border-top: 3px solid #ffc107;">
                     <div class="card-body">

@@ -176,8 +176,6 @@ route('POST', '/iep/implementation/save-activity',                  'IEPImplemen
 route('POST', '/iep/implementation/delete-material/{id}',           'IEPImplementationController', 'deleteMaterial',    'iep.implement');
 route('GET',  '/iep/implementation/progress/{id}',                  'IEPImplementationController', 'progress',          'iep.implement');
 // Process 6 — new workspace routes
-route('GET',  '/iep/implementation/{id}',                           'IEPImplementationController', 'workspace',         'iep.implement');
-route('GET',  '/iep/implementation/workspace/{id}',                 'IEPImplementationController', 'workspace',         'iep.implement');
 route('POST', '/iep/implementation/lesson-plan/create',             'IEPImplementationController', 'createLessonPlan',  'iep.implement');
 route('POST', '/iep/implementation/lesson-plan/upload-doc',         'IEPImplementationController', 'uploadLessonDoc',   'iep.implement');
 route('POST', '/iep/implementation/lesson-plan/{id}/publish',       'IEPImplementationController', 'publishLessonPlan', 'iep.implement');
@@ -209,11 +207,30 @@ route('POST', '/iep/implementation/submission/{id}/confirm-grade', 'IEPImplement
 route('POST', '/iep/implementation/traditional-doc/upload',        'IEPImplementationController', 'uploadTraditionalDoc', 'iep.implement');
 route('POST', '/iep/implementation/traditional-doc/delete/{id}',   'IEPImplementationController', 'deleteTraditionalDoc', 'iep.implement');
 
+// Accessibility Pack Resource Hub (MVP)
+route('GET',  '/iep/implementation/resource-hub',                 'IEPImplementationController', 'resourceHub',           'iep.implement');
+route('GET',  '/teacher/resource-hub',                            'IEPImplementationController', 'resourceHub',           'iep.implement');
+route('GET',  '/iep/implementation/resource-hub/preview/{id}',     'IEPImplementationController', 'previewResourcePack',   'iep.implement');
+route('GET',  '/teacher/resource-hub/preview/{id}',                'IEPImplementationController', 'previewResourcePack',   'iep.implement');
+route('POST', '/iep/implementation/resource-hub/share/{id}',       'IEPImplementationController', 'shareToResourceHub',     'iep.implement');
+route('POST', '/iep/implementation/resource-hub/clone/{id}',       'IEPImplementationController', 'cloneFromResourceHub',   'iep.implement');
+route('POST', '/iep/implementation/resource-hub/unshare/{id}',     'IEPImplementationController', 'unshareFromResourceHub', 'iep.implement');
+
+// Mainstream Mastery Handoff & Manual Result Logging (MVP)
+route('POST', '/iep/implementation/lesson-plan/{id}/mastery-result',              'IEPImplementationController', 'recordMasteryResult',   'iep.implement');
+route('GET',  '/iep/implementation/lesson-plan/{id}/mastery-result/{student_id}', 'IEPImplementationController', 'getMasteryResult',     'iep.implement');
+route('POST', '/iep/implementation/lesson-plan/{id}/mastery-resource',            'IEPImplementationController', 'updateMasteryResource', 'iep.implement');
+
+// IEP Implementation Workspace (Catch-all for IEP ID)
+route('GET',  '/iep/implementation/workspace/{id}',                 'IEPImplementationController', 'workspace',         'iep.implement');
+route('GET',  '/iep/implementation/{id}',                           'IEPImplementationController', 'workspace',         'iep.implement');
+
 // ============================================
 // LEARNER ROUTES (Process 7)
 // ============================================
 route('GET',  '/learning/dashboard',              'LearningController', 'dashboard',       'learning.access');
 route('GET',  '/learning/lesson/{id}',            'LearningController', 'lessonView',      'learning.access');
+route('GET',  '/learning/lesson/{id}/offline-manifest', 'LearningController', 'offlineLessonManifest', 'learning.access');
 route('POST', '/learning/lesson/{id}/progress',   'LearningController', 'savePageProgress',  'learning.access');
 route('GET',  '/learning/activity/{id}',          'LearningController', 'activityPlay',    'learning.access');
 route('POST', '/learning/activity/{id}/submit',   'LearningController', 'submitActivity',  'learning.access');
@@ -247,13 +264,23 @@ route('POST', '/masterlist/bulk-import',         'MasterlistController', 'bulkIm
 route('GET',  '/masterlist/import-template',    'MasterlistController', 'downloadImportTemplate');
 route('GET',  '/masterlist/get-qr-token',       'MasterlistController', 'getQrToken');
 
-// QR Code Parent Activation & Claim Routes
+// QR Code & Universal GC Parent Activation Routes
+route('GET',  '/invite/claim',                  'ParentClaimController', 'universalClaim');
+route('GET',  '/parent/claim',                  'ParentClaimController', 'universalClaim');
 route('GET',  '/invite/claim/{token}',          'ParentClaimController', 'claim');
 route('POST', '/invite/activate',               'ParentClaimController', 'activate');
+route('POST', '/invite/claim-by-alias',          'ParentClaimController', 'claimByAlias');
+
+// SMS Deadline Reminder & SMS Invite
+route('POST', '/learning/send-deadline-reminder', 'LearningController', 'sendDeadlineReminder');
+route('POST', '/masterlist/send-sms-invite',       'MasterlistController', 'sendSmsInvite');
+route('POST', '/masterlist/send-invite',           'MasterlistController', 'sendSmsInvite');
 
 // Steps 16 & 17 — Parent child progress (Process 7)
 route('GET',  '/parent/child-progress',           'LearningController', 'parentChildProgress', 'parent.dashboard');
 route('GET',  '/parent/child-progress/{id}',      'LearningController', 'parentStudentProgress', 'parent.dashboard');
+route('GET',  '/parent/worksheets',               'LearningController', 'parentWorksheets', 'parent.dashboard');
+route('POST', '/parent/submit-worksheet',         'LearningController', 'parentSubmitWorksheet', 'parent.dashboard');
 route('POST', '/parent/update-child-credentials',  'DashboardController', 'updateChildCredentials');
 
 
@@ -279,7 +306,6 @@ route('POST', '/iep/meetings/create', 'IEPMeetingController', 'createMeeting', '
 route('GET', '/iep/meetings/{id}/pdsp', 'IEPMeetingController', 'pdspForm', 'iep.meeting');
 route('POST', '/iep/meetings/pdsp/save', 'IEPMeetingController', 'savePDSP', 'iep.meeting');
 route('POST', '/iep/meetings/pdsp/submit', 'IEPMeetingController', 'submitPDSP', 'iep.meeting');
-route('POST', '/iep/meetings/pdsp/ai-extract', 'IEPMeetingController', 'aiExtract', 'iep.meeting');
 route('POST', '/iep/meetings/pdsp/upload-signed-document', 'IEPMeetingController', 'uploadSignedDocument', 'iep.meeting');
 route('GET', '/iep/meetings/{id}', 'IEPMeetingController', 'show', 'iep.meeting');
 route('GET', '/iep-meeting/{id}', 'IEPMeetingController', 'show', 'iep.meeting');

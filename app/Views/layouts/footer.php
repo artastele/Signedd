@@ -10,7 +10,7 @@
         Swal.fire({
             icon: 'success',
             title: 'Success!',
-            text: '<?php echo addslashes($_SESSION['success']); ?>',
+            text: <?php echo json_encode((string)$_SESSION['success'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
             confirmButtonColor: '#3b6d11',
             timer: 3000,
             timerProgressBar: true
@@ -23,7 +23,7 @@
         Swal.fire({
             icon: 'error',
             title: 'Error!',
-            text: '<?php echo addslashes($_SESSION['error']); ?>',
+            text: <?php echo json_encode((string)$_SESSION['error'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
             confirmButtonColor: '#a01422'
         });
     </script>
@@ -34,7 +34,7 @@
         Swal.fire({
             icon: 'warning',
             title: 'Warning!',
-            text: '<?php echo addslashes($_SESSION['warning']); ?>',
+            text: <?php echo json_encode((string)$_SESSION['warning'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
             confirmButtonColor: '#ffc107'
         });
     </script>
@@ -45,7 +45,7 @@
         Swal.fire({
             icon: 'info',
             title: 'Information',
-            text: '<?php echo addslashes($_SESSION['info']); ?>',
+            text: <?php echo json_encode((string)$_SESSION['info'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>,
             confirmButtonColor: '#1e4072'
         });
     </script>

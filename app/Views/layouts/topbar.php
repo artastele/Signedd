@@ -38,10 +38,17 @@ $role = $_SESSION['role'] ?? 'user';
             
             <!-- Notification Dropdown Panel -->
             <div class="notification-panel" id="notificationPanel" style="display: none;">
-                <div class="notification-header">
+                <div class="notification-header d-flex justify-content-between align-items-center">
                     <h6 class="mb-0">Notifications</h6>
                     <button class="btn btn-sm btn-link text-white p-0" id="markAllRead" style="display: none;">
                         Mark all as read
+                    </button>
+                </div>
+                <!-- Push Notification Permission Banner -->
+                <div id="pushNotifyBanner" class="p-2 border-bottom bg-light text-center small" style="display: none;">
+                    <div class="text-muted mb-1" style="font-size: 0.78rem;">Gusto ba nimong makadawat og instant alerts sa cellphone?</div>
+                    <button type="button" class="btn btn-primary btn-sm py-1 px-3 fw-semibold" onclick="requestBrowserPush()" style="font-size: 0.75rem; border-radius: 6px;">
+                        <i class="bi bi-bell-fill me-1"></i> Allow Notifications
                     </button>
                 </div>
                 <div class="notification-body" id="notificationBody">
@@ -52,6 +59,35 @@ $role = $_SESSION['role'] ?? 'user';
                 </div>
             </div>
         </div>
+
+        <script>
+        function requestBrowserPush() {
+            if (!('Notification' in window)) {
+                alert('Dili pa mosuporta ang imong browser sa Web Push Notifications.');
+                return;
+            }
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    new Notification('SignED SPED LMS', {
+                        body: 'Malampusong na-on ang notifications! Makadawat ka na karon og instant alerts.',
+                        icon: '<?= $basePath ?>/favicon.ico'
+                    });
+                    const b = document.getElementById('pushNotifyBanner');
+                    if (b) b.style.display = 'none';
+                    const alertCard = document.getElementById('parentPushAlert');
+                    if (alertCard) alertCard.style.display = 'none';
+                }
+            });
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            if ('Notification' in window && Notification.permission === 'default') {
+                const b = document.getElementById('pushNotifyBanner');
+                if (b) b.style.display = 'block';
+                const alertCard = document.getElementById('parentPushAlert');
+                if (alertCard) alertCard.style.display = 'flex';
+            }
+        });
+        </script>
 
         <!-- User Profile Dropdown -->
         <div class="topbar-user dropdown">

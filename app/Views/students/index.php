@@ -18,7 +18,7 @@ require_once __DIR__ . '/../layouts/header.php';
     </h1>
 
     <!-- Statistics Cards -->
-    <div class="row mb-4">
+    <div class="row mb-4 m-grid">
         <div class="col-md-3">
             <div class="card border-primary">
                 <div class="card-body">

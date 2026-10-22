@@ -74,20 +74,20 @@ unset($_SESSION['old_first_name'], $_SESSION['old_middle_name'], $_SESSION['old_
                 <!-- Name Fields (2-column grid) -->
                 <div class="form-row-2col mb-3">
                     <div class="form-floating">
-                        <input type="text" class="form-control" id="first_name" name="first_name" placeholder="First Name" value="<?php echo htmlspecialchars($oldFirstName); ?>" required autofocus>
-                        <label for="first_name"><i class="bi bi-person"></i> First Name *</label>
+                        <input type="text" class="form-control" id="first_name" name="first_name" placeholder="Full Name or Alias" value="<?php echo htmlspecialchars($oldFirstName); ?>" required autofocus>
+                        <label for="first_name"><i class="bi bi-person"></i> Full Name or Alias *</label>
                     </div>
 
                     <div class="form-floating">
                         <input type="text" class="form-control" id="middle_name" name="middle_name" placeholder="Middle Name" value="<?php echo htmlspecialchars($oldMiddleName); ?>">
-                        <label for="middle_name">Middle Name</label>
+                        <label for="middle_name">Middle Name (Optional)</label>
                     </div>
                 </div>
 
                 <div class="form-row-2col mb-3">
                     <div class="form-floating">
-                        <input type="text" class="form-control" id="last_name" name="last_name" placeholder="Last Name" value="<?php echo htmlspecialchars($oldLastName); ?>" required>
-                        <label for="last_name">Last Name *</label>
+                        <input type="text" class="form-control" id="last_name" name="last_name" placeholder="Last Name" value="<?php echo htmlspecialchars($oldLastName); ?>">
+                        <label for="last_name">Last Name (Optional)</label>
                     </div>
 
                     <div class="form-floating">
@@ -121,27 +121,38 @@ unset($_SESSION['old_first_name'], $_SESSION['old_middle_name'], $_SESSION['old_
                 <!-- Password -->
                 <div class="mb-3">
                     <div class="form-floating password-toggle-wrapper">
-                        <input type="password" class="form-control password-toggle-input" id="password" name="password" placeholder="Password" required>
-                        <label for="password"><i class="bi bi-lock"></i> Password *</label>
+                        <input type="password" class="form-control password-toggle-input" id="password" name="password" placeholder="Password" required autocomplete="new-password">
+                        <label for="password"><i class="bi bi-lock"></i> Password <span class="text-danger">*</span></label>
                         <button type="button" class="password-toggle-btn" 
                                 onclick="togglePassword('password', 'togglePasswordIcon')" 
                                 aria-label="Toggle password visibility">
                             <i class="bi bi-eye-slash" id="togglePasswordIcon"></i>
                         </button>
                     </div>
-                    <!-- Password strength indicator will be inserted here by JavaScript -->
                 </div>
 
                 <!-- Confirm Password -->
                 <div class="mb-4">
                     <div class="form-floating password-toggle-wrapper">
-                        <input type="password" class="form-control password-toggle-input" id="confirm_password" name="confirm_password" placeholder="Confirm Password" required>
-                        <label for="confirm_password"><i class="bi bi-lock-fill"></i> Confirm Password *</label>
+                        <input type="password" class="form-control password-toggle-input" id="confirm_password" name="confirm_password" placeholder="Confirm Password" required autocomplete="new-password">
+                        <label for="confirm_password"><i class="bi bi-lock-fill"></i> Confirm Password <span class="text-danger">*</span></label>
                         <button type="button" class="password-toggle-btn" 
                                 onclick="togglePassword('confirm_password', 'toggleConfirmPasswordIcon')" 
                                 aria-label="Toggle confirm password visibility">
                             <i class="bi bi-eye-slash" id="toggleConfirmPasswordIcon"></i>
                         </button>
+                    </div>
+                </div>
+
+                <!-- Data Privacy Act (RA 10173) Consent -->
+                <div class="card bg-light border-0 rounded-3 p-3 mb-3" style="border: 1px solid #e2e8f0 !important;">
+                    <div class="form-check d-flex align-items-start gap-2 mb-0">
+                        <input class="form-check-input mt-1 flex-shrink-0" type="checkbox" id="privacy_consent" name="privacy_consent" value="1" required style="cursor: pointer;">
+                        <label class="form-check-label small text-secondary" for="privacy_consent" style="cursor: pointer; line-height: 1.45;">
+                            I have read, understood, and agree to the 
+                            <a href="#dataPrivacyModal" data-bs-toggle="modal" class="text-primary fw-semibold text-decoration-none">Data Privacy Notice</a>. 
+                            In compliance with <strong>Republic Act No. 10173 (Data Privacy Act of 2012)</strong>, I give my explicit consent to SignED to collect, process, and store my personal information for educational and account management purposes. <span class="text-danger">*</span>
+                        </label>
                     </div>
                 </div>
 
@@ -183,92 +194,12 @@ function togglePassword(inputId, iconId) {
     }
 }
 
-// Real-time password validation
+// Password matching validation
 document.addEventListener('DOMContentLoaded', function() {
     const passwordInput = document.getElementById('password');
     const confirmPasswordInput = document.getElementById('confirm_password');
     const form = document.querySelector('form');
     
-    // Create password strength indicator
-    const strengthIndicator = document.createElement('div');
-    strengthIndicator.className = 'password-strength mt-2';
-    strengthIndicator.innerHTML = `
-        <div class="strength-requirements">
-            <small class="requirement" id="req-length">
-                <i class="bi bi-x-circle text-danger"></i> At least 8 characters
-            </small>
-            <small class="requirement" id="req-uppercase">
-                <i class="bi bi-x-circle text-danger"></i> One uppercase letter
-            </small>
-            <small class="requirement" id="req-number">
-                <i class="bi bi-x-circle text-danger"></i> One number
-            </small>
-            <small class="requirement" id="req-special">
-                <i class="bi bi-x-circle text-danger"></i> One special character
-            </small>
-        </div>
-    `;
-    passwordInput.closest('.mb-3').appendChild(strengthIndicator);
-    
-    // Validate password on input
-    passwordInput.addEventListener('input', function() {
-        const password = this.value;
-        
-        // Check length
-        const lengthReq = document.getElementById('req-length');
-        if (password.length >= 8) {
-            lengthReq.innerHTML = '<i class="bi bi-check-circle text-success"></i> At least 8 characters';
-            lengthReq.classList.add('text-success');
-            lengthReq.classList.remove('text-muted');
-        } else {
-            lengthReq.innerHTML = '<i class="bi bi-x-circle text-danger"></i> At least 8 characters';
-            lengthReq.classList.remove('text-success');
-            lengthReq.classList.add('text-muted');
-        }
-        
-        // Check uppercase
-        const uppercaseReq = document.getElementById('req-uppercase');
-        if (/[A-Z]/.test(password)) {
-            uppercaseReq.innerHTML = '<i class="bi bi-check-circle text-success"></i> One uppercase letter';
-            uppercaseReq.classList.add('text-success');
-            uppercaseReq.classList.remove('text-muted');
-        } else {
-            uppercaseReq.innerHTML = '<i class="bi bi-x-circle text-danger"></i> One uppercase letter';
-            uppercaseReq.classList.remove('text-success');
-            uppercaseReq.classList.add('text-muted');
-        }
-        
-        // Check number
-        const numberReq = document.getElementById('req-number');
-        if (/[0-9]/.test(password)) {
-            numberReq.innerHTML = '<i class="bi bi-check-circle text-success"></i> One number';
-            numberReq.classList.add('text-success');
-            numberReq.classList.remove('text-muted');
-        } else {
-            numberReq.innerHTML = '<i class="bi bi-x-circle text-danger"></i> One number';
-            numberReq.classList.remove('text-success');
-            numberReq.classList.add('text-muted');
-        }
-        
-        // Check special character
-        const specialReq = document.getElementById('req-special');
-        if (/[^A-Za-z0-9]/.test(password)) {
-            specialReq.innerHTML = '<i class="bi bi-check-circle text-success"></i> One special character';
-            specialReq.classList.add('text-success');
-            specialReq.classList.remove('text-muted');
-        } else {
-            specialReq.innerHTML = '<i class="bi bi-x-circle text-danger"></i> One special character';
-            specialReq.classList.remove('text-success');
-            specialReq.classList.add('text-muted');
-        }
-        
-        // Check confirm password match
-        if (confirmPasswordInput.value) {
-            validatePasswordMatch();
-        }
-    });
-    
-    // Validate password match
     function validatePasswordMatch() {
         const password = passwordInput.value;
         const confirmPassword = confirmPasswordInput.value;
@@ -284,27 +215,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    passwordInput.addEventListener('input', function() {
+        if (confirmPasswordInput.value) {
+            validatePasswordMatch();
+        }
+    });
     confirmPasswordInput.addEventListener('input', validatePasswordMatch);
     
     // Form submission validation
     form.addEventListener('submit', function(e) {
         const password = passwordInput.value;
         const confirmPassword = confirmPasswordInput.value;
-        
-        // Validate password requirements
-        const isValid = password.length >= 8 &&
-                       /[A-Z]/.test(password) &&
-                       /[0-9]/.test(password) &&
-                       /[^A-Za-z0-9]/.test(password);
-        
-        if (!isValid) {
+
+        if (!password) {
             e.preventDefault();
-            alert('Please meet all password requirements before submitting.');
+            alert('Password is required.');
             passwordInput.focus();
             return false;
         }
         
-        // Validate password match
         if (password !== confirmPassword) {
             e.preventDefault();
             alert('Passwords do not match.');
@@ -316,29 +245,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
-.password-strength {
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 6px;
-    padding: 12px;
-}
-
-.strength-requirements {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.requirement {
-    display: block;
-    font-size: 0.875rem;
-    transition: all 0.3s ease;
-}
-
-.requirement i {
-    margin-right: 6px;
-}
-
 .is-valid {
     border-color: #198754 !important;
 }
@@ -347,5 +253,5 @@ document.addEventListener('DOMContentLoaded', function() {
     border-color: #dc3545 !important;
 }
 </style>
-
+<?php include __DIR__ . '/../components/data_privacy_modal.php'; ?>
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

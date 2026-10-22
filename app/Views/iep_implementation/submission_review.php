@@ -379,6 +379,67 @@ $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
         <?php endforeach; ?>
         <?php endforeach; ?>
 
+    <?php elseif ($actType === 'custom_printable' || !empty($submission['file_path'])): ?>
+        <?php
+        $subAnswers = is_array($answers) ? $answers : [];
+        $subFile = $submission['file_path'] ?? ($subAnswers['file_path'] ?? '');
+        $fullSubFile = $subFile ? ($basePath . '/' . ltrim($subFile, '/')) : '';
+        $isSubImg = $subFile && preg_match('/\.(png|jpe?g|webp|gif)$/i', $subFile);
+        $isSubPdf = $subFile && preg_match('/\.pdf$/i', $subFile);
+        
+        $origWs = $actData['file_path'] ?? '';
+        $fullOrigWs = $origWs ? ($basePath . '/' . ltrim($origWs, '/')) : '';
+        ?>
+        <div class="mb-4">
+            <?php if ($fullOrigWs): ?>
+                <div class="p-3 bg-light rounded border mb-3">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div>
+                            <span class="fw-semibold small text-primary"><i class="ti ti-file-text me-1"></i> Original Assigned Worksheet:</span>
+                            <div class="small text-dark fw-bold"><?php echo htmlspecialchars($actData['file_name'] ?? basename($origWs)); ?></div>
+                        </div>
+                        <a href="<?php echo htmlspecialchars($fullOrigWs); ?>" target="_blank" class="btn btn-sm btn-outline-primary" download>
+                            <i class="ti ti-download me-1"></i> Download Original Sheet
+                        </a>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <h6 class="fw-bold mb-2" style="color:#1e4072;">
+                <i class="ti ti-file-check me-1"></i> Learner's Submitted Work
+            </h6>
+
+            <?php if (!empty($subAnswers['notes'])): ?>
+                <div class="alert alert-light border small mb-3">
+                    <strong>Learner / Parent Notes:</strong> <?php echo htmlspecialchars($subAnswers['notes']); ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($fullSubFile): ?>
+                <?php if ($isSubImg): ?>
+                    <div class="text-center p-3 bg-light rounded border mb-3">
+                        <a href="<?php echo htmlspecialchars($fullSubFile); ?>" target="_blank" title="Click to view full size in new tab">
+                            <img src="<?php echo htmlspecialchars($fullSubFile); ?>" class="img-fluid rounded border shadow-sm" style="max-height:540px; cursor:zoom-in;" alt="Student Submission">
+                        </a>
+                        <div class="form-text small text-muted mt-2">Click image to open in full size tab.</div>
+                    </div>
+                <?php elseif ($isSubPdf): ?>
+                    <div class="mb-3">
+                        <iframe src="<?php echo htmlspecialchars($fullSubFile); ?>" style="width:100%;height:520px;border:1px solid #dee2e6;border-radius:8px;"></iframe>
+                    </div>
+                <?php endif; ?>
+
+                <div class="d-flex justify-content-between align-items-center p-2.5 bg-light rounded border">
+                    <span class="small fw-semibold text-dark"><i class="ti ti-paperclip me-1 text-primary"></i> <?php echo htmlspecialchars(basename($subFile)); ?></span>
+                    <a href="<?php echo htmlspecialchars($fullSubFile); ?>" target="_blank" class="btn btn-sm text-white" style="background:#1e4072;border:none;" download>
+                        <i class="ti ti-download me-1"></i> Download Student File
+                    </a>
+                </div>
+            <?php else: ?>
+                <div class="alert alert-warning small">No file attached to this submission.</div>
+            <?php endif; ?>
+        </div>
+
     <?php else: ?>
         <pre class="bg-light p-3 rounded small"><?php echo htmlspecialchars(json_encode($answers, JSON_PRETTY_PRINT)); ?></pre>
     <?php endif; ?>

@@ -33,7 +33,7 @@ $iepStudentCode = $iepImplRec['student_id'] ?? null;
     </div>
 
     <!-- Statistics Cards -->
-    <div class="row mb-4">
+    <div class="row mb-4 m-grid">
         <div class="col-md-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">

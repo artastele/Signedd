@@ -133,6 +133,31 @@ class AuthController {
             exit;
         }
 
+        // Demo Account & Password Safety in Production / Pilot
+        $appEnv = strtolower(getenv('APP_ENV') ?: ($_ENV['APP_ENV'] ?? 'development'));
+        $host = $_SERVER['HTTP_HOST'] ?? '';
+        $isTestHost = (strpos($host, 'signedtest') !== false || strpos($host, 'localhost') !== false || strpos($host, '127.0.0.1') !== false || strpos($host, '.test') !== false || strpos($host, '.local') !== false);
+        $isDemoAccount = (strpos($user['email'], '@signed.ph') !== false) 
+                      || (strpos($user['email'], 'demo') !== false)
+                      || (strpos(strtolower($user['name'] ?? ''), '(demo)') !== false);
+
+        if ($appEnv === 'production' && !$isTestHost) {
+            if ($isDemoAccount) {
+                RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
+                $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
+                $_SESSION['error'] = 'Demo accounts are disabled in production mode. Please use official school credentials.';
+                header('Location: ' . $basePath . '/login');
+                exit;
+            }
+            if (in_array(strtolower($password), ['password', 'password123', 'admin123', '12345678'], true)) {
+                RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
+                $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
+                $_SESSION['error'] = 'Default demo passwords cannot be used in a production environment. Please reset your password.';
+                header('Location: ' . $basePath . '/login');
+                exit;
+            }
+        }
+
         // Login successful
         RateLimitHelper::recordLoginAttempt($email, true, $ipAddress);
         RateLimitHelper::clearLoginAttempts($email);
@@ -148,27 +173,13 @@ class AuthController {
         $_SESSION['name'] = $user['name'];  // Add for compatibility
         $_SESSION['email'] = $user['email'];  // Add for compatibility
         $_SESSION['role'] = $user['role'];
-        $_SESSION['email_verified'] = $this->userModel->isEmailVerified($user['id']);
-        $_SESSION['last_activity'] = time();
-
-        // Check if email is verified
-        if (!$_SESSION['email_verified']) {
-            // Generate new OTP
-            $otp = $this->userModel->generateOTP($user['id']);
-            $_SESSION['dev_otp_code'] = $otp;
-            
-            if (class_exists('MailHelper')) {
-                try {
-                    MailHelper::sendOTPEmail($email, $user['name'], $otp);
-                } catch (\Throwable $e) {
-                    error_log("Failed to send OTP email: " . $e->getMessage());
-                }
-            }
-            
-            $_SESSION['success'] = 'Please verify your email to continue. A verification code has been generated.';
-            header('Location: ' . $basePath . '/auth/verify-email');
-            exit;
+        $_SESSION['school_id'] = !empty($user['school_id']) ? (int)$user['school_id'] : null;
+        // Email verification bypassed for new user registration & development
+        $_SESSION['email_verified'] = true;
+        if (!$this->userModel->isEmailVerified($user['id'])) {
+            $this->userModel->markEmailVerified($user['id']);
         }
+        $_SESSION['last_activity'] = time();
 
         // Redirect to dashboard
         header('Location: ' . $basePath . '/dashboard');
@@ -228,11 +239,7 @@ class AuthController {
         $errors = [];
 
         if (empty($firstName)) {
-            $errors[] = 'First name is required.';
-        }
-
-        if (empty($lastName)) {
-            $errors[] = 'Last name is required.';
+            $errors[] = 'Full name or alias is required.';
         }
 
         if (empty($email)) {
@@ -249,14 +256,15 @@ class AuthController {
             $errors[] = 'Contact number must be 11 digits.';
         }
 
+        // Password is required, but no complexity rules enforced
         if (empty($password)) {
             $errors[] = 'Password is required.';
-        } elseif (!$this->validatePassword($password)) {
-            $errors[] = 'Password must be at least 8 characters with 1 uppercase, 1 number, and 1 special character.';
+        } elseif ($password !== $confirmPassword) {
+            $errors[] = 'Passwords do not match.';
         }
 
-        if ($password !== $confirmPassword) {
-            $errors[] = 'Passwords do not match.';
+        if (empty($_POST['privacy_consent'])) {
+            $errors[] = 'You must agree to the Data Privacy Act (RA 10173) consent statement to create an account.';
         }
 
         if (!empty($errors)) {
@@ -271,8 +279,9 @@ class AuthController {
             exit;
         }
 
-        // Create full name
-        $fullName = $firstName . ' ' . ($middleName ? $middleName . ' ' : '') . $lastName . ($suffix ? ' ' . $suffix : '');
+        // Create full name (handles single alias or full name)
+        $nameParts = array_filter([$firstName, $middleName, $lastName, $suffix]);
+        $fullName = !empty($nameParts) ? implode(' ', $nameParts) : $firstName;
 
         // Create user
         $userId = $this->userModel->create($fullName, $firstName, $middleName, $lastName, $suffix, $email, $contactNumber, $password);
@@ -281,28 +290,21 @@ class AuthController {
             // Record registration attempt
             RateLimitHelper::recordRegistrationAttempt($email, $ipAddress);
 
-            // Generate and send OTP
-            $otp = $this->userModel->generateOTP($userId);
-            $_SESSION['dev_otp_code'] = $otp;
+            // Auto-verify email (OTP verification bypassed for new user registration)
+            $this->userModel->markEmailVerified($userId);
             
-            if (class_exists('MailHelper')) {
-                try {
-                    MailHelper::sendOTPEmail($email, $fullName, $otp);
-                } catch (\Throwable $e) {
-                    error_log("Failed to send OTP email: " . $e->getMessage());
-                }
-            }
-            
-            // Set session for verification
+            // Set session for immediate access
             $_SESSION['user_id'] = $userId;
             $_SESSION['user_name'] = $fullName;
             $_SESSION['user_email'] = $email;
+            $_SESSION['name'] = $fullName;
+            $_SESSION['email'] = $email;
             $_SESSION['role'] = 'user';
-            $_SESSION['email_verified'] = false;
+            $_SESSION['email_verified'] = true;
             $_SESSION['last_activity'] = time();
             
-            $_SESSION['success'] = 'Registration successful! Verification code generated.';
-            header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/auth/verify-email');
+            $_SESSION['success'] = 'Registration successful! Welcome to SignED.';
+            header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/dashboard');
         } else {
             $_SESSION['error'] = 'Registration failed. Please try again.';
             header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/register');
@@ -332,39 +334,11 @@ class AuthController {
             exit;
         }
         
-        // If already verified, redirect to dashboard
-        if ($this->userModel->isEmailVerified($_SESSION['user_id'])) {
-            header('Location: ' . $basePath . '/dashboard');
-            exit;
-        }
-
-        // Check if user has an unexpired verification token
-        try {
-            $db = Database::getInstance()->getConnection();
-            $stmt = $db->prepare("SELECT email_verification_token, email_verification_expires FROM users WHERE id = :id LIMIT 1");
-            $stmt->execute(['id' => $_SESSION['user_id']]);
-            $tokenData = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            $needsNewCode = empty($tokenData['email_verification_token']) 
-                || empty($tokenData['email_verification_expires']) 
-                || (strtotime($tokenData['email_verification_expires']) < time());
-
-            if ($needsNewCode) {
-                $otp = $this->userModel->generateOTP($_SESSION['user_id']);
-                if (class_exists('MailHelper')) {
-                    try {
-                        MailHelper::sendOTPEmail($_SESSION['user_email'], $_SESSION['user_name'] ?? 'User', $otp);
-                    } catch (\Throwable $e) {
-                        error_log("Failed to send OTP email: " . $e->getMessage());
-                    }
-                }
-            }
-        } catch (\Throwable $e) {
-            error_log("Verification check error: " . $e->getMessage());
-        }
-        unset($_SESSION['dev_otp_code']);
-        
-        require_once __DIR__ . '/../Views/auth/verify_email.php';
+        // Auto-verify and redirect to dashboard
+        $this->userModel->markEmailVerified($_SESSION['user_id']);
+        $_SESSION['email_verified'] = true;
+        header('Location: ' . $basePath . '/dashboard');
+        exit;
     }
 
     /**
@@ -639,6 +613,7 @@ class AuthController {
         $_SESSION['name'] = $user['name'];  // Add for compatibility
         $_SESSION['email'] = $user['email'];  // Add for compatibility
         $_SESSION['role'] = $user['role'];
+        $_SESSION['school_id'] = !empty($user['school_id']) ? (int)$user['school_id'] : null;
         $_SESSION['email_verified'] = (bool)($user['email_verified'] ?? false);
         $_SESSION['last_activity'] = time();
         
@@ -648,23 +623,10 @@ class AuthController {
     }
 
     /**
-     * Validate password strength
+     * Validate password
      */
     private function validatePassword($password) {
-        // Min 8 chars, 1 uppercase, 1 number, 1 special character
-        if (strlen($password) < 8) {
-            return false;
-        }
-        if (!preg_match('/[A-Z]/', $password)) {
-            return false;
-        }
-        if (!preg_match('/[0-9]/', $password)) {
-            return false;
-        }
-        if (!preg_match('/[^A-Za-z0-9]/', $password)) {
-            return false;
-        }
-        return true;
+        return !empty($password);
     }
 
     /**

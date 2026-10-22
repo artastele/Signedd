@@ -122,6 +122,11 @@ if ($role === 'learner') {
                 <i class="bi bi-bar-chart-line"></i>
                 <span>My Child's Progress</span>
             </a>
+            <!-- Printable Worksheets -->
+            <a href="<?php echo $basePath; ?>/parent/worksheets" class="<?php echo isActive('/parent/worksheets'); ?>">
+                <i class="bi bi-printer"></i>
+                <span>Printable Worksheets</span>
+            </a>
             <a href="<?php echo $basePath; ?>/iep/meetings" class="<?php echo isActive('/iep/meetings'); ?>">
                 <i class="bi bi-calendar-check"></i>
                 <span>IEP Meetings</span>
@@ -167,9 +172,13 @@ if ($role === 'learner') {
                 </div>
             </div>
 
-            <a href="<?php echo $basePath; ?>/iep/implementation" class="<?php echo isActive('/iep/implementation'); ?>">
+            <a href="<?php echo $basePath; ?>/iep/implementation" class="<?php echo isActive('/iep/implementation') && !isActive('/iep/implementation/resource-hub') ? 'active' : ''; ?>">
                 <i class="bi bi-book"></i>
                 <span>IEP Workspace</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/iep/implementation/resource-hub" class="<?php echo isActive('/iep/implementation/resource-hub') || isActive('/teacher/resource-hub') ? 'active' : ''; ?>">
+                <i class="bi bi-collection-play"></i>
+                <span>Resource Hub</span>
             </a>
             <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports') || isActive('/iep/implementation/progress-tracker'); ?>">
                 <i class="bi bi-file-earmark-bar-graph"></i>
@@ -246,14 +255,6 @@ if ($role === 'learner') {
                 <i class="bi bi-file-earmark-medical"></i>
                 <span>IEP Documents</span>
             </a>
-            <a href="<?php echo $basePath; ?>/progress-reports" class="<?php echo isActive('/progress-reports'); ?>">
-                <i class="bi bi-file-earmark-bar-graph"></i>
-                <span>Progress Reports</span>
-            </a>
-            <a href="<?php echo $basePath; ?>/cot/observations" class="<?php echo isActive('/cot/observations'); ?>">
-                <i class="bi bi-eye"></i>
-                <span>Observations</span>
-            </a>
 
         <?php elseif ($role === 'master_teacher'): ?>
             <a href="<?php echo $basePath; ?>/sections" class="<?php echo isActive('/sections'); ?>">
@@ -276,15 +277,15 @@ if ($role === 'learner') {
                 <i class="bi bi-journal-check"></i>
                 <span>ITGP Inspection</span>
             </a>
+            <a href="<?php echo $basePath; ?>/iep/implementation/resource-hub" class="<?php echo isActive('/iep/implementation/resource-hub') ? 'active' : ''; ?>">
+                <i class="bi bi-collection-play"></i>
+                <span>Resource Hub</span>
+            </a>
 
         <?php elseif ($role === 'admin'): ?>
             <a href="<?php echo $basePath; ?>/admin/role-requests" class="<?php echo isActive('/admin/role-requests'); ?>">
                 <i class="bi bi-person-check"></i>
                 <span>Principal &amp; School Requests</span>
-            </a>
-            <a href="<?php echo $basePath; ?>/sections" class="<?php echo isActive('/sections'); ?>">
-                <i class="bi bi-grid-3x3-gap-fill"></i>
-                <span>Section Management</span>
             </a>
             <a href="<?php echo $basePath; ?>/admin/manage-users" class="<?php echo isActive('/admin/manage-users'); ?>">
                 <i class="bi bi-people"></i>
@@ -293,6 +294,10 @@ if ($role === 'learner') {
             <a href="<?php echo $basePath; ?>/admin/settings" class="<?php echo isActive('/admin/settings'); ?>">
                 <i class="bi bi-gear"></i>
                 <span>System Settings</span>
+            </a>
+            <a href="<?php echo $basePath; ?>/iep/implementation/resource-hub" class="<?php echo isActive('/iep/implementation/resource-hub') ? 'active' : ''; ?>">
+                <i class="bi bi-collection-play"></i>
+                <span>Resource Hub</span>
             </a>
             <a href="<?php echo $basePath; ?>/admin/login-logs" class="<?php echo isActive('/admin/login-logs'); ?>">
                 <i class="bi bi-shield-lock"></i>
@@ -304,8 +309,8 @@ if ($role === 'learner') {
             </a>
         <?php endif; ?>
 
-        <?php if ($role !== 'parent' && $role !== 'user' && $role !== 'learner'): ?>
-            <!-- Student Records & Masterlist - Available for all staff roles -->
+        <?php if ($role !== 'parent' && $role !== 'user' && $role !== 'learner' && $role !== 'admin'): ?>
+            <!-- Student Records & Masterlist - Available for all school staff roles -->
             <div class="sidebar-divider"></div>
             <a href="<?php echo $basePath; ?>/masterlist" class="<?php echo isActive('/masterlist'); ?>">
                 <i class="bi bi-people-fill"></i>

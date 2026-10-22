@@ -109,8 +109,36 @@
                     }
                 }
             });
+
+            // Standalone close handler for when bootstrap JS is not loaded offline
+            modalEl.addEventListener('click', function (e) {
+                if (e.target.matches('[data-bs-dismiss="modal"]') || e.target.closest('[data-bs-dismiss="modal"]') || e.target === modalEl) {
+                    if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+                        window.closeFSLModalStandalone();
+                    }
+                }
+            });
         }
     }
+
+    window.closeFSLModalStandalone = function () {
+        const modalEl = document.getElementById('fslSignModal');
+        if (modalEl) {
+            modalEl.classList.remove('show');
+            modalEl.style.display = 'none';
+            modalEl.setAttribute('aria-hidden', 'true');
+        }
+        const backdrop = document.getElementById('fslModalBackdrop');
+        if (backdrop) backdrop.remove();
+        const videoEl = document.getElementById('fslVideo');
+        if (videoEl) {
+            videoEl.pause();
+            videoEl.removeAttribute('src');
+            while (videoEl.firstChild) {
+                videoEl.removeChild(videoEl.firstChild);
+            }
+        }
+    };
 
     // Set video playback rate
     window.setFSLSpeed = function (speed, btnElement) {
@@ -147,7 +175,10 @@
     window.openFSLModal = function (word, customData = {}) {
         ensureFSLModal();
         const modalEl = document.getElementById('fslSignModal');
-        const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        let bsModal = null;
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        }
 
         const titleEl = document.getElementById('fslModalTitle');
         const descEl = document.getElementById('fslDescription');
@@ -165,7 +196,23 @@
         loader.classList.remove('d-none');
         imgEl.classList.add('d-none');
         videoEl.classList.add('d-none');
-        bsModal.show();
+
+        if (bsModal) {
+            bsModal.show();
+        } else {
+            modalEl.classList.add('show');
+            modalEl.style.display = 'block';
+            modalEl.removeAttribute('aria-hidden');
+            modalEl.setAttribute('aria-modal', 'true');
+            let backdrop = document.getElementById('fslModalBackdrop');
+            if (!backdrop) {
+                backdrop = document.createElement('div');
+                backdrop.id = 'fslModalBackdrop';
+                backdrop.className = 'modal-backdrop fade show';
+                backdrop.style.zIndex = '1085';
+                document.body.appendChild(backdrop);
+            }
+        }
 
         if (customData.gif || customData.video || customData.desc) {
             catEl.textContent = customData.category || 'General';
@@ -252,6 +299,15 @@
             }
 
             // Create video sources for robust compatibility across browsers
+            // If the video path references a .mov file, offer the .mp4 candidate first
+            if (/\.mov$/i.test(fullVideoUrl)) {
+                const mp4Candidate = fullVideoUrl.replace(/\.mov$/i, '.mp4');
+                const sourceWebMp4 = document.createElement('source');
+                sourceWebMp4.src = mp4Candidate;
+                sourceWebMp4.type = 'video/mp4';
+                videoEl.appendChild(sourceWebMp4);
+            }
+
             const sourceMp4 = document.createElement('source');
             sourceMp4.src = fullVideoUrl;
             sourceMp4.type = 'video/mp4';

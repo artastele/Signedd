@@ -1,5 +1,9 @@
 # SignED Public .htaccess - Minimal Configuration for Shared Hosting Compatibility
-<FilesMatch "^\.env|composer\.(json|lock)$">
+
+Options -Indexes
+
+# Block direct web access to sensitive environment, database, log, archive, config, and markdown files
+<FilesMatch "(^\.env|composer\.(json|lock)$|\.(sql|log|zip|lock|bak|md)$|package(-lock)?\.json|mcp_config\.json|my\.ini)">
     <IfModule !mod_authz_core.c>
         Order allow,deny
         Deny from all

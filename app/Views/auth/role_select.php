@@ -293,6 +293,20 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
                     <input type="hidden" name="requested_role" value="principal">
                     <input type="hidden" name="school_mode" value="new">
 
+                    <!-- Data Privacy Protection Banner -->
+                    <div class="alert alert-light border shadow-sm rounded-3 py-2 px-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2" style="background-color: #f8fafc; border-left: 4px solid #2563eb !important;">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-shield-check text-primary fs-5"></i>
+                            <div class="small text-secondary">
+                                <strong class="text-dark">Republic Act No. 10173 (Data Privacy Act of 2012) Protection:</strong>
+                                All school information, plantilla credentials, and uploaded documents are strictly protected under DepEd data privacy rules.
+                            </div>
+                        </div>
+                        <a href="#dataPrivacyModal" data-bs-toggle="modal" class="btn btn-sm btn-outline-primary py-1 px-2.5" style="border-radius: 6px; font-size: 0.78rem; font-weight: 500;">
+                            <i class="bi bi-shield-lock me-1"></i> View Privacy Policy
+                        </a>
+                    </div>
+
                     <!-- SECTION 1: PRINCIPAL DETAILS -->
                     <div class="mb-4">
                         <h6 class="fw-bold text-primary mb-3">
@@ -399,6 +413,18 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
                         </div>
                     </div>
 
+                    <!-- Data Privacy Act (RA 10173) Consent -->
+                    <div class="card bg-light border-0 rounded-3 p-3 mt-4 mb-2" style="border: 1px solid #e2e8f0 !important;">
+                        <div class="form-check d-flex align-items-start gap-2 mb-0">
+                            <input class="form-check-input mt-1 flex-shrink-0" type="checkbox" id="privacy_consent_principal" name="privacy_consent" value="1" required style="cursor: pointer;">
+                            <label class="form-check-label small text-secondary" for="privacy_consent_principal" style="cursor: pointer; line-height: 1.45;">
+                                In compliance with <strong>Republic Act No. 10173 (Data Privacy Act of 2012)</strong>, I have read the 
+                                <a href="#dataPrivacyModal" data-bs-toggle="modal" class="text-primary fw-semibold text-decoration-none">Data Privacy Notice</a>. 
+                                I certify that the school credentials and personal records submitted are accurate and consent to their verification and processing. <span class="text-danger">*</span>
+                            </label>
+                        </div>
+                    </div>
+
                     <div class="d-flex justify-content-end gap-2 mt-4 border-top pt-3">
                         <a href="<?php echo $basePath; ?>/dashboard" class="btn btn-outline-secondary px-4">
                             <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
@@ -455,6 +481,20 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
 
                 <form method="POST" action="<?php echo $basePath; ?>/role/submit-staff" enctype="multipart/form-data">
                     <input type="hidden" name="school_mode" value="existing">
+
+                    <!-- Data Privacy Protection Banner -->
+                    <div class="alert alert-light border shadow-sm rounded-3 py-2 px-3 mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2" style="background-color: #f8fafc; border-left: 4px solid #2563eb !important;">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-shield-check text-primary fs-5"></i>
+                            <div class="small text-secondary">
+                                <strong class="text-dark">Republic Act No. 10173 (Data Privacy Act of 2012) Protection:</strong>
+                                Employee plantilla IDs, personal data, and submitted certifications are securely processed under official DepEd privacy rules.
+                            </div>
+                        </div>
+                        <a href="#dataPrivacyModal" data-bs-toggle="modal" class="btn btn-sm btn-outline-primary py-1 px-2.5" style="border-radius: 6px; font-size: 0.78rem; font-weight: 500;">
+                            <i class="bi bi-shield-lock me-1"></i> View Privacy Policy
+                        </a>
+                    </div>
 
                     <!-- STEP 1: CHOOSE SPED SCHOOL -->
                     <div class="mb-4">
@@ -571,6 +611,18 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
                                 </div>
                                 <div class="form-text small text-muted">Please upload your official FSL, Inclusive Education, or SPED training certificates with issue dates for verification.</div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Data Privacy Act (RA 10173) Consent -->
+                    <div class="card bg-light border-0 rounded-3 p-3 mt-4 mb-2" style="border: 1px solid #e2e8f0 !important;">
+                        <div class="form-check d-flex align-items-start gap-2 mb-0">
+                            <input class="form-check-input mt-1 flex-shrink-0" type="checkbox" id="privacy_consent_staff" name="privacy_consent" value="1" required style="cursor: pointer;">
+                            <label class="form-check-label small text-secondary" for="privacy_consent_staff" style="cursor: pointer; line-height: 1.45;">
+                                In compliance with <strong>Republic Act No. 10173 (Data Privacy Act of 2012)</strong>, I have read the 
+                                <a href="#dataPrivacyModal" data-bs-toggle="modal" class="text-primary fw-semibold text-decoration-none">Data Privacy Notice</a>. 
+                                I give my consent to the collection and verification of my DepEd employee credentials and certifications for faculty access. <span class="text-danger">*</span>
+                            </label>
                         </div>
                     </div>
 
@@ -774,4 +826,5 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<?php include __DIR__ . '/../components/data_privacy_modal.php'; ?>
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

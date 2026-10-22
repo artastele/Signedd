@@ -35,13 +35,13 @@ class FileEncryptionHelper {
             $encryptedPath = self::$encryptedDir . $encryptedFilename;
 
             // Ensure encrypted directory exists
-            $fullEncryptedDir = __DIR__ . '/../../public/' . self::$encryptedDir;
+            $fullEncryptedDir = function_exists('public_path') ? public_path(self::$encryptedDir) : (__DIR__ . '/../../public/' . self::$encryptedDir);
             if (!is_dir($fullEncryptedDir)) {
-                mkdir($fullEncryptedDir, 0755, true);
+                @mkdir($fullEncryptedDir, 0755, true);
             }
 
             // Write encrypted file
-            $fullEncryptedPath = __DIR__ . '/../../public/' . $encryptedPath;
+            $fullEncryptedPath = function_exists('public_path') ? public_path($encryptedPath) : (__DIR__ . '/../../public/' . $encryptedPath);
             $written = file_put_contents($fullEncryptedPath, $encryptedContents);
 
             if ($written === false) {
@@ -73,7 +73,7 @@ class FileEncryptionHelper {
      */
     public static function serveDecryptedFile($encryptedPath, $originalName, $inline = false) {
         try {
-            $fullPath = __DIR__ . '/../../public/' . $encryptedPath;
+            $fullPath = self::resolvePath($encryptedPath);
 
             if (!file_exists($fullPath)) {
                 http_response_code(404);
@@ -125,7 +125,7 @@ class FileEncryptionHelper {
      */
     public static function getDecryptedContents($encryptedPath) {
         try {
-            $fullPath = __DIR__ . '/../../public/' . $encryptedPath;
+            $fullPath = self::resolvePath($encryptedPath);
 
             if (!file_exists($fullPath)) {
                 return false;
@@ -232,7 +232,7 @@ class FileEncryptionHelper {
      * @return array Result of encryption
      */
     public static function migrateFile($oldPath, $originalName) {
-        $fullOldPath = __DIR__ . '/../../public/' . $oldPath;
+        $fullOldPath = self::resolvePath($oldPath);
         
         if (!file_exists($fullOldPath)) {
             return ['success' => false, 'error' => 'File not found: ' . $oldPath];
@@ -291,4 +291,36 @@ class FileEncryptionHelper {
             return false;
         }
     }
+
+    /**
+     * Resolve path across local development (/public/) and production flat hosting (/htdocs/)
+     */
+    public static function resolvePath($path) {
+        if (empty($path)) {
+            return '';
+        }
+
+        $clean = ltrim(str_replace('\\', '/', $path), '/');
+        $candidates = [];
+
+        if (function_exists('public_path')) {
+            $candidates[] = public_path($clean);
+        }
+        $candidates[] = dirname(__DIR__, 2) . '/public/' . $clean;
+        $candidates[] = dirname(__DIR__, 2) . '/' . $clean;
+        $candidates[] = dirname(__DIR__) . '/' . $clean;
+
+        if (!empty($_SERVER['DOCUMENT_ROOT'])) {
+            $candidates[] = rtrim(str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT']), '/') . '/' . $clean;
+        }
+
+        foreach ($candidates as $cand) {
+            if (file_exists($cand) && !is_dir($cand)) {
+                return $cand;
+            }
+        }
+
+        return function_exists('public_path') ? public_path($clean) : (dirname(__DIR__, 2) . '/public/' . $clean);
+    }
 }
+

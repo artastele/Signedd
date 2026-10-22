@@ -216,14 +216,14 @@ class PrincipalController {
         $principalUser = $this->userModel->findById($_SESSION['user_id']);
         $schoolId = $principalUser['school_id'] ?? null;
 
-        $name = trim($_POST['name'] ?? '');
+        $name = trim($_POST['name'] ?? $_POST['alias'] ?? '');
         $email = trim($_POST['email'] ?? '');
         $role = $_POST['role'] ?? 'sped_teacher';
         $employeeNumber = trim($_POST['employee_number'] ?? '');
-        $password = $_POST['password'] ?? 'Teacher123!';
+        $password = !empty($_POST['password']) ? $_POST['password'] : 'signED';
 
         if (empty($name) || empty($email)) {
-            $_SESSION['error'] = 'Staff Name and Email are required.';
+            $_SESSION['error'] = 'Staff Name/Alias and Email are required.';
             header('Location: ' . $this->basePath . '/dashboard');
             exit;
         }
@@ -280,8 +280,12 @@ class PrincipalController {
         $roomNumber      = trim($_POST['room_number'] ?? '');
         $optionalMessage = trim($_POST['optional_message'] ?? '');
 
-        if (!$teacherId || empty($gradeLevel) || empty($sectionName) || empty($buildingName) || empty($roomNumber)) {
-            $_SESSION['error'] = 'Teacher, Grade Level, Section Name, Building Name, and Room Number are required fields.';
+        if (empty($buildingName)) {
+            $buildingName = 'Main Building';
+        }
+
+        if (!$teacherId || empty($gradeLevel) || empty($sectionName) || empty($roomNumber)) {
+            $_SESSION['error'] = 'Teacher, Grade Level, Section Name, and Room Number are required fields.';
             header('Location: ' . $this->basePath . '/dashboard');
             exit;
         }
@@ -306,6 +310,53 @@ class PrincipalController {
             $optionalMessage,
             $_SESSION['user_id']
         );
+
+        // Sync to sections table
+        try {
+            $db = Database::getInstance()->getConnection();
+            $chkStmt = $db->prepare("
+                SELECT id FROM sections 
+                WHERE (school_id = :school_id OR :school_id_null IS NULL) 
+                  AND LOWER(TRIM(section_name)) = LOWER(TRIM(:section_name)) 
+                LIMIT 1
+            ");
+            $chkStmt->execute(['school_id' => $schoolId, 'school_id_null' => $schoolId, 'section_name' => $sectionName]);
+            $existingSecId = $chkStmt->fetchColumn();
+
+            if ($existingSecId) {
+                $upd = $db->prepare("
+                    UPDATE sections 
+                    SET adviser_teacher_id = :teacher_id, 
+                        grade_level = :grade_level, 
+                        room_number = :room_number, 
+                        school_id = COALESCE(school_id, :school_id) 
+                    WHERE id = :id
+                ");
+                $upd->execute([
+                    'teacher_id'  => $teacherId,
+                    'grade_level' => $gradeLevel,
+                    'room_number' => $roomNumber,
+                    'school_id'   => $schoolId,
+                    'id'          => $existingSecId
+                ]);
+            } else {
+                $ins = $db->prepare("
+                    INSERT INTO sections 
+                        (school_id, section_name, grade_level, room_number, adviser_teacher_id, max_capacity, school_year, status) 
+                    VALUES 
+                        (:school_id, :section_name, :grade_level, :room_number, :teacher_id, 15, '2026-2027', 'active')
+                ");
+                $ins->execute([
+                    'school_id'    => $schoolId,
+                    'section_name' => $sectionName,
+                    'grade_level'  => $gradeLevel,
+                    'room_number'  => $roomNumber,
+                    'teacher_id'   => $teacherId
+                ]);
+            }
+        } catch (\Throwable $secSyncErr) {
+            error_log('PrincipalController sync to sections error: ' . $secSyncErr->getMessage());
+        }
 
         // Notify assigned teacher
         $this->notificationModel->create(

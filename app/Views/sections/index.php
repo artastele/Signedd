@@ -48,15 +48,17 @@ require_once __DIR__ . '/../layouts/header.php';
                 <!-- Page Header -->
                 <div class="page-header-card d-flex align-items-center justify-content-between flex-wrap gap-3">
                     <div>
-                        <h4 class="fw-bold mb-1"><i class="bi bi-grid-3x3-gap-fill text-warning me-2"></i>SPED Section Management</h4>
-                        <p class="text-white-50 mb-0 small">Create sections, configure classroom max capacity, and monitor round-robin enrollee distribution.</p>
+                        <h4 class="fw-bold mb-1"><i class="bi bi-grid-3x3-gap-fill text-warning me-2"></i><?= ($userRole === 'sped_teacher') ? 'My Advisory Section' : 'SPED Section Management' ?></h4>
+                        <p class="text-white-50 mb-0 small"><?= ($userRole === 'sped_teacher') ? 'View your assigned advisory section, classroom capacity, and enrolled SPED learners.' : 'Create sections, configure classroom max capacity, and monitor round-robin enrollee distribution.' ?></p>
                     </div>
 
+                    <?php if (in_array($userRole, ['principal', 'master_teacher'])): ?>
                     <div>
                         <button type="button" class="btn btn-primary btn-modern shadow-sm" data-bs-toggle="modal" data-bs-target="#createSectionModal">
                             <i class="bi bi-plus-circle-fill"></i> Create New Section
                         </button>
                     </div>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Alert Messages -->
@@ -75,6 +77,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 <?php endif; ?>
 
                 <!-- Round-Robin Info Banner -->
+                <?php if (in_array($userRole, ['principal', 'master_teacher'])): ?>
                 <div class="alert alert-info border-0 shadow-sm mb-4 d-flex align-items-center gap-3">
                     <i class="bi bi-arrow-repeat fs-3 text-info"></i>
                     <div>
@@ -82,6 +85,7 @@ require_once __DIR__ . '/../layouts/header.php';
                         <div class="small text-muted">When teachers approve new enrollees, the system automatically assigns learners across active sections in rotational order (Section 1 ➔ Section 2 ➔ Section 3...), ensuring balanced class sizes and respecting max capacity limits.</div>
                     </div>
                 </div>
+                <?php endif; ?>
 
                 <!-- Sections Grid -->
                 <div class="row g-3 mb-4">
@@ -90,8 +94,13 @@ require_once __DIR__ . '/../layouts/header.php';
                             <div class="card border-0 shadow-sm text-center py-5">
                                 <div class="card-body">
                                     <i class="bi bi-inbox display-4 text-secondary mb-3 d-block"></i>
-                                    <h5 class="fw-bold">No Sections Created Yet</h5>
-                                    <p class="text-muted small">Click the "Create New Section" button above to establish your school's SPED sections.</p>
+                                    <?php if ($userRole === 'sped_teacher'): ?>
+                                        <h5 class="fw-bold">No Advisory Section Assigned</h5>
+                                        <p class="text-muted small">You are not currently assigned as an adviser to any active section. Please coordinate with your School Principal.</p>
+                                    <?php else: ?>
+                                        <h5 class="fw-bold">No Sections Created Yet</h5>
+                                        <p class="text-muted small">Click the "Create New Section" button above to establish your school's SPED sections.</p>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -139,17 +148,25 @@ require_once __DIR__ . '/../layouts/header.php';
                                                      style="width: <?= $percent ?>%"></div>
                                             </div>
 
-                                            <div class="d-flex justify-content-end gap-2">
-                                                <button type="button" class="btn btn-outline-secondary btn-sm" 
-                                                        data-bs-toggle="modal" data-bs-target="#editModal<?= $s['id'] ?>">
-                                                    <i class="bi bi-pencil"></i> Edit
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <button type="button" class="btn btn-outline-primary btn-sm fw-semibold" 
+                                                        data-bs-toggle="modal" data-bs-target="#viewLearnersModal<?= $s['id'] ?>" style="border-radius:6px; font-size:0.8125rem;">
+                                                    <i class="bi bi-people-fill me-1"></i> View Enrollees (<?= $enrolled ?>)
                                                 </button>
-                                                <form method="POST" action="<?= $basePath ?>/sections/delete/<?= $s['id'] ?>" 
-                                                      onsubmit="return confirm('Are you sure you want to archive this section?');" class="d-inline">
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm">
-                                                        <i class="bi bi-archive"></i>
+                                                <?php if (in_array($userRole, ['principal', 'master_teacher'])): ?>
+                                                <div class="d-flex gap-2">
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                                            data-bs-toggle="modal" data-bs-target="#editModal<?= $s['id'] ?>" title="Edit Section" style="border-radius:6px;">
+                                                        <i class="bi bi-pencil"></i>
                                                     </button>
-                                                </form>
+                                                    <form method="POST" action="<?= $basePath ?>/sections/delete/<?= $s['id'] ?>" 
+                                                          onsubmit="return confirm('Are you sure you want to archive this section?');" class="d-inline">
+                                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Archive Section" style="border-radius:6px;">
+                                                            <i class="bi bi-archive"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </div>
@@ -157,6 +174,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             </div>
 
                             <!-- Edit Modal for Section -->
+                            <?php if (in_array($userRole, ['principal', 'master_teacher'])): ?>
                             <div class="modal fade" id="editModal<?= $s['id'] ?>" tabindex="-1">
                                 <div class="modal-dialog">
                                     <div class="modal-content">
@@ -205,6 +223,103 @@ require_once __DIR__ . '/../layouts/header.php';
                                     </div>
                                 </div>
                             </div>
+                            <?php endif; ?>
+
+                            <!-- View Enrollees Modal for Section -->
+                            <div class="modal fade" id="viewLearnersModal<?= $s['id'] ?>" tabindex="-1">
+                                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                                    <div class="modal-content border-0 shadow">
+                                        <div class="modal-header" style="background: #1e293b; color: #fff;">
+                                            <h6 class="modal-title fw-bold text-white mb-0">
+                                                <i class="bi bi-people-fill text-warning me-2"></i>Enrolled Learners: <?= htmlspecialchars($s['section_name']) ?>
+                                            </h6>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body p-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-3 p-2.5 rounded bg-light border">
+                                                <div class="small">
+                                                    <span class="text-muted">Grade Level:</span> <strong><?= htmlspecialchars($s['grade_level']) ?></strong> · 
+                                                    <span class="text-muted">Adviser:</span> <strong><?= htmlspecialchars($s['adviser_name'] ?? 'Not Assigned') ?></strong>
+                                                    <?php if (!empty($s['room_number'])): ?>
+                                                        · <span class="text-muted">Room:</span> <strong><?= htmlspecialchars($s['room_number']) ?></strong>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <span class="badge bg-primary px-2.5 py-1.5"><?= count($s['students'] ?? []) ?> Enrolled</span>
+                                            </div>
+
+                                            <?php if (empty($s['students'])): ?>
+                                                <div class="text-center py-4 text-muted">
+                                                    <i class="bi bi-person-x fs-1 d-block mb-2 text-secondary"></i>
+                                                    <p class="mb-0 fw-semibold">No learners currently assigned to this section.</p>
+                                                    <small class="text-muted">Learners will be automatically assigned via round-robin enrollment.</small>
+                                                </div>
+                                            <?php else: ?>
+                                                <div class="table-responsive">
+                                                    <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th>Official LRN</th>
+                                                                <th>Learner Name</th>
+                                                                <th>Sex / Age</th>
+                                                                <th>Learning Track</th>
+                                                                <th>Disability Category</th>
+                                                                <th class="text-end">Action</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <?php foreach ($s['students'] as $st): ?>
+                                                                <tr>
+                                                                    <td>
+                                                                        <span class="font-monospace fw-bold text-dark"><?= htmlspecialchars($st['lrn'] ?? $st['student_id'] ?? 'Pending LRN') ?></span>
+                                                                    </td>
+                                                                    <td>
+                                                                        <a href="<?= $basePath ?>/students/view/<?= $st['id'] ?>" class="fw-semibold text-primary text-decoration-none" title="View Full Learner Profile">
+                                                                            <?= htmlspecialchars($st['student_name']) ?> <i class="bi bi-box-arrow-up-right small ms-1" style="font-size: 0.75rem;"></i>
+                                                                        </a>
+                                                                        <?php if (!empty($st['parent_name'])): ?>
+                                                                            <div class="small text-muted" style="font-size: 0.75rem;">Parent: <?= htmlspecialchars($st['parent_name']) ?></div>
+                                                                        <?php endif; ?>
+                                                                    </td>
+                                                                    <td>
+                                                                        <span><?= htmlspecialchars($st['sex'] ?? '—') ?></span>
+                                                                        <small class="text-muted d-block"><?= !empty($st['age']) ? $st['age'] . ' yrs' : '—' ?></small>
+                                                                    </td>
+                                                                    <td>
+                                                                        <?php if (($st['learning_track'] ?? '') === 'lms'): ?>
+                                                                            <span class="badge bg-primary px-2 py-1">
+                                                                                <i class="bi bi-check2-circle me-1"></i>SignED LMS
+                                                                            </span>
+                                                                        <?php elseif (($st['learning_track'] ?? '') === 'candidate'): ?>
+                                                                            <span class="badge bg-info bg-opacity-15 text-info-emphasis border border-info px-2 py-1">
+                                                                                <i class="bi bi-laptop me-1"></i>SignED Candidate
+                                                                            </span>
+                                                                        <?php else: ?>
+                                                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                                                                <i class="bi bi-book me-1"></i>Traditional
+                                                                            </span>
+                                                                        <?php endif; ?>
+                                                                    </td>
+                                                                    <td>
+                                                                        <span class="badge bg-light text-dark border"><?= htmlspecialchars($st['disability_category'] ?? $st['primary_disability'] ?? 'General SPED') ?></span>
+                                                                    </td>
+                                                                    <td class="text-end">
+                                                                        <a href="<?= $basePath ?>/students/view/<?= $st['id'] ?>" class="btn btn-sm btn-outline-primary py-1 px-2.5" style="border-radius: 6px; font-size: 0.8rem; font-weight: 500;">
+                                                                            <i class="bi bi-person-badge me-1"></i> View Profile
+                                                                        </a>
+                                                                    </td>
+                                                                </tr>
+                                                            <?php endforeach; ?>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="modal-footer bg-light py-2">
+                                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" style="border-radius:6px;">Close</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -214,7 +329,8 @@ require_once __DIR__ . '/../layouts/header.php';
 </div> <!-- End .main-content -->
 
 
-    <!-- Create Section Modal -->
+    <!-- Create Section Modal (Principal / Master Teacher Only) -->
+    <?php if (in_array($userRole, ['principal', 'master_teacher'])): ?>
     <div class="modal fade" id="createSectionModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -263,6 +379,7 @@ require_once __DIR__ . '/../layouts/header.php';
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>
 

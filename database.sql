@@ -645,7 +645,7 @@ CREATE TABLE `db_version` (
   `version` int NOT NULL,
   `applied_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`version`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -654,7 +654,7 @@ CREATE TABLE `db_version` (
 
 LOCK TABLES `db_version` WRITE;
 /*!40000 ALTER TABLE `db_version` DISABLE KEYS */;
-INSERT INTO `db_version` VALUES (58,'2026-08-12 17:46:26'),(59,'2026-08-12 17:46:37'),(60,'2026-08-12 17:46:37'),(61,'2026-08-12 17:46:37'),(62,'2026-08-12 17:46:37'),(63,'2026-09-20 19:22:21'),(64,'2026-09-20 19:22:21'),(65,'2026-09-21 16:30:36');
+INSERT INTO `db_version` VALUES (58,'2026-08-12 17:46:26'),(59,'2026-08-12 17:46:37'),(60,'2026-08-12 17:46:37'),(61,'2026-08-12 17:46:37'),(62,'2026-08-12 17:46:37'),(63,'2026-09-20 19:22:21'),(64,'2026-09-20 19:22:21'),(65,'2026-09-21 16:30:36'),(66,'2026-10-20 03:32:02'),(67,'2026-10-20 03:32:02'),(68,'2026-10-22 04:00:00'),(69,'2026-10-22 04:00:00');
 /*!40000 ALTER TABLE `db_version` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -3121,7 +3121,7 @@ CREATE TABLE `teacher_assignments` (
   CONSTRAINT `teacher_assignments_ibfk_1` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE,
   CONSTRAINT `teacher_assignments_ibfk_2` FOREIGN KEY (`teacher_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `teacher_assignments_ibfk_3` FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -3385,6 +3385,115 @@ LOCK TABLES `users` WRITE;
 INSERT INTO `users` VALUES (1,1,'Allysa Canonizado','Allysa',NULL,'Canonizado',NULL,'allysacanonizado43@gmail.com',NULL,'$2y$10$/fC.PYvj8.5ajdfWbaPlMeQ8uD93nY12jfvd.cvPXQHt3wy3No/Bq','principal',NULL,NULL,NULL,1,1,'active',1,NULL,NULL,0,'114819199319052031501','https://lh3.googleusercontent.com/a/ACg8ocJNgbL-cYmXjKN_pXYV_wdqmjn-NEX59rZ5R0dZLLxcn_gcvl94Qg=s96-c','google',NULL,NULL,'2026-08-12 18:03:35','2026-09-13 06:31:03',NULL,NULL),(2,NULL,'System Admin','System',NULL,'Admin',NULL,'admin@spedlms.local',NULL,'$2y$10$/fC.PYvj8.5ajdfWbaPlMeQ8uD93nY12jfvd.cvPXQHt3wy3No/Bq','admin',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-08-20 18:46:10','2026-09-13 06:31:03',NULL,NULL),(5,NULL,'Allysa Canonizado','Allysa',NULL,'Canonizado',NULL,'allysacanonizado03@gmail.com',NULL,'','user',NULL,NULL,NULL,0,1,'active',1,'123456',NULL,0,'107471202491303836663','https://lh3.googleusercontent.com/a/ACg8ocLYbjZ3q1Dx7udYPK4ysAzl9FfdtcMoTey3hSAwWmx_8gocFA=s96-c','google',NULL,NULL,'2026-08-19 23:37:16','2026-10-01 21:41:50',NULL,NULL),(6,1,'Zere d\'Apchier','Zere',NULL,'d\'Apchier',NULL,'asteleackerman@gmail.com',NULL,'$2y$10$/fC.PYvj8.5ajdfWbaPlMeQ8uD93nY12jfvd.cvPXQHt3wy3No/Bq','sped_teacher',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,'102396473440496063860','https://lh3.googleusercontent.com/a/ACg8ocIu8M5RPfTy5xMtDhNhorBiGvJcYNrkk848YBlYRYIglo7r0kQ=s96-c','google',NULL,NULL,'2026-08-20 00:02:54','2026-09-13 06:31:03','uploads/role_verification/fsl_cert_6_0_1787251295_6a874a5f5a9c1.pdf','2026-08-21'),(7,NULL,'Demo Parent',NULL,NULL,NULL,NULL,'parent_demo@spedlms.local',NULL,'hash','parent',NULL,NULL,NULL,0,1,'active',0,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-08-20 18:30:20','2026-08-20 18:30:20',NULL,NULL),(8,1,'Test parent','Test','','parent','','xg40jo8fzv@ruutukf.com','09332093735','$2y$10$/fC.PYvj8.5ajdfWbaPlMeQ8uD93nY12jfvd.cvPXQHt3wy3No/Bq','parent',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-08 13:32:47','2026-09-13 06:31:03',NULL,NULL),(10,NULL,'ONE TEST','ONE',NULL,'TEST',NULL,'onetest_kid',NULL,'$2y$10$GuxrESlqD0HnAj.2RDHWT.whQZ7DTN/ctTyYNC3RThC8TDx2iBBZK','learner',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-08 17:53:44','2026-09-21 21:29:53',NULL,NULL),(11,1,'Maria Santos','Maria',NULL,'Santos',NULL,'maria.santos@gmail.com','09173012241','$2y$10$8KUoPOM3QKGYF2JiJUuQxuKozPtnI7cNjJySwrC1ckKy.tv959OGG','parent',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-13 06:45:59','2026-09-13 06:45:59',NULL,NULL),(12,1,'TEST 2','TEST',NULL,'2',NULL,'learner_20260004@spedlms.local',NULL,'$2y$10$8KUoPOM3QKGYF2JiJUuQxuKozPtnI7cNjJySwrC1ckKy.tv959OGG','learner',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-13 06:45:59','2026-09-13 06:45:59',NULL,NULL),(13,1,'Roberto Dela Cruz','Roberto',NULL,'Dela Cruz',NULL,'roberto.delacruz@gmail.com','09185423312','$2y$10$zkNeX6EIHEe9d2xMI6gUxuiXwg9ZTFtma7udPgRnvpuUOpbGKD5Iq','parent',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-13 06:47:14','2026-09-13 06:47:14',NULL,NULL),(14,1,'TEST 3','TEST',NULL,'3',NULL,'learner_20260005@spedlms.local',NULL,'$2y$10$zkNeX6EIHEe9d2xMI6gUxuiXwg9ZTFtma7udPgRnvpuUOpbGKD5Iq','learner',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-13 06:47:14','2026-09-13 06:47:14',NULL,NULL),(15,1,'Grace Alcantara','Grace',NULL,'Alcantara',NULL,'grace.alcantara@gmail.com','09204871923','$2y$10$zkNeX6EIHEe9d2xMI6gUxuiXwg9ZTFtma7udPgRnvpuUOpbGKD5Iq','parent',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-13 06:47:21','2026-09-13 06:47:21',NULL,NULL),(16,1,'TEST 4','TEST',NULL,'4',NULL,'learner_20260006@spedlms.local',NULL,'$2y$10$zkNeX6EIHEe9d2xMI6gUxuiXwg9ZTFtma7udPgRnvpuUOpbGKD5Iq','learner',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-13 06:47:21','2026-09-13 06:47:21',NULL,NULL),(17,1,'Danilo Reyes','Danilo',NULL,'Reyes',NULL,'danilo.reyes@gmail.com','09228945514','$2y$10$zkNeX6EIHEe9d2xMI6gUxuiXwg9ZTFtma7udPgRnvpuUOpbGKD5Iq','parent',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-13 06:47:29','2026-09-13 06:47:29',NULL,NULL),(18,1,'TEST 5','TEST',NULL,'5',NULL,'learner_20260007@spedlms.local',NULL,'$2y$10$zkNeX6EIHEe9d2xMI6gUxuiXwg9ZTFtma7udPgRnvpuUOpbGKD5Iq','learner',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-13 06:47:29','2026-09-13 06:47:29',NULL,NULL),(19,1,'Master Teacher Teresa Cruz','Teresa',NULL,'Cruz',NULL,'masterteacher@spedlms.local',NULL,'$2y$10$8KV2HBZ7E4KDHQD9pvAQUOkz7.Rjl/Q5iMb35CDGYd.DL3uKF1EBy','master_teacher',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-19 19:59:42','2026-09-19 19:59:42',NULL,NULL),(21,1,'Parent Ten',NULL,NULL,NULL,NULL,'aliastele0@gmail.com',NULL,'$2y$10$9YL6G/nnCelOSd4/vPp09.V6jZPm5q8PloThHKabiSNj41jAxjUo2','parent',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-21 18:17:18','2026-09-21 18:17:18',NULL,NULL),(23,1,'TEST 10',NULL,NULL,NULL,NULL,'batang_test10',NULL,'$2y$10$e2RPfejf/Whzbw2.jCB8NO7VFcKYdAwjkkU/tVM1CEEThXC8itvLC','learner',NULL,NULL,NULL,0,1,'active',1,NULL,NULL,0,NULL,NULL,'local',NULL,NULL,'2026-09-21 21:26:59','2026-09-21 21:27:09',NULL,NULL),(24,NULL,'ALLYSA JOYCE CANONIZADO','ALLYSA JOYCE','','CANONIZADO','','ie11gd7wzo@yzcalo.com','09332093735','$2y$10$/MMD7OoNwY/RQdBCbccF0uw3kyAQNi/Ed7AGtNPCFzzlVNv.FGfcW','user',NULL,NULL,NULL,0,1,'active',0,'141562','2026-10-01 22:24:30',0,NULL,NULL,'local',NULL,NULL,'2026-10-01 22:14:30','2026-10-01 22:14:30',NULL,NULL);
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
+
+-- ============================================================
+-- SignED Post-Baseline Migrations (v66-v69)
+-- Added to ensure clean setup for new local and staging imports
+-- ============================================================
+
+-- v66: student_records status & claim_token
+ALTER TABLE `student_records` ADD COLUMN IF NOT EXISTS `status` ENUM('active','mainstreamed') NOT NULL DEFAULT 'active';
+ALTER TABLE `student_records` ADD COLUMN IF NOT EXISTS `claim_token` VARCHAR(64) NULL DEFAULT NULL AFTER `lis_synced_at`;
+
+-- v67: sms_logs
+CREATE TABLE IF NOT EXISTS `sms_logs` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `recipient_phone` VARCHAR(30) NOT NULL,
+    `recipient_name` VARCHAR(150) NULL,
+    `message` TEXT NOT NULL,
+    `notification_type` VARCHAR(50) DEFAULT 'general',
+    `status` ENUM('sent', 'simulated', 'failed') DEFAULT 'simulated',
+    `gateway_response` TEXT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_recipient_phone` (`recipient_phone`),
+    INDEX `idx_status` (`status`),
+    INDEX `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- v68: resource_hub tables and lesson_plans column
+CREATE TABLE IF NOT EXISTS `resource_hub_packs` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `source_lesson_plan_id` INT NULL,
+    `created_by` INT NOT NULL,
+    `author_name` VARCHAR(255) NOT NULL,
+    `title` VARCHAR(255) NOT NULL,
+    `description` TEXT NULL,
+    `pdsp_domain` ENUM('perceptuo_cognitive','psychosocial','socio_emotional','psychomotor','daily_living_skills','communication_language') NOT NULL DEFAULT 'communication_language',
+    `learning_level` VARCHAR(100) NOT NULL DEFAULT 'Primary SPED / Deaf Ed',
+    `learning_competency` TEXT NULL,
+    `language` VARCHAR(100) NOT NULL DEFAULT 'Filipino / FSL',
+    `fsl_supported` TINYINT(1) NOT NULL DEFAULT 1,
+    `fsl_sign_count` INT NOT NULL DEFAULT 0,
+    `page_count` INT NOT NULL DEFAULT 0,
+    `activity_count` INT NOT NULL DEFAULT 0,
+    `tags` VARCHAR(500) NULL,
+    `mainstream_mastery_url` VARCHAR(1000) NULL,
+    `mainstream_mastery_title` VARCHAR(255) NULL,
+    `status` ENUM('published','archived') NOT NULL DEFAULT 'published',
+    `clone_count` INT NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_hub_domain` (`pdsp_domain`),
+    INDEX `idx_hub_status` (`status`),
+    INDEX `idx_hub_created_by` (`created_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `resource_hub_pages` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `pack_id` INT NOT NULL,
+    `page_number` INT NOT NULL DEFAULT 1,
+    `title` VARCHAR(255) NOT NULL,
+    `content` LONGTEXT NULL,
+    `guide_questions` MEDIUMTEXT NULL,
+    `media_type` VARCHAR(50) NOT NULL DEFAULT 'none',
+    `media_path` VARCHAR(500) NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_hub_pages_pack` (`pack_id`, `page_number`),
+    CONSTRAINT `fk_hub_pages_pack` FOREIGN KEY (`pack_id`) REFERENCES `resource_hub_packs` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `resource_hub_activities` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `pack_id` INT NOT NULL,
+    `title` VARCHAR(255) NOT NULL,
+    `instructions` LONGTEXT NULL,
+    `activity_type` VARCHAR(50) NOT NULL,
+    `activity_data` JSON NOT NULL,
+    `max_score` INT NULL DEFAULT 0,
+    `display_order` INT NOT NULL DEFAULT 0,
+    `is_f2f` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_hub_activities_pack` (`pack_id`),
+    CONSTRAINT `fk_hub_activities_pack` FOREIGN KEY (`pack_id`) REFERENCES `resource_hub_packs` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `lesson_plans` ADD COLUMN IF NOT EXISTS `cloned_from_pack_id` INT NULL DEFAULT NULL AFTER `assignment_type`;
+
+-- v69: external_mastery tables and lesson_plans columns
+ALTER TABLE `lesson_plans` ADD COLUMN IF NOT EXISTS `mainstream_mastery_url` VARCHAR(1000) NULL DEFAULT NULL AFTER `cloned_from_pack_id`;
+ALTER TABLE `lesson_plans` ADD COLUMN IF NOT EXISTS `mainstream_mastery_title` VARCHAR(255) NULL DEFAULT NULL AFTER `mainstream_mastery_url`;
+
+CREATE TABLE IF NOT EXISTS `external_mastery_results` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `lesson_plan_id` INT NOT NULL,
+    `student_id` INT NOT NULL,
+    `recorded_by` INT NOT NULL,
+    `resource_title` VARCHAR(255) NULL,
+    `resource_url` VARCHAR(1000) NULL,
+    `mastery_status` ENUM('completed', 'needs_support', 'not_attempted') NOT NULL DEFAULT 'completed',
+    `score` DECIMAL(5,2) NULL,
+    `teacher_notes` TEXT NULL,
+    `completed_at` DATE NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `idx_emr_lesson_student` (`lesson_plan_id`, `student_id`),
+    INDEX `idx_emr_student` (`student_id`),
+    INDEX `idx_emr_recorded_by` (`recorded_by`),
+    CONSTRAINT `fk_emr_lesson_plan` FOREIGN KEY (`lesson_plan_id`) REFERENCES `lesson_plans` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_emr_student` FOREIGN KEY (`student_id`) REFERENCES `student_records` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_emr_recorded_by` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -3396,3 +3505,4 @@ UNLOCK TABLES;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2026-10-02  6:44:53
+

@@ -1,6 +1,9 @@
 # Environment variables
 .env
 .env.infinityfree
+.env.test-server
+.env.local
+.env.production
 
 
 # Uploaded files
@@ -28,6 +31,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+*.bak*
 *.swp
 *~
 
@@ -35,6 +39,7 @@ Thumbs.db
 scratch/
 check_live_db.php
 deploy_sync.php
+public/db_reset_tool.php
 
 # Large archives and extracted test folders
 *.zip
@@ -44,3 +49,11 @@ signedtest_extracted/
 *.xlsx
 *.csv
 
+# Database dumps and backups (preserve versioned migrations and schema)
+*.sql
+!config/v*.sql
+!config/schema.sql
+!config/manual_migration_*.sql
+!config/insert_demo_enrollments.sql
+!database.sql
+backups/

@@ -204,16 +204,36 @@ class AdminController {
         $stmt->execute();
         $logs = $stmt->fetchAll();
 
-        // Get statistics
-        $statsStmt = $db->query("
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END) as successful,
-                SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as failed
-            FROM login_log
-            WHERE attempted_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-        ");
-        $stats = $statsStmt->fetch();
+        // Get statistics (last 24 hours with all-time fallback)
+        try {
+            $statsStmt = $db->query("
+                SELECT 
+                    COUNT(*) as total_all,
+                    SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END) as successful_all,
+                    SUM(CASE WHEN result = 'failure' THEN 1 ELSE 0 END) as failed_all,
+                    SUM(CASE WHEN attempted_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END) as total_24h,
+                    SUM(CASE WHEN result = 'success' AND attempted_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END) as successful_24h,
+                    SUM(CASE WHEN result = 'failure' AND attempted_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END) as failed_24h
+                FROM login_log
+            ");
+            $rawStats = $statsStmt ? $statsStmt->fetch(PDO::FETCH_ASSOC) : null;
+            $stats = [
+                'total'          => (int)($rawStats['total_24h'] ?? 0),
+                'successful'     => (int)($rawStats['successful_24h'] ?? 0),
+                'failed'         => (int)($rawStats['failed_24h'] ?? 0),
+                'total_all'      => (int)($rawStats['total_all'] ?? 0),
+                'successful_all' => (int)($rawStats['successful_all'] ?? 0),
+                'failed_all'     => (int)($rawStats['failed_all'] ?? 0),
+            ];
+            if ($stats['total'] === 0 && $stats['total_all'] > 0) {
+                $stats['total'] = $stats['total_all'];
+                $stats['successful'] = $stats['successful_all'];
+                $stats['failed'] = $stats['failed_all'];
+                $stats['is_all_time'] = true;
+            }
+        } catch (\Throwable $e) {
+            $stats = ['total' => 0, 'successful' => 0, 'failed' => 0];
+        }
 
         require_once __DIR__ . '/../Views/admin/login_logs.php';
     }
@@ -628,11 +648,15 @@ class AdminController {
         header('Content-Type: text/csv');
         header('Content-Disposition: attachment; filename="activity_logs_' . date('Y-m-d_His') . '.csv"');
 
+        // Clear output buffer and disable display_errors for clean download
+        if (ob_get_level()) ob_end_clean();
+        ini_set('display_errors', '0');
+
         // Open output stream
         $output = fopen('php://output', 'w');
 
         // Write CSV header
-        fputcsv($output, ['ID', 'User Name', 'Email', 'Role', 'Action Type', 'Details', 'IP Address', 'Date/Time']);
+        fputcsv($output, ['ID', 'User Name', 'Email', 'Role', 'Action Type', 'Details', 'IP Address', 'Date/Time'], ',', '"', "\\");
 
         // Write data rows
         foreach ($logs as $log) {
@@ -645,7 +669,7 @@ class AdminController {
                 $log['details'],
                 $log['ip_address'] ?? 'N/A',
                 $log['created_at']
-            ]);
+            ], ',', '"', "\\");
         }
 
         fclose($output);

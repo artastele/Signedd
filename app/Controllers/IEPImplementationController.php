@@ -7,11 +7,17 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../Models/LessonPlanModel.php';
 require_once __DIR__ . '/../Models/NotificationModel.php';
 require_once __DIR__ . '/../Models/IEPModel.php';
+require_once __DIR__ . '/../Models/ResourceHubModel.php';
+require_once __DIR__ . '/../Models/ExternalMasteryModel.php';
+require_once __DIR__ . '/../Helpers/HtmlSanitizer.php';
+require_once __DIR__ . '/../Services/SmsService.php';
 
 class IEPImplementationController {
 
-    private LessonPlanModel   $model;
-    private NotificationModel $notifModel;
+    private LessonPlanModel      $model;
+    private NotificationModel    $notifModel;
+    private ResourceHubModel     $hubModel;
+    private ExternalMasteryModel $masteryModel;
     private int    $userId;
     private string $userRole;
     private string $basePath;
@@ -24,11 +30,51 @@ class IEPImplementationController {
             header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/login');
             exit;
         }
-        $this->userId     = (int) $_SESSION['user_id'];
-        $this->userRole   = $_SESSION['role'] ?? '';
-        $this->basePath   = defined('BASE_PATH') ? BASE_PATH : '';
-        $this->model      = new LessonPlanModel();
-        $this->notifModel = new NotificationModel();
+        $this->userId       = (int) $_SESSION['user_id'];
+        $this->userRole     = $_SESSION['role'] ?? '';
+        $this->basePath     = defined('BASE_PATH') ? BASE_PATH : '';
+        $this->model        = new LessonPlanModel();
+        $this->notifModel   = new NotificationModel();
+        $this->hubModel     = new ResourceHubModel();
+        $this->masteryModel = new ExternalMasteryModel();
+    }
+
+    /**
+     * Verify whether the authenticated teacher or admin has permission to manage a lesson plan.
+     */
+    private function canManageLessonPlan(?array $lessonPlan): bool {
+        if (!$lessonPlan) {
+            return false;
+        }
+
+        // Only instructional roles or system admin are permitted
+        if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+            return false;
+        }
+
+        if ($this->userRole === 'admin') {
+            return true;
+        }
+
+        $createdById = (int)($lessonPlan['created_by'] ?? 0);
+        if ($createdById === $this->userId) {
+            return true;
+        }
+
+        $draftedById = (int)($lessonPlan['drafted_by'] ?? 0);
+        if ($draftedById === $this->userId) {
+            return true;
+        }
+
+        // If drafted_by was not populated in the lesson plan array, check parent IEP
+        if (!empty($lessonPlan['iep_id'])) {
+            $iep = $this->model->getIepById((int)$lessonPlan['iep_id']);
+            if ($iep && (int)($iep['drafted_by'] ?? 0) === $this->userId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // ============================================================
@@ -101,6 +147,17 @@ class IEPImplementationController {
         ");
         $stmtTrad->execute(['sid' => $studentId]);
         $traditionalDocs = $stmtTrad->fetchAll(PDO::FETCH_ASSOC);
+
+        // Fetch external mainstream mastery results for each lesson plan for this learner
+        $masteryResultsByLp = [];
+        if ($studentId) {
+            foreach ($lessonPlans as $lp) {
+                $mRes = $this->masteryModel->getResultByLessonAndStudent((int)$lp['id'], $studentId);
+                if ($mRes) {
+                    $masteryResultsByLp[(int)$lp['id']] = $mRes;
+                }
+            }
+        }
 
         $basePath    = $this->basePath;
 
@@ -243,9 +300,29 @@ class IEPImplementationController {
         header('Content-Type: application/json');
         try {
             $lpId = (int)$lessonPlanId;
+            if (!$lpId) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Invalid lesson plan ID.']);
+                exit;
+            }
+
+            $lessonPlan = $this->model->findById($lpId);
+            if (!$lessonPlan) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Lesson plan not found.']);
+                exit;
+            }
+
+            if (!$this->canManageLessonPlan($lessonPlan)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. You do not have permission to view this lesson plan.']);
+                exit;
+            }
+
             $pages = $this->model->getPagesByLessonPlan($lpId);
             echo json_encode(['success' => true, 'pages' => $pages]);
         } catch (Throwable $e) {
+            http_response_code(500);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         exit;
@@ -256,12 +333,27 @@ class IEPImplementationController {
         try {
             $lpId = (int)$lessonPlanId;
             if (!$lpId) {
+                http_response_code(404);
                 echo json_encode(['success' => false, 'message' => 'Invalid lesson plan ID.']);
                 exit;
             }
 
+            $lessonPlan = $this->model->findById($lpId);
+            if (!$lessonPlan) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Lesson plan not found.']);
+                exit;
+            }
+
+            if (!$this->canManageLessonPlan($lessonPlan)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. You do not have permission to modify this lesson plan.']);
+                exit;
+            }
+
             $title          = trim($_POST['title'] ?? '');
-            $content        = trim($_POST['content'] ?? '');
+            $rawContent     = trim($_POST['content'] ?? '');
+            $content        = HtmlSanitizer::cleanLessonHtml($rawContent);
             $guideQuestions = trim($_POST['guide_questions'] ?? '');
             $mediaType      = trim($_POST['media_type'] ?? 'none');
             $mediaPath      = trim($_POST['media_path'] ?? $_POST['media_url'] ?? '');
@@ -307,6 +399,7 @@ class IEPImplementationController {
             $page = $this->model->getPageById($pageId);
             echo json_encode(['success' => true, 'page_id' => $pageId, 'page' => $page, 'message' => 'Slide created successfully!']);
         } catch (Throwable $e) {
+            http_response_code(500);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         exit;
@@ -318,12 +411,21 @@ class IEPImplementationController {
             $pId = (int)$pageId;
             $existing = $this->model->getPageById($pId);
             if (!$existing) {
+                http_response_code(404);
                 echo json_encode(['success' => false, 'message' => 'Page not found.']);
                 exit;
             }
 
+            $lessonPlan = $this->model->findById((int)$existing['lesson_plan_id']);
+            if (!$lessonPlan || !$this->canManageLessonPlan($lessonPlan)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. You do not have permission to modify this lesson plan.']);
+                exit;
+            }
+
             $title          = trim($_POST['title'] ?? '');
-            $content        = trim($_POST['content'] ?? '');
+            $rawContent     = trim($_POST['content'] ?? '');
+            $content        = HtmlSanitizer::cleanLessonHtml($rawContent);
             $guideQuestions = trim($_POST['guide_questions'] ?? '');
             $mediaType      = trim($_POST['media_type'] ?? $existing['media_type'] ?? 'none');
             $mediaPath      = trim($_POST['media_path'] ?? $_POST['media_url'] ?? $existing['media_path'] ?? '');
@@ -369,6 +471,7 @@ class IEPImplementationController {
             $page = $this->model->getPageById($pId);
             echo json_encode(['success' => true, 'page' => $page, 'message' => 'Slide updated successfully!']);
         } catch (Throwable $e) {
+            http_response_code(500);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         exit;
@@ -378,9 +481,24 @@ class IEPImplementationController {
         header('Content-Type: application/json');
         try {
             $pId = (int)$pageId;
+            $existing = $this->model->getPageById($pId);
+            if (!$existing) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Page not found.']);
+                exit;
+            }
+
+            $lessonPlan = $this->model->findById((int)$existing['lesson_plan_id']);
+            if (!$lessonPlan || !$this->canManageLessonPlan($lessonPlan)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. You do not have permission to modify this lesson plan.']);
+                exit;
+            }
+
             $res = $this->model->deletePage($pId);
             echo json_encode(['success' => (bool)$res, 'message' => $res ? 'Slide deleted successfully.' : 'Failed to delete slide.']);
         } catch (Throwable $e) {
+            http_response_code(500);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         exit;
@@ -390,9 +508,23 @@ class IEPImplementationController {
         header('Content-Type: application/json');
         try {
             $lpId = (int)$lessonPlanId;
+            $lessonPlan = $this->model->findById($lpId);
+            if (!$lessonPlan) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Lesson plan not found.']);
+                exit;
+            }
+
+            if (!$this->canManageLessonPlan($lessonPlan)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. You do not have permission to modify this lesson plan.']);
+                exit;
+            }
+
             $res = $this->model->deleteAllPagesByLessonPlan($lpId);
             echo json_encode(['success' => (bool)$res, 'message' => 'Lahat ng slides ay na-clear na.']);
         } catch (Throwable $e) {
+            http_response_code(500);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         exit;
@@ -407,6 +539,13 @@ class IEPImplementationController {
 
         if (!$lessonPlan) {
             $_SESSION['error'] = 'Lesson plan not found.';
+            header('Location: ' . $this->basePath . '/iep/implementation');
+            exit;
+        }
+
+        if (!$this->canManageLessonPlan($lessonPlan)) {
+            http_response_code(403);
+            $_SESSION['error'] = 'Access denied. You do not have permission to edit this lesson plan.';
             header('Location: ' . $this->basePath . '/iep/implementation');
             exit;
         }
@@ -433,6 +572,12 @@ class IEPImplementationController {
     public function uploadCustomFslSign(): void {
         header('Content-Type: application/json');
         try {
+            if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. Teachers only.']);
+                exit;
+            }
+
             $word = trim($_POST['word'] ?? '');
             $category = trim($_POST['category'] ?? 'Custom Signs');
             $description = trim($_POST['description'] ?? '');
@@ -494,6 +639,7 @@ class IEPImplementationController {
                 'sign'    => $newSign
             ]);
         } catch (Throwable $e) {
+            http_response_code(500);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         exit;
@@ -504,6 +650,12 @@ class IEPImplementationController {
     public function uploadSlideImage(): void {
         header('Content-Type: application/json');
         try {
+            if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. Teachers only.']);
+                exit;
+            }
+
             if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
                 echo json_encode(['success' => false, 'message' => 'No image file uploaded or upload error.']);
                 exit;
@@ -525,12 +677,18 @@ class IEPImplementationController {
             $fileName = 'editor_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
             if (move_uploaded_file($file['tmp_name'], $uploadDir . $fileName)) {
                 $basePath = defined('BASE_PATH') ? BASE_PATH : '';
-                $url = $basePath . '/uploads/lesson_editor/' . $fileName;
-                echo json_encode(['success' => true, 'url' => $url]);
+                $relPath  = 'uploads/lesson_editor/' . $fileName;
+                $url      = ($basePath ? rtrim($basePath, '/') . '/' : '/') . $relPath;
+                echo json_encode([
+                    'success' => true,
+                    'url'     => $url,
+                    'path'    => $relPath
+                ]);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Failed to save uploaded image.']);
             }
         } catch (Throwable $e) {
+            http_response_code(500);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         exit;
@@ -730,7 +888,8 @@ class IEPImplementationController {
 
             $validTypes = [
                 'multiple_choice', 'true_false', 'fill_in_blanks', 'matching',
-                'drag_drop_sort', 'image_label', 'flashcards', 'sequencing'
+                'drag_drop_sort', 'image_label', 'flashcards', 'sequencing',
+                'custom_printable'
             ];
             if (!in_array($activityType, $validTypes)) {
                 echo json_encode(['success' => false, 'message' => 'Invalid activity type.']);
@@ -777,6 +936,39 @@ class IEPImplementationController {
 
                 if (empty($activityDataArr['image_path'])) {
                     echo json_encode(['success' => false, 'message' => 'Please upload an image before saving this activity.']);
+                    exit;
+                }
+            }
+
+            // Upload worksheet file for custom_printable
+            if ($activityType === 'custom_printable') {
+                if (isset($_FILES['worksheet_file']) && $_FILES['worksheet_file']['error'] === UPLOAD_ERR_OK) {
+                    $file    = $_FILES['worksheet_file'];
+                    $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                    $allowed = ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'doc', 'docx'];
+                    if (!in_array($ext, $allowed)) {
+                        echo json_encode(['success' => false, 'message' => 'Allowed worksheet types: PDF, PNG, JPG, WEBP, DOC, DOCX.']);
+                        exit;
+                    }
+                    if ($file['size'] > 20 * 1024 * 1024) {
+                        echo json_encode(['success' => false, 'message' => 'Worksheet file must be under 20MB.']);
+                        exit;
+                    }
+                    $uploadDir = function_exists('public_path') ? public_path('uploads/activities/' . $lessonPlanId . '/') : (__DIR__ . '/../../public/uploads/activities/' . $lessonPlanId . '/');
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    $fileName = 'worksheet_' . time() . '_' . uniqid() . '.' . $ext;
+                    $fullPath = $uploadDir . $fileName;
+                    if (move_uploaded_file($file['tmp_name'], $fullPath)) {
+                        $activityDataArr['file_path'] = 'uploads/activities/' . $lessonPlanId . '/' . $fileName;
+                        $activityDataArr['file_name'] = htmlspecialchars($file['name']);
+                        $activityDataArr['allow_print'] = true;
+                    }
+                }
+
+                if (empty($activityDataArr['file_path'])) {
+                    echo json_encode(['success' => false, 'message' => 'Please upload a worksheet file before saving this activity.']);
                     exit;
                 }
             }
@@ -845,11 +1037,11 @@ class IEPImplementationController {
     // PUBLISH LESSON PLAN (POST AJAX JSON)
     // ============================================================
 
-    public function publishLessonPlan() {
+    public function publishLessonPlan(?string $id = null) {
         header('Content-Type: application/json');
         try {
             $body         = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-            $lessonPlanId = (int) ($body['lesson_plan_id'] ?? 0);
+            $lessonPlanId = (int) ($id ?: ($body['lesson_plan_id'] ?? 0));
 
             if (!$lessonPlanId) {
                 echo json_encode(['success' => false, 'message' => 'lesson_plan_id is required.']);
@@ -858,7 +1050,14 @@ class IEPImplementationController {
 
             $lp = $this->model->findById($lessonPlanId);
             if (!$lp) {
+                http_response_code(404);
                 echo json_encode(['success' => false, 'message' => 'Lesson plan not found.']);
+                exit;
+            }
+
+            if (!$this->canManageLessonPlan($lp)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. You can only publish lesson plans you created or manage.']);
                 exit;
             }
 
@@ -885,6 +1084,38 @@ class IEPImplementationController {
                     'Your teacher published: ' . $lp['title'],
                     ['lesson_plan_id' => $lessonPlanId]
                 );
+            }
+
+            // Trigger SMS alert to parents of assigned learners
+            try {
+                $smsStmt = $db->prepare("
+                    SELECT DISTINCT 
+                        sr.student_name, 
+                        COALESCE(u.name, es.guardian_first_name, 'Parent') AS parent_name,
+                        COALESCE(u.contact_number, es.guardian_contact_number, es.mother_contact_number, es.father_contact_number) AS phone
+                    FROM lesson_assignments la
+                    JOIN student_records sr ON la.student_id = sr.id
+                    LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                    LEFT JOIN users u ON es.parent_id = u.id
+                    WHERE la.lesson_plan_id = :lpid
+                ");
+                $smsStmt->execute(['lpid' => $lessonPlanId]);
+                $parentsToSms = $smsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $smsSvc = SmsService::getInstance();
+                foreach ($parentsToSms as $pts) {
+                    if (!empty($pts['phone'])) {
+                        $smsSvc->notifyNewActivity(
+                            $pts['phone'],
+                            $pts['parent_name'],
+                            $pts['student_name'],
+                            $lp['title'],
+                            $lp['due_date'] ?? null
+                        );
+                    }
+                }
+            } catch (Throwable $e) {
+                error_log("publishLessonPlan SMS notification error: " . $e->getMessage());
             }
 
             echo json_encode(['success' => true, 'message' => 'Lesson plan published successfully.']);
@@ -1087,7 +1318,7 @@ class IEPImplementationController {
             }
 
             // Read header row
-            $headers = fgetcsv($handle);
+            $headers = fgetcsv($handle, 0, ',', '"', "\\");
             if (!$headers) {
                 fclose($handle);
                 echo json_encode(['success' => false, 'message' => 'CSV is empty or unreadable.']);
@@ -1100,7 +1331,7 @@ class IEPImplementationController {
             $errors   = [];
             $rowNum   = 1;
 
-            while (($row = fgetcsv($handle)) !== false) {
+            while (($row = fgetcsv($handle, 0, ',', '"', "\\")) !== false) {
                 $rowNum++;
                 if (empty(array_filter($row))) continue; // skip blank rows
 
@@ -1459,6 +1690,34 @@ class IEPImplementationController {
                         $fullPath = $uploadDir . $fileName;
                         if (move_uploaded_file($file['tmp_name'], $fullPath)) {
                             $activityDataArr['image_path'] = 'uploads/activities/' . $lessonPlanId . '/' . $fileName;
+                        }
+                    }
+                }
+
+                // If custom_printable, check for new worksheet upload or keep old
+                if ($activityType === 'custom_printable') {
+                    if (isset($_FILES['worksheet_file']) && $_FILES['worksheet_file']['error'] === UPLOAD_ERR_OK) {
+                        $file    = $_FILES['worksheet_file'];
+                        $ext     = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                        $allowed = ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'doc', 'docx'];
+                        if (!in_array($ext, $allowed)) {
+                            echo json_encode(['success' => false, 'message' => 'Allowed worksheet types: PDF, PNG, JPG, WEBP, DOC, DOCX.']);
+                            exit;
+                        }
+                        if ($file['size'] > 20 * 1024 * 1024) {
+                            echo json_encode(['success' => false, 'message' => 'Worksheet file must be under 20MB.']);
+                            exit;
+                        }
+                        $uploadDir = function_exists('public_path') ? public_path('uploads/activities/' . $lessonPlanId . '/') : (__DIR__ . '/../../public/uploads/activities/' . $lessonPlanId . '/');
+                        if (!is_dir($uploadDir)) {
+                            mkdir($uploadDir, 0755, true);
+                        }
+                        $fileName = 'worksheet_' . time() . '_' . uniqid() . '.' . $ext;
+                        $fullPath = $uploadDir . $fileName;
+                        if (move_uploaded_file($file['tmp_name'], $fullPath)) {
+                            $activityDataArr['file_path'] = 'uploads/activities/' . $lessonPlanId . '/' . $fileName;
+                            $activityDataArr['file_name'] = htmlspecialchars($file['name']);
+                            $activityDataArr['allow_print'] = true;
                         }
                     }
                 }
@@ -1937,6 +2196,401 @@ class IEPImplementationController {
         header('Location: ' . $this->basePath . '/iep/implementation/workspace/' . $iepId);
         exit;
     }
+
+    // ============================================================
+    // ACCESSIBILITY PACK RESOURCE HUB (Process 6 Innovation MVP)
+    // ============================================================
+
+    /**
+     * Browse and search shared Accessibility Packs in the Resource Hub
+     */
+    public function resourceHub() {
+        if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+            http_response_code(403);
+            $_SESSION['error'] = 'Access denied. The Resource Hub is accessible to verified teachers and administrators only.';
+            header('Location: ' . $this->basePath . '/login');
+            exit;
+        }
+
+        $search         = trim($_GET['search'] ?? '');
+        $selectedDomain = trim($_GET['domain'] ?? '');
+        $selectedLevel  = trim($_GET['level'] ?? '');
+        $fslOnly        = !empty($_GET['fsl_only']);
+
+        $filters = [
+            'search'   => $search,
+            'domain'   => $selectedDomain,
+            'level'    => $selectedLevel,
+            'fsl_only' => $fslOnly
+        ];
+
+        $packs   = $this->hubModel->getAllPacks($filters);
+        $myIeps  = $this->hubModel->getManageableIepsForTeacher($this->userId);
+
+        $basePath  = $this->basePath;
+        $pageTitle = 'SignED Accessibility Pack Resource Hub';
+        $userRole  = $this->userRole;
+        $userName  = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'Teacher';
+
+        require_once __DIR__ . '/../Views/iep_implementation/resource_hub.php';
+    }
+
+    /**
+     * Preview an Accessibility Pack before cloning (Read-Only)
+     */
+    public function previewResourcePack($id) {
+        if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+            http_response_code(403);
+            $_SESSION['error'] = 'Access denied. Teachers only.';
+            header('Location: ' . $this->basePath . '/login');
+            exit;
+        }
+
+        $packId = (int)$id;
+        $pack   = $this->hubModel->getPackById($packId);
+
+        if (!$pack || $pack['status'] !== 'published') {
+            $_SESSION['error'] = 'Accessibility Pack not found or no longer available.';
+            header('Location: ' . $this->basePath . '/iep/implementation/resource-hub');
+            exit;
+        }
+
+        $pages      = $this->hubModel->getPackPages($packId);
+        $activities = $this->hubModel->getPackActivities($packId);
+        $myIeps     = $this->hubModel->getManageableIepsForTeacher($this->userId);
+
+        // Allow JSON inspection if requested
+        if (isset($_GET['format']) && $_GET['format'] === 'json') {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success'    => true,
+                'pack'       => $pack,
+                'pages'      => $pages,
+                'activities' => $activities
+            ]);
+            exit;
+        }
+
+        $basePath  = $this->basePath;
+        $pageTitle = 'Preview Pack: ' . $pack['title'];
+        $userRole  = $this->userRole;
+        $userName  = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'Teacher';
+
+        require_once __DIR__ . '/../Views/iep_implementation/resource_hub_preview.php';
+    }
+
+    /**
+     * Share an existing accessible lesson to the Resource Hub
+     * POST /iep/implementation/resource-hub/share/{id}
+     */
+    public function shareToResourceHub($id) {
+        header('Content-Type: application/json');
+        try {
+            if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. Teachers only.']);
+                exit;
+            }
+
+            $lessonPlanId = (int)$id;
+            $lp = $this->model->findById($lessonPlanId);
+
+            if (!$lp) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Lesson plan not found.']);
+                exit;
+            }
+
+            if (!$this->canManageLessonPlan($lp)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. You can only share lesson plans you manage.']);
+                exit;
+            }
+
+            $pages = $this->model->getPagesByLessonPlan($lessonPlanId);
+            if (empty($pages)) {
+                echo json_encode(['success' => false, 'message' => 'Cannot share an empty lesson. Please add at least one slide first.']);
+                exit;
+            }
+
+            $body = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($body)) {
+                $body = $_POST;
+            }
+
+            $teacherName = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'SPED Teacher';
+            $packId = $this->hubModel->shareLessonToHub($lessonPlanId, $this->userId, $teacherName, [
+                'title'                    => trim($body['title'] ?? $lp['title']),
+                'description'              => trim($body['description'] ?? ''),
+                'pdsp_domain'              => trim($body['pdsp_domain'] ?? $lp['pdsp_domain']),
+                'learning_level'           => trim($body['learning_level'] ?? 'Primary SPED / Deaf Ed'),
+                'learning_competency'      => trim($body['learning_competency'] ?? ''),
+                'language'                 => trim($body['language'] ?? 'Filipino / FSL'),
+                'tags'                     => trim($body['tags'] ?? ''),
+                'mainstream_mastery_url'   => trim($body['mainstream_mastery_url'] ?? ''),
+                'mainstream_mastery_title' => trim($body['mainstream_mastery_title'] ?? '')
+            ]);
+
+            echo json_encode([
+                'success' => true,
+                'pack_id' => $packId,
+                'message' => 'Accessibility Pack successfully published to the Resource Hub! Other teachers can now adapt it for their learners.'
+            ]);
+        } catch (Throwable $e) {
+            error_log('shareToResourceHub error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    /**
+     * Use as Template: Clone a Resource Hub pack into teacher's chosen IEP
+     * POST /iep/implementation/resource-hub/clone/{id}
+     */
+    public function cloneFromResourceHub($id) {
+        header('Content-Type: application/json');
+        try {
+            if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. Teachers only.']);
+                exit;
+            }
+
+            $packId = (int)$id;
+            $body = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($body)) {
+                $body = $_POST;
+            }
+
+            $targetIepId = (int)($body['target_iep_id'] ?? 0);
+            $targetStudentId = !empty($body['target_student_id']) ? (int)$body['target_student_id'] : null;
+
+            if (!$targetIepId) {
+                echo json_encode(['success' => false, 'message' => 'Please select one of your signed learner IEPs to clone this lesson into.']);
+                exit;
+            }
+
+            // Verify target IEP exists and teacher has authorization
+            $targetIep = $this->model->getIepById($targetIepId);
+            if (!$targetIep) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Target IEP record not found.']);
+                exit;
+            }
+
+            if ($this->userRole !== 'admin' && (int)($targetIep['drafted_by'] ?? 0) !== $this->userId) {
+                // Check if assigned in student_records
+                $db = Database::getInstance()->getConnection();
+                $st = $db->prepare("SELECT assigned_teacher_id FROM student_records WHERE id = :sid LIMIT 1");
+                $st->execute(['sid' => (int)$targetIep['student_id']]);
+                $assignedTeacher = (int)$st->fetchColumn();
+                if ($assignedTeacher !== $this->userId) {
+                    http_response_code(403);
+                    echo json_encode(['success' => false, 'message' => 'Access denied: You are not authorized to implement lessons for this learner.']);
+                    exit;
+                }
+            }
+
+            // Perform transactional clone
+            $newLpId = $this->hubModel->clonePackToIep($packId, $targetIepId, $this->userId, $targetStudentId);
+
+            echo json_encode([
+                'success'        => true,
+                'lesson_plan_id' => $newLpId,
+                'redirect'       => $this->basePath . '/iep/implementation/lesson/' . $newLpId . '/builder',
+                'message'        => 'Accessibility Pack cloned successfully as an independent lesson draft! Opening Lesson Builder...'
+            ]);
+        } catch (Throwable $e) {
+            error_log('cloneFromResourceHub error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Cloning error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    /**
+     * Unshare/archive a resource pack
+     * POST /iep/implementation/resource-hub/unshare/{id}
+     */
+    public function unshareFromResourceHub($id) {
+        header('Content-Type: application/json');
+        try {
+            $packId = (int)$id;
+            $res = $this->hubModel->unsharePack($packId, $this->userId, $this->userRole === 'admin');
+            if ($res) {
+                echo json_encode(['success' => true, 'message' => 'Accessibility Pack has been archived from the Resource Hub.']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Unable to archive pack.']);
+            }
+        } catch (Throwable $e) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    // ============================================================
+    // MAINSTREAM MASTERY HANDOFF & MANUAL RESULT LOGGING (MVP)
+    // ============================================================
+
+    /**
+     * Manually record or update an external mainstream mastery result for a learner
+     * POST /iep/implementation/lesson-plan/{id}/mastery-result
+     */
+    public function recordMasteryResult($id) {
+        header('Content-Type: application/json');
+        try {
+            if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. Teachers only.']);
+                exit;
+            }
+
+            $lessonPlanId = (int)$id;
+            $lp = $this->model->findById($lessonPlanId);
+            if (!$lp) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Lesson plan not found.']);
+                exit;
+            }
+
+            if (!$this->canManageLessonPlan($lp)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. You do not manage this lesson plan.']);
+                exit;
+            }
+
+            $body = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($body)) {
+                $body = $_POST;
+            }
+
+            $studentId = (int)($body['student_id'] ?? $lp['student_id'] ?? 0);
+            if (!$studentId) {
+                echo json_encode(['success' => false, 'message' => 'student_id is required to record mastery evidence.']);
+                exit;
+            }
+
+            // Verify learner is assigned or belongs to the IEP
+            $isAssigned = $this->model->isAssignedToStudent($lessonPlanId, $studentId);
+            if (!$isAssigned && (int)($lp['student_id'] ?? 0) !== $studentId) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Learner is not assigned to this lesson plan.']);
+                exit;
+            }
+
+            $status      = trim($body['mastery_status'] ?? 'completed');
+            $scoreInput  = isset($body['score']) && $body['score'] !== '' ? $body['score'] : null;
+            $notes       = trim($body['teacher_notes'] ?? '');
+            $completedAt = !empty($body['completed_at']) ? $body['completed_at'] : date('Y-m-d');
+            $resTitle    = trim($body['resource_title'] ?? $lp['mainstream_mastery_title'] ?? 'External Mainstream Activity');
+            $resUrl      = trim($body['resource_url'] ?? $lp['mainstream_mastery_url'] ?? '');
+
+            $score = null;
+            if ($scoreInput !== null) {
+                if (!is_numeric($scoreInput) || (float)$scoreInput < 0 || (float)$scoreInput > 100) {
+                    echo json_encode(['success' => false, 'message' => 'Score must be a percentage between 0 and 100.']);
+                    exit;
+                }
+                $score = (float)$scoreInput;
+            }
+
+            $resultId = $this->masteryModel->saveResult($lessonPlanId, $studentId, $this->userId, [
+                'mastery_status' => $status,
+                'score'          => $score,
+                'teacher_notes'  => $notes,
+                'completed_at'   => $completedAt,
+                'resource_title' => $resTitle,
+                'resource_url'   => $resUrl
+            ]);
+
+            echo json_encode([
+                'success'   => true,
+                'result_id' => $resultId,
+                'message'   => 'Mainstream mastery result and evidence recorded successfully.'
+            ]);
+        } catch (Throwable $e) {
+            error_log('recordMasteryResult error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
+    /**
+     * Get recorded mastery result for a student and lesson
+     * GET /iep/implementation/lesson-plan/{id}/mastery-result/{student_id}
+     */
+    public function getMasteryResult($id, $studentId) {
+        header('Content-Type: application/json');
+        try {
+            if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied.']);
+                exit;
+            }
+
+            $lessonPlanId = (int)$id;
+            $studentId    = (int)$studentId;
+
+            $lp = $this->model->findById($lessonPlanId);
+            if (!$lp || !$this->canManageLessonPlan($lp)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied.']);
+                exit;
+            }
+
+            $result = $this->masteryModel->getResultByLessonAndStudent($lessonPlanId, $studentId);
+            echo json_encode([
+                'success' => true,
+                'result'  => $result
+            ]);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    /**
+     * Update mainstream mastery link/title on a lesson plan
+     * POST /iep/implementation/lesson-plan/{id}/mastery-resource
+     */
+    public function updateMasteryResource($id) {
+        header('Content-Type: application/json');
+        try {
+            if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied. Teachers only.']);
+                exit;
+            }
+
+            $lessonPlanId = (int)$id;
+            $lp = $this->model->findById($lessonPlanId);
+            if (!$lp || !$this->canManageLessonPlan($lp)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Access denied.']);
+                exit;
+            }
+
+            $body  = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            $url   = trim($body['mainstream_mastery_url'] ?? '');
+            $title = trim($body['mainstream_mastery_title'] ?? '');
+
+            if (!empty($url) && !filter_var($url, FILTER_VALIDATE_URL)) {
+                echo json_encode(['success' => false, 'message' => 'Invalid URL. Please enter a valid HTTPS link.']);
+                exit;
+            }
+
+            $this->model->updateMasteryResource($lessonPlanId, $url ?: null, $title ?: null);
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Mainstream mastery resource link updated successfully.'
+            ]);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
 }
+
 
 

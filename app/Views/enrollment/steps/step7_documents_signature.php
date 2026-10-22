@@ -192,6 +192,37 @@
                 <input type="hidden" id="signature_data" name="signature_data">
             </div>
 
+            <!-- Data Privacy Act (RA 10173) Consent & Agreement -->
+            <div class="p-3 bg-white rounded-3 border border-secondary border-opacity-25 shadow-sm mt-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <h6 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-shield-check me-1 text-primary"></i> Data Privacy Act Consent (RA 10173) <span class="text-danger">*</span>
+                    </h6>
+                    <span class="badge" style="background-color: #fef2f2 !important; color: #dc2626 !important; border: 1px solid #fecaca !important; font-size: 0.72rem; font-weight: 600; padding: 3px 8px;">Required</span>
+                </div>
+                
+                <div class="p-3 rounded-2 mb-2" style="background-color: #f8fafc; border: 1px solid #e2e8f0; font-size: 0.825rem; line-height: 1.55; color: #334155;">
+                    <p class="mb-2">
+                        In compliance with <strong>Republic Act No. 10173 (Data Privacy Act of 2012)</strong> and Department of Education (DepEd) policy, 
+                        all personal information, educational records, sensitive diagnostic reports, and medical evaluations provided in this 
+                        enrollment form will be processed with the highest standards of confidentiality. Data is utilized strictly for learner profiling, 
+                        enrollment verification, Individualized Education Plan (IEP) structuring, and academic support services.
+                    </p>
+                    <a href="#dataPrivacyModal" data-bs-toggle="modal" class="text-primary fw-semibold text-decoration-none">
+                        <i class="bi bi-shield-lock me-1"></i> Read Full Data Privacy Policy &amp; Rights of Data Subjects
+                    </a>
+                </div>
+
+                <div class="form-check d-flex align-items-start gap-2 mb-0">
+                    <input class="form-check-input mt-1 flex-shrink-0" type="checkbox" id="data_privacy_consent" name="data_privacy_consent" value="1" required style="cursor: pointer;">
+                    <label class="form-check-label small text-dark fw-medium" for="data_privacy_consent" style="cursor: pointer; line-height: 1.45;">
+                        I am the parent / legal guardian of the learner. I certify that I have read and agree to the 
+                        <strong>Data Privacy Notice</strong>, and I give my free, informed, and explicit consent to SignED and DepEd to collect, 
+                        process, and store our personal and sensitive information in accordance with RA 10173. <span class="text-danger">*</span>
+                    </label>
+                </div>
+            </div>
+
             <!-- Confirmation Notice -->
             <div class="alert alert-success mt-3 py-2 px-3 small border-success border-opacity-25 mb-0">
                 <div class="d-flex align-items-center">

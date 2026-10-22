@@ -56,10 +56,10 @@ class FileController {
             die('Access denied');
         }
         
-        // Get file path
-        $filePath = __DIR__ . '/../../public/' . $fileInfo['file_path'];
+        // Get file path using multi-environment resolver
+        $filePath = $this->resolveFilePath($fileInfo['file_path']);
         
-        if (!file_exists($filePath)) {
+        if (!$filePath) {
             http_response_code(404);
             die('File not found on server. Path: ' . $fileInfo['file_path']);
         }
@@ -275,33 +275,40 @@ class FileController {
                 return false;
                 
             case 'lesson_material':
-                // Teacher who created the lesson plan, assigned learner, parent of learner, admin
-                if ($userRole === 'sped_teacher' && $fileInfo['teacher_id'] == $userId) {
+                // Teacher / staff access (admin, sped teacher, general teacher, principal, guidance, etc.)
+                if (in_array($userRole, ['admin', 'sped_teacher', 'teacher', 'master_teacher', 'principal', 'guidance', 'general_teacher'])) {
                     return true;
                 }
                 if (in_array($userRole, ['learner', 'parent'])) {
-                    // Verify the student is assigned to this lesson plan
+                    // Check if learner/parent has assignment or direct student link to this lesson plan
                     $stmt = $this->db->prepare("
-                        SELECT la.id
-                        FROM lesson_assignments la
-                        JOIN student_records sr ON la.student_id = sr.id
-                        JOIN enrollment_submissions es ON sr.enrollment_id = es.id
-                        WHERE la.lesson_plan_id = :lp_id
+                        SELECT 1
+                        FROM lesson_plans lp
+                        LEFT JOIN lesson_assignments la ON lp.id = la.lesson_plan_id
+                        LEFT JOIN student_records sr ON (sr.id = la.student_id OR sr.id = lp.student_id)
+                        LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                        WHERE lp.id = :lp_id
                           AND (
                               es.parent_id = :user_id
+                              OR sr.learner_user_id = :user_id2
                               OR EXISTS (
                                   SELECT 1 FROM users u
-                                  WHERE u.id = :user_id2
-                                    AND u.email = CONCAT('learner_', sr.student_id, '@spedlms.local')
+                                  WHERE u.id = :user_id3
+                                    AND (
+                                        u.email = CONCAT('learner_', sr.student_id, '@spedlms.local')
+                                        OR u.email = CONCAT('learner_', sr.lrn, '@spedlms.local')
+                                    )
                               )
                           )
+                        LIMIT 1
                     ");
                     $stmt->execute([
                         'lp_id'    => $fileInfo['lesson_plan_id'],
                         'user_id'  => $userId,
                         'user_id2' => $userId,
+                        'user_id3' => $userId,
                     ]);
-                    return $stmt->fetch() !== false;
+                    return $stmt->fetchColumn() !== false;
                 }
                 return false;
 
@@ -436,4 +443,65 @@ class FileController {
         
         return $mimeTypes[$extension] ?? 'application/octet-stream';
     }
+
+    /**
+     * Resolve the physical path for a stored file across local and production environments
+     */
+    private function resolveFilePath($storedPath) {
+        if (empty($storedPath)) {
+            return null;
+        }
+
+        $cleanPath = ltrim(str_replace('\\', '/', $storedPath), '/');
+
+        // Build list of relative path variations to try
+        $pathVariations = [$cleanPath];
+
+        // If path starts with public/, strip it
+        if (strpos($cleanPath, 'public/') === 0) {
+            $pathVariations[] = substr($cleanPath, 7);
+        }
+
+        // If path starts with uploads/, also try without uploads/
+        if (strpos($cleanPath, 'uploads/') === 0) {
+            $pathVariations[] = substr($cleanPath, 8);
+        } else {
+            // If path does NOT start with uploads/, also try with uploads/
+            $pathVariations[] = 'uploads/' . $cleanPath;
+        }
+
+        $candidates = [];
+
+        foreach ($pathVariations as $pv) {
+            // 1. If public_path() helper exists, use it
+            if (function_exists('public_path')) {
+                $candidates[] = public_path($pv);
+            }
+
+            // 2. Local standard public/ directory (e.g. c:/laragon/www/Signedd/public/...)
+            $candidates[] = dirname(__DIR__, 2) . '/public/' . $pv;
+
+            // 3. Flat hosting document root (e.g. /signedtest.site.je/htdocs/...)
+            $candidates[] = dirname(__DIR__, 2) . '/' . $pv;
+
+            // 4. In case __DIR__ is within htdocs/app/Controllers, also check htdocs direct
+            $candidates[] = dirname(__DIR__) . '/' . $pv;
+
+            // 5. If DOCUMENT_ROOT is available in $_SERVER
+            if (!empty($_SERVER['DOCUMENT_ROOT'])) {
+                $candidates[] = rtrim(str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT']), '/') . '/' . $pv;
+            }
+        }
+
+        // Remove duplicates and check existence
+        $candidates = array_unique(array_filter($candidates));
+        foreach ($candidates as $candidate) {
+            if (file_exists($candidate) && !is_dir($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
 }
+

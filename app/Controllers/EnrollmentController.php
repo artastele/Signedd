@@ -190,6 +190,11 @@ class EnrollmentController {
             $errors[] = 'Parent/Guardian signature is required';
         }
 
+        // Validate Data Privacy Act (RA 10173) Consent
+        if (empty($_POST['data_privacy_consent'])) {
+            $errors[] = 'You must agree to the Data Privacy Act (RA 10173) consent statement before submitting.';
+        }
+
         if (!empty($errors)) {
             error_log("VALIDATION ERRORS: " . implode(', ', $errors));
             $_SESSION['errors'] = $errors;

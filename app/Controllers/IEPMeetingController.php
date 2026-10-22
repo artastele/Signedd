@@ -60,6 +60,37 @@ class IEPMeetingController {
                     exit;
                 }
             }
+
+            // SPED teacher ownership check — can only view meetings for their assigned learners
+            if ($this->userRole === 'sped_teacher') {
+                $db = Database::getInstance()->getConnection();
+                $stmt = $db->prepare("
+                    SELECT COUNT(*) FROM iep_meetings im
+                    JOIN student_records sr ON im.student_id = sr.id
+                    LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+                    WHERE im.id = :mid
+                      AND (im.scheduled_by = :tid_1
+                           OR sr.assigned_teacher_id = :tid_2
+                           OR es.assigned_teacher_id = :tid_3
+                           OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_4)
+                           OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_5))
+                          )
+                ");
+                $stmt->execute([
+                    'mid' => $meetingId,
+                    'tid_1' => $this->userId,
+                    'tid_2' => $this->userId,
+                    'tid_3' => $this->userId,
+                    'tid_4' => $this->userId,
+                    'tid_5' => $this->userId,
+                ]);
+                if ($stmt->fetchColumn() == 0) {
+                    http_response_code(403);
+                    $_SESSION['error'] = 'Access denied. You can only view meetings for your assigned students.';
+                    header('Location: ' . BASE_PATH . '/iep/meetings');
+                    exit;
+                }
+            }
             
             // Only SPED Teacher can access PDSP — all others are read-only viewers
             $canAccessPDSP = in_array($this->userRole, ['sped_teacher', 'admin']);
@@ -258,11 +289,14 @@ class IEPMeetingController {
             // Determine signatory role for current user
             $signatoryRole = $this->determineSignatoryRole();
             
-            // Pass data to view
-            $basePath = BASE_PATH;
-            
-            // Load view
-            require __DIR__ . '/../Views/iep_meeting/pdsp_sign.php';
+            // Redirect to active PDSP meeting workflow
+            $meetingId = (int)($pdsp['meeting_id'] ?? 0);
+            if ($meetingId) {
+                header('Location: ' . BASE_PATH . '/iep/meetings/' . $meetingId . '/pdsp');
+                exit;
+            }
+            header('Location: ' . BASE_PATH . '/iep/meetings');
+            exit;
             
         } catch (Exception $e) {
             error_log("IEPMeetingController->signPDSP() ERROR: " . $e->getMessage());
@@ -366,118 +400,6 @@ class IEPMeetingController {
         }
     }
 
-    /**
-     * AI Extract PDSP data from uploaded image using Tesseract OCR
-     */
-    public function aiExtract() {
-        header('Content-Type: application/json');
-        
-        try {
-            // Check permission
-            if (!in_array($this->userRole, ['sped_teacher', 'admin'])) {
-                http_response_code(403);
-                echo json_encode(['success' => false, 'message' => 'Access denied. SPED teachers only.']);
-                exit;
-            }
-            
-            // Check if Tesseract OCR is installed
-            require_once __DIR__ . '/../../config/tesseract.php';
-            
-            if (!TESSERACT_ENABLED) {
-                http_response_code(503);
-                echo json_encode([
-                    'success' => false, 
-                    'message' => 'OCR auto-fill is not available. Tesseract OCR is not installed. Please install Tesseract or fill the form manually.',
-                    'install_required' => true,
-                    'install_url' => 'https://github.com/tesseract-ocr/tesseract'
-                ]);
-                exit;
-            }
-            
-            $pdspId = $_POST['pdsp_id'] ?? null;
-            if (!$pdspId) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'PDSP ID required']);
-                exit;
-            }
-            
-            // Check if signed document exists
-            require_once __DIR__ . '/../Models/PDSPModel.php';
-            $pdspModel = new PDSPModel();
-            
-            if (!$pdspModel->hasSignedDocument($pdspId)) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'Please upload signed document first before using OCR extraction']);
-                exit;
-            }
-            
-            // Get PDSP record
-            $pdsp = $pdspModel->findById($pdspId);
-            if (!$pdsp) {
-                http_response_code(404);
-                echo json_encode(['success' => false, 'message' => 'PDSP not found']);
-                exit;
-            }
-            
-            // Use the already uploaded signed document
-            $filepath = __DIR__ . '/../../public/' . $pdsp['signed_document_path'];
-            
-            if (!file_exists($filepath)) {
-                http_response_code(404);
-                echo json_encode(['success' => false, 'message' => 'Signed document file not found']);
-                exit;
-            }
-            
-            // Extract text using Tesseract OCR
-            require_once __DIR__ . '/../Helpers/TesseractHelper.php';
-            
-            $ocrResult = TesseractHelper::extractText($filepath);
-            
-            if (!$ocrResult['success']) {
-                error_log("Tesseract OCR error: " . $ocrResult['error']);
-                http_response_code(500);
-                echo json_encode([
-                    'success' => false, 
-                    'message' => 'OCR extraction failed. Please fill the form manually.',
-                    'error' => $ocrResult['error']
-                ]);
-                exit;
-            }
-            
-            // Parse extracted text into PDSP structure
-            $domains = TesseractHelper::parsePDSPText($ocrResult['text']);
-            
-            if (empty($domains)) {
-                http_response_code(500);
-                echo json_encode([
-                    'success' => false, 
-                    'message' => 'Could not extract form data. Please fill the form manually.',
-                    'hint' => 'Make sure the document is clear and legible'
-                ]);
-                exit;
-            }
-            
-            // Update PDSP record
-            $pdspModel->update($pdspId, [
-                'ai_extracted' => true
-            ]);
-            
-            // Log activity
-            $this->logActivity('pdsp.ocr_extract', 'pdsp_records', $pdspId, 'OCR extracted PDSP data from signed document using Tesseract');
-            
-            echo json_encode([
-                'success' => true,
-                'message' => 'Form auto-filled successfully. Please review and correct all fields.',
-                'domains' => $domains,
-                'note' => 'OCR accuracy depends on document quality. Please verify all extracted data.'
-            ]);
-            
-        } catch (Exception $e) {
-            error_log("IEPMeetingController->aiExtract() ERROR: " . $e->getMessage());
-            http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'OCR extraction unavailable. Please fill the form manually.']);
-        }
-    }
 
     /**
      * Upload signed handwritten document
@@ -920,14 +842,26 @@ class IEPMeetingController {
                 exit;
             }
             
-            // For parent: only show meetings for their children
-            if ($this->userRole === 'parent') {
-                $upcomingMeetings = $this->meetingModel->getAll(['upcoming' => true,  'parent_id' => $this->userId]);
-                $pastMeetings     = $this->meetingModel->getAll(['past' => true, 'parent_id' => $this->userId]);
-            } else {
-                $upcomingMeetings = $this->meetingModel->getAll(['upcoming' => true]);
-                $pastMeetings     = $this->meetingModel->getAll(['past' => true]);
+            $schoolId = $_SESSION['school_id'] ?? null;
+            if (!$schoolId && $this->userId) {
+                $stmtSch = Database::getInstance()->getConnection()->prepare("SELECT school_id FROM users WHERE id = :uid LIMIT 1");
+                $stmtSch->execute(['uid' => $this->userId]);
+                $schoolId = $stmtSch->fetchColumn() ?: null;
+                if ($schoolId) $_SESSION['school_id'] = $schoolId;
             }
+
+            $filters = [];
+            if ($schoolId && $this->userRole !== 'admin') {
+                $filters['school_id'] = (int)$schoolId;
+            }
+            if ($this->userRole === 'sped_teacher') {
+                $filters['teacher_id'] = (int)$this->userId;
+            } elseif ($this->userRole === 'parent') {
+                $filters['parent_id'] = (int)$this->userId;
+            }
+
+            $upcomingMeetings = $this->meetingModel->getAll(array_merge($filters, ['upcoming' => true]));
+            $pastMeetings     = $this->meetingModel->getAll(array_merge($filters, ['past' => true]));
             
             // Pass data to view
             $basePath = BASE_PATH;
@@ -966,15 +900,41 @@ class IEPMeetingController {
             $assessmentModel = new AssessmentModel();
             $studentModel = new StudentModel();
             
-            // Get students with finalized assessments
+            // Get students with finalized assessments (scoped to teacher/school)
             $db = Database::getInstance()->getConnection();
-            $stmt = $db->query("
-                SELECT DISTINCT s.id, s.student_name, s.lrn
-                FROM student_records s
-                JOIN assessment_records ar ON s.id = ar.student_id
-                WHERE ar.status = 'finalized'
-                ORDER BY s.student_name
-            ");
+            if ($this->userRole === 'sped_teacher') {
+                $stmt = $db->prepare("
+                    SELECT DISTINCT s.id, s.student_name, s.lrn
+                    FROM student_records s
+                    JOIN assessment_records ar ON s.id = ar.student_id
+                    LEFT JOIN enrollment_submissions es ON s.enrollment_id = es.id
+                    WHERE ar.status = 'finalized'
+                      AND (ar.conducted_by = :tid_1
+                           OR ar.assessed_by = :tid_2
+                           OR s.assigned_teacher_id = :tid_3
+                           OR es.assigned_teacher_id = :tid_4
+                           OR s.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_5)
+                           OR (s.section_name IS NOT NULL AND s.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_6))
+                          )
+                    ORDER BY s.student_name
+                ");
+                $stmt->execute([
+                    'tid_1' => $this->userId,
+                    'tid_2' => $this->userId,
+                    'tid_3' => $this->userId,
+                    'tid_4' => $this->userId,
+                    'tid_5' => $this->userId,
+                    'tid_6' => $this->userId,
+                ]);
+            } else {
+                $stmt = $db->query("
+                    SELECT DISTINCT s.id, s.student_name, s.lrn
+                    FROM student_records s
+                    JOIN assessment_records ar ON s.id = ar.student_id
+                    WHERE ar.status = 'finalized'
+                    ORDER BY s.student_name
+                ");
+            }
             $students = $stmt->fetchAll();
             
             // Get suggested dates (when all participants available)

@@ -161,6 +161,7 @@ $questionTotal = match ($actType) {
     'sequencing' => count($sequenceSets),
     'flashcards' => array_sum(array_map(static fn($set) => count($set['cards'] ?? []), $flashcardSets)),
     'image_label' => 1,
+    'custom_printable' => 1,
     default => 1,
 };
 $questionTotal = max($questionTotal, 1);
@@ -179,11 +180,25 @@ $getOptionImage = static function ($option): string {
     return '';
 };
 
-$getCorrectMcIndex = static function (array $question): ?int {
-    if (isset($question['correct_answer'])) {
-        return is_numeric($question['correct_answer']) ? (int)$question['correct_answer'] : null;
+$getQuestionOptions = static function (array $question): array {
+    if (!empty($question['options']) && is_array($question['options'])) {
+        return $question['options'];
     }
-    foreach (($question['options'] ?? []) as $index => $option) {
+    if (!empty($question['choices']) && is_array($question['choices'])) {
+        return $question['choices'];
+    }
+    return [];
+};
+
+$getCorrectMcIndex = static function (array $question) use ($getQuestionOptions): ?int {
+    if (isset($question['correct_answer']) && is_numeric($question['correct_answer'])) {
+        return (int)$question['correct_answer'];
+    }
+    if (isset($question['correct']) && is_numeric($question['correct'])) {
+        return (int)$question['correct'];
+    }
+    $options = $getQuestionOptions($question);
+    foreach ($options as $index => $option) {
         if (!is_array($option)) {
             continue;
         }
@@ -207,10 +222,11 @@ $feedbackData = [
 ];
 foreach (($actData['questions'] ?? []) as $qi => $question) {
     $correctIndex = $getCorrectMcIndex($question);
+    $options = $getQuestionOptions($question);
     $feedbackData['multiple_choice'][$qi] = [
         'correct' => $correctIndex,
-        'correctText' => $correctIndex !== null
-            ? $getOptionText(($question['options'] ?? [])[$correctIndex] ?? '')
+        'correctText' => ($correctIndex !== null && isset($options[$correctIndex]))
+            ? $getOptionText($options[$correctIndex])
             : null,
     ];
 }
@@ -332,7 +348,19 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                 <?php if ($actType === 'multiple_choice'): ?>
                     <?php foreach (($actData['questions'] ?? []) as $qi => $q): ?>
                         <?php
-                        $selected = isset($submittedAnswers[$qi]) ? (int)$submittedAnswers[$qi] : null;
+                        $options = $getQuestionOptions($q);
+                        $rawSelected = $submittedAnswers[$qi] ?? null;
+                        $selected = null;
+                        if ($rawSelected !== null && is_numeric($rawSelected)) {
+                            $selected = (int)$rawSelected;
+                        } elseif ($rawSelected !== null && is_string($rawSelected) && trim($rawSelected) !== '') {
+                            foreach ($options as $oi => $opt) {
+                                if (strcasecmp(trim($getOptionText($opt)), trim($rawSelected)) === 0) {
+                                    $selected = $oi;
+                                    break;
+                                }
+                            }
+                        }
                         $correct = $getCorrectMcIndex($q);
                         $isRight = $correct !== null && $selected !== null && $selected === $correct;
                         $qImg = $q['image'] ?? '';
@@ -343,16 +371,16 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                             <?php endif; ?>
                             <strong><?php echo ($qi + 1) . '. ' . htmlspecialchars($q['text'] ?? $q['question'] ?? 'Question'); ?></strong>
                             <p>Your answer: <?php 
-                                $selOpt = ($q['options'] ?? [])[$selected] ?? null;
+                                $selOpt = $options[$selected] ?? null;
                                 $selImg = $getOptionImage($selOpt);
                                 if (!empty($selImg)) {
                                     echo '<img src="' . htmlspecialchars($selImg) . '" class="rounded border me-1" style="max-height: 32px; vertical-align: middle;"> ';
                                 }
-                                echo htmlspecialchars($selOpt !== null ? $getOptionText($selOpt) : 'No answer'); 
+                                echo htmlspecialchars($selOpt !== null ? $getOptionText($selOpt) : ($rawSelected !== null && is_scalar($rawSelected) ? (string)$rawSelected : 'No answer')); 
                             ?></p>
                             <?php if ($correct !== null): ?>
                                 <p>Correct answer: <?php 
-                                    $corOpt = ($q['options'] ?? [])[$correct] ?? null;
+                                    $corOpt = $options[$correct] ?? null;
                                     $corImg = $getOptionImage($corOpt);
                                     if (!empty($corImg)) {
                                         echo '<img src="' . htmlspecialchars($corImg) . '" class="rounded border me-1" style="max-height: 32px; vertical-align: middle;"> ';
@@ -423,6 +451,39 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                     <article class="review-card">
                         <strong>Your order</strong>
                         <p><?php echo htmlspecialchars(implode(', ', array_map('strval', $submittedAnswers))); ?></p>
+                    </article>
+                <?php elseif ($actType === 'custom_printable'): ?>
+                    <?php
+                    $subAnswers = is_array($submittedAnswers) ? $submittedAnswers : (json_decode($submission['answers'] ?? '{}', true) ?: []);
+                    $subFile = $submission['file_path'] ?? ($subAnswers['file_path'] ?? '');
+                    $fullSubFile = $subFile ? ($basePath . '/' . ltrim($subFile, '/')) : '';
+                    $isSubImg = $subFile && preg_match('/\.(png|jpe?g|webp|gif)$/i', $subFile);
+                    $isSubPdf = $subFile && preg_match('/\.pdf$/i', $subFile);
+                    ?>
+                    <article class="review-card">
+                        <h4 class="fw-bold text-dark mb-2"><i class="ph-bold ph-file-check text-success me-1"></i> Naipasa mong Sagutang Papel</h4>
+                        <?php if (!empty($subAnswers['notes'])): ?>
+                            <div class="alert alert-light border small mb-3">
+                                <strong>Mensahe / Notes:</strong> <?php echo htmlspecialchars($subAnswers['notes']); ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($fullSubFile): ?>
+                            <?php if ($isSubImg): ?>
+                                <div class="text-center my-3 p-2 bg-light rounded border">
+                                    <a href="<?php echo htmlspecialchars($fullSubFile); ?>" target="_blank" title="Tingnan nang malaki">
+                                        <img src="<?php echo htmlspecialchars($fullSubFile); ?>" class="img-fluid rounded border shadow-sm" style="max-height:400px; cursor:zoom-in;" alt="Submitted Worksheet">
+                                    </a>
+                                </div>
+                            <?php endif; ?>
+                            <div class="d-flex align-items-center justify-content-between p-2.5 bg-light rounded-3 border">
+                                <span class="small fw-semibold text-dark"><i class="ph-bold ph-paperclip me-1 text-primary"></i> <?php echo htmlspecialchars(basename($subFile)); ?></span>
+                                <a href="<?php echo htmlspecialchars($fullSubFile); ?>" target="_blank" class="btn btn-sm btn-bubble px-3 py-1.5" download>
+                                    <i class="ph-bold ph-download-simple me-1"></i> I-download / Buksan
+                                </a>
+                            </div>
+                        <?php else: ?>
+                            <p class="text-muted small">Walang file na nakalap.</p>
+                        <?php endif; ?>
                     </article>
                 <?php else: ?>
                     <article class="review-card">
@@ -645,7 +706,7 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                                 </div>
                             <?php endif; ?>
                             <div class="answer-card-grid mc-card-grid">
-                                <?php foreach (($q['options'] ?? []) as $oi => $opt): ?>
+                                <?php $options = $getQuestionOptions($q); foreach ($options as $oi => $opt): ?>
                                     <?php $optImg = $getOptionImage($opt); ?>
                                     <button type="button" class="game-answer-card mc-option-btn" data-answer="<?php echo $oi; ?>" data-step-index="<?php echo $qi; ?>" onclick="highlightGameChoice(this, <?php echo $qi; ?>, <?php echo $oi; ?>)">
                                         <span class="answer-letter"><?php echo chr(65 + $oi); ?></span>
@@ -1045,6 +1106,114 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                         <?php $flashStep++; ?>
                         <?php endforeach; ?>
                     <?php endforeach; ?>
+                <?php elseif ($actType === 'custom_printable'): ?>
+                    <?php 
+                    $worksheetPath = $actData['file_path'] ?? '';
+                    $worksheetName = $actData['file_name'] ?? (basename($worksheetPath) ?: 'Worksheet Material');
+                    $fullWorksheetUrl = $worksheetPath ? ($basePath . '/' . ltrim($worksheetPath, '/')) : '';
+                    $isImgWorksheet = $worksheetPath && preg_match('/\.(png|jpe?g|webp|gif)$/i', $worksheetPath);
+                    $isPdfWorksheet = $worksheetPath && preg_match('/\.pdf$/i', $worksheetPath);
+                    ?>
+                    <article class="game-question-card custom-printable-stage p-3 p-md-4 bg-white border rounded-4 shadow-sm active" data-step="0" data-required="custom_file">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="badge bg-primary-subtle text-primary px-3 py-1.5 rounded-pill fw-semibold" style="font-size: 0.85rem;">
+                                <i class="ph-bold ph-printer me-1 text-primary"></i> Printable Worksheet Activity
+                            </span>
+                            <?php if ($maxScore > 0): ?>
+                                <span class="badge bg-secondary-subtle text-secondary px-3 py-1.5 rounded-pill fw-semibold" style="font-size: 0.85rem;">
+                                    <i class="ph-bold ph-medal me-1 text-warning"></i> Max Points: <?php echo $maxScore; ?>
+                                </span>
+                            <?php endif; ?>
+                        </div>
+
+                        <h2 class="question-title-text mb-2 fw-bold text-dark" style="font-size: 1.35rem;">
+                            <?php echo htmlspecialchars($activity['title']); ?>
+                        </h2>
+
+                        <?php if (!empty($activity['instructions'])): ?>
+                            <div class="p-3 rounded-3 mb-4" style="background:#f0f7ff;border:1px solid #c7dfff;">
+                                <strong class="d-block mb-1 text-primary"><i class="ph-bold ph-info me-1"></i> Mga Tagubilin / Instructions:</strong>
+                                <div class="text-secondary small mb-0"><?php echo nl2br(htmlspecialchars($activity['instructions'])); ?></div>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Worksheet Download & Print Box -->
+                        <div class="p-3 p-md-4 rounded-3 border mb-4" style="background:#ffffff; border-color:#e2e8f0 !important;">
+                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#e8f0fe;color:#1e4072;">
+                                        <i class="ph-bold <?php echo $isPdfWorksheet ? 'ph-file-pdf text-danger' : ($isImgWorksheet ? 'ph-file-image text-primary' : 'ph-file-text text-secondary'); ?> fs-2"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="fw-bold text-dark mb-0"><?php echo htmlspecialchars($worksheetName); ?></h6>
+                                        <span class="small text-muted">I-print o i-download ang worksheet aron masagutan.</span>
+                                    </div>
+                                </div>
+                                <?php if ($fullWorksheetUrl): ?>
+                                    <div class="d-flex gap-2">
+                                        <a href="<?php echo htmlspecialchars($fullWorksheetUrl); ?>" target="_blank" rel="noopener noreferrer" class="btn btn-bubble-outline px-3 py-2 d-inline-flex align-items-center gap-1.5" style="border-radius: 6px; font-weight: 500;">
+                                            <i class="ph-bold ph-eye"></i> <span>View</span>
+                                        </a>
+                                        <a href="<?php echo htmlspecialchars($fullWorksheetUrl); ?>" target="_blank" class="btn btn-bubble px-3 py-2 d-inline-flex align-items-center gap-1.5" style="border-radius: 6px; font-weight: 500;" download>
+                                            <i class="ph-bold ph-download-simple"></i> <span>Download</span>
+                                        </a>
+                                        <button type="button" class="btn btn-bubble-outline px-3 py-2 d-inline-flex align-items-center gap-1.5" style="border-radius: 6px; font-weight: 500;" onclick="printWorksheet('<?php echo htmlspecialchars($fullWorksheetUrl); ?>', <?php echo $isImgWorksheet ? 'true' : 'false'; ?>)">
+                                            <i class="ph-bold ph-printer"></i> <span>Print</span>
+                                        </button>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+
+                            <?php if ($isImgWorksheet && $fullWorksheetUrl): ?>
+                                <div class="mt-3 text-center p-2 rounded bg-light border">
+                                    <img src="<?php echo htmlspecialchars($fullWorksheetUrl); ?>" class="img-fluid rounded shadow-sm" style="max-height: 380px; object-fit: contain;" alt="Worksheet Preview">
+                                </div>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Completed Work Upload Section -->
+                        <div class="p-3 p-md-4 rounded-3 border" style="background:#f8fafc; border-color:#cbd5e1 !important;">
+                            <h5 class="fw-bold text-dark mb-2">
+                                <i class="ph-bold ph-upload-simple text-primary me-1"></i> I-upload ang Sagutang Papel (Completed Work)
+                            </h5>
+                            <p class="small text-muted mb-3">
+                                Kumuha ng malinaw na litrato (camera photo) o i-scan ang nasagutang papel at i-upload dito (JPG, PNG, o PDF).
+                            </p>
+
+                            <div class="p-4 text-center rounded-3 mb-3" id="worksheetDropzone" style="border: 2px dashed #94a3b8; background: #fff; cursor: pointer;" onclick="document.getElementById('customWorksheetFile').click()">
+                                <input type="file" id="customWorksheetFile" accept="image/jpeg,image/png,image/webp,application/pdf" class="d-none" onchange="previewWorksheetUpload(this)">
+                                <div id="dropzonePrompt">
+                                    <div class="mb-2"><i class="ph-bold ph-camera text-primary" style="font-size: 2.5rem;"></i></div>
+                                    <div class="fw-bold text-dark">Pindutin para pumili ng litrato o PDF</div>
+                                    <div class="small text-muted">Maaaring gamitin ang camera ng cellphone o pumili mula sa gallery</div>
+                                </div>
+                                <div id="dropzonePreview" style="display:none;">
+                                    <div class="d-flex align-items-center justify-content-center gap-3">
+                                        <img id="previewThumbImg" src="" class="rounded border shadow-sm" style="max-height:120px; display:none;" alt="Preview">
+                                        <i id="previewThumbPdf" class="ph-bold ph-file-pdf text-danger fs-1" style="display:none;"></i>
+                                        <div class="text-start">
+                                            <strong class="d-block text-dark small" id="previewFileName"></strong>
+                                            <span class="text-muted small" id="previewFileSize"></span>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger mt-2" onclick="clearWorksheetUpload(event)">
+                                        <i class="ph-bold ph-trash me-1"></i> Palitan ang file
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="customWorksheetNotes" class="form-label small fw-semibold text-secondary">Mensahe o Notes para kay Teacher (Opsyonal):</label>
+                                <textarea id="customWorksheetNotes" class="form-control" rows="2" placeholder="Halimbawa: 'Tapos na po ni Juan ang Activity 1, medyo nahirapan lang po sa number 3.'"></textarea>
+                            </div>
+
+                            <div class="text-end">
+                                <button type="button" class="btn btn-bubble px-4 py-2" id="submitPrintableBtn" onclick="submitCustomPrintable()">
+                                    <i class="ph-bold ph-paper-plane-tilt me-1"></i> <span>Ipasa ang Gawain (Submit)</span>
+                                </button>
+                            </div>
+                        </div>
+                    </article>
                 <?php else: ?>
                     <article class="game-question-card" data-step="0" data-required="view">
                         <div class="question-pill">Activity</div>
@@ -1056,6 +1225,7 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                     </article>
                 <?php endif; ?>
 
+                <?php if ($actType !== 'custom_printable'): ?>
                 <article class="game-question-card final-screen" data-step="<?php echo $questionTotal; ?>" data-required="final">
                     <div class="complete-badge text-warning"><i class="ph-bold ph-star fs-1"></i></div>
                     <div class="quest-eyebrow text-primary fw-bold small text-uppercase">Mission Review</div>
@@ -1075,8 +1245,10 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                         </a>
                     </div>
                 </article>
+                <?php endif; ?>
             </section>
 
+            <?php if ($actType !== 'custom_printable'): ?>
             <nav class="game-navigation d-flex justify-content-between align-items-center mt-3" aria-label="Challenge navigation">
                 <button type="button" class="btn btn-bubble-outline px-4 py-2" id="backChallengeBtn" onclick="goChallenge(-1)">
                     <i class="ph-bold ph-arrow-left me-1"></i> <span>Nakaraan</span>
@@ -1085,6 +1257,7 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                     <span>Susunod</span> <i class="ph-bold ph-arrow-right ms-1"></i>
                 </button>
             </nav>
+            <?php endif; ?>
 
             <div id="resultArea" class="game-result-area" style="display:none;"></div>
         <?php endif; ?>
@@ -1317,6 +1490,16 @@ function updateGameStage() {
     });
 
     const isFinal = currentStep >= TOTAL_STEPS;
+    if (ACTIVITY_TYPE === 'custom_printable') {
+        const prog = document.querySelector('.game-progress-panel');
+        const nav = document.querySelector('.game-navigation');
+        if (prog) prog.style.display = 'none';
+        if (nav) nav.style.display = 'none';
+        const card = getCardForStep(0);
+        if (card) card.classList.add('active');
+        return;
+    }
+
     const counter = document.getElementById('challengeCounter');
     const mood = document.getElementById('challengeMood');
     const fill = document.getElementById('gameProgressFill');
@@ -2898,6 +3081,15 @@ function escapeHtml(value) {
 }
 
 function submitAnswers() {
+    if (!navigator.onLine) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Kailangan ng Internet',
+            text: 'This activity requires an internet connection.',
+            confirmButtonColor: '#1e4072'
+        });
+        return;
+    }
     if (!validateAllAnswered()) {
         Swal.fire({icon:'warning',title:'Mission not finished',text:'Please answer every challenge before submitting.',confirmButtonColor:'#a01422'});
         return;
@@ -2944,6 +3136,14 @@ function showResult(data) {
     if (!area) return;
 
     let scoreHtml = '<p class="congrats-text text-muted my-3">Great job! Your mission was sent to your teacher. Keep learning!</p>';
+    if (ACTIVITY_TYPE === 'custom_printable') {
+        scoreHtml = `
+            <div class="alert alert-success border-success p-3 rounded-3 my-3 text-start">
+                <h5 class="fw-bold mb-1"><i class="ph-bold ph-check-circle me-1"></i> Matagumpay na Naisumite!</h5>
+                <p class="small mb-0">Naisumite na ang iyong sagutang papel. Titingnan at mamarkahan ito ng iyong guro.</p>
+            </div>
+        `;
+    }
     let remedialBanner = '';
 
     if (data.auto_score !== null && data.auto_score !== undefined) {
@@ -2970,8 +3170,25 @@ function showResult(data) {
         triggerConfettiEffect();
     }
 
+    const returnLessonUrl = data.parent_lesson_url || (BASE + '/learning/lesson/' + LESSON_PLAN_ID);
+    let nextLessonHtml = '';
+    if (data.next_lesson_url) {
+        const nextTitle = data.next_lesson_title ? ': ' + $('<div>').text(data.next_lesson_title).html() : '';
+        nextLessonHtml = '<a class="btn btn-primary px-4 py-2 d-flex align-items-center gap-1.5 fw-bold shadow-sm" href="' + data.next_lesson_url + '"><i class="ph-bold ph-arrow-right"></i> <span>Next Lesson' + nextTitle + '</span></a>';
+    }
+
     area.style.display = 'block';
-    area.innerHTML = '<section class="mission-complete-card text-center p-4 bg-white border rounded-4 shadow-sm"><div class="complete-badge-icon mb-3"><i class="ph-bold ph-trophy text-warning" style="font-size: 3.8rem;" aria-hidden="true"></i></div><div class="quest-eyebrow text-success fw-bold"><i class="ph-bold ph-check-circle me-1"></i> ' + (data.needs_remediation ? 'MISSION COMPLETED (REMEDIATION)' : 'MISSION ACCOMPLISHED!') + '</div><h2 class="fw-bold text-dark mt-2">' + (data.needs_remediation ? 'Practice Makes Progress!' : 'Superstar Achievement Unlocked!') + '</h2>' + scoreHtml + '<div class="game-actions center d-flex justify-content-center gap-2 mt-4 flex-wrap"><a class="btn btn-bubble-outline px-4 py-2 d-flex align-items-center gap-1.5" href="' + BASE + '/learning/lesson/' + LESSON_PLAN_ID + '"><i class="ph-bold ph-book-open"></i> <span>Back to Lesson Hub</span></a><a class="btn btn-bubble px-4 py-2 d-flex align-items-center gap-1.5" href="' + BASE + '/learning/dashboard?tab=badges"><i class="ph-bold ph-trophy"></i> <span>View My Badges</span></a></div></section>';
+    area.innerHTML = '<section class="mission-complete-card text-center p-4 bg-white border rounded-4 shadow-sm">' +
+        '<div class="complete-badge-icon mb-3"><i class="ph-bold ph-trophy text-warning" style="font-size: 3.8rem;" aria-hidden="true"></i></div>' +
+        '<div class="quest-eyebrow text-success fw-bold"><i class="ph-bold ph-check-circle me-1"></i> ' + (data.needs_remediation ? 'MISSION COMPLETED (REMEDIATION)' : 'MISSION ACCOMPLISHED!') + '</div>' +
+        '<h2 class="fw-bold text-dark mt-2">' + (data.needs_remediation ? 'Practice Makes Progress!' : 'Superstar Achievement Unlocked!') + '</h2>' +
+        scoreHtml +
+        '<div class="game-actions center d-flex justify-content-center gap-2 mt-4 flex-wrap">' +
+            '<a class="btn btn-bubble-outline px-4 py-2 d-flex align-items-center gap-1.5 fw-bold" href="' + returnLessonUrl + '"><i class="ph-bold ph-arrow-left"></i> <span>Return to Lesson</span></a>' +
+            nextLessonHtml +
+            '<a class="btn btn-bubble px-4 py-2 d-flex align-items-center gap-1.5" href="' + BASE + '/learning/dashboard?tab=badges"><i class="ph-bold ph-trophy"></i> <span>View My Badges</span></a>' +
+        '</div>' +
+    '</section>';
 }
 
 function triggerConfettiEffect() {
@@ -3039,6 +3256,115 @@ document.addEventListener('DOMContentLoaded', function() {
 
     updateGameStage();
 });
+
+/* ================================================================
+   Custom / Printable Worksheet Helpers
+   ================================================================ */
+function printWorksheet(url, isImg) {
+    if (isImg) {
+        const win = window.open('', '_blank');
+        win.document.write(`
+            <html>
+                <head>
+                    <title>Worksheet Print</title>
+                    <style>body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #fff; } img { max-width: 100%; height: auto; }</style>
+                </head>
+                <body>
+                    <img src="${url}" onload="window.print();window.close();">
+                </body>
+            </html>
+        `);
+        win.document.close();
+    } else {
+        window.open(url, '_blank');
+    }
+}
+
+function previewWorksheetUpload(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    document.getElementById('dropzonePrompt').style.display = 'none';
+    const preview = document.getElementById('dropzonePreview');
+    preview.style.display = 'block';
+    document.getElementById('previewFileName').textContent = file.name;
+    document.getElementById('previewFileSize').textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+
+    const thumbImg = document.getElementById('previewThumbImg');
+    const thumbPdf = document.getElementById('previewThumbPdf');
+
+    if (file.type.startsWith('image/')) {
+        thumbImg.src = URL.createObjectURL(file);
+        thumbImg.style.display = 'inline-block';
+        thumbPdf.style.display = 'none';
+    } else {
+        thumbImg.style.display = 'none';
+        thumbPdf.style.display = 'inline-block';
+    }
+}
+
+function clearWorksheetUpload(event) {
+    if (event) event.stopPropagation();
+    const input = document.getElementById('customWorksheetFile');
+    if (input) input.value = '';
+    document.getElementById('dropzonePrompt').style.display = 'block';
+    document.getElementById('dropzonePreview').style.display = 'none';
+}
+
+function submitCustomPrintable() {
+    if (!navigator.onLine) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Kailangan ng Internet',
+            text: 'This activity requires an internet connection.',
+            confirmButtonColor: '#1e4072'
+        });
+        return;
+    }
+    const fileInput = document.getElementById('customWorksheetFile');
+    if (!fileInput || !fileInput.files || !fileInput.files.length) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Pumili ng File',
+            text: 'Palihog og upload sa litrato o PDF sa imong nahuman nga worksheet.',
+            confirmButtonColor: '#a01422'
+        });
+        return;
+    }
+
+    const btn = document.getElementById('submitPrintableBtn');
+    if (btn) btn.disabled = true;
+    Swal.fire({
+        title: 'Ipinapasa ang Gawain...',
+        text: 'Nag-a-upload ng sagutang papel, sandali lamang...',
+        allowOutsideClick: false,
+        didOpen: function() { Swal.showLoading(); }
+    });
+
+    const formData = new FormData();
+    formData.append('submission_file', fileInput.files[0]);
+    const notes = document.getElementById('customWorksheetNotes')?.value || '';
+    formData.append('notes', notes);
+
+    fetch(BASE + '/learning/activity/' + ACTIVITY_ID + '/submit', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        Swal.close();
+        if (!data.success) {
+            Swal.fire({ icon: 'error', title: 'Hindi Naisumite', text: data.message || 'Subukan muli.', confirmButtonColor: '#a01422' });
+            if (btn) btn.disabled = false;
+            return;
+        }
+        showResult(data);
+    })
+    .catch(err => {
+        Swal.close();
+        Swal.fire({ icon: 'error', title: 'Network Error', text: 'Hindi maipasa ang worksheet. Pakisubukang muli.', confirmButtonColor: '#a01422' });
+        if (btn) btn.disabled = false;
+    });
+}
 </script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

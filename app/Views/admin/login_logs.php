@@ -15,28 +15,28 @@ require_once __DIR__ . '/../layouts/header.php';
     </h1>
 
     <!-- Statistics Cards -->
-    <div class="row mb-4">
+    <div class="row mb-4 m-grid">
         <div class="col-md-4">
             <div class="card" style="border-left: 4px solid #1e4072;">
                 <div class="card-body">
-                    <h6 class="text-muted mb-2">Total Attempts (24h)</h6>
-                    <h3 class="mb-0"><?php echo number_format($stats['total']); ?></h3>
+                    <h6 class="text-muted mb-2"><?php echo !empty($stats['is_all_time']) ? 'Total Attempts (All-Time)' : 'Total Attempts (24h)'; ?></h6>
+                    <h3 class="mb-0"><?php echo number_format($stats['total'] ?? 0); ?></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card" style="border-left: 4px solid #3b6d11;">
                 <div class="card-body">
-                    <h6 class="text-muted mb-2">Successful Logins (24h)</h6>
-                    <h3 class="mb-0 text-success"><?php echo number_format($stats['successful']); ?></h3>
+                    <h6 class="text-muted mb-2"><?php echo !empty($stats['is_all_time']) ? 'Successful Logins (All-Time)' : 'Successful Logins (24h)'; ?></h6>
+                    <h3 class="mb-0 text-success"><?php echo number_format($stats['successful'] ?? 0); ?></h3>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card" style="border-left: 4px solid #a01422;">
                 <div class="card-body">
-                    <h6 class="text-muted mb-2">Failed Attempts (24h)</h6>
-                    <h3 class="mb-0 text-danger"><?php echo number_format($stats['failed']); ?></h3>
+                    <h6 class="text-muted mb-2"><?php echo !empty($stats['is_all_time']) ? 'Failed Attempts (All-Time)' : 'Failed Attempts (24h)'; ?></h6>
+                    <h3 class="mb-0 text-danger"><?php echo number_format($stats['failed'] ?? 0); ?></h3>
                 </div>
             </div>
         </div>

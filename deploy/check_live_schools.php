@@ -4,10 +4,10 @@
 $envFile = dirname(__DIR__) . '/.env.infinityfree';
 $config  = parse_ini_file($envFile);
 
-$host = $config['DB_HOST'] ?? 'sql102.infinityfree.com';
-$user = $config['DB_USER'] ?? 'if0_42187079';
-$pass = $config['DB_PASS'] ?? 'kbiwziPLUi7zx';
-$name = $config['DB_NAME'] ?? 'if0_42187079_sped_test';
+$host = $config['DB_HOST'] ?? 'localhost';
+$user = $config['DB_USER'] ?? 'root';
+$pass = $config['DB_PASS'] ?? '';
+$name = $config['DB_NAME'] ?? 'sped_lms';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$name;charset=utf8mb4", $user, $pass, [
