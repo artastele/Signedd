@@ -180,11 +180,25 @@ $getOptionImage = static function ($option): string {
     return '';
 };
 
-$getCorrectMcIndex = static function (array $question): ?int {
-    if (isset($question['correct_answer'])) {
-        return is_numeric($question['correct_answer']) ? (int)$question['correct_answer'] : null;
+$getQuestionOptions = static function (array $question): array {
+    if (!empty($question['options']) && is_array($question['options'])) {
+        return $question['options'];
     }
-    foreach (($question['options'] ?? []) as $index => $option) {
+    if (!empty($question['choices']) && is_array($question['choices'])) {
+        return $question['choices'];
+    }
+    return [];
+};
+
+$getCorrectMcIndex = static function (array $question) use ($getQuestionOptions): ?int {
+    if (isset($question['correct_answer']) && is_numeric($question['correct_answer'])) {
+        return (int)$question['correct_answer'];
+    }
+    if (isset($question['correct']) && is_numeric($question['correct'])) {
+        return (int)$question['correct'];
+    }
+    $options = $getQuestionOptions($question);
+    foreach ($options as $index => $option) {
         if (!is_array($option)) {
             continue;
         }
@@ -208,10 +222,11 @@ $feedbackData = [
 ];
 foreach (($actData['questions'] ?? []) as $qi => $question) {
     $correctIndex = $getCorrectMcIndex($question);
+    $options = $getQuestionOptions($question);
     $feedbackData['multiple_choice'][$qi] = [
         'correct' => $correctIndex,
-        'correctText' => $correctIndex !== null
-            ? $getOptionText(($question['options'] ?? [])[$correctIndex] ?? '')
+        'correctText' => ($correctIndex !== null && isset($options[$correctIndex]))
+            ? $getOptionText($options[$correctIndex])
             : null,
     ];
 }
@@ -333,7 +348,19 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                 <?php if ($actType === 'multiple_choice'): ?>
                     <?php foreach (($actData['questions'] ?? []) as $qi => $q): ?>
                         <?php
-                        $selected = isset($submittedAnswers[$qi]) ? (int)$submittedAnswers[$qi] : null;
+                        $options = $getQuestionOptions($q);
+                        $rawSelected = $submittedAnswers[$qi] ?? null;
+                        $selected = null;
+                        if ($rawSelected !== null && is_numeric($rawSelected)) {
+                            $selected = (int)$rawSelected;
+                        } elseif ($rawSelected !== null && is_string($rawSelected) && trim($rawSelected) !== '') {
+                            foreach ($options as $oi => $opt) {
+                                if (strcasecmp(trim($getOptionText($opt)), trim($rawSelected)) === 0) {
+                                    $selected = $oi;
+                                    break;
+                                }
+                            }
+                        }
                         $correct = $getCorrectMcIndex($q);
                         $isRight = $correct !== null && $selected !== null && $selected === $correct;
                         $qImg = $q['image'] ?? '';
@@ -344,16 +371,16 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                             <?php endif; ?>
                             <strong><?php echo ($qi + 1) . '. ' . htmlspecialchars($q['text'] ?? $q['question'] ?? 'Question'); ?></strong>
                             <p>Your answer: <?php 
-                                $selOpt = ($q['options'] ?? [])[$selected] ?? null;
+                                $selOpt = $options[$selected] ?? null;
                                 $selImg = $getOptionImage($selOpt);
                                 if (!empty($selImg)) {
                                     echo '<img src="' . htmlspecialchars($selImg) . '" class="rounded border me-1" style="max-height: 32px; vertical-align: middle;"> ';
                                 }
-                                echo htmlspecialchars($selOpt !== null ? $getOptionText($selOpt) : 'No answer'); 
+                                echo htmlspecialchars($selOpt !== null ? $getOptionText($selOpt) : ($rawSelected !== null && is_scalar($rawSelected) ? (string)$rawSelected : 'No answer')); 
                             ?></p>
                             <?php if ($correct !== null): ?>
                                 <p>Correct answer: <?php 
-                                    $corOpt = ($q['options'] ?? [])[$correct] ?? null;
+                                    $corOpt = $options[$correct] ?? null;
                                     $corImg = $getOptionImage($corOpt);
                                     if (!empty($corImg)) {
                                         echo '<img src="' . htmlspecialchars($corImg) . '" class="rounded border me-1" style="max-height: 32px; vertical-align: middle;"> ';
@@ -679,7 +706,7 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                                 </div>
                             <?php endif; ?>
                             <div class="answer-card-grid mc-card-grid">
-                                <?php foreach (($q['options'] ?? []) as $oi => $opt): ?>
+                                <?php $options = $getQuestionOptions($q); foreach ($options as $oi => $opt): ?>
                                     <?php $optImg = $getOptionImage($opt); ?>
                                     <button type="button" class="game-answer-card mc-option-btn" data-answer="<?php echo $oi; ?>" data-step-index="<?php echo $qi; ?>" onclick="highlightGameChoice(this, <?php echo $qi; ?>, <?php echo $oi; ?>)">
                                         <span class="answer-letter"><?php echo chr(65 + $oi); ?></span>

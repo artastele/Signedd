@@ -306,7 +306,6 @@ route('POST', '/iep/meetings/create', 'IEPMeetingController', 'createMeeting', '
 route('GET', '/iep/meetings/{id}/pdsp', 'IEPMeetingController', 'pdspForm', 'iep.meeting');
 route('POST', '/iep/meetings/pdsp/save', 'IEPMeetingController', 'savePDSP', 'iep.meeting');
 route('POST', '/iep/meetings/pdsp/submit', 'IEPMeetingController', 'submitPDSP', 'iep.meeting');
-route('POST', '/iep/meetings/pdsp/ai-extract', 'IEPMeetingController', 'aiExtract', 'iep.meeting');
 route('POST', '/iep/meetings/pdsp/upload-signed-document', 'IEPMeetingController', 'uploadSignedDocument', 'iep.meeting');
 route('GET', '/iep/meetings/{id}', 'IEPMeetingController', 'show', 'iep.meeting');
 route('GET', '/iep-meeting/{id}', 'IEPMeetingController', 'show', 'iep.meeting');

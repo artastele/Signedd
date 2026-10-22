@@ -664,42 +664,91 @@ class LearningController {
         switch ($type) {
             case 'multiple_choice':
                 $score = 0;
+                $extractOptionText = static function ($opt): string {
+                    if (is_array($opt)) {
+                        return (string)($opt['text'] ?? $opt['label'] ?? '');
+                    }
+                    return (string)$opt;
+                };
+
                 foreach ($activityData['questions'] ?? [] as $qi => $q) {
                     $userAnswer = $answers[$qi] ?? null;
                     $questionPoints = (int) ($q['points'] ?? 1);
+
+                    // Support options (standard) or choices (legacy/builder)
+                    $options = !empty($q['options']) && is_array($q['options'])
+                        ? $q['options']
+                        : (!empty($q['choices']) && is_array($q['choices']) ? $q['choices'] : []);
+
+                    // Resolve correct option index
                     $correctIndex = null;
-                    
-                    if (isset($q['correct_answer'])) {
-                        $correctIndex = $q['correct_answer'];
+                    if (isset($q['correct_answer']) && is_numeric($q['correct_answer'])) {
+                        $correctIndex = (int)$q['correct_answer'];
+                    } elseif (isset($q['correct']) && is_numeric($q['correct'])) {
+                        // Legacy 0-based index field (e.g. warm-up seed)
+                        $correctIndex = (int)$q['correct'];
                     } else {
-                        foreach ($q['options'] ?? [] as $oi => $opt) {
-                            $isCorrectOpt = null;
-                            if (isset($opt['is_correct'])) {
-                                $isCorrectOpt = $opt['is_correct'];
-                            } elseif (isset($opt['isCorrect'])) {
-                                $isCorrectOpt = $opt['isCorrect'];
-                            } elseif (isset($opt['correct_answer'])) {
-                                $isCorrectOpt = $opt['correct_answer'];
-                            }
+                        foreach ($options as $oi => $opt) {
+                            $isCorrectOpt = is_array($opt) 
+                                ? ($opt['is_correct'] ?? $opt['isCorrect'] ?? $opt['correct_answer'] ?? null) 
+                                : null;
                             if (!empty($isCorrectOpt)) {
-                                $correctIndex = $oi;
+                                $correctIndex = (int)$oi;
                                 break;
                             }
                         }
                     }
 
-                    $isCorrect = ($correctIndex !== null && (string)$correctIndex === (string)$userAnswer);
+                    // Evaluate learner response
+                    $isCorrect = false;
+                    $userAnswerText = '';
+
+                    // 1. Numeric index submission (standard frontend player format)
+                    if ($userAnswer !== null && is_numeric($userAnswer) && isset($options[(int)$userAnswer])) {
+                        $userIndex = (int)$userAnswer;
+                        $userAnswerText = $extractOptionText($options[$userIndex]);
+                        if ($correctIndex !== null && $userIndex === $correctIndex) {
+                            $isCorrect = true;
+                        }
+                    } elseif ($userAnswer !== null && is_string($userAnswer) && trim($userAnswer) !== '') {
+                        // 2. Legacy text-based answer submission
+                        $trimmedAnswer = trim($userAnswer);
+                        
+                        // Collect all matching option indices
+                        $matchingIndices = [];
+                        foreach ($options as $oi => $opt) {
+                            if (strcasecmp(trim($extractOptionText($opt)), $trimmedAnswer) === 0) {
+                                $matchingIndices[] = (int)$oi;
+                            }
+                        }
+
+                        if (!empty($matchingIndices)) {
+                            // If option labels are duplicated, check if correctIndex is among them
+                            if ($correctIndex !== null && in_array($correctIndex, $matchingIndices, true)) {
+                                $isCorrect = true;
+                                $userAnswerText = $extractOptionText($options[$correctIndex]);
+                            } else {
+                                $isCorrect = false;
+                                $userAnswerText = $extractOptionText($options[$matchingIndices[0]]);
+                            }
+                        } else {
+                            $isCorrect = false;
+                            $userAnswerText = $trimmedAnswer;
+                        }
+                    } else {
+                        // Malformed or unanswered
+                        $isCorrect = false;
+                        $userAnswerText = is_scalar($userAnswer) ? (string)$userAnswer : '';
+                    }
+
                     if ($isCorrect) {
                         $score += $questionPoints;
                     }
-                    
-                    $userAnswerText = isset(($q['options'] ?? [])[$userAnswer]) 
-                        ? (is_array($q['options'][$userAnswer]) ? ($q['options'][$userAnswer]['text'] ?? $q['options'][$userAnswer]['label'] ?? '') : $q['options'][$userAnswer])
-                        : (string)$userAnswer;
-                    $correctAnswerText = isset(($q['options'] ?? [])[$correctIndex]) 
-                        ? (is_array($q['options'][$correctIndex]) ? ($q['options'][$correctIndex]['text'] ?? $q['options'][$correctIndex]['label'] ?? '') : $q['options'][$correctIndex])
-                        : (string)$correctIndex;
-                    
+
+                    $correctAnswerText = ($correctIndex !== null && isset($options[$correctIndex]))
+                        ? $extractOptionText($options[$correctIndex])
+                        : ($correctIndex !== null ? (string)$correctIndex : '');
+
                     $logAttempt($qi, $userAnswerText, $correctAnswerText, $isCorrect);
                 }
                 $autoScore = $score;

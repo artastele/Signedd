@@ -79,6 +79,12 @@ if (file_exists($autoload1)) {
 // Detect base path automatically (MUST be before session start)
 $scriptName = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
 $basePath = ($scriptName === '/' || $scriptName === '.' || $scriptName === '') ? '' : rtrim($scriptName, '/');
+
+// Adapt to request URI casing on case-insensitive webservers (e.g. Windows / Laragon)
+$requestUriPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+if ($basePath !== '' && $requestUriPath && stripos($requestUriPath, $basePath) === 0) {
+    $basePath = substr($requestUriPath, 0, strlen($basePath));
+}
 define('BASE_PATH', $basePath);
 
 // Start session
@@ -111,8 +117,8 @@ $requestMethod = $_SERVER['REQUEST_METHOD'];
 // Remove query string
 $path = parse_url($requestUri, PHP_URL_PATH);
 
-// Remove base path from request path
-if ($basePath !== '' && strpos($path, $basePath) === 0) {
+// Remove base path from request path (case-insensitive for Windows/Laragon)
+if ($basePath !== '' && stripos($path, $basePath) === 0) {
     $path = substr($path, strlen($basePath));
 }
 $path = '/' . trim($path, '/');

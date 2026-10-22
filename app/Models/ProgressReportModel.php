@@ -36,6 +36,11 @@ class ProgressReportModel {
             }
         };
 
+        $addColumnSafe('lms_submissions', 'is_remedial_attempt', 'TINYINT(1) NOT NULL DEFAULT 0');
+        $addColumnSafe('lms_submissions', 'needs_remediation', 'TINYINT(1) NOT NULL DEFAULT 0');
+        $addColumnSafe('activity_attempts', 'is_remedial_attempt', 'TINYINT(1) NOT NULL DEFAULT 0');
+        $addColumnSafe('activity_attempts', 'needs_remediation', 'TINYINT(1) NOT NULL DEFAULT 0');
+
         $statements = [
             "CREATE TABLE IF NOT EXISTS attendance_records (
                 id INT AUTO_INCREMENT PRIMARY KEY,
