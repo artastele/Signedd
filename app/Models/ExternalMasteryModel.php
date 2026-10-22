@@ -10,6 +10,53 @@ class ExternalMasteryModel {
 
     public function __construct() {
         $this->db = Database::getInstance()->getConnection();
+        $this->ensureTables();
+    }
+
+    /**
+     * Self-healing schema check to ensure External Mastery table and columns exist
+     */
+    private function ensureTables(): void {
+        static $checked = false;
+        if ($checked) {
+            return;
+        }
+        $checked = true;
+
+        try {
+            $this->db->exec("
+                CREATE TABLE IF NOT EXISTS `external_mastery_results` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `lesson_plan_id` INT NOT NULL,
+                    `student_id` INT NOT NULL,
+                    `recorded_by` INT NOT NULL,
+                    `resource_title` VARCHAR(255) NULL,
+                    `resource_url` VARCHAR(1000) NULL,
+                    `mastery_status` ENUM('completed', 'needs_support', 'not_attempted') NOT NULL DEFAULT 'completed',
+                    `score` DECIMAL(5,2) NULL,
+                    `teacher_notes` TEXT NULL,
+                    `completed_at` DATE NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY `idx_emr_lesson_student` (`lesson_plan_id`, `student_id`),
+                    INDEX `idx_emr_student` (`student_id`),
+                    INDEX `idx_emr_recorded_by` (`recorded_by`),
+                    CONSTRAINT `fk_emr_lesson_plan` FOREIGN KEY (`lesson_plan_id`) REFERENCES `lesson_plans` (`id`) ON DELETE CASCADE,
+                    CONSTRAINT `fk_emr_student` FOREIGN KEY (`student_id`) REFERENCES `student_records` (`id`) ON DELETE CASCADE,
+                    CONSTRAINT `fk_emr_recorded_by` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
+            try {
+                $this->db->exec("ALTER TABLE `lesson_plans` ADD COLUMN `mainstream_mastery_url` VARCHAR(1000) NULL DEFAULT NULL AFTER `cloned_from_pack_id`");
+            } catch (Throwable $e) {}
+
+            try {
+                $this->db->exec("ALTER TABLE `lesson_plans` ADD COLUMN `mainstream_mastery_title` VARCHAR(255) NULL DEFAULT NULL AFTER `mainstream_mastery_url`");
+            } catch (Throwable $e) {}
+        } catch (Throwable $e) {
+            error_log("ExternalMasteryModel ensureTables warning: " . $e->getMessage());
+        }
     }
 
     /**

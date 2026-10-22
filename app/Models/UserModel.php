@@ -102,8 +102,8 @@ class UserModel {
         $passwordHash = password_hash($password, PASSWORD_BCRYPT);
 
         $stmt = $this->db->prepare("
-            INSERT INTO users (name, first_name, middle_name, last_name, suffix, email, contact_number, password_hash, role, status)
-            VALUES (:name, :first_name, :middle_name, :last_name, :suffix, :email, :contact_number, :password_hash, 'user', 'active')
+            INSERT INTO users (name, first_name, middle_name, last_name, suffix, email, contact_number, password_hash, role, status, email_verified)
+            VALUES (:name, :first_name, :middle_name, :last_name, :suffix, :email, :contact_number, :password_hash, 'user', 'active', 1)
         ");
 
         $stmt->execute([

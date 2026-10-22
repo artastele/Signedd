@@ -83,7 +83,11 @@ class SectionController {
         $stmt->execute(['school_id' => $schoolId, 'school_id_null' => $schoolId]);
         $teachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $sections = $this->sectionModel->getSectionsBySchool($schoolId);
+        if ($userRole === 'sped_teacher') {
+            $sections = $this->sectionModel->getSectionsByAdviser((int)$userId, $schoolId);
+        } else {
+            $sections = $this->sectionModel->getSectionsBySchool($schoolId);
+        }
         foreach ($sections as &$sec) {
             $sec['students'] = $this->sectionModel->getStudentsBySection((int)$sec['id'], $sec['section_name'] ?? '');
         }
@@ -101,6 +105,13 @@ class SectionController {
      * Create section
      */
     public function store() {
+        $userRole = $_SESSION['role'] ?? 'user';
+        if (!in_array($userRole, ['principal', 'master_teacher'])) {
+            $_SESSION['flash_error'] = 'Access restricted: Only School Principals and Master Teachers can create sections.';
+            header('Location: ' . $this->basePath . '/sections');
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . $this->basePath . '/sections');
             exit;
@@ -157,6 +168,13 @@ class SectionController {
      * Update section
      */
     public function update($id) {
+        $userRole = $_SESSION['role'] ?? 'user';
+        if (!in_array($userRole, ['principal', 'master_teacher'])) {
+            $_SESSION['flash_error'] = 'Access restricted: Only School Principals and Master Teachers can update sections.';
+            header('Location: ' . $this->basePath . '/sections');
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . $this->basePath . '/sections');
             exit;
@@ -213,6 +231,13 @@ class SectionController {
      * Delete / archive section
      */
     public function delete($id) {
+        $userRole = $_SESSION['role'] ?? 'user';
+        if (!in_array($userRole, ['principal', 'master_teacher'])) {
+            $_SESSION['flash_error'] = 'Access restricted: Only School Principals and Master Teachers can archive sections.';
+            header('Location: ' . $this->basePath . '/sections');
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header('Location: ' . $this->basePath . '/sections');
             exit;

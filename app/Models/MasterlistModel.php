@@ -240,10 +240,11 @@ class MasterlistModel {
         $stmt = $this->db->prepare("
             SELECT sr.id AS student_record_id, sr.student_id, sr.lrn, sr.student_name,
                    sr.date_of_birth, sr.disability_type, sr.learning_track, sr.school_id,
+                   sr.learner_user_id, sr.lms_invite_status,
                    sch.school_name, sch.address AS school_address,
                    es.id AS enrollment_id, es.parent_id, es.first_name, es.last_name,
                    es.grade_level_to_enroll, es.guardian_first_name, es.guardian_last_name,
-                   es.guardian_contact_number
+                   es.guardian_contact_number, es.learner_account_created
             FROM student_records sr
             LEFT JOIN schools sch ON sr.school_id = sch.id
             LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
@@ -258,6 +259,7 @@ class MasterlistModel {
     /**
      * Get all active learners available for parent linking via Universal GC Claim.
      * Orders by student_name / alias.
+     * Excludes learners who already have a registered account or linked parent.
      */
     public function getClaimableLearners(): array {
         try {
@@ -268,7 +270,14 @@ class MasterlistModel {
                        u.name AS linked_parent_name
                 FROM student_records sr
                 LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
-                LEFT JOIN users u ON es.parent_id = u.id
+                LEFT JOIN users u ON (es.parent_id = u.id AND u.role = 'parent')
+                LEFT JOIN users lu ON (lu.role = 'learner' AND (lu.id = sr.learner_user_id OR lu.email = CONCAT('learner_', COALESCE(NULLIF(sr.lrn, ''), sr.student_id), '@spedlms.local')))
+                WHERE (sr.learner_user_id IS NULL OR sr.learner_user_id = 0)
+                  AND (es.parent_id IS NULL OR es.parent_id = 0)
+                  AND (es.learner_account_created = 0 OR es.learner_account_created IS NULL)
+                  AND (sr.lms_invite_status != 'accepted' OR sr.lms_invite_status IS NULL)
+                  AND lu.id IS NULL
+                  AND u.id IS NULL
                 ORDER BY sr.student_name ASC
             ");
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -402,7 +411,7 @@ class MasterlistModel {
     /**
      * Bulk import enrolled learners from client CSV
      */
-    public function bulkImportLearners(array $rows, int $schoolId, int $teacherId): array {
+    public function bulkImportLearners(array $rows, int $schoolId, int $teacherId, ?int $forceSectionId = null): array {
         $imported = 0;
         $updated = 0;
         $skipped = 0;
@@ -418,6 +427,46 @@ class MasterlistModel {
         $nextSeq = 1;
         if ($lastRow && preg_match('/^' . preg_quote($year, '/') . '(\d{4})$/', $lastRow['student_id'], $m)) {
             $nextSeq = (int)$m[1] + 1;
+        }
+
+        // 1. Resolve advisory section for the importing teacher or forced section ID
+        $assignedSection = null;
+        if ($forceSectionId) {
+            $stmtF = $this->db->prepare("SELECT id, section_name, grade_level, adviser_teacher_id FROM sections WHERE id = :fid AND status = 'active' LIMIT 1");
+            $stmtF->execute(['fid' => $forceSectionId]);
+            $assignedSection = $stmtF->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+
+        if (!$assignedSection && $teacherId) {
+            // Check if teacher is assigned to an active section as adviser or via teacher_assignments
+            $stmtT = $this->db->prepare("
+                SELECT s.id, s.section_name, s.grade_level, s.adviser_teacher_id
+                FROM sections s
+                WHERE s.status = 'active'
+                  AND (s.school_id = :school_id OR :school_id_null IS NULL)
+                  AND (
+                      s.adviser_teacher_id = :tid 
+                      OR s.assigned_teacher_id = :tid2
+                      OR s.section_name IN (SELECT ta.section_name FROM teacher_assignments ta WHERE ta.teacher_id = :tid3)
+                  )
+                ORDER BY s.id ASC LIMIT 1
+            ");
+            $stmtT->execute([
+                'school_id' => $schoolId,
+                'school_id_null' => $schoolId,
+                'tid' => $teacherId,
+                'tid2' => $teacherId,
+                'tid3' => $teacherId
+            ]);
+            $assignedSection = $stmtT->fetch(PDO::FETCH_ASSOC) ?: null;
+
+            if ($assignedSection && empty($assignedSection['adviser_teacher_id'])) {
+                $this->db->prepare("UPDATE sections SET adviser_teacher_id = :tid WHERE id = :sid")->execute([
+                    'tid' => $teacherId,
+                    'sid' => $assignedSection['id']
+                ]);
+                $assignedSection['adviser_teacher_id'] = $teacherId;
+            }
         }
 
         foreach ($rows as $idx => $r) {
@@ -436,51 +485,81 @@ class MasterlistModel {
 
             $sex = !empty($r['sex']) ? (stripos($r['sex'], 'f') === 0 ? 'Female' : 'Male') : 'Male';
             $grade = !empty($r['grade_level']) ? trim($r['grade_level']) : 'Kinder';
-            $section = !empty($r['section_name']) ? trim($r['section_name']) : 'SPED Section A';
             $disability = !empty($r['disability_type']) ? trim($r['disability_type']) : 'General SPED';
             $parentName = !empty($r['parent_name']) ? trim($r['parent_name']) : 'Parent / Guardian';
             $parentContact = !empty($r['parent_contact']) ? trim($r['parent_contact']) : '';
 
-            // Resolve section_id and adviser from sections table
+            $rowSection = !empty($r['section_name']) ? trim($r['section_name']) : '';
+
             $sectionId = null;
-            if (!empty($section)) {
-                try {
-                    $secStmt = $this->db->prepare("
-                        SELECT id, adviser_teacher_id 
-                        FROM sections 
-                        WHERE (school_id = :school_id OR :school_id_check IS NULL)
-                          AND (LOWER(TRIM(section_name)) = LOWER(TRIM(:sname)) OR id = :sid)
-                          AND status = 'active'
-                        LIMIT 1
-                    ");
-                    $secStmt->execute([
-                        'school_id' => $schoolId,
-                        'school_id_check' => $schoolId,
-                        'sname' => $section,
-                        'sid' => is_numeric($section) ? (int)$section : 0
-                    ]);
-                    $secRow = $secStmt->fetch(PDO::FETCH_ASSOC);
-                    if ($secRow) {
-                        $sectionId = (int)$secRow['id'];
-                        if (!$teacherId && !empty($secRow['adviser_teacher_id'])) {
-                            $teacherId = (int)$secRow['adviser_teacher_id'];
-                        }
-                    } elseif ($schoolId) {
-                        // Auto-create section if it doesn't exist
-                        $createSec = $this->db->prepare("
-                            INSERT INTO sections (school_id, name, section_name, grade_level, max_capacity, school_year, status)
-                            VALUES (:school_id, :sec_name, :sec_name, :grade, 15, :sy, 'active')
+            $section = '';
+            $rowTeacherId = $teacherId;
+
+            if ($assignedSection) {
+                // Priority: Use importing teacher's designated section (all their imported learners enter here)
+                $sectionId = (int)$assignedSection['id'];
+                $section = $assignedSection['section_name'];
+                $rowTeacherId = $teacherId;
+                if (!empty($assignedSection['grade_level']) && empty($r['grade_level'])) {
+                    $grade = $assignedSection['grade_level'];
+                }
+            } else {
+                // If importing without a designated teacher advisory section (e.g. Principal)
+                if (!empty($rowSection)) {
+                    try {
+                        $secStmt = $this->db->prepare("
+                            SELECT id, section_name, adviser_teacher_id, grade_level 
+                            FROM sections 
+                            WHERE (school_id = :school_id OR :school_id_check IS NULL)
+                              AND (LOWER(TRIM(section_name)) = LOWER(TRIM(:sname)) OR id = :sid)
+                              AND status = 'active'
+                            LIMIT 1
                         ");
-                        $createSec->execute([
+                        $secStmt->execute([
                             'school_id' => $schoolId,
-                            'sec_name' => $section,
-                            'grade' => $grade ?: 'SPED',
-                            'sy' => date('Y') . '-' . (date('Y') + 1)
+                            'school_id_check' => $schoolId,
+                            'sname' => $rowSection,
+                            'sid' => is_numeric($rowSection) ? (int)$rowSection : 0
                         ]);
-                        $sectionId = (int)$this->db->lastInsertId();
+                        $secRow = $secStmt->fetch(PDO::FETCH_ASSOC);
+                        if ($secRow) {
+                            $sectionId = (int)$secRow['id'];
+                            $section = $secRow['section_name'];
+                            if (!empty($secRow['adviser_teacher_id'])) {
+                                $rowTeacherId = (int)$secRow['adviser_teacher_id'];
+                            }
+                        }
+                    } catch (\Throwable $secErr) {
+                        error_log('bulkImportLearners section resolve error: ' . $secErr->getMessage());
                     }
-                } catch (\Throwable $secErr) {
-                    error_log('bulkImportLearners section resolve error: ' . $secErr->getMessage());
+                }
+
+                // If still not resolved, assign to an existing active school section (NEVER auto-create dummy sections)
+                if (!$sectionId) {
+                    try {
+                        $defSecStmt = $this->db->prepare("
+                            SELECT id, section_name, adviser_teacher_id, grade_level 
+                            FROM sections 
+                            WHERE (school_id = :school_id OR :school_id_check IS NULL)
+                              AND status = 'active'
+                            ORDER BY id ASC
+                            LIMIT 1
+                        ");
+                        $defSecStmt->execute(['school_id' => $schoolId, 'school_id_check' => $schoolId]);
+                        $defSec = $defSecStmt->fetch(PDO::FETCH_ASSOC);
+                        if ($defSec) {
+                            $sectionId = (int)$defSec['id'];
+                            $section = $defSec['section_name'];
+                            if (!empty($defSec['adviser_teacher_id'])) {
+                                $rowTeacherId = (int)$defSec['adviser_teacher_id'];
+                            }
+                        } else {
+                            $sectionId = null;
+                            $section = 'SPED Non-Graded';
+                        }
+                    } catch (\Throwable $defSecErr) {
+                        error_log('bulkImportLearners default section error: ' . $defSecErr->getMessage());
+                    }
                 }
             }
 
@@ -502,8 +581,9 @@ class MasterlistModel {
                 $upStmt = $this->db->prepare("
                     UPDATE student_records 
                     SET lrn = COALESCE(:lrn, lrn),
-                        section_name = :section,
+                        section_name = COALESCE(:section, section_name),
                         section_id = COALESCE(:section_id, section_id),
+                        assigned_teacher_id = COALESCE(:teacher_id, assigned_teacher_id),
                         disability_type = :disability,
                         lis_status = 'synced',
                         updated_at = NOW()
@@ -511,8 +591,9 @@ class MasterlistModel {
                 ");
                 $upStmt->execute([
                     'lrn' => $lrn,
-                    'section' => $section,
-                    'section_id' => $sectionId,
+                    'section' => $section ?: null,
+                    'section_id' => $sectionId ?: null,
+                    'teacher_id' => $rowTeacherId ?: null,
                     'disability' => $disability,
                     'id' => $existing['id']
                 ]);
@@ -520,7 +601,7 @@ class MasterlistModel {
                 continue;
             }
 
-            $track = !empty($row['learning_track']) ? strtolower(trim($row['learning_track'])) : 'traditional';
+            $track = !empty($r['learning_track']) ? strtolower(trim($r['learning_track'])) : 'traditional';
             if (!in_array($track, ['traditional', 'lms', 'candidate'])) {
                 $track = 'traditional';
             }
@@ -553,7 +634,7 @@ class MasterlistModel {
 
                 $stmtEs->execute([
                     'school_id' => $schoolId,
-                    'teacher_id' => $teacherId,
+                    'teacher_id' => $rowTeacherId ?: $teacherId,
                     'sy' => date('Y') . '-' . (date('Y') + 1),
                     'lrn' => $lrn,
                     'fname' => $fname,
@@ -565,7 +646,7 @@ class MasterlistModel {
                     'pcontact' => $parentContact,
                     'track' => $track,
                     'section_id' => $sectionId,
-                    'verified_by' => $teacherId
+                    'verified_by' => $rowTeacherId ?: $teacherId
                 ]);
                 $enrollmentId = (int)$this->db->lastInsertId();
 
@@ -586,7 +667,7 @@ class MasterlistModel {
                 $stmtSr->execute([
                     'eid' => $enrollmentId,
                     'school_id' => $schoolId,
-                    'teacher_id' => $teacherId,
+                    'teacher_id' => $rowTeacherId ?: $teacherId,
                     'sid_code' => $studentIdCode,
                     'lrn' => $lrn,
                     'sname' => $name,
@@ -597,7 +678,7 @@ class MasterlistModel {
                     'track' => $track,
                     'lis_status' => (!empty($lrn) && strlen($lrn) === 12) ? 'synced' : 'pending',
                     'claim_token' => $claimToken,
-                    'verified_by' => $teacherId
+                    'verified_by' => $rowTeacherId ?: $teacherId
                 ]);
 
                 $this->db->commit();

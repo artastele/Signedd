@@ -48,15 +48,17 @@ require_once __DIR__ . '/../layouts/header.php';
                 <!-- Page Header -->
                 <div class="page-header-card d-flex align-items-center justify-content-between flex-wrap gap-3">
                     <div>
-                        <h4 class="fw-bold mb-1"><i class="bi bi-grid-3x3-gap-fill text-warning me-2"></i>SPED Section Management</h4>
-                        <p class="text-white-50 mb-0 small">Create sections, configure classroom max capacity, and monitor round-robin enrollee distribution.</p>
+                        <h4 class="fw-bold mb-1"><i class="bi bi-grid-3x3-gap-fill text-warning me-2"></i><?= ($userRole === 'sped_teacher') ? 'My Advisory Section' : 'SPED Section Management' ?></h4>
+                        <p class="text-white-50 mb-0 small"><?= ($userRole === 'sped_teacher') ? 'View your assigned advisory section, classroom capacity, and enrolled SPED learners.' : 'Create sections, configure classroom max capacity, and monitor round-robin enrollee distribution.' ?></p>
                     </div>
 
+                    <?php if (in_array($userRole, ['principal', 'master_teacher'])): ?>
                     <div>
                         <button type="button" class="btn btn-primary btn-modern shadow-sm" data-bs-toggle="modal" data-bs-target="#createSectionModal">
                             <i class="bi bi-plus-circle-fill"></i> Create New Section
                         </button>
                     </div>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Alert Messages -->
@@ -75,6 +77,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 <?php endif; ?>
 
                 <!-- Round-Robin Info Banner -->
+                <?php if (in_array($userRole, ['principal', 'master_teacher'])): ?>
                 <div class="alert alert-info border-0 shadow-sm mb-4 d-flex align-items-center gap-3">
                     <i class="bi bi-arrow-repeat fs-3 text-info"></i>
                     <div>
@@ -82,6 +85,7 @@ require_once __DIR__ . '/../layouts/header.php';
                         <div class="small text-muted">When teachers approve new enrollees, the system automatically assigns learners across active sections in rotational order (Section 1 ➔ Section 2 ➔ Section 3...), ensuring balanced class sizes and respecting max capacity limits.</div>
                     </div>
                 </div>
+                <?php endif; ?>
 
                 <!-- Sections Grid -->
                 <div class="row g-3 mb-4">
@@ -90,8 +94,13 @@ require_once __DIR__ . '/../layouts/header.php';
                             <div class="card border-0 shadow-sm text-center py-5">
                                 <div class="card-body">
                                     <i class="bi bi-inbox display-4 text-secondary mb-3 d-block"></i>
-                                    <h5 class="fw-bold">No Sections Created Yet</h5>
-                                    <p class="text-muted small">Click the "Create New Section" button above to establish your school's SPED sections.</p>
+                                    <?php if ($userRole === 'sped_teacher'): ?>
+                                        <h5 class="fw-bold">No Advisory Section Assigned</h5>
+                                        <p class="text-muted small">You are not currently assigned as an adviser to any active section. Please coordinate with your School Principal.</p>
+                                    <?php else: ?>
+                                        <h5 class="fw-bold">No Sections Created Yet</h5>
+                                        <p class="text-muted small">Click the "Create New Section" button above to establish your school's SPED sections.</p>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -144,6 +153,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                                         data-bs-toggle="modal" data-bs-target="#viewLearnersModal<?= $s['id'] ?>" style="border-radius:6px; font-size:0.8125rem;">
                                                     <i class="bi bi-people-fill me-1"></i> View Enrollees (<?= $enrolled ?>)
                                                 </button>
+                                                <?php if (in_array($userRole, ['principal', 'master_teacher'])): ?>
                                                 <div class="d-flex gap-2">
                                                     <button type="button" class="btn btn-outline-secondary btn-sm" 
                                                             data-bs-toggle="modal" data-bs-target="#editModal<?= $s['id'] ?>" title="Edit Section" style="border-radius:6px;">
@@ -156,6 +166,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                                         </button>
                                                     </form>
                                                 </div>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </div>
@@ -163,6 +174,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             </div>
 
                             <!-- Edit Modal for Section -->
+                            <?php if (in_array($userRole, ['principal', 'master_teacher'])): ?>
                             <div class="modal fade" id="editModal<?= $s['id'] ?>" tabindex="-1">
                                 <div class="modal-dialog">
                                     <div class="modal-content">
@@ -211,6 +223,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                     </div>
                                 </div>
                             </div>
+                            <?php endif; ?>
 
                             <!-- View Enrollees Modal for Section -->
                             <div class="modal fade" id="viewLearnersModal<?= $s['id'] ?>" tabindex="-1">
@@ -316,7 +329,8 @@ require_once __DIR__ . '/../layouts/header.php';
 </div> <!-- End .main-content -->
 
 
-    <!-- Create Section Modal -->
+    <!-- Create Section Modal (Principal / Master Teacher Only) -->
+    <?php if (in_array($userRole, ['principal', 'master_teacher'])): ?>
     <div class="modal fade" id="createSectionModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -365,6 +379,7 @@ require_once __DIR__ . '/../layouts/header.php';
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>
 

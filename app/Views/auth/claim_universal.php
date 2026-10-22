@@ -132,7 +132,19 @@
                 <strong>Data Privacy Act (RA 10173):</strong> Aron maprotektahan ang data privacy, mga <strong>ngalan o opisyal nga aliases</strong> sa bata ang gilista dinhi. Pili-a ang ngalan o alias nga gihatag sa inyong SPED Teacher.
             </div>
 
-            <?php if (!empty($currentUserId) && $currentUserRole === 'parent'): ?>
+            <?php if (empty($learners)): ?>
+                <div class="alert alert-info border-0 rounded-3 small mb-3 p-3 text-center" style="background:#e0f2fe; color:#0369a1;">
+                    <i class="bi bi-check-circle-fill text-primary fs-3 d-block mb-2"></i>
+                    <h6 class="fw-bold text-dark mb-1">Walay Estudyante nga Naghulat og Pag-Claim</h6>
+                    <p class="text-muted small mb-0">Ang tanang mga rehistradong estudyante aduna na'y aktibong account o konektado na sa ilahang mga ginikanan.</p>
+                </div>
+                <div class="text-center mt-3">
+                    <a href="<?= $basePath ?>/login" class="btn btn-primary btn-claim w-100 py-2.5">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Mag Log-in sa SignED Portal
+                    </a>
+                </div>
+
+            <?php elseif (!empty($currentUserId) && $currentUserRole === 'parent'): ?>
                 <!-- Already Logged In Parent Form -->
                 <div class="alert alert-info border-0 rounded-3 small mb-3" style="background:#e0f2fe; color:#0369a1;">
                     <i class="bi bi-person-check-fill me-1"></i>
@@ -153,7 +165,6 @@
                                     <?= htmlspecialchars($l['student_name']) ?>
                                     <?= !empty($l['grade_level_to_enroll']) ? ' — ' . htmlspecialchars($l['grade_level_to_enroll']) : '' ?>
                                     <?= !empty($l['section_name']) ? ' (' . htmlspecialchars($l['section_name']) . ')' : '' ?>
-                                    <?= !empty($l['linked_parent_name']) ? ' [Naa nay Parent]' : '' ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>

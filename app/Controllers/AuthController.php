@@ -174,27 +174,12 @@ class AuthController {
         $_SESSION['email'] = $user['email'];  // Add for compatibility
         $_SESSION['role'] = $user['role'];
         $_SESSION['school_id'] = !empty($user['school_id']) ? (int)$user['school_id'] : null;
-        $_SESSION['email_verified'] = $this->userModel->isEmailVerified($user['id']);
-        $_SESSION['last_activity'] = time();
-
-        // Check if email is verified
-        if (!$_SESSION['email_verified']) {
-            // Generate new OTP
-            $otp = $this->userModel->generateOTP($user['id']);
-            $_SESSION['dev_otp_code'] = $otp;
-            
-            if (class_exists('MailHelper')) {
-                try {
-                    MailHelper::sendOTPEmail($email, $user['name'], $otp);
-                } catch (\Throwable $e) {
-                    error_log("Failed to send OTP email: " . $e->getMessage());
-                }
-            }
-            
-            $_SESSION['success'] = 'Please verify your email to continue. A verification code has been generated.';
-            header('Location: ' . $basePath . '/auth/verify-email');
-            exit;
+        // Email verification bypassed for new user registration & development
+        $_SESSION['email_verified'] = true;
+        if (!$this->userModel->isEmailVerified($user['id'])) {
+            $this->userModel->markEmailVerified($user['id']);
         }
+        $_SESSION['last_activity'] = time();
 
         // Redirect to dashboard
         header('Location: ' . $basePath . '/dashboard');
@@ -305,28 +290,21 @@ class AuthController {
             // Record registration attempt
             RateLimitHelper::recordRegistrationAttempt($email, $ipAddress);
 
-            // Generate and send OTP
-            $otp = $this->userModel->generateOTP($userId);
-            $_SESSION['dev_otp_code'] = $otp;
+            // Auto-verify email (OTP verification bypassed for new user registration)
+            $this->userModel->markEmailVerified($userId);
             
-            if (class_exists('MailHelper')) {
-                try {
-                    MailHelper::sendOTPEmail($email, $fullName, $otp);
-                } catch (\Throwable $e) {
-                    error_log("Failed to send OTP email: " . $e->getMessage());
-                }
-            }
-            
-            // Set session for verification
+            // Set session for immediate access
             $_SESSION['user_id'] = $userId;
             $_SESSION['user_name'] = $fullName;
             $_SESSION['user_email'] = $email;
+            $_SESSION['name'] = $fullName;
+            $_SESSION['email'] = $email;
             $_SESSION['role'] = 'user';
-            $_SESSION['email_verified'] = false;
+            $_SESSION['email_verified'] = true;
             $_SESSION['last_activity'] = time();
             
-            $_SESSION['success'] = 'Registration successful! Verification code generated.';
-            header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/auth/verify-email');
+            $_SESSION['success'] = 'Registration successful! Welcome to SignED.';
+            header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/dashboard');
         } else {
             $_SESSION['error'] = 'Registration failed. Please try again.';
             header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/register');
@@ -356,39 +334,11 @@ class AuthController {
             exit;
         }
         
-        // If already verified, redirect to dashboard
-        if ($this->userModel->isEmailVerified($_SESSION['user_id'])) {
-            header('Location: ' . $basePath . '/dashboard');
-            exit;
-        }
-
-        // Check if user has an unexpired verification token
-        try {
-            $db = Database::getInstance()->getConnection();
-            $stmt = $db->prepare("SELECT email_verification_token, email_verification_expires FROM users WHERE id = :id LIMIT 1");
-            $stmt->execute(['id' => $_SESSION['user_id']]);
-            $tokenData = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            $needsNewCode = empty($tokenData['email_verification_token']) 
-                || empty($tokenData['email_verification_expires']) 
-                || (strtotime($tokenData['email_verification_expires']) < time());
-
-            if ($needsNewCode) {
-                $otp = $this->userModel->generateOTP($_SESSION['user_id']);
-                if (class_exists('MailHelper')) {
-                    try {
-                        MailHelper::sendOTPEmail($_SESSION['user_email'], $_SESSION['user_name'] ?? 'User', $otp);
-                    } catch (\Throwable $e) {
-                        error_log("Failed to send OTP email: " . $e->getMessage());
-                    }
-                }
-            }
-        } catch (\Throwable $e) {
-            error_log("Verification check error: " . $e->getMessage());
-        }
-        unset($_SESSION['dev_otp_code']);
-        
-        require_once __DIR__ . '/../Views/auth/verify_email.php';
+        // Auto-verify and redirect to dashboard
+        $this->userModel->markEmailVerified($_SESSION['user_id']);
+        $_SESSION['email_verified'] = true;
+        header('Location: ' . $basePath . '/dashboard');
+        exit;
     }
 
     /**

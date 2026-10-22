@@ -51,9 +51,10 @@ class SchemaManager {
                 if ($version > $currentVersion) {
                     $statements = array_filter(array_map('trim', explode(';', $match[0])));
                     foreach ($statements as $stmt_sql) {
-                        if (!empty($stmt_sql) && !preg_match('/^\s*--/', $stmt_sql)) {
+                        $cleanSql = trim(preg_replace('/^\s*--[^\r\n]*/m', '', $stmt_sql));
+                        if (!empty($cleanSql)) {
                             try {
-                                $this->db->exec($stmt_sql);
+                                $this->db->exec($cleanSql);
                             } catch (PDOException $e) {
                                 error_log("Migration v{$version} statement warning: " . $e->getMessage());
                             }
@@ -61,6 +62,36 @@ class SchemaManager {
                     }
                     $this->markVersionApplied($version);
                     error_log("SchemaManager: applied migration v{$version}");
+                }
+            }
+
+            // Also check for standalone migration files in config/ (e.g. v67_resource_hub_packs.sql, v68_external_mastery.sql)
+            $migrationFiles = glob(__DIR__ . '/v[0-9]*_*.sql');
+            if (!empty($migrationFiles)) {
+                sort($migrationFiles);
+                foreach ($migrationFiles as $file) {
+                    if (preg_match('/v(\d+)_/i', basename($file), $fileMatch)) {
+                        $fileVersion = (int)$fileMatch[1];
+                        if ($fileVersion > $currentVersion) {
+                            $fileSql = file_get_contents($file);
+                            if (substr($fileSql, 0, 3) === "\xEF\xBB\xBF") {
+                                $fileSql = substr($fileSql, 3);
+                            }
+                            $statements = array_filter(array_map('trim', explode(';', $fileSql)));
+                            foreach ($statements as $stmt_sql) {
+                                $cleanSql = trim(preg_replace('/^\s*--[^\r\n]*/m', '', $stmt_sql));
+                                if (!empty($cleanSql)) {
+                                    try {
+                                        $this->db->exec($cleanSql);
+                                    } catch (PDOException $e) {
+                                        error_log("Standalone migration file {$file} warning: " . $e->getMessage());
+                                    }
+                                }
+                            }
+                            $this->markVersionApplied($fileVersion);
+                            error_log("SchemaManager: applied standalone migration v{$fileVersion} (" . basename($file) . ")");
+                        }
+                    }
                 }
             }
 

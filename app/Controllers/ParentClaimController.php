@@ -56,12 +56,13 @@ class ParentClaimController {
             exit;
         }
 
-        // Check if learner already has a registered parent linked
+        // Check if learner already has a registered parent linked or active learner account
         $currentUserId = (int)($_SESSION['user_id'] ?? 0);
         $currentUserRole = $_SESSION['role'] ?? '';
         $existingParentId = (int)($learner['parent_id'] ?? 0);
+        $hasAccount = !empty($learner['learner_user_id']) || ($learner['learner_account_created'] ?? 0) == 1 || ($learner['lms_invite_status'] ?? '') === 'accepted';
 
-        if ($existingParentId > 0 && $existingParentId !== $currentUserId) {
+        if (($existingParentId > 0 && $existingParentId !== $currentUserId) || ($hasAccount && $existingParentId > 0 && $existingParentId !== $currentUserId)) {
             $alreadyClaimed = true;
         } else {
             $alreadyClaimed = false;
@@ -94,7 +95,8 @@ class ParentClaimController {
 
         $db = Database::getInstance()->getConnection();
         $stmt = $db->prepare("
-            SELECT sr.id AS student_record_id, sr.student_name, sr.school_id, es.parent_id, es.id AS enrollment_id
+            SELECT sr.id AS student_record_id, sr.student_name, sr.school_id, sr.learner_user_id, sr.lms_invite_status,
+                   es.parent_id, es.id AS enrollment_id, es.learner_account_created
             FROM student_records sr
             LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
             WHERE sr.id = :id
@@ -112,6 +114,21 @@ class ParentClaimController {
         $schoolId = (int)($learner['school_id'] ?? 0);
         $currentUserId = (int)($_SESSION['user_id'] ?? 0);
         $currentUserRole = $_SESSION['role'] ?? '';
+        $existingParentId = (int)($learner['parent_id'] ?? 0);
+        $hasAccount = !empty($learner['learner_user_id']) || ($learner['learner_account_created'] ?? 0) == 1 || ($learner['lms_invite_status'] ?? '') === 'accepted';
+
+        // Check if learner is already claimed / has an account
+        if ($existingParentId > 0 && $existingParentId !== $currentUserId) {
+            $_SESSION['error'] = 'Kini nga estudyante aduna na\'y konektado nga account sa ginikanan. Palihug pakig-alayon sa imong SPED teacher.';
+            header('Location: ' . $this->basePath . '/invite/claim');
+            exit;
+        }
+
+        if ($currentUserId === 0 && ($existingParentId > 0 || $hasAccount)) {
+            $_SESSION['error'] = 'Kini nga estudyante aduna na\'y aktibong rehistradong account. Palihug pag-log in sa imong ginikanan nga account.';
+            header('Location: ' . $this->basePath . '/login');
+            exit;
+        }
 
         // Case 1: If parent is ALREADY logged in
         if ($currentUserId > 0 && $currentUserRole === 'parent') {

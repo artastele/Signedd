@@ -108,6 +108,37 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <p class="small text-muted mb-3">
                                         Upload your school's existing spreadsheet of enrolled SPED learners to quickly onboard them into SignED for this school year.
                                     </p>
+
+                                    <?php if ($role === 'sped_teacher'): ?>
+                                        <?php if (!empty($teacherSection)): ?>
+                                            <div class="alert alert-primary border-0 small mb-3 d-flex align-items-center gap-2">
+                                                <i class="bi bi-info-circle-fill text-primary fs-5"></i>
+                                                <div>
+                                                    Target Advisory Section: <strong><?= htmlspecialchars($teacherSection['section_name']) ?></strong>
+                                                    <div class="text-muted" style="font-size: 0.75rem;">Imported learners will automatically be assigned to your designated classroom section.</div>
+                                                </div>
+                                            </div>
+                                        <?php else: ?>
+                                            <div class="alert alert-warning border-0 small mb-3">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                <strong>Notice:</strong> You are not currently assigned as an adviser to an active section. Please coordinate with your School Principal.
+                                            </div>
+                                        <?php endif; ?>
+                                    <?php elseif (in_array($role, ['principal', 'master_teacher']) && !empty($allActiveSections)): ?>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold small">Target Section (Optional)</label>
+                                            <select name="target_section_id" class="form-select form-select-sm">
+                                                <option value="">-- Auto-Assign / Existing School Sections --</option>
+                                                <?php foreach ($allActiveSections as $sec): ?>
+                                                    <option value="<?= $sec['id'] ?>">
+                                                        <?= htmlspecialchars($sec['section_name']) ?> (<?= htmlspecialchars($sec['adviser_name'] ?? 'Unassigned') ?>)
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <div class="form-text" style="font-size: 0.75rem;">If unspecified, learners will be matched against existing active sections.</div>
+                                        </div>
+                                    <?php endif; ?>
+
                                     <div class="d-flex justify-content-between align-items-center mb-3 p-2.5 bg-light rounded border">
                                         <div class="small">
                                             <i class="bi bi-filetype-csv text-success fs-5 me-1"></i>
@@ -122,7 +153,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                         <input type="file" name="bulk_csv" class="form-control" accept=".csv,text/csv" required>
                                     </div>
                                     <div class="alert alert-light border small text-muted mb-0">
-                                        <i class="bi bi-info-circle me-1"></i> Supported headers: <code>LRN</code>, <code>Learner Name</code>, <code>Sex</code>, <code>Birth Date</code>, <code>Grade Level</code>, <code>Section</code>, <code>Disability Category</code>, <code>Parent Name</code>, <code>Parent Contact</code>.
+                                        <i class="bi bi-info-circle me-1"></i> Supported headers: <code>LRN</code>, <code>Learner Name</code>, <code>Sex</code>, <code>Birth Date</code>, <code>Grade Level</code>, <code>Disability Category</code>, <code>Parent Name</code>, <code>Parent Contact</code>.
                                     </div>
                                 </div>
                                 <div class="modal-footer bg-light">

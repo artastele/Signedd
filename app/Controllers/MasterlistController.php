@@ -94,6 +94,17 @@ class MasterlistController {
 
         $syncLogs = $this->model->getSyncLogs(5);
 
+        // Fetch section context for bulk import modal
+        $allActiveSections = [];
+        $teacherSection = null;
+        require_once __DIR__ . '/../Models/SectionModel.php';
+        $secModel = new SectionModel();
+        if (in_array($this->userRole, ['principal', 'master_teacher'])) {
+            $allActiveSections = $secModel->getSectionsBySchool($_SESSION['school_id'] ?? null);
+        } elseif ($this->userRole === 'sped_teacher') {
+            $teacherSection = $secModel->getActiveSectionForTeacher($this->userId, $_SESSION['school_id'] ?? null);
+        }
+
         $success = $_SESSION['success'] ?? null;
         $error = $_SESSION['error'] ?? null;
         unset($_SESSION['success'], $_SESSION['error']);
@@ -577,7 +588,8 @@ class MasterlistController {
             exit;
         }
 
-        $result = $this->model->bulkImportLearners($parsedRows, $schoolId, $this->userId);
+        $targetSectionId = !empty($_POST['target_section_id']) ? (int)$_POST['target_section_id'] : null;
+        $result = $this->model->bulkImportLearners($parsedRows, $schoolId, $this->userId, $targetSectionId);
 
         $msg = "Bulk import complete! Newly Enrolled: {$result['imported']}, Updated: {$result['updated']}.";
         if ($result['skipped'] > 0) {
@@ -611,7 +623,6 @@ class MasterlistController {
             'Sex',
             'Birth Date (YYYY-MM-DD)',
             'Grade Level',
-            'Section',
             'Disability Category',
             'Parent / Guardian Name',
             'Parent Contact Number',
@@ -625,7 +636,6 @@ class MasterlistController {
             'Male',
             '2018-05-14',
             'Kinder',
-            'SPED Section A',
             'Hearing Impaired (DHH)',
             'Maria Dela Cruz',
             '09171234567',
@@ -637,7 +647,6 @@ class MasterlistController {
             'Female',
             '2017-10-22',
             'Grade 1',
-            'SPED Section B',
             'Visual Impairment',
             'Roberto Santos',
             '09289876543',
