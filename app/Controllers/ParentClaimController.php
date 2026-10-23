@@ -5,6 +5,7 @@
 require_once __DIR__ . '/../Models/MasterlistModel.php';
 require_once __DIR__ . '/../Models/UserModel.php';
 require_once __DIR__ . '/../Helpers/CSRFHelper.php';
+require_once __DIR__ . '/../Helpers/MailHelper.php';
 require_once __DIR__ . '/../Services/SmsService.php';
 
 class ParentClaimController {
@@ -194,7 +195,7 @@ class ParentClaimController {
                 name, email, contact_number, password_hash, role, status, email_verified,
                 auth_provider, school_id, created_at, updated_at
             ) VALUES (
-                :name, :email, :contact, :pass, 'parent', 'active', 1,
+                :name, :email, :contact, :pass, 'parent', 'active', 0,
                 'local', :school_id, NOW(), NOW()
             )
         ");
@@ -226,13 +227,27 @@ class ParentClaimController {
             );
         }
 
-        // Sign in user
+        // Generate and send OTP for email verification
+        $otp = $this->userModel->generateOTP($newUserId);
+        $_SESSION['dev_otp_code'] = $otp;
+
+        if (class_exists('MailHelper')) {
+            try {
+                MailHelper::sendOTPEmail($email, $name, $otp);
+            } catch (\Throwable $e) {
+                error_log("Failed to send OTP email on parent claim: " . $e->getMessage());
+            }
+        }
+
+        // Sign in user (pending verification)
         $_SESSION['user_id'] = $newUserId;
         $_SESSION['role'] = 'parent';
         $_SESSION['name'] = $name;
         $_SESSION['user_name'] = $name;
         $_SESSION['email'] = $email;
         $_SESSION['user_email'] = $email;
+        $_SESSION['email_verified'] = false;
+        $_SESSION['last_activity'] = time();
         if ($schoolId > 0) {
             $_SESSION['school_id'] = $schoolId;
         }
@@ -246,8 +261,8 @@ class ParentClaimController {
             ];
         }
 
-        $_SESSION['success'] = "Malipayong pag-abot sa SignED! Naka-link na ang imong parent account kang {$learner['student_name']}.";
-        header('Location: ' . $this->basePath . '/dashboard');
+        $_SESSION['success'] = "Malipayong pag-abot sa SignED! Naka-link na ang imong parent account kang {$learner['student_name']}. Palihug i-verify una ang imong email gamit ang 6-digit verification code.";
+        header('Location: ' . $this->basePath . '/auth/verify-email');
         exit;
     }
 
@@ -330,7 +345,7 @@ class ParentClaimController {
                 name, email, contact_number, password_hash, role, status, email_verified,
                 auth_provider, school_id, created_at, updated_at
             ) VALUES (
-                :name, :email, :contact, :pass, 'parent', 'active', 1,
+                :name, :email, :contact, :pass, 'parent', 'active', 0,
                 'local', :school_id, NOW(), NOW()
             )
         ");
@@ -356,13 +371,27 @@ class ParentClaimController {
             );
         }
 
-        // Sign in user
+        // Generate and send OTP for email verification
+        $otp = $this->userModel->generateOTP($newUserId);
+        $_SESSION['dev_otp_code'] = $otp;
+
+        if (class_exists('MailHelper')) {
+            try {
+                MailHelper::sendOTPEmail($email, $name, $otp);
+            } catch (\Throwable $e) {
+                error_log("Failed to send OTP email on parent QR claim: " . $e->getMessage());
+            }
+        }
+
+        // Sign in user (pending verification)
         $_SESSION['user_id'] = $newUserId;
         $_SESSION['role'] = 'parent';
         $_SESSION['name'] = $name;
         $_SESSION['user_name'] = $name;
         $_SESSION['email'] = $email;
         $_SESSION['user_email'] = $email;
+        $_SESSION['email_verified'] = false;
+        $_SESSION['last_activity'] = time();
         if ($schoolId > 0) {
             $_SESSION['school_id'] = $schoolId;
         }
@@ -376,8 +405,8 @@ class ParentClaimController {
             ];
         }
 
-        $_SESSION['success'] = "Welcome to SignED! Your parent account has been activated and linked to {$learner['student_name']}.";
-        header('Location: ' . $this->basePath . '/dashboard');
+        $_SESSION['success'] = "Welcome to SignED! Your parent account has been linked to {$learner['student_name']}. Please enter the 6-digit verification code sent to your email.";
+        header('Location: ' . $this->basePath . '/auth/verify-email');
         exit;
     }
 }

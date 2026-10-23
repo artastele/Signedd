@@ -182,7 +182,7 @@ class RoleController {
 
         // Create directory if not exists
         if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
+            @mkdir($uploadDir, 0777, true);
         }
 
         // Process government ID
@@ -242,13 +242,17 @@ class RoleController {
                         if ($idx === 0) {
                             $this->userModel->updateFslCert($userId, $res['path'], $dates[$idx] ?? null);
                         }
+                    } else {
+                        $errors[] = 'Certificate upload error: ' . ($res['error'] ?? 'Unknown upload error');
                     }
+                } elseif (!empty($_FILES['fsl_certifications']['name'][$idx]) && $_FILES['fsl_certifications']['error'][$idx] !== UPLOAD_ERR_NO_FILE) {
+                    $errors[] = 'Certificate file error (Code ' . $_FILES['fsl_certifications']['error'][$idx] . ').';
                 }
             }
         }
 
         // Validate that staff upload at least one training certification
-        if ($requestedRole !== 'principal' && empty($uploadedCertifications)) {
+        if ($requestedRole !== 'principal' && empty($uploadedCertifications) && empty($errors)) {
             $errors[] = 'Please upload at least one relevant training certification / seminar certificate (FSL, Inclusive Education, or SPED).';
         }
 
@@ -302,11 +306,19 @@ class RoleController {
      * Upload file helper (simplified - no encryption)
      */
     private function uploadFile($file, $uploadDir, $prefix) {
-        $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
         $maxSize = 5 * 1024 * 1024; // 5MB
 
-        // Validate file type
-        if (!in_array($file['type'], $allowedTypes)) {
+        $extension = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
+        $allowedTypes = [
+            'image/jpeg', 'image/jpg', 'image/pjpeg',
+            'image/png', 'image/x-png',
+            'application/pdf', 'application/x-pdf', 'application/acrobat'
+        ];
+
+        // Validate file type by extension or MIME
+        $mime = $file['type'] ?? '';
+        if (!in_array($extension, $allowedExtensions) && !in_array($mime, $allowedTypes)) {
             return ['success' => false, 'error' => 'Invalid file type. Only JPG, PNG, and PDF are allowed.'];
         }
 
@@ -315,10 +327,14 @@ class RoleController {
             return ['success' => false, 'error' => 'File size exceeds 5MB limit.'];
         }
 
+        // Ensure directory exists
+        if (!is_dir($uploadDir)) {
+            @mkdir($uploadDir, 0777, true);
+        }
+
         // Generate unique filename
-        $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
         $filename = $prefix . time() . '_' . uniqid() . '.' . $extension;
-        $filepath = $uploadDir . $filename;
+        $filepath = rtrim($uploadDir, '/\\') . '/' . $filename;
 
         // Move uploaded file
         if (move_uploaded_file($file['tmp_name'], $filepath)) {
@@ -328,7 +344,7 @@ class RoleController {
                 'original_name' => $file['name']
             ];
         } else {
-            return ['success' => false, 'error' => 'Failed to upload file.'];
+            return ['success' => false, 'error' => 'Failed to save uploaded file.'];
         }
     }
 }
