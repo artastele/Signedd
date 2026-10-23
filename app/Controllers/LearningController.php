@@ -615,26 +615,15 @@ class LearningController {
         $db = Database::getInstance()->getConnection();
 
         // Attempt logging helper (scoring/accessibility)
-        $logAttempt = function($questionIndex, $selectedValue, $correctValue, $isCorrect) use ($db, $activityId, $studentId, $attempts) {
-            try {
-                $itemAttempts = isset($attempts[$questionIndex]) ? (int)$attempts[$questionIndex] : 1;
-                $stmt = $db->prepare("
-                    INSERT INTO activity_attempt_log 
-                        (activity_id, student_id, question_index, selected_value, correct_value, is_correct, attempted_at)
-                    VALUES 
-                        (:a, :s, :qi, :sv, :cv, :ic, NOW())
-                ");
-                $stmt->execute([
-                    'a' => $activityId,
-                    's' => $studentId,
-                    'qi' => $questionIndex,
-                    'sv' => (string) $selectedValue . ($itemAttempts > 1 ? " (Attempts: {$itemAttempts})" : ""),
-                    'cv' => (string) $correctValue,
-                    'ic' => $isCorrect ? 1 : 0
-                ]);
-            } catch (\Throwable $e) {
-                error_log("Failed to log activity attempt: " . $e->getMessage());
-            }
+        $pendingItemLogs = [];
+        $logAttempt = function($questionIndex, $selectedValue, $correctValue, $isCorrect) use (&$pendingItemLogs, $attempts) {
+            $itemAttempts = isset($attempts[$questionIndex]) ? (int)$attempts[$questionIndex] : 1;
+            $pendingItemLogs[] = [
+                'qi' => $questionIndex,
+                'sv' => (string) $selectedValue . ($itemAttempts > 1 ? " (Attempts: {$itemAttempts})" : ""),
+                'cv' => (string) $correctValue,
+                'ic' => $isCorrect ? 1 : 0
+            ];
         };
 
         $uploadedFilePath = null;
@@ -801,6 +790,7 @@ class LearningController {
                             if ($matched) {
                                 $score += (int) ($sentence['points'] ?? $activityData['points'] ?? 1);
                             }
+                            $logAttempt($answerIndex, (string)$given, (string)$correct, $matched);
                             $answerIndex++;
                         }
                     }
@@ -816,6 +806,7 @@ class LearningController {
                         if ($matched) {
                             $score += (int) ($activityData['points'] ?? 1);
                         }
+                        $logAttempt($si, (string)$given, (string)$correct, $matched);
                     }
                 }
                 $autoScore = $score;
@@ -889,6 +880,27 @@ class LearningController {
                     if ($isPass) {
                         $score += (int)($set['points'] ?? $activityData['points'] ?? 1);
                     }
+
+                    // Format evaluated sequence for accurate item-level logging
+                    $formatSeq = static function(array $order) use ($items): string {
+                        if (empty($order)) return '(Empty)';
+                        $parts = [];
+                        foreach ($order as $idx) {
+                            if (isset($items[$idx])) {
+                                $val = $items[$idx];
+                                $parts[] = is_array($val) ? ($val['text'] ?? $val['title'] ?? $val['label'] ?? (string)$idx) : (string)$val;
+                            } else {
+                                $parts[] = (string)$idx;
+                            }
+                        }
+                        $str = implode(' -> ', $parts);
+                        return (mb_strlen($str) > 250) ? (mb_substr($str, 0, 247) . '...') : $str;
+                    };
+
+                    $selectedSeq = $formatSeq($givenOrder);
+                    $expectedSeq = $formatSeq($correctOrder);
+
+                    $logAttempt($si, $selectedSeq, $expectedSeq, (bool)$isPass);
                 }
                 $autoScore = $score;
                 break;
@@ -926,7 +938,112 @@ class LearningController {
                 break;
         }
 
-        $this->model->saveSubmission($activityId, $studentId, $this->userId, json_encode($answers), $autoScore, $uploadedFilePath);
+        // ── Stage 3: Smart Adaptive Remedial Track & Accuracy Calculation ──
+        $threshold = 70; // Default threshold
+        $stmtLp = $db->prepare("SELECT score_threshold, remedial_for_lesson_id FROM lesson_plans WHERE id = :lid LIMIT 1");
+        $stmtLp->execute(['lid' => (int)($activity['lesson_plan_id'] ?? 0)]);
+        $lpRow = $stmtLp->fetch(PDO::FETCH_ASSOC);
+        if ($lpRow && !empty($lpRow['score_threshold'])) {
+            $threshold = (int)$lpRow['score_threshold'];
+        }
+
+        $accuracyPercentage = ($autoScore !== null && $maxScore > 0) ? round(($autoScore / $maxScore) * 100, 2) : null;
+        $needsRemediation = ($autoScore !== null && $maxScore > 0 && $accuracyPercentage < $threshold);
+        $answersJson = json_encode($answers);
+        $flashcardResultsJson = ($type === 'flashcards' && !empty($input['flashcard_results'])) ? json_encode($input['flashcard_results']) : null;
+
+        // Debounce: prevent duplicate attempt recording from rapid double submissions (< 2 seconds)
+        $stmtDebounce = $db->prepare("
+            SELECT id FROM lms_activity_attempts 
+            WHERE activity_id = :a AND student_id = :s AND attempted_at >= NOW() - INTERVAL 2 SECOND 
+            ORDER BY id DESC LIMIT 1
+        ");
+        $stmtDebounce->execute(['a' => $activityId, 's' => $studentId]);
+        $existingRecentAttemptId = $stmtDebounce->fetchColumn();
+
+        $attemptId = null;
+        $db->beginTransaction();
+        try {
+            if (!$existingRecentAttemptId) {
+                // Next sequential attempt number for this student and activity
+                $stmtSeq = $db->prepare("
+                    SELECT COALESCE(MAX(attempt_number), 0) + 1 
+                    FROM lms_activity_attempts 
+                    WHERE activity_id = :a AND student_id = :s
+                ");
+                $stmtSeq->execute(['a' => $activityId, 's' => $studentId]);
+                $nextAttemptNumber = (int)$stmtSeq->fetchColumn();
+
+                $stmtAtt = $db->prepare("
+                    INSERT INTO lms_activity_attempts (
+                        activity_id, student_id, submitted_by, attempt_number,
+                        score, max_score, accuracy_percentage, answers,
+                        flashcard_results, is_remedial_attempt, needs_remediation, attempted_at
+                    ) VALUES (
+                        :a, :s, :sub_by, :att_num,
+                        :score, :max_score, :acc_pct, :answers,
+                        :flashcard_results, :is_remedial, :needs_remed, NOW()
+                    )
+                ");
+                $stmtAtt->execute([
+                    'a'                 => $activityId,
+                    's'                 => $studentId,
+                    'sub_by'            => $this->userId,
+                    'att_num'           => $nextAttemptNumber,
+                    'score'             => $autoScore,
+                    'max_score'         => $maxScore,
+                    'acc_pct'           => $accuracyPercentage,
+                    'answers'           => $answersJson,
+                    'flashcard_results' => $flashcardResultsJson,
+                    'is_remedial'       => !empty($activity['is_remedial']) ? 1 : 0,
+                    'needs_remed'       => $needsRemediation ? 1 : 0,
+                ]);
+                $attemptId = (int)$db->lastInsertId();
+
+                // Save question-level results linked directly to attempt_id
+                if (!empty($pendingItemLogs)) {
+                    $stmtLog = $db->prepare("
+                        INSERT INTO activity_attempt_log 
+                            (attempt_id, activity_id, student_id, question_index, selected_value, correct_value, is_correct, attempted_at)
+                        VALUES 
+                            (:att_id, :a, :s, :qi, :sv, :cv, :ic, NOW())
+                    ");
+                    foreach ($pendingItemLogs as $item) {
+                        $stmtLog->execute([
+                            'att_id' => $attemptId,
+                            'a'      => $activityId,
+                            's'      => $studentId,
+                            'qi'     => $item['qi'],
+                            'sv'     => $item['sv'],
+                            'cv'     => $item['cv'],
+                            'ic'     => $item['ic'],
+                        ]);
+                    }
+                }
+            } else {
+                $attemptId = (int)$existingRecentAttemptId;
+            }
+
+            // Always update lms_submissions as authoritative latest state
+            $this->model->saveSubmission($activityId, $studentId, $this->userId, $answersJson, $autoScore, $uploadedFilePath);
+            if ($flashcardResultsJson !== null) {
+                $db->prepare("UPDATE lms_submissions SET flashcard_results = :res WHERE activity_id = :a AND student_id = :s")
+                   ->execute(['res' => $flashcardResultsJson, 'a' => $activityId, 's' => $studentId]);
+            }
+            if ($needsRemediation) {
+                $db->prepare("UPDATE lms_submissions SET needs_remediation = 1 WHERE activity_id = :a AND student_id = :s")
+                   ->execute(['a' => $activityId, 's' => $studentId]);
+            }
+
+            $db->commit();
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log("LearningController::submitActivity attempt transaction error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Failed to save activity attempt: ' . $e->getMessage()]);
+            exit;
+        }
 
         // Parent in-app notification when student submits worksheet
         try {

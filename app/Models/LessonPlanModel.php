@@ -1132,5 +1132,49 @@ class LessonPlanModel {
             'comp_at' => $isCompleted ? date('Y-m-d H:i:s') : null
         ]);
     }
+
+    /**
+     * Get all attempts for an activity by student (chronological order)
+     */
+    public function getActivityAttempts(int $activityId, int $studentId): array {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT att.*, u.name AS submitted_by_name
+                FROM lms_activity_attempts att
+                LEFT JOIN users u ON att.submitted_by = u.id
+                WHERE att.activity_id = :a AND att.student_id = :s
+                ORDER BY att.attempt_number ASC, att.attempted_at ASC
+            ");
+            $stmt->execute(['a' => $activityId, 's' => $studentId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (\Throwable $e) {
+            error_log('LessonPlanModel::getActivityAttempts error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get attempt by ID along with its question logs
+     */
+    public function getActivityAttemptWithLogs(int $attemptId): ?array {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT * FROM lms_activity_attempts WHERE id = :id LIMIT 1
+            ");
+            $stmt->execute(['id' => $attemptId]);
+            $attempt = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$attempt) return null;
+
+            $stmtLogs = $this->db->prepare("
+                SELECT * FROM activity_attempt_log WHERE attempt_id = :att_id ORDER BY question_index ASC
+            ");
+            $stmtLogs->execute(['att_id' => $attemptId]);
+            $attempt['question_logs'] = $stmtLogs->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            return $attempt;
+        } catch (\Throwable $e) {
+            error_log('LessonPlanModel::getActivityAttemptWithLogs error: ' . $e->getMessage());
+            return null;
+        }
+    }
 }
 

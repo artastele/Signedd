@@ -59,6 +59,7 @@ class MasterlistModel {
                 sr.student_name,
                 sr.date_of_birth,
                 sr.disability_type,
+                sr.section_id,
                 sr.section_name,
                 sr.track_strand,
                 sr.learning_track,
@@ -142,10 +143,12 @@ class MasterlistModel {
     /**
      * Update section or LIS status for a learner
      */
-    public function updateLisInfo(int $studentId, string $sectionName, string $lisStatus): bool {
+    public function updateLisInfo(int $studentId, string $sectionName, string $lisStatus, ?int $sectionId = null, ?int $teacherId = null): bool {
         $stmt = $this->db->prepare("
             UPDATE student_records 
             SET section_name = :section,
+                section_id = COALESCE(:section_id, section_id),
+                assigned_teacher_id = COALESCE(:teacher_id, assigned_teacher_id),
                 lis_status = :status,
                 lis_synced_at = NOW(),
                 updated_at = NOW()
@@ -153,9 +156,109 @@ class MasterlistModel {
         ");
         return $stmt->execute([
             'section' => $sectionName,
+            'section_id' => $sectionId,
+            'teacher_id' => $teacherId,
             'status' => $lisStatus,
             'id' => $studentId
         ]);
+    }
+
+    /**
+     * Get aggregate enrollment metrics for System Administrator
+     * Strictly statistical metrics: NO individual student PII (names, LRNs, DOBs, contacts)
+     */
+    public function getAdminEnrollmentMetrics(): array {
+        $db = $this->db;
+
+        // 1. Overall Totals
+        $totalsStmt = $db->query("
+            SELECT 
+                COUNT(*) AS total_enrolled,
+                SUM(CASE 
+                    WHEN sr.learning_track = 'lms' 
+                      OR sr.learner_user_id IS NOT NULL 
+                      OR es.lms_track = 'signed' 
+                      OR es.lms_track = '1' 
+                      OR es.lms_track = 1 
+                      OR es.learning_track = 'lms' 
+                      OR (es.survey_has_internet = 1 AND (es.survey_willing_online = 1 OR es.willing_digital = 1)) 
+                      OR (es.has_device = 1 AND es.willing_digital = 1) 
+                      OR es.modality_online = 1 
+                      OR es.modality_modular_digital = 1
+                    THEN 1 ELSE 0 
+                END) AS lms_count,
+                SUM(CASE 
+                    WHEN (sr.lis_status = 'synced' OR (sr.lrn IS NOT NULL AND CHAR_LENGTH(TRIM(sr.lrn)) = 12))
+                    THEN 1 ELSE 0 
+                END) AS lrn_synced_count
+            FROM student_records sr
+            LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+        ");
+        $totals = $totalsStmt ? $totalsStmt->fetch(PDO::FETCH_ASSOC) : [];
+        $totalEnrolled = (int)($totals['total_enrolled'] ?? 0);
+        $lmsCount = (int)($totals['lms_count'] ?? 0);
+        $lrnSyncedCount = (int)($totals['lrn_synced_count'] ?? 0);
+        $traditionalCount = max(0, $totalEnrolled - $lmsCount);
+
+        // 2. School-by-School breakdown (Pure statistical counts)
+        $schoolsStmt = $db->query("
+            SELECT 
+                s.id AS school_id,
+                s.school_name,
+                s.school_id AS deped_id,
+                s.division,
+                s.region,
+                COUNT(sr.id) AS enrolled_count,
+                SUM(CASE 
+                    WHEN sr.learning_track = 'lms' 
+                      OR sr.learner_user_id IS NOT NULL 
+                      OR es.lms_track = 'signed' 
+                      OR es.lms_track = '1' 
+                      OR es.lms_track = 1 
+                      OR es.learning_track = 'lms' 
+                      OR (es.survey_has_internet = 1 AND (es.survey_willing_online = 1 OR es.willing_digital = 1)) 
+                      OR (es.has_device = 1 AND es.willing_digital = 1) 
+                      OR es.modality_online = 1 
+                      OR es.modality_modular_digital = 1
+                    THEN 1 ELSE 0 
+                END) AS lms_count,
+                SUM(CASE 
+                    WHEN (sr.lis_status = 'synced' OR (sr.lrn IS NOT NULL AND CHAR_LENGTH(TRIM(sr.lrn)) = 12))
+                    THEN 1 ELSE 0 
+                END) AS lrn_synced_count
+            FROM schools s
+            LEFT JOIN student_records sr ON sr.school_id = s.id
+            LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+            GROUP BY s.id, s.school_name, s.school_id, s.division, s.region
+            ORDER BY enrolled_count DESC, s.school_name ASC
+        ");
+        $schoolBreakdown = $schoolsStmt ? $schoolsStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+        foreach ($schoolBreakdown as &$sch) {
+            $schEnrolled = (int)$sch['enrolled_count'];
+            $schLms = (int)$sch['lms_count'];
+            $sch['traditional_count'] = max(0, $schEnrolled - $schLms);
+        }
+        unset($sch);
+
+        // 3. Disability Classification breakdown across all learners (Counts only)
+        $disabilityStmt = $db->query("
+            SELECT 
+                COALESCE(NULLIF(TRIM(sr.disability_type), ''), 'Unspecified') AS category,
+                COUNT(*) AS count
+            FROM student_records sr
+            GROUP BY category
+            ORDER BY count DESC
+        ");
+        $disabilityBreakdown = $disabilityStmt ? $disabilityStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+
+        return [
+            'total_enrolled' => $totalEnrolled,
+            'lms_count' => $lmsCount,
+            'traditional_count' => $traditionalCount,
+            'lrn_synced_count' => $lrnSyncedCount,
+            'school_breakdown' => $schoolBreakdown,
+            'disability_breakdown' => $disabilityBreakdown
+        ];
     }
 
     /**

@@ -112,6 +112,43 @@ class IEPImplementationController {
             exit;
         }
 
+        $db = Database::getInstance()->getConnection();
+        $studentId = (int)($iep['student_id'] ?? 0);
+
+        // Authorization Guard: ensure teacher is authorized to access this learner's IEP
+        if ($this->userRole !== 'admin') {
+            $isAuthorized = false;
+            if ((int)($iep['drafted_by'] ?? 0) === $this->userId) {
+                $isAuthorized = true;
+            } else {
+                $stmtAuth = $db->prepare("
+                    SELECT 1 FROM student_records sr
+                    WHERE sr.id = :sid AND (
+                        sr.assigned_teacher_id = :tid_1
+                        OR sr.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid_2)
+                        OR (sr.section_name IS NOT NULL AND sr.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid_3))
+                    )
+                    LIMIT 1
+                ");
+                $stmtAuth->execute([
+                    'sid'   => $studentId,
+                    'tid_1' => $this->userId,
+                    'tid_2' => $this->userId,
+                    'tid_3' => $this->userId,
+                ]);
+                if ($stmtAuth->fetchColumn()) {
+                    $isAuthorized = true;
+                }
+            }
+
+            if (!$isAuthorized) {
+                http_response_code(403);
+                $_SESSION['error'] = 'Access denied: You are not authorized to access this learner’s IEP workspace.';
+                header('Location: ' . $this->basePath . '/iep/implementation');
+                exit;
+            }
+        }
+
         $lessonPlans = $this->model->getByIepId($iepId);
         $materials   = $this->model->getMaterialsByIepId($iepId);
         $activities  = $this->model->getActivitiesByIepId($iepId);
@@ -131,8 +168,6 @@ class IEPImplementationController {
         }
 
         // Fetch student's learning track and traditional records (Stage 2)
-        $db = Database::getInstance()->getConnection();
-        $studentId = (int)($iep['student_id'] ?? 0);
         $stmtTrack = $db->prepare("SELECT learning_track, lms_invite_status FROM student_records WHERE id = :sid LIMIT 1");
         $stmtTrack->execute(['sid' => $studentId]);
         $studentTrackInfo = $stmtTrack->fetch(PDO::FETCH_ASSOC) ?: ['learning_track' => 'unassigned', 'lms_invite_status' => 'none'];
@@ -156,6 +191,22 @@ class IEPImplementationController {
                 if ($mRes) {
                     $masteryResultsByLp[(int)$lp['id']] = $mRes;
                 }
+            }
+        }
+
+        // ── Process 10.1: Four-Factor Learning Gap Analyzer & Resource Recommendations ──
+        require_once __DIR__ . '/../Services/LearningGapAnalyzer.php';
+        require_once __DIR__ . '/../Services/ResourceRecommendationService.php';
+
+        $learningInsights = [];
+        if ($studentId) {
+            try {
+                $gapAnalyzer = new LearningGapAnalyzer($db);
+                $recService  = new ResourceRecommendationService($db, $gapAnalyzer);
+                $learningInsights = $recService->recommendForStudent($studentId);
+            } catch (\Throwable $e) {
+                error_log('IEPImplementationController learningInsights error: ' . $e->getMessage());
+                $learningInsights = [];
             }
         }
 
