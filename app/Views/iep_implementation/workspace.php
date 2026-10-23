@@ -138,7 +138,15 @@ require_once __DIR__ . '/../layouts/header.php';
                     <i class="ti ti-send me-1.5"></i>Publish &amp; Submissions
                 </button>
             </li>
-            <li class="nav-item" role="presentation">
+                        <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-learning-insights-btn" data-bs-toggle="tab" data-bs-target="#tab-learning-insights" type="button" role="tab" aria-controls="tab-learning-insights" aria-selected="false">
+                    <i class="ti ti-bulb me-1.5"></i>Learning Insights
+                    <?php if (!empty($learningInsights)): ?>
+                        <span class="badge bg-primary ms-1.5 rounded-pill"><?php echo count($learningInsights); ?></span>
+                    <?php endif; ?>
+                </button>
+            </li>
+<li class="nav-item" role="presentation">
                 <button class="nav-link" id="tab-traditional-btn" data-bs-toggle="tab" data-bs-target="#tab-traditional" type="button" role="tab" aria-controls="tab-traditional" aria-selected="false">
                     <i class="bi bi-folder2-open me-1.5"></i>Traditional DLL &amp; Records
                     <?php if (!empty($traditionalDocs)): ?>
@@ -901,6 +909,11 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
             </div>
         </div><!-- /tab-traditional -->
+
+        <!-- ============================================================
+             TAB 6 — LEARNING INSIGHTS & RESOURCE RECOMMENDATIONS
+             ============================================================ -->
+        <?php require __DIR__ . '/tab_learning_insights.php'; ?>
 
 </div><!-- /workspaceTabContent -->
 

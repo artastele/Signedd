@@ -274,6 +274,56 @@ $pendingCount = count($pendingRoleRequests);
         </div>
     </div>
 
+    <?php
+    // General Enrollment Registry Metrics across all schools (Macro metrics only)
+    require_once __DIR__ . '/../../Models/MasterlistModel.php';
+    $mModel = new MasterlistModel();
+    $adminEnrollmentMetrics = $mModel->getAdminEnrollmentMetrics();
+    ?>
+
+    <!-- General SPED Enrollment Registry Overview (Macro Metrics Only) -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-bottom p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h6 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-bar-chart-line-fill text-warning me-2"></i>SPED Learner Enrollment Registry &amp; Modality Metrics
+                </h6>
+                <small class="text-muted">Division-wide aggregate learner statistics across all registered schools</small>
+            </div>
+            <a href="<?php echo $base; ?>/masterlist" class="btn btn-sm btn-outline-dark fw-semibold" style="border-radius: 6px; font-size: 0.8125rem;">
+                <i class="bi bi-eye-fill me-1"></i> View Full Registry Metrics
+            </a>
+        </div>
+        <div class="card-body p-3">
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <div class="p-3 bg-light rounded-3 border">
+                        <span class="text-muted small fw-semibold d-block mb-1">Total Enrolled Learners</span>
+                        <h3 class="fw-bold text-dark mb-0"><?php echo number_format($adminEnrollmentMetrics['total_enrolled']); ?></h3>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="p-3 bg-light rounded-3 border">
+                        <span class="text-muted small fw-semibold d-block mb-1">SignED LMS &amp; Candidates</span>
+                        <h3 class="fw-bold text-primary mb-0"><?php echo number_format($adminEnrollmentMetrics['lms_count']); ?></h3>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="p-3 bg-light rounded-3 border">
+                        <span class="text-muted small fw-semibold d-block mb-1">Traditional SEN Track</span>
+                        <h3 class="fw-bold text-success mb-0"><?php echo number_format($adminEnrollmentMetrics['traditional_count']); ?></h3>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="p-3 bg-light rounded-3 border">
+                        <span class="text-muted small fw-semibold d-block mb-1">Official LRNs Registered</span>
+                        <h3 class="fw-bold text-info mb-0"><?php echo number_format($adminEnrollmentMetrics['lrn_synced_count']); ?></h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- User Analytics Cards Grid -->
     <div class="row g-3 mb-4 m-grid">
         <!-- Total Users -->

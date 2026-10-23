@@ -30,80 +30,111 @@ class MasterlistController {
         $this->model = new MasterlistModel();
         $this->progressModel = new ProgressReportModel();
 
-        // Security check: masterlist is accessible to school staff (teachers, guidance, master teachers, principals)
-        RoleMiddleware::checkAny(['sped_teacher', 'master_teacher', 'guidance', 'principal']);
+        // Security check: masterlist is accessible to school staff (teachers, guidance, master teachers, principals) and system admin (metrics only)
+        RoleMiddleware::checkAny(['sped_teacher', 'master_teacher', 'guidance', 'principal', 'admin']);
     }
 
     /**
      * Masterlist Dashboard View
      */
     public function index(): void {
-        $filters = [];
+        $adminMetrics = null;
 
-        if (in_array($this->userRole, ['sped_teacher', 'master_teacher'])) {
-            $filters['teacher_id'] = $this->userId;
-        }
-
-        if (!empty($_GET['search'])) {
-            $filters['search'] = trim($_GET['search']);
-        }
-        if (!empty($_GET['disability'])) {
-            $filters['disability_type'] = trim($_GET['disability']);
-        }
-        if (!empty($_GET['track'])) {
-            $filters['track'] = trim($_GET['track']);
-        }
-
-        $learners = $this->model->getMasterlist($filters);
-
-        // Calculate track stats without search filters for the header pills
-        $baseTeacherFilter = [];
-        if (in_array($this->userRole, ['sped_teacher', 'master_teacher'])) {
-            $baseTeacherFilter['teacher_id'] = $this->userId;
-        }
-        $allLearnersForStats = $this->model->getMasterlist($baseTeacherFilter);
-        $totalCount = count($allLearnersForStats);
-        $candidateCount = 0;
-        $lmsActiveCount = 0;
-        $traditionalCount = 0;
-        $syncedCount = 0;
-
-        foreach ($allLearnersForStats as $row) {
-            $hasActiveAccount = !empty($row['learner_user_id']) || ($row['learning_track'] === 'lms');
-            $isCandidate = ($row['learning_track'] === 'candidate')
-                || (!empty($row['survey_has_internet']) && (!empty($row['survey_willing_online']) || !empty($row['willing_digital'])))
-                || (!empty($row['has_device']) && !empty($row['willing_digital']))
-                || !empty($row['modality_online'])
-                || !empty($row['modality_modular_digital'])
-                || (($row['lms_track'] ?? '') === 'candidate')
-                || (($row['lms_track'] ?? '') === 'signed');
-
-            if ($hasActiveAccount) {
-                $lmsActiveCount++;
-            } elseif ($isCandidate) {
-                $candidateCount++;
-            } else {
-                $traditionalCount++;
+        // If System Admin: ONLY retrieve high-level statistical metrics (NO individual learner PII / records)
+        if ($this->userRole === 'admin') {
+            $adminMetrics = $this->model->getAdminEnrollmentMetrics();
+            $learners = [];
+            $totalCount = $adminMetrics['total_enrolled'];
+            $lmsCount = $adminMetrics['lms_count'];
+            $traditionalCount = $adminMetrics['traditional_count'];
+            $syncedCount = $adminMetrics['lrn_synced_count'];
+            $allActiveSections = [];
+            $teacherSection = null;
+        } else {
+            $schoolId = $_SESSION['school_id'] ?? null;
+            if (!$schoolId && in_array($this->userRole, ['principal', 'master_teacher', 'sped_teacher'])) {
+                require_once __DIR__ . '/../Models/UserModel.php';
+                $uModel = new UserModel();
+                $u = $uModel->findById($this->userId);
+                $schoolId = $u['school_id'] ?? null;
+                if ($schoolId) {
+                    $_SESSION['school_id'] = $schoolId;
+                }
             }
 
-            if (($row['lis_status'] ?? '') === 'synced') {
-                $syncedCount++;
+            if (in_array($this->userRole, ['sped_teacher', 'master_teacher'])) {
+                $filters['teacher_id'] = $this->userId;
+            } elseif ($this->userRole === 'principal' && $schoolId) {
+                $filters['school_id'] = $schoolId;
+            }
+
+            if (!empty($_GET['search'])) {
+                $filters['search'] = trim($_GET['search']);
+            }
+            if (!empty($_GET['disability'])) {
+                $filters['disability_type'] = trim($_GET['disability']);
+            }
+            if (!empty($_GET['track'])) {
+                $filters['track'] = trim($_GET['track']);
+            }
+
+            $learners = $this->model->getMasterlist($filters);
+
+            // Calculate track stats without search filters for the header pills
+            $baseTeacherFilter = [];
+            if (in_array($this->userRole, ['sped_teacher', 'master_teacher'])) {
+                $baseTeacherFilter['teacher_id'] = $this->userId;
+            } elseif ($this->userRole === 'principal' && $schoolId) {
+                $baseTeacherFilter['school_id'] = $schoolId;
+            }
+
+            $allLearnersForStats = $this->model->getMasterlist($baseTeacherFilter);
+            $totalCount = count($allLearnersForStats);
+            $candidateCount = 0;
+            $lmsActiveCount = 0;
+            $traditionalCount = 0;
+            $syncedCount = 0;
+
+            foreach ($allLearnersForStats as $row) {
+                $hasActiveAccount = !empty($row['learner_user_id']) || ($row['learning_track'] === 'lms');
+                $isCandidate = ($row['learning_track'] === 'candidate')
+                    || (!empty($row['survey_has_internet']) && (!empty($row['survey_willing_online']) || !empty($row['willing_digital'])))
+                    || (!empty($row['has_device']) && !empty($row['willing_digital']))
+                    || !empty($row['modality_online'])
+                    || !empty($row['modality_modular_digital'])
+                    || (($row['lms_track'] ?? '') === 'candidate')
+                    || (($row['lms_track'] ?? '') === 'signed');
+
+                if ($hasActiveAccount) {
+                    $lmsActiveCount++;
+                } elseif ($isCandidate) {
+                    $candidateCount++;
+                } else {
+                    $traditionalCount++;
+                }
+
+                if (($row['lis_status'] ?? '') === 'synced') {
+                    $syncedCount++;
+                }
+            }
+            $lmsCount = $candidateCount + $lmsActiveCount;
+
+            // Fetch section context
+            $allActiveSections = [];
+            $teacherSection = null;
+            require_once __DIR__ . '/../Models/SectionModel.php';
+            $secModel = new SectionModel();
+            if (in_array($this->userRole, ['principal', 'master_teacher'])) {
+                $allActiveSections = $secModel->getSectionsBySchool($schoolId);
+            } elseif ($this->userRole === 'sped_teacher') {
+                $teacherSection = $secModel->getActiveSectionForTeacher($this->userId, $schoolId);
+                if ($teacherSection) {
+                    $allActiveSections = [$teacherSection];
+                }
             }
         }
-        $lmsCount = $candidateCount + $lmsActiveCount;
 
         $syncLogs = $this->model->getSyncLogs(5);
-
-        // Fetch section context for bulk import modal
-        $allActiveSections = [];
-        $teacherSection = null;
-        require_once __DIR__ . '/../Models/SectionModel.php';
-        $secModel = new SectionModel();
-        if (in_array($this->userRole, ['principal', 'master_teacher'])) {
-            $allActiveSections = $secModel->getSectionsBySchool($_SESSION['school_id'] ?? null);
-        } elseif ($this->userRole === 'sped_teacher') {
-            $teacherSection = $secModel->getActiveSectionForTeacher($this->userId, $_SESSION['school_id'] ?? null);
-        }
 
         $success = $_SESSION['success'] ?? null;
         $error = $_SESSION['error'] ?? null;
@@ -421,14 +452,26 @@ class MasterlistController {
      * Update section / registry information for a learner
      */
     public function updateSection(): void {
-        RoleMiddleware::checkAny(['sped_teacher', 'master_teacher', 'admin']);
+        RoleMiddleware::checkAny(['sped_teacher', 'master_teacher', 'principal', 'admin']);
 
         $studentId = (int)($_POST['student_id'] ?? 0);
+        $sectionId = !empty($_POST['section_id']) ? (int)$_POST['section_id'] : null;
         $sectionName = trim($_POST['section_name'] ?? '');
         $lisStatus = trim($_POST['lis_status'] ?? 'synced');
+        $adviserTeacherId = null;
+
+        if ($sectionId > 0) {
+            require_once __DIR__ . '/../Models/SectionModel.php';
+            $secModel = new SectionModel();
+            $sec = $secModel->getSectionById($sectionId);
+            if ($sec) {
+                $sectionName = $sec['section_name'];
+                $adviserTeacherId = !empty($sec['adviser_teacher_id']) ? (int)$sec['adviser_teacher_id'] : null;
+            }
+        }
 
         if ($studentId > 0 && !empty($sectionName)) {
-            $this->model->updateLisInfo($studentId, $sectionName, $lisStatus);
+            $this->model->updateLisInfo($studentId, $sectionName, $lisStatus, $sectionId, $adviserTeacherId);
             $_SESSION['success'] = 'Learner section and registry status updated.';
         } else {
             $_SESSION['error'] = 'Invalid student or section name.';

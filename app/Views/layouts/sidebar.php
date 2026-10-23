@@ -307,6 +307,10 @@ if ($role === 'learner') {
                 <i class="bi bi-activity"></i>
                 <span>Activity Logs</span>
             </a>
+            <a href="<?php echo $basePath; ?>/masterlist" class="<?php echo isActive('/masterlist'); ?>">
+                <i class="bi bi-bar-chart-line-fill"></i>
+                <span>Enrollment Metrics</span>
+            </a>
         <?php endif; ?>
 
         <?php if ($role !== 'parent' && $role !== 'user' && $role !== 'learner' && $role !== 'admin'): ?>
