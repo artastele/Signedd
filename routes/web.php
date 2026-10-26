@@ -221,6 +221,9 @@ route('POST', '/iep/implementation/lesson-plan/{id}/mastery-result',            
 route('GET',  '/iep/implementation/lesson-plan/{id}/mastery-result/{student_id}', 'IEPImplementationController', 'getMasteryResult',     'iep.implement');
 route('POST', '/iep/implementation/lesson-plan/{id}/mastery-resource',            'IEPImplementationController', 'updateMasteryResource', 'iep.implement');
 
+// Process 10.1: AI-Assisted Learning Gap Explanation (Gemini Flash)
+route('POST', '/iep/implementation/explain-insight',                              'IEPImplementationController', 'explainInsight',        'iep.implement');
+
 // IEP Implementation Workspace (Catch-all for IEP ID)
 route('GET',  '/iep/implementation/workspace/{id}',                 'IEPImplementationController', 'workspace',         'iep.implement');
 route('GET',  '/iep/implementation/{id}',                           'IEPImplementationController', 'workspace',         'iep.implement');

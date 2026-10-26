@@ -51,6 +51,9 @@ class Database {
                 try {
                     $this->connection->exec("ALTER TABLE users ADD COLUMN fsl_cert_issue_date DATE NULL");
                 } catch (PDOException $e) {}
+                try {
+                    $this->connection->exec("ALTER TABLE teacher_assignments CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                } catch (PDOException $e) {}
                 
                 // Ensure default System Admin user exists if users table is empty
                 try {

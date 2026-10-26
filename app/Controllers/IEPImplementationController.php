@@ -2641,7 +2641,95 @@ class IEPImplementationController {
         }
         exit;
     }
+
+    /**
+     * Generate an AI-assisted educational explanation for an activity's learning insight.
+     * POST /iep/implementation/explain-insight
+     */
+    public function explainInsight() {
+        header('Content-Type: application/json');
+        try {
+            // 1. Verify CSRF
+            require_once __DIR__ . '/../Helpers/CSRFHelper.php';
+            $body = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+            if (!empty($body['_csrf_token']) && empty($_POST['_csrf_token'])) {
+                $_POST['_csrf_token'] = $body['_csrf_token'];
+            }
+            CSRFHelper::verify();
+
+            // 2. Authorization check: Teacher / Admin roles only
+            if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+                http_response_code(403);
+                echo json_encode([
+                    'success' => false,
+                    'error'   => 'unauthorized',
+                    'message' => 'Access denied: Only instructional teachers and administrators may generate AI explanations.'
+                ]);
+                exit;
+            }
+
+            $activityId  = (int)($body['activity_id'] ?? 0);
+            $studentId   = (int)($body['student_id'] ?? 0);
+            $isSynthetic = !empty($body['is_synthetic']);
+
+            require_once __DIR__ . '/../Services/GeminiExplanationService.php';
+            $geminiService = new GeminiExplanationService();
+
+            // Synthetic test mode
+            if ($isSynthetic || ($activityId === 0 && $studentId === 0)) {
+                $response = $geminiService->testWithSyntheticData();
+                echo json_encode($response);
+                exit;
+            }
+
+            if ($activityId <= 0 || $studentId <= 0) {
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'error'   => 'invalid_request',
+                    'message' => 'Invalid activity or learner identifier.'
+                ]);
+                exit;
+            }
+
+            // 3. Compute evaluated performance insight
+            require_once __DIR__ . '/../Services/LearningGapAnalyzer.php';
+            require_once __DIR__ . '/../Services/ResourceRecommendationService.php';
+
+            $db = Database::getInstance()->getConnection();
+            $gapAnalyzer = new LearningGapAnalyzer($db);
+            $recService  = new ResourceRecommendationService($db, $gapAnalyzer);
+
+            $insight = $recService->recommendForActivity($studentId, $activityId);
+
+            // 4. Enforce eligible graded attempt evidence (Requirement 5)
+            $gradedCount = (int)($insight['factors']['attempts']['graded'] ?? ($insight['performance_summary']['graded_count'] ?? 0));
+            if ($gradedCount === 0) {
+                echo json_encode([
+                    'success'     => false,
+                    'error'       => 'insufficient_evidence',
+                    'message'     => 'No graded attempt evidence recorded for this learner on this activity. AI-assisted explanation requires evaluated performance data.',
+                    'explanation' => null,
+                ]);
+                exit;
+            }
+
+            $response = $geminiService->explainActivityInsight($insight);
+
+            echo json_encode($response);
+        } catch (\Throwable $e) {
+            error_log('IEPImplementationController::explainInsight error: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error'   => 'server_error',
+                'message' => 'An unexpected server error occurred: ' . $e->getMessage()
+            ]);
+        }
+        exit;
+    }
 }
+
 
 
 
