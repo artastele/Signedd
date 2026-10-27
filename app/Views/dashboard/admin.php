@@ -86,9 +86,10 @@ $pendingCount = count($pendingRoleRequests);
     $compliantSchoolsCount = 0;
     if ($totalSchoolsCount > 0) {
         $cotSchoolStmt = $db->prepare("
-            SELECT COUNT(*) FROM classroom_observations co 
-            JOIN users u ON co.observed_teacher_id = u.id 
-            WHERE u.school_id = :sid AND co.status = 'finalized'
+            SELECT (
+                (SELECT COUNT(*) FROM classroom_observations co JOIN users u ON co.observed_teacher_id = u.id WHERE u.school_id = :sid1 AND co.status = 'finalized') +
+                (SELECT COUNT(*) FROM cot_observations co JOIN users u ON co.observed_teacher_id = u.id WHERE u.school_id = :sid2 AND co.status = 'finalized')
+            )
         ");
         $lpSchoolStmt = $db->prepare("
             SELECT (
@@ -119,7 +120,7 @@ $pendingCount = count($pendingRoleRequests);
             $schTotalFac = 0;
             $schCertFac = 0;
             try {
-                $cotSchoolStmt->execute(['sid' => $sid]);
+                $cotSchoolStmt->execute(['sid1' => $sid, 'sid2' => $sid]);
                 $schCotCount = (int)$cotSchoolStmt->fetchColumn();
             } catch (\Throwable $e) {}
 
@@ -161,19 +162,26 @@ $pendingCount = count($pendingRoleRequests);
     }
 
     // 3. Dynamic Distance Learning Inclusion & Participation Rate (General Objective)
-    // Formula: (Active Distance Learning & LMS Learners / Total Enrolled SPED Learners) * 100
+    // Formula: (SignED Candidates & Active DL/LMS Learners / Total Enrolled SPED Learners) * 100
     $totLearnersStmt = $db->query("SELECT COUNT(*) FROM student_records");
     $totalSysLearners = $totLearnersStmt ? (int)$totLearnersStmt->fetchColumn() : 0;
     
     $participatingLearnersStmt = $db->query("
-        SELECT COUNT(DISTINCT student_id) 
-        FROM (
-            SELECT student_id FROM lms_submissions
-            UNION
-            SELECT student_id FROM activity_attempt_log
-            UNION
-            SELECT student_id FROM attendance_records WHERE source = 'auto'
-        ) active_dl
+        SELECT COUNT(DISTINCT sr.id) 
+        FROM student_records sr
+        LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+        WHERE sr.learning_track IN ('lms', 'candidate')
+           OR es.learning_track IN ('lms', 'candidate')
+           OR sr.claim_token IS NOT NULL
+           OR sr.lms_invite_status IN ('sent', 'accepted')
+           OR es.lms_invite_status IN ('sent', 'accepted')
+           OR sr.learner_user_id IS NOT NULL
+           OR sr.id IN (SELECT student_id FROM iep_records WHERE status = 'signed')
+           OR sr.id IN (SELECT student_id FROM lms_submissions)
+           OR sr.student_id IN (SELECT student_id FROM lms_submissions)
+           OR sr.id IN (SELECT student_id FROM activity_attempt_log)
+           OR sr.student_id IN (SELECT student_id FROM activity_attempt_log)
+           OR sr.id IN (SELECT student_id FROM attendance_records WHERE source = 'auto')
     ");
     $participatingSysLearners = $participatingLearnersStmt ? (int)$participatingLearnersStmt->fetchColumn() : 0;
     $systemDistanceLearningRate = $totalSysLearners > 0 ? round(($participatingSysLearners / $totalSysLearners) * 100, 1) : 0;
@@ -194,13 +202,13 @@ $pendingCount = count($pendingRoleRequests);
                         </span>
                     </div>
                     <div class="d-flex align-items-baseline gap-2 mb-2">
-                        <h2 class="fw-bold text-primary mb-0">
+                        <h2 class="fw-bold mb-0 <?php echo $systemDistanceLearningRate >= 85 ? 'text-success' : 'text-primary'; ?>">
                             <?php echo $totalSysLearners > 0 ? $systemDistanceLearningRate . '%' : '0.0%'; ?>
                         </h2>
                         <span class="text-muted small">Target: &ge; 85.0% Participation</span>
                     </div>
                     <div class="progress mb-2" style="height: 6px;">
-                        <div class="progress-bar bg-primary" role="progressbar" style="width: <?php echo min(100, $systemDistanceLearningRate); ?>%;"></div>
+                        <div class="progress-bar <?php echo $systemDistanceLearningRate >= 85 ? 'bg-success' : 'bg-primary'; ?>" role="progressbar" style="width: <?php echo min(100, $systemDistanceLearningRate); ?>%;"></div>
                     </div>
                     <div class="small text-muted" style="font-size: 0.72rem; line-height: 1.3;">
                         <strong>General Objective:</strong> <?php echo $participatingSysLearners; ?> of <?php echo $totalSysLearners; ?> enrolled SPED learners actively participating in distance learning & LMS.

@@ -54,6 +54,9 @@ class Database {
                 try {
                     $this->connection->exec("ALTER TABLE teacher_assignments CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
                 } catch (PDOException $e) {}
+                try {
+                    $this->connection->exec("ALTER TABLE sections ADD COLUMN assigned_teacher_id INT NULL AFTER adviser_teacher_id");
+                } catch (PDOException $e) {}
                 
                 // Ensure default System Admin user exists if users table is empty
                 try {

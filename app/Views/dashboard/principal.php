@@ -112,9 +112,17 @@ if ($schoolId) {
         $schDlStmt = $db->prepare("
             SELECT COUNT(DISTINCT sr.id) 
             FROM student_records sr
+            LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
             WHERE sr.school_id = :sid
               AND (
-                  sr.id IN (SELECT student_id FROM lms_submissions)
+                  sr.learning_track IN ('lms', 'candidate')
+                  OR es.learning_track IN ('lms', 'candidate')
+                  OR sr.claim_token IS NOT NULL
+                  OR sr.lms_invite_status IN ('sent', 'accepted')
+                  OR es.lms_invite_status IN ('sent', 'accepted')
+                  OR sr.learner_user_id IS NOT NULL
+                  OR sr.id IN (SELECT student_id FROM iep_records WHERE status = 'signed')
+                  OR sr.id IN (SELECT student_id FROM lms_submissions)
                   OR sr.student_id IN (SELECT student_id FROM lms_submissions)
                   OR sr.id IN (SELECT student_id FROM activity_attempt_log)
                   OR sr.student_id IN (SELECT student_id FROM activity_attempt_log)

@@ -78,9 +78,12 @@ require_once __DIR__ . '/../layouts/header.php';
                 <div class="form-floating mb-3">
                     <input type="text" class="form-control" id="email" name="email" placeholder="Email or Student ID (e.g. 20250001)" required autofocus>
                     <label for="email"><i class="bi bi-envelope"></i> Email or Student ID</label>
-                    <div class="form-text">
-                        <small class="text-muted">
-                            <i class="bi bi-info-circle"></i> Learners can sign in with their Student ID (e.g. 20250001)
+                    <div class="form-text mt-1.5">
+                        <small class="text-muted d-block" style="font-size: 0.76rem; line-height: 1.4;">
+                            <i class="bi bi-info-circle text-primary me-1"></i><strong>Learners:</strong> Gamita ang inyong 8-digit Student ID (pananglitan <code>20260011</code>) o LRN, dili ang full name.
+                        </small>
+                        <small class="text-muted d-block mt-1" style="font-size: 0.76rem; line-height: 1.4;">
+                            <i class="bi bi-person-heart text-success me-1"></i><strong>Parents:</strong> Gamita ang inyong rehistradong Gmail o Email address.
                         </small>
                     </div>
                 </div>

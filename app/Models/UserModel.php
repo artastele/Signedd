@@ -40,10 +40,12 @@ class UserModel {
                 SELECT u.id, u.school_id, u.name, u.email, u.password_hash, u.role, u.status, u.email_verified, u.created_at
                 FROM users u
                 INNER JOIN student_records sr ON sr.learner_user_id = u.id
-                WHERE sr.student_id = :id1 OR sr.lrn = :id2
+                WHERE sr.student_id = :id1 
+                   OR sr.lrn = :id2
+                   OR LOWER(TRIM(sr.student_name)) = LOWER(:name)
                 LIMIT 1
             ");
-            $stmt->execute(['id1' => $identifier, 'id2' => $identifier]);
+            $stmt->execute(['id1' => $identifier, 'id2' => $identifier, 'name' => $identifier]);
             $user = $stmt->fetch();
             if ($user) {
                 return $user;
