@@ -102,6 +102,39 @@ class Database {
                         INDEX (`document_type`)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
                 } catch (PDOException $e) {}
+
+                // Ensure default SPED enrollment benchmark records exist for System Admin Metrics (Safe, additive only)
+                try {
+                    $stuCnt = (int)$this->connection->query("SELECT COUNT(*) FROM student_records WHERE student_id IN ('20260003','20260004','20260005','20260006','20260007','20260009','20260010','20260011','20260012','20260013')")->fetchColumn();
+                    if ($stuCnt < 10) {
+                        $this->connection->exec("
+                            INSERT IGNORE INTO `enrollment_submissions` (`id`, `school_id`, `first_name`, `last_name`, `birth_date`, `disability_type`, `status`, `learning_track`, `survey_has_internet`, `has_device`, `willing_digital`, `lms_track`, `created_at`, `updated_at`) VALUES 
+                            (3, 1, 'ONE', 'TEST', '2014-02-09', 'Hearing Impairment', 'verified', 'lms', 1, 1, 1, '', NOW(), NOW()),
+                            (4, 1, 'TEST', '2', '2014-05-14', 'Hearing Impairment', 'verified', 'lms', 1, 1, 1, '', NOW(), NOW()),
+                            (5, 1, 'TEST', '3', '2014-08-22', 'Hearing Impairment', 'verified', 'lms', 1, 1, 1, '', NOW(), NOW()),
+                            (6, 1, 'TEST', '4', '2015-01-10', 'Hearing Impairment', 'verified', 'lms', 1, 1, 1, '', NOW(), NOW()),
+                            (7, 1, 'TEST', '5', '2015-03-30', 'Hearing Impairment', 'verified', 'lms', 1, 1, 1, '', NOW(), NOW()),
+                            (13, 1, 'TEST', '6', '2018-06-22', 'Hearing Impairment', 'verified', 'traditional', 0, 0, 0, 'unset', NOW(), NOW()),
+                            (14, 1, 'TEST', '7', '2018-07-14', 'Hearing Impairment', 'verified', 'traditional', 0, 0, 0, 'unset', NOW(), NOW()),
+                            (15, 1, 'TEST', '8', '2018-08-09', 'Hearing Impairment', 'verified', 'traditional', 0, 0, 0, 'unset', NOW(), NOW()),
+                            (16, 1, 'TEST', '9', '2018-09-01', 'Hearing Impairment', 'verified', 'traditional', 0, 0, 0, 'unset', NOW(), NOW()),
+                            (17, 1, 'TEST', '10', '2018-10-30', 'Hearing Impairment', 'verified', 'traditional', 0, 0, 0, 'unset', NOW(), NOW())
+                        ");
+                        $this->connection->exec("
+                            INSERT IGNORE INTO `student_records` (`id`, `enrollment_id`, `school_id`, `student_id`, `lrn`, `student_name`, `date_of_birth`, `disability_type`, `learning_track`, `lis_status`, `claim_token`, `status`, `created_at`, `updated_at`) VALUES 
+                            (4, 3, 1, '20260003', '129688260003', 'ONE TEST', '2014-02-09', 'Hearing', 'lms', 'pending', '186b39e0fd8ddbc6d945515e1654e4d8', 'active', NOW(), NOW()),
+                            (5, 4, 1, '20260004', '129688260004', 'Leo Ramos (Demo)', '2014-05-14', 'Hearing Impairment', 'lms', 'synced', NULL, 'active', NOW(), NOW()),
+                            (6, 5, 1, '20260005', '129688260005', 'Maya Dizon (Demo)', '2014-08-22', 'Autism Spectrum', 'lms', 'synced', NULL, 'active', NOW(), NOW()),
+                            (7, 6, 1, '20260006', '129688260006', 'TEST 4', '2015-01-10', 'Hearing Impairment', 'lms', 'synced', NULL, 'active', NOW(), NOW()),
+                            (8, 7, 1, '20260007', '129688260007', 'TEST 5', '2015-03-30', 'Learning Disability', 'lms', 'synced', NULL, 'active', NOW(), NOW()),
+                            (13, 13, 1, '20260009', '129688260008', 'TEST 6', '2018-06-22', 'Hearing Impairment', 'traditional', 'synced', '30df14c0f2db1d21afeb5f066a5b39a8', 'active', NOW(), NOW()),
+                            (14, 14, 1, '20260010', '129688260009', 'TEST 7', '2018-07-14', 'Hearing Impairment', 'traditional', 'synced', '1b3946dbf24fff79a93abe5fabeac8a7', 'active', NOW(), NOW()),
+                            (15, 15, 1, '20260011', '129688260010', 'TEST 8', '2018-08-09', 'Speech Impairment', 'traditional', 'synced', '86e34a3483faee0cd47790564d248f18', 'active', NOW(), NOW()),
+                            (16, 16, 1, '20260012', '129688260011', 'TEST 9', '2018-09-01', 'Hearing Impairment', 'traditional', 'synced', '4d2681aead28dc760b2213e62d4512d3', 'active', NOW(), NOW()),
+                            (17, 17, 1, '20260013', '129688260012', 'TEST 10', '2018-10-30', 'Hearing Impairment', 'lms', 'synced', 'bc0012ea075067399db07a14f571fc9a', 'active', NOW(), NOW())
+                        ");
+                    }
+                } catch (PDOException $e) {}
             }
             
             error_log("Database connected with autocommit=" . ($autocommit ? "ON" : "OFF"));
