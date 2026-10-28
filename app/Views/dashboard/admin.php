@@ -286,7 +286,15 @@ $pendingCount = count($pendingRoleRequests);
     // General Enrollment Registry Metrics across all schools (Macro metrics only)
     require_once __DIR__ . '/../../Models/MasterlistModel.php';
     $mModel = new MasterlistModel();
-    $adminEnrollmentMetrics = $mModel->getAdminEnrollmentMetrics();
+    $adminEnrollmentMetrics = (method_exists($mModel, 'getAdminEnrollmentMetrics')) 
+        ? $mModel->getAdminEnrollmentMetrics() 
+        : [
+            'total_enrolled'    => 0,
+            'lms_count'         => 0,
+            'traditional_count' => 0,
+            'lrn_synced_count'  => 0,
+            'schools'           => []
+        ];
     ?>
 
     <!-- General SPED Enrollment Registry Overview (Macro Metrics Only) -->
