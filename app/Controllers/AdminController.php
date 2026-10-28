@@ -174,9 +174,18 @@ class AdminController {
 
         // Build query with user information
         $sql = "
-            SELECT ll.*, u.name as user_name, u.role as user_role
+            SELECT ll.*, 
+                   COALESCE(u.name, sr.student_name) as user_name, 
+                   COALESCE(u.role, CASE WHEN sr.id IS NOT NULL THEN 'learner' ELSE NULL END) as user_role
             FROM login_log ll
             LEFT JOIN users u ON ll.user_id = u.id
+            LEFT JOIN student_records sr ON (
+                ll.email = sr.student_id 
+                OR ll.email = sr.lrn 
+                OR ll.email = CONCAT('learner_', sr.student_id, '@spedlms.local')
+                OR ll.email = CONCAT('learner_', sr.lrn, '@spedlms.local')
+                OR LOWER(TRIM(ll.email)) = LOWER(TRIM(sr.student_name))
+            )
             WHERE 1=1
         ";
         $params = [];
@@ -187,7 +196,7 @@ class AdminController {
         }
 
         if (!empty($search)) {
-            $sql .= " AND (ll.email LIKE :search OR u.name LIKE :search)";
+            $sql .= " AND (ll.email LIKE :search OR u.name LIKE :search OR sr.student_name LIKE :search)";
             $params['search'] = '%' . $search . '%';
         }
 

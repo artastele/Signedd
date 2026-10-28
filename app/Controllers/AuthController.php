@@ -118,7 +118,7 @@ class AuthController {
         // Verify password
         if (!$this->userModel->verifyPassword($user, $password)) {
             RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
-            $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
+            $this->userModel->logLoginAttempt($email, 'failure', $ipAddress, (int)$user['id']);
             $_SESSION['error'] = 'Invalid email or password.';
             header('Location: ' . $basePath . '/login');
             exit;
@@ -127,7 +127,7 @@ class AuthController {
         // Check if account is active
         if ($user['status'] !== 'active') {
             RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
-            $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
+            $this->userModel->logLoginAttempt($email, 'failure', $ipAddress, (int)$user['id']);
             $_SESSION['error'] = 'Your account is not active. Please contact the administrator.';
             header('Location: ' . $basePath . '/login');
             exit;
@@ -144,14 +144,14 @@ class AuthController {
         if ($appEnv === 'production' && !$isTestHost) {
             if ($isDemoAccount) {
                 RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
-                $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
+                $this->userModel->logLoginAttempt($email, 'failure', $ipAddress, (int)$user['id']);
                 $_SESSION['error'] = 'Demo accounts are disabled in production mode. Please use official school credentials.';
                 header('Location: ' . $basePath . '/login');
                 exit;
             }
             if (in_array(strtolower($password), ['password', 'password123', 'admin123', '12345678'], true)) {
                 RateLimitHelper::recordLoginAttempt($email, false, $ipAddress);
-                $this->userModel->logLoginAttempt($email, 'failure', $ipAddress);
+                $this->userModel->logLoginAttempt($email, 'failure', $ipAddress, (int)$user['id']);
                 $_SESSION['error'] = 'Default demo passwords cannot be used in a production environment. Please reset your password.';
                 header('Location: ' . $basePath . '/login');
                 exit;
@@ -161,7 +161,7 @@ class AuthController {
         // Login successful
         RateLimitHelper::recordLoginAttempt($email, true, $ipAddress);
         RateLimitHelper::clearLoginAttempts($email);
-        $this->userModel->logLoginAttempt($email, 'success', $ipAddress);
+        $this->userModel->logLoginAttempt($email, 'success', $ipAddress, (int)$user['id']);
 
         // Regenerate session ID for security
         SessionMiddleware::regenerate();

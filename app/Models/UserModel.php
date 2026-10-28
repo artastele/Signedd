@@ -176,22 +176,29 @@ class UserModel {
     /**
      * Log login attempt
      */
-    public function logLoginAttempt($email, $result, $ipAddress = null) {
+    public function logLoginAttempt($email, $result, $ipAddress = null, $userId = null) {
         if ($ipAddress === null) {
             $ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         }
 
-        // Try to get user_id from email or username
-        $userId = null;
-        try {
-            $userStmt = $this->db->prepare("SELECT id FROM users WHERE email = :email LIMIT 1");
-            $userStmt->execute(['email' => $email]);
-            $user = $userStmt->fetch();
-            if ($user) {
-                $userId = (int)$user['id'];
+        // Try to get user_id from email or username if not already provided
+        if ($userId === null) {
+            try {
+                $userStmt = $this->db->prepare("SELECT id FROM users WHERE email = :email LIMIT 1");
+                $userStmt->execute(['email' => $email]);
+                $user = $userStmt->fetch();
+                if ($user) {
+                    $userId = (int)$user['id'];
+                } else {
+                    // Try student identifier lookup (Student ID, LRN, student name)
+                    $studentUser = $this->findByStudentIdentifier($email);
+                    if ($studentUser && !empty($studentUser['id'])) {
+                        $userId = (int)$studentUser['id'];
+                    }
+                }
+            } catch (\Throwable $e) {
+                // User ID stays null
             }
-        } catch (\Throwable $e) {
-            // User ID stays null
         }
 
         try {
