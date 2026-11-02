@@ -213,6 +213,7 @@ route('GET',  '/teacher/resource-hub',                            'IEPImplementa
 route('GET',  '/iep/implementation/resource-hub/preview/{id}',     'IEPImplementationController', 'previewResourcePack',   'iep.implement');
 route('GET',  '/teacher/resource-hub/preview/{id}',                'IEPImplementationController', 'previewResourcePack',   'iep.implement');
 route('POST', '/iep/implementation/resource-hub/share/{id}',       'IEPImplementationController', 'shareToResourceHub',     'iep.implement');
+route('POST', '/iep/implementation/resource-hub/suggest-tags',    'IEPImplementationController', 'suggestResourceTags',   'iep.implement');
 route('POST', '/iep/implementation/resource-hub/clone/{id}',       'IEPImplementationController', 'cloneFromResourceHub',   'iep.implement');
 route('POST', '/iep/implementation/resource-hub/unshare/{id}',     'IEPImplementationController', 'unshareFromResourceHub', 'iep.implement');
 
@@ -223,6 +224,7 @@ route('POST', '/iep/implementation/lesson-plan/{id}/mastery-resource',          
 
 // Process 10.1: AI-Assisted Learning Gap Explanation (Gemini Flash)
 route('POST', '/iep/implementation/explain-insight',                              'IEPImplementationController', 'explainInsight',        'iep.implement');
+route('POST', '/iep/implementation/intervention-ideas',                          'IEPImplementationController', 'interventionIdeas',    'iep.implement');
 
 // IEP Implementation Workspace (Catch-all for IEP ID)
 route('GET',  '/iep/implementation/workspace/{id}',                 'IEPImplementationController', 'workspace',         'iep.implement');
@@ -334,6 +336,7 @@ route('GET',  '/iep/form/{id}',                'IEPController', 'form',         
 // Save IEP Sections 1–4 (header, domains, core, re-eval date)
 route('POST', '/iep/save-part1',               'IEPController', 'savePartOne',    'iep.create');
 route('POST', '/iep/save-steps',               'IEPController', 'saveSteps',      'iep.create');
+route('POST', '/iep/import-steps/preview',     'IEPController', 'importStepsPreview', 'iep.create');
 route('POST', '/iep/ajax/lesson-plan-for-step', 'IEPController', 'createLessonPlanForStep', 'iep.create');
 route('GET',  '/iep/ajax/lesson-plans-for-step', 'IEPController', 'lessonPlansForIepStepJson', 'iep.create');
 route('POST', '/iep/ajax/link-lesson-plan-to-step', 'IEPController', 'linkExistingLessonPlanToStep', 'iep.create');

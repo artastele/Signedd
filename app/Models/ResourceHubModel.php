@@ -5,6 +5,7 @@
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/LessonPlanModel.php';
 require_once __DIR__ . '/../Helpers/HtmlSanitizer.php';
+require_once __DIR__ . '/../Services/ResourceTagService.php';
 
 class ResourceHubModel {
 
@@ -201,12 +202,29 @@ class ResourceHubModel {
      * Ensures complete privacy by omitting all learner PII, IEP IDs, student IDs, and assessment logs.
      */
     public function shareLessonToHub(int $lessonPlanId, int $teacherId, string $teacherName, array $meta): int {
+        // Existing tags column stores only metadata explicitly reviewed at publication.
+        $tags = ResourceTagService::approvedTags($meta);
         $lp = $this->lpModel->findById($lessonPlanId);
         if (!$lp) {
             throw new InvalidArgumentException("Lesson plan not found.");
         }
 
         $pages = $this->lpModel->getPagesByLessonPlan($lessonPlanId);
+        // Existing file/link materials become read-only snapshot pages only on explicit sharing.
+        foreach ($this->lpModel->getMaterials($lessonPlanId) as $material) {
+            $path = trim($material['file_path'] ?? '');
+            $url = trim($material['external_url'] ?? '');
+            if ($path !== '') {
+                if (!preg_match('~^uploads/materials/' . $lessonPlanId . '/[a-zA-Z0-9_.-]+$~D',$path)
+                    || !in_array(strtolower(pathinfo($path,PATHINFO_EXTENSION)),['jpg','jpeg','png','pdf','mp4'],true)
+                    || !is_file(__DIR__ . '/../../public/' . $path)) continue;
+                $url = (defined('BASE_PATH') ? rtrim(BASE_PATH,'/') : '') . '/' . $path;
+            } elseif (!filter_var($url,FILTER_VALIDATE_URL) || !in_array(strtolower(parse_url($url,PHP_URL_SCHEME) ?? ''),['http','https'],true)) continue;
+            $pages[] = ['page_number'=>count($pages)+1,'title'=>$material['title'],
+                'content'=>'<p><a class="resource-material-link" href="' . htmlspecialchars($url,ENT_QUOTES,'UTF-8') . '">Open material: ' . htmlspecialchars($material['title']) . '</a></p>',
+                'guide_questions'=>null,'media_type'=>'none','media_path'=>null];
+        }
+        if (!$pages) throw new InvalidArgumentException('Add an available slide or material before publishing.');
         $activities = $this->lpModel->getActivitiesByIepId((int)$lp['iep_id']);
         // Filter activities specifically linked to this lesson plan
         $lessonActivities = array_filter($activities, function($a) use ($lessonPlanId) {
@@ -224,7 +242,6 @@ class ResourceHubModel {
         $level = trim($meta['learning_level'] ?? 'Primary SPED / Deaf Ed');
         $competency = trim($meta['learning_competency'] ?? '');
         $language = trim($meta['language'] ?? 'Filipino / FSL');
-        $tags = trim($meta['tags'] ?? '');
         
         $masteryUrl = trim($meta['mainstream_mastery_url'] ?? $lp['mainstream_mastery_url'] ?? '');
         $masteryTitle = trim($meta['mainstream_mastery_title'] ?? $lp['mainstream_mastery_title'] ?? '');

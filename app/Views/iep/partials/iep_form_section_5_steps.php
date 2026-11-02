@@ -15,6 +15,10 @@ $wsUrl = $basePath . '/iep/implementation/workspace/' . (int) $iep['id'];
             <div class="alert alert-secondary small mb-3">This section is read-only.</div>
         <?php endif; ?>
 
+        <?php if (!$readOnly && ($iep['status'] ?? '') === 'draft'): ?>
+            <?php require __DIR__ . '/iep_steps_import.php'; ?>
+        <?php endif; ?>
+
         <div class="table-responsive">
             <table class="table table-bordered align-middle mb-0 table-sm" id="iepStepsTable" style="--bs-table-border-color:#dee2e6;font-size:0.8125rem;">
                 <thead>
@@ -39,8 +43,9 @@ $wsUrl = $basePath . '/iep/implementation/workspace/' . (int) $iep['id'];
                         $durationLp = (string) ($st['duration_lp'] ?? '');
                         $evaluation = (string) ($st['instructional_evaluation'] ?? '');
                         $obsText = (string) ($st['observation'] ?? '');
+                        $importPlaceholder = trim($objective . $durationLp . $evaluation . $obsText . ($st['pdsp_indicator_text'] ?? '')) === '' && !$lps && !$mats;
                         ?>
-                        <tr data-step-id="<?= $sid ?>" style="background-color:<?= ((int) $st['step_number'] % 2 === 0) ? '#f9f9f9' : '#fff' ?>;">
+                        <tr data-step-id="<?= $sid ?>" data-import-placeholder="<?= $importPlaceholder ? '1' : '0' ?>" style="background-color:<?= ((int) $st['step_number'] % 2 === 0) ? '#f9f9f9' : '#fff' ?>;">
                             <td class="text-center step-num-cell"><?= (int) $st['step_number'] ?></td>
                             <td>
                                 <?php if ($readOnly): ?>

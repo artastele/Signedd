@@ -17,6 +17,9 @@
 
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/LearningGapAnalyzer.php';
+require_once __DIR__ . '/ResourceTagService.php';
+require_once __DIR__ . '/ResourceHubContentMatcher.php';
+require_once __DIR__ . '/InterventionDraftService.php';
 
 class ResourceRecommendationService {
 
@@ -65,10 +68,11 @@ class ResourceRecommendationService {
         $activity   = $analysis['activity'] ?? [];
 
         $gradedCount   = (int)($attempts['graded'] ?? 0);
-        $latestAcc     = $accuracy['latest_accuracy'] ?? null;
+        $latestAcc     = $accuracy['latest_result_accuracy'] ?? null;
         $trendClass    = $trend['classification'] ?? LearningGapAnalyzer::INSUFFICIENT;
         $recurring     = $consistency['recurring_incorrect_items'] ?? [];
-        $activeRecurring = array_filter($recurring, fn($item) => !empty($item['still_incorrect_latest']));
+        $activeRecurring = array_filter($recurring, fn($item) => !empty($item['still_incorrect_latest']) && ($item['incorrect_in_attempts'] ?? 0) >= 2);
+        $difficultyItems = $accuracy['latest_incorrect_items'] ?? [];
         $threshold     = (int)($lessonCtx['lesson_score_threshold'] ?? 70);
 
         $summary = [
@@ -83,60 +87,61 @@ class ResourceRecommendationService {
         ];
 
         // ── Rule 1: Insufficient attempt evidence ────────────────────────────
-        if ($gradedCount === 0) {
+        if ($gradedCount === 0 || $latestAcc === null || $latestAcc >= 100) {
             return $this->buildResponse(
                 $studentId,
                 $activity,
                 $summary,
                 $iepLinks,
                 [],
-                'Insufficient attempt evidence: the learner has no graded attempts on this activity. Recommendations require evaluated performance evidence.',
+                $gradedCount === 0 || $latestAcc === null
+                    ? 'No valid graded latest result is available for targeted recommendations.'
+                    : 'The latest attempt has no scored difficulty requiring a targeted recommendation.',
                 $factors,
                 $analysis['limitations'] ?? []
             );
         }
 
         // ── Rule 2: Mastery / Improving Performance with no active gaps ──────
-        // If learner demonstrates consistent improvement and has resolved errors or scored >= threshold
-        $isMasteredOrPassing = ($latestAcc !== null && $latestAcc >= $threshold && empty($activeRecurring));
-        $isImprovingNoGaps   = ($trendClass === LearningGapAnalyzer::TREND_IMPROVING && $latestAcc !== null && $latestAcc >= 100 && empty($activeRecurring));
-
-        if ($isImprovingNoGaps || ($isMasteredOrPassing && $trendClass === LearningGapAnalyzer::TREND_IMPROVING)) {
-            return $this->buildResponse(
-                $studentId,
-                $activity,
-                $summary,
-                $iepLinks,
-                [],
-                "Learner demonstrates an improving performance trend (latest accuracy: {$latestAcc}%). Prior errors have been resolved, and no remedial resource intervention is currently flagged for teacher review.",
-                $factors,
-                $analysis['limitations'] ?? []
-            );
-        }
-
         $recommendations = [];
         $seenKeys = []; // To enforce deduplication: source_table . ':' . source_id
 
         // ── Rule 3: Targeted FSL Vocabulary Recommendations (from fsl_vocabulary) ──
-        $this->matchFslVocabulary($recurring, $analysis, $recommendations, $seenKeys);
+        $this->matchFslVocabulary($difficultyItems, $analysis, $recommendations, $seenKeys);
 
         // ── Rule 4: Teacher-Designated Remedial Lesson (from lesson_plans) ────
-        $this->matchRemedialLessons($activity, $latestAcc, $threshold, $analysis, $recommendations, $seenKeys);
+        // A shared lesson or domain alone does not verify the specific skill.
+        // Recommend only exact recorded item matches, using existing public resources.
 
         // ── Rule 5: Resource Hub Accessibility Packs (from resource_hub_packs) ─
-        $this->matchResourceHubPacks($activity, $iepLinks, $lessonCtx, $recurring, $recommendations, $seenKeys);
+        if ($difficultyItems) {
+            $this->matchResourceHubPacks($activity, $iepLinks, $lessonCtx, $difficultyItems, $recommendations, $seenKeys);
+        }
 
         // ── Rule 6: Supplementary Practice Activities (from lms_activities) ──
-        $this->matchSupplementaryActivities($activity, $latestAcc, $threshold, $recommendations, $seenKeys);
 
         // Sort by priority: high -> medium -> low
         usort($recommendations, function ($a, $b) {
+            $rank = ($b['match_rank'] ?? 0) <=> ($a['match_rank'] ?? 0);
+            if ($rank !== 0) return $rank;
             $pMap = [self::PRIORITY_HIGH => 1, self::PRIORITY_MEDIUM => 2, self::PRIORITY_LOW => 3];
-            return ($pMap[$a['priority']] ?? 99) <=> ($pMap[$b['priority']] ?? 99);
+            $priority = ($pMap[$a['priority']] ?? 99) <=> ($pMap[$b['priority']] ?? 99);
+            return $priority !== 0 ? $priority : (($a['source_id'] ?? 0) <=> ($b['source_id'] ?? 0));
         });
+        // Keep the strongest eligible preview for identical full Hub snapshots.
+        // Different resources with the same title or skill remain separate suggestions.
+        $unique=[]; $seenContent=[];
+        foreach ($recommendations as $recommendation) {
+            $fingerprint=$recommendation['_content_fingerprint']??null;
+            if ($fingerprint!==null && isset($seenContent[$fingerprint])) continue;
+            if ($fingerprint!==null) $seenContent[$fingerprint]=true;
+            unset($recommendation['_content_fingerprint']);
+            $unique[]=$recommendation;
+        }
+        $recommendations=$unique;
 
         $explanation = empty($recommendations)
-            ? 'No existing resources in fsl_vocabulary, resource_hub_packs, or remedial lessons matched the evaluated gap.'
+            ? 'No existing FSL videos or published Resource Hub resources matched the latest recorded incorrect answers.'
             : sprintf(
                 'Identified %d relevant resource(s) from existing SignED repositories to address observed performance patterns (latest accuracy: %s%%, trend: %s).',
                 count($recommendations),
@@ -190,7 +195,7 @@ class ResourceRecommendationService {
 
             // Look up exact or high-confidence match in fsl_vocabulary
             $fslRow = $this->findFslEntry($expected);
-            if (!$fslRow) {
+            if (!$fslRow || empty(trim((string)($fslRow['video_path'] ?? '')))) {
                 continue;
             }
 
@@ -207,6 +212,8 @@ class ResourceRecommendationService {
                 'resource_type' => 'fsl_vocabulary',
                 'source_table'  => 'fsl_vocabulary',
                 'source_id'     => (int)$fslRow['id'],
+                'lookup_word'   => $fslRow['word'],
+                'match_rank'    => 80,
                 'title'         => 'FSL Sign: ' . $fslRow['word'],
                 'description'   => $fslRow['description'] ?: ('Filipino Sign Language demonstration for "' . $fslRow['word'] . '"'),
                 'category'      => $fslRow['category'] ?? 'General',
@@ -215,13 +222,13 @@ class ResourceRecommendationService {
                 'domain'        => 'communication_language',
                 'priority'      => self::PRIORITY_HIGH,
                 'evidence'      => [
-                    'gap_type'                  => 'recurring_vocabulary_error',
+                    'gap_type'                  => 'recorded_incorrect_item',
                     'related_concept_or_skill'  => $expected,
                     'relevant_iep_objective'    => $this->getPrimaryIepText($analysis['iep_objectives'] ?? []),
                     'performance_evidence'      => sprintf(
                         'Learner answered question index %d incorrectly in %d attempt(s) (observed: %s; expected: "%s").',
                         $item['question_index'],
-                        $item['incorrect_in_attempts'],
+                        $item['incorrect_in_attempts'] ?? 1,
                         $wrongAnswersStr,
                         $expected
                     ),
@@ -241,6 +248,15 @@ class ResourceRecommendationService {
      * Find a verified row in fsl_vocabulary by exact (case-insensitive) word match.
      */
     private function findFslEntry(string $term): ?array {
+        // A bilingual answer label is one concept, not an exact dictionary spelling.
+        foreach (ResourceTagService::skills($term) as $label) {
+            $row = $this->findExactFslEntry($label);
+            if ($row && !empty(trim((string)($row['video_path'] ?? '')))) return $row;
+        }
+        return null;
+    }
+
+    private function findExactFslEntry(string $term): ?array {
         $clean = mb_strtolower(trim($term));
         if ($clean === '') {
             return null;
@@ -343,111 +359,88 @@ class ResourceRecommendationService {
         }
     }
 
-    /**
-     * Match published Resource Hub Accessibility Packs using verified IEP objectives or curriculum domain.
-     */
-    private function matchResourceHubPacks(array $activity, array $iepLinks, array $lessonCtx, array $recurring, array &$recommendations, array &$seenKeys): void {
+    /** Match specific recorded skills to published packs, never domain alone. */
+    private function matchResourceHubPacks(array $activity, array $iepLinks, array $lessonCtx, array $incorrectItems, array &$recommendations, array &$seenKeys): void {
+        // Only the valid, incomplete latest result reaches this method.
+        // Prioritize teacher-authored competency and verified IEP context, then item concepts.
+        $evidence = [];
+        $addSkills = function (string $text, string $source) use (&$evidence): void {
+            foreach (ResourceTagService::skills($text) as $skill) $evidence[$skill] = $evidence[$skill] ?? $source;
+        };
+        $addSkills($activity['competency'] ?? '', 'activity competency');
+        $itemSkills = [];
+        foreach ($incorrectItems as $item) $itemSkills = array_merge($itemSkills, ResourceTagService::skills((string)($item['expected'] ?? '')));
+        // Numerical/short answer labels cannot identify a skill by themselves.
+        if (!$evidence && !$itemSkills) $addSkills($activity['title'] ?? '', 'assessed activity');
+        $contextSkills = array_keys($evidence);
+        foreach ($iepLinks as $link) {
+            if (empty($link['verified'])) continue;
+            foreach (ResourceTagService::skills($link['objective'] ?? '') as $skill) {
+                if (!$contextSkills || in_array($skill, $contextSkills, true)) {
+                    $evidence[$skill] = $evidence[$skill] ?? 'linked teacher-defined objective';
+                }
+            }
+        }
+        foreach ($incorrectItems as $item) $addSkills((string)($item['expected'] ?? ''), 'latest incorrect answer');
+        $skills = array_keys($evidence);
+        if (!$skills) return;
         try {
-            // Find verified IEP domains and indicators
-            $verifiedIepLinks = array_filter($iepLinks, fn($l) => !empty($l['verified']));
-            $targetDomains = [];
-            $searchTerms = [];
-
-            if (!empty($verifiedIepLinks)) {
-                foreach ($verifiedIepLinks as $v) {
-                    $norm = self::normalizeDomain($v['domain'] ?? null);
-                    if ($norm) {
-                        $targetDomains[$norm] = $v;
-                    }
-                    if (!empty($v['indicator'])) {
-                        $searchTerms[] = $v['indicator'];
-                    }
-                    if (!empty($v['objective'])) {
-                        $searchTerms[] = $v['objective'];
-                    }
+            $stmt = $this->db->prepare("SELECT id, title, description, pdsp_domain, learning_level, learning_competency, tags, fsl_supported, status
+                FROM resource_hub_packs WHERE status = 'published'
+                AND id > 0 AND TRIM(title) <> ''
+                AND (EXISTS (SELECT 1 FROM resource_hub_pages rp WHERE rp.pack_id = resource_hub_packs.id)
+                     OR EXISTS (SELECT 1 FROM resource_hub_activities ra WHERE ra.pack_id = resource_hub_packs.id))
+                ORDER BY fsl_supported DESC, clone_count DESC, id ASC");
+            $stmt->execute();
+            $packs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $pageStmt = $this->db->prepare("SELECT rp.id, rp.pack_id, rp.title, rp.content, rp.guide_questions, rp.media_type, rp.media_path
+                FROM resource_hub_pages rp JOIN resource_hub_packs p ON p.id = rp.pack_id WHERE p.status = 'published'
+                ORDER BY rp.pack_id, rp.page_number, rp.id");
+            $pageStmt->execute();
+            $pagesByPack = [];
+            foreach ($pageStmt->fetchAll(PDO::FETCH_ASSOC) as $row) $pagesByPack[(int)$row['pack_id']][] = $row;
+            $activityStmt = $this->db->prepare("SELECT ra.id, ra.pack_id, ra.title, ra.activity_type, ra.activity_data, ra.instructions, ra.max_score, ra.is_f2f
+                FROM resource_hub_activities ra JOIN resource_hub_packs p ON p.id = ra.pack_id WHERE p.status = 'published'
+                ORDER BY ra.pack_id, ra.display_order, ra.id");
+            $activityStmt->execute();
+            $activitiesByPack = [];
+            foreach ($activityStmt->fetchAll(PDO::FETCH_ASSOC) as $row) $activitiesByPack[(int)$row['pack_id']][] = $row;
+            foreach ($packs as $pack) {
+                if ((int)($pack['id'] ?? 0) <= 0 || trim($pack['title'] ?? '') === '' || ($pack['status'] ?? '') !== 'published') continue;
+                // Do not substitute a different explicitly stated numerical range.
+                $contextText = ($activity['competency'] ?? '') . ' ' . ($activity['title'] ?? '');
+                foreach ($iepLinks as $link) {
+                    if (!empty($link['verified'])) $contextText .= ' ' . ($link['objective'] ?? '');
                 }
-            }
-
-            // Fallback to lesson plan's own curriculum domain if unlinked or no verified IEP domain
-            $lessonPlanId = (int)($activity['lesson_plan_id'] ?? 0);
-            $stmtLp = $this->db->prepare("SELECT pdsp_domain, title FROM lesson_plans WHERE id = :id LIMIT 1");
-            $stmtLp->execute(['id' => $lessonPlanId]);
-            $lp = $stmtLp->fetch(PDO::FETCH_ASSOC);
-
-            if ($lp && !empty($lp['pdsp_domain'])) {
-                $normLpDomain = self::normalizeDomain($lp['pdsp_domain']);
-                if ($normLpDomain && !isset($targetDomains[$normLpDomain])) {
-                    $targetDomains[$normLpDomain] = null; // Unlinked / curriculum-based
-                }
-            }
-
-            if (!empty($lp['title'])) {
-                $searchTerms[] = $lp['title'];
-            }
-            if (!empty($activity['title'])) {
-                $searchTerms[] = $activity['title'];
-            }
-
-            // Extract keyword tokens (e.g. 'math', 'addition', 'suklay', 'wash', etc.)
-            $keywords = $this->extractKeywords($searchTerms);
-
-            foreach ($targetDomains as $domainEnum => $iepRef) {
-                // Query published packs matching domain
-                $sql = "
-                    SELECT id, title, description, pdsp_domain, learning_level, learning_competency, tags, fsl_supported
-                    FROM resource_hub_packs
-                    WHERE status = 'published' AND pdsp_domain = :dom
-                    ORDER BY fsl_supported DESC, clone_count DESC, id ASC
-                    LIMIT 5
-                ";
-                $stmt = $this->db->prepare($sql);
-                $stmt->execute(['dom' => $domainEnum]);
-                $packs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                foreach ($packs as $pack) {
-                    $dedupKey = 'resource_hub_packs:' . $pack['id'];
-                    if (isset($seenKeys[$dedupKey])) {
-                        continue;
-                    }
-
-                    // Check keyword relevance in tags, title, or competency
-                    $relevance = $this->scorePackRelevance($pack, $keywords);
-                    // Include if there's a keyword match or if it directly matches a verified IEP domain
-                    if ($relevance <= 0 && empty($iepRef)) {
-                        continue;
-                    }
-
-                    $seenKeys[$dedupKey] = true;
-                    $isIepVerified = !empty($iepRef);
-
-                    $recommendations[] = [
-                        'resource_type' => 'resource_hub_pack',
-                        'source_table'  => 'resource_hub_packs',
-                        'source_id'     => (int)$pack['id'],
-                        'title'         => 'Accessibility Pack: ' . $pack['title'],
-                        'description'   => $pack['description'] ?: ('Resource Pack covering ' . $pack['pdsp_domain'] . ' competencies.'),
-                        'category'      => $pack['learning_level'] ?: 'SPED / Deaf Ed',
-                        'media_url'     => null,
-                        'has_video'     => (bool)$pack['fsl_supported'],
-                        'domain'        => $pack['pdsp_domain'],
-                        'priority'      => $isIepVerified ? self::PRIORITY_HIGH : self::PRIORITY_MEDIUM,
-                        'evidence'      => [
-                            'gap_type'                  => $isIepVerified ? 'iep_competency_alignment' : 'curriculum_domain_match',
-                            'related_concept_or_skill'  => !empty($pack['learning_competency']) ? $pack['learning_competency'] : $pack['title'],
-                            'relevant_iep_objective'    => $isIepVerified ? ($iepRef['objective'] ?? $iepRef['indicator'] ?? null) : 'None (Activity not linked to IEP objective)',
-                            'performance_evidence'      => $isIepVerified
-                                ? sprintf('Verified alignment with IEP Step #%d (%s) in domain %s.', $iepRef['step_number'], $iepRef['indicator'] ?? 'Indicator', $domainEnum)
-                                : sprintf('Aligned with curriculum domain %s and topic keywords (%s).', $domainEnum, implode(', ', array_slice($keywords, 0, 3))),
-                            'verified_source_reference' => sprintf('resource_hub_packs#%d (Domain: %s, FSL: %s)', $pack['id'], $pack['pdsp_domain'], $pack['fsl_supported'] ? 'Supported' : 'No'),
-                        ],
-                    ];
-                }
+                $resourceText = ($pack['learning_competency'] ?? '') . ' ' . ($pack['title'] ?? '') . ' ' . ($pack['tags'] ?? '');
+                if (preg_match('/\b(?:within|up to)\s+(\d+)\b/i', $contextText, $contextRange)
+                    && preg_match('/\b(?:within|up to)\s+(\d+)\b/i', $resourceText, $resourceRange)
+                    && $contextRange[1] !== $resourceRange[1]) continue;
+                $match = ResourceHubContentMatcher::rank($pack, $pagesByPack[(int)$pack['id']] ?? [], $activitiesByPack[(int)$pack['id']] ?? [], $incorrectItems, $skills);
+                $key = 'resource_hub_packs:' . $pack['id'];
+                if (!$match || isset($seenKeys[$key])) continue;
+                $seenKeys[$key] = true;
+                $recommendations[] = [
+                    'resource_type' => 'resource_hub_pack', 'source_table' => 'resource_hub_packs',
+                    'source_id' => (int)$pack['id'], 'title' => $pack['title'],
+                    'description' => $pack['description'] ?? '', 'category' => $pack['learning_level'] ?? '',
+                    'media_url' => null, 'has_video' => false, 'domain' => $pack['pdsp_domain'],
+                    'priority' => self::PRIORITY_MEDIUM,
+                    'match_rank' => $match['rank'],
+                    '_content_fingerprint' => ResourceHubContentMatcher::fingerprint($pagesByPack[(int)$pack['id']]??[], $activitiesByPack[(int)$pack['id']]??[]),
+                    'evidence' => [
+                        'gap_type' => 'recorded_skill_match',
+                        'related_concept_or_skill' => $match['skill'],
+                        'relevant_iep_objective' => $this->getPrimaryIepText($iepLinks),
+                        'performance_evidence' => $match['reason'] . ' Teacher review is required.',
+                        'verified_source_reference' => $match['source'] . ' in resource_hub_packs#' . $pack['id'],
+                    ],
+                ];
             }
         } catch (\Throwable $e) {
             error_log('ResourceRecommendationService::matchResourceHubPacks error: ' . $e->getMessage());
         }
     }
-
     /**
      * Match published supplementary activities in the same lesson or domain.
      */
@@ -568,16 +561,20 @@ class ResourceRecommendationService {
         if (empty($keywords)) {
             return 0;
         }
-        $haystack = mb_strtolower(implode(' ', [
+        $haystack = implode(' ', [
             $pack['title'] ?? '',
-            $pack['description'] ?? '',
+            '' ,
             $pack['tags'] ?? '',
             $pack['learning_competency'] ?? '',
-        ]));
+        ]);
+        $resourceSkills = ResourceTagService::skills($haystack);
+        foreach (explode(',', $pack['tags'] ?? '') as $tag) {
+            $resourceSkills = array_merge($resourceSkills, ResourceTagService::skills($tag));
+        }
 
         $score = 0;
         foreach ($keywords as $kw) {
-            if (strpos($haystack, $kw) !== false) {
+            if (in_array($kw, $resourceSkills, true) || ResourceTagService::contains($haystack, $kw)) {
                 $score++;
             }
         }
@@ -614,6 +611,9 @@ class ResourceRecommendationService {
                 'lesson_plan_id' => (int)($activity['lesson_plan_id'] ?? 0),
             ],
             'performance_summary'   => $summary,
+            'suggested_rating' => LearningGapAnalyzer::suggestedRating($summary['accuracy'] ?? null),
+            'intervention' => InterventionDraftService::fromFactors($activity, $factors),
+            'observation' => LearningGapAnalyzer::observation($factors),
             'factors'               => $factors,
             'limitations'           => $limitations,
             'iep_alignment'         => [

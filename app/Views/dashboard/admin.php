@@ -63,127 +63,43 @@ $pendingCount = count($pendingRoleRequests);
     // Dynamic database calculation for System Analytics
     $db = Database::getInstance()->getConnection();
 
-    // 1. Dynamic FSL Adoption Rate calculation across ALL registered faculty
-    $facultyStmt = $db->query("
-        SELECT 
-            COUNT(*) as total_faculty,
-            SUM(CASE WHEN fsl_cert_path IS NOT NULL AND fsl_cert_path != '' THEN 1 ELSE 0 END) as certified_faculty
-        FROM users 
-        WHERE role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
-    ");
-    $facultyData = $facultyStmt ? $facultyStmt->fetch(PDO::FETCH_ASSOC) : ['total_faculty' => 0, 'certified_faculty' => 0];
-
-    $totalSysFaculty = (int)($facultyData['total_faculty'] ?? 0);
-    $certifiedSysFaculty = (int)($facultyData['certified_faculty'] ?? 0);
-    $systemFslAdoptionRate = $totalSysFaculty > 0 ? round(($certifiedSysFaculty / $totalSysFaculty) * 100, 1) : 0;
-
-    // 2. Dynamic System Policy Compliance Rate calculation across ALL registered schools
-    // Formula: Compliance % = (Number of schools meeting criteria / Total number of DepEd schools) * 100
-    $schoolsStmt = $db->query("SELECT id, sip_path FROM schools");
-    $allSysSchools = $schoolsStmt ? $schoolsStmt->fetchAll(PDO::FETCH_ASSOC) : [];
-    $totalSchoolsCount = count($allSysSchools);
-
-    $compliantSchoolsCount = 0;
-    if ($totalSchoolsCount > 0) {
-        $cotSchoolStmt = $db->prepare("
-            SELECT (
-                (SELECT COUNT(*) FROM classroom_observations co JOIN users u ON co.observed_teacher_id = u.id WHERE u.school_id = :sid1 AND co.status = 'finalized') +
-                (SELECT COUNT(*) FROM cot_observations co JOIN users u ON co.observed_teacher_id = u.id WHERE u.school_id = :sid2 AND co.status = 'finalized')
-            )
-        ");
-        $lpSchoolStmt = $db->prepare("
-            SELECT (
-                (SELECT COUNT(*) FROM lesson_plans lp JOIN users u ON lp.created_by = u.id WHERE u.school_id = :sid1 AND lp.status = 'published') +
-                (SELECT COUNT(*) FROM traditional_iep_documents tid JOIN student_records sr ON tid.student_id = sr.id WHERE sr.school_id = :sid2 AND tid.document_type = 'dll')
-            )
-        ");
-        $resSchoolStmt = $db->prepare("
-            SELECT COUNT(*) FROM (
-                SELECT lm.id FROM learning_materials lm JOIN users u ON lm.uploaded_by = u.id WHERE u.school_id = :sid1
-                UNION
-                SELECT lp.id FROM lesson_plans lp JOIN users u ON lp.created_by = u.id WHERE u.school_id = :sid2
-            ) AS all_res
-        ");
-        $facSchoolStmt = $db->prepare("
-            SELECT 
-                COUNT(*) as total_faculty,
-                SUM(CASE WHEN fsl_cert_path IS NOT NULL AND fsl_cert_path != '' THEN 1 ELSE 0 END) as certified_faculty
-            FROM users 
-            WHERE school_id = :sid AND role IN ('sped_teacher', 'guidance', 'master_teacher', 'general_teacher')
-        ");
-
-        foreach ($allSysSchools as $schItem) {
-            $sid = (int)$schItem['id'];
-            $schCotCount = 0;
-            $schLpCount = 0;
-            $schResCount = 0;
-            $schTotalFac = 0;
-            $schCertFac = 0;
-            try {
-                $cotSchoolStmt->execute(['sid1' => $sid, 'sid2' => $sid]);
-                $schCotCount = (int)$cotSchoolStmt->fetchColumn();
-            } catch (\Throwable $e) {}
-
-            try {
-                $lpSchoolStmt->execute(['sid1' => $sid, 'sid2' => $sid]);
-                $schLpCount = (int)$lpSchoolStmt->fetchColumn();
-            } catch (\Throwable $e) {}
-
-            try {
-                $resSchoolStmt->execute(['sid1' => $sid, 'sid2' => $sid]);
-                $schResCount = (int)$resSchoolStmt->fetchColumn();
-            } catch (\Throwable $e) {}
-
-            try {
-                $facSchoolStmt->execute(['sid' => $sid]);
-                $facRow = $facSchoolStmt->fetch(PDO::FETCH_ASSOC);
-                $schTotalFac = (int)($facRow['total_faculty'] ?? 0);
-                $schCertFac = (int)($facRow['certified_faculty'] ?? 0);
-            } catch (\Throwable $e) {}
-
-            $schoolFslRatio = $schTotalFac > 0 
-                ? round(($schCertFac / $schTotalFac) * 100, 1) 
-                : 0;
-
-            $p1_dll = $schLpCount > 0 ? 12.5 : 0; // Lesson Plans (DLL/DLP)
-            $p1_cot = $schCotCount > 0 ? 12.5 : 0; // Class Observation Tool (COT) MOV
-            $p2 = $schResCount > 0 ? 25 : 0; // Learning Resources (Materials Used)
-            $p3 = ($schoolFslRatio >= 75) ? 25 : round(($schoolFslRatio / 75) * 25, 1);
-            $p4 = !empty($schItem['sip_path']) ? 25 : 0;
-            
-            $schScore = $p1_dll + $p1_cot + $p2 + $p3 + $p4;
-            if ($schScore >= 85) {
-                $compliantSchoolsCount++;
-            }
-        }
-        $systemOverallComplianceRate = round(($compliantSchoolsCount / $totalSchoolsCount) * 100, 1);
-    } else {
-        $systemOverallComplianceRate = 0;
+    require_once __DIR__ . '/../../Models/ObjectiveMetricsModel.php';
+    $objectiveModel = new ObjectiveMetricsModel($db);
+    $allSysSchools = $db->query("SELECT s.*, (SELECT COUNT(*) FROM student_records sr WHERE sr.school_id=s.id) enrolled_students FROM schools s WHERE s.school_name NOT LIKE '%Cebu%' ORDER BY enrolled_students DESC, s.id ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $totalRegisteredSchools = count($allSysSchools);
+    $objectiveSchools = [];
+    foreach ($allSysSchools as $school) {
+        $objectiveSchools[$school['id']] = $objectiveModel->forSchool($school);
     }
+    $so1Summary = ObjectiveMetricsModel::aggregate($objectiveSchools, 'so1');
+    $so2Summary = ObjectiveMetricsModel::aggregate($objectiveSchools, 'so2');
+    $so1Rate = $so1Summary['rate'];
+    $so2Rate = $so2Summary['rate'];
+    $so1EvaluatedSchools = $so1Summary['evaluated'];
+    $so1CompliantSchools = $so1Summary['passed'];
+    $so2EvaluatedPrograms = $so2Summary['evaluated'];
+    $so2AdoptedPrograms = $so2Summary['passed'];
+
+    // General Enrollment Registry Metrics across all schools (Macro metrics only - Single Source of Truth)
+    require_once __DIR__ . '/../../Models/MasterlistModel.php';
+    $mModel = new MasterlistModel();
+    $adminEnrollmentMetrics = (method_exists($mModel, 'getAdminEnrollmentMetrics'))
+        ? $mModel->getAdminEnrollmentMetrics()
+        : [
+            'total_enrolled'    => 0,
+            'lms_count'         => 0,
+            'traditional_count' => 0,
+            'lrn_synced_count'  => 0,
+            'school_breakdown'  => [],
+            'disability_breakdown' => []
+        ];
 
     // 3. Dynamic Distance Learning Inclusion & Participation Rate (General Objective)
+    // Synchronized directly with MasterlistModel Single Source of Truth
     // Formula: (SignED Candidates & Active DL/LMS Learners / Total Enrolled SPED Learners) * 100
-    $totLearnersStmt = $db->query("SELECT COUNT(*) FROM student_records");
-    $totalSysLearners = $totLearnersStmt ? (int)$totLearnersStmt->fetchColumn() : 0;
-    
-    $participatingLearnersStmt = $db->query("
-        SELECT COUNT(DISTINCT sr.id) 
-        FROM student_records sr
-        LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
-        WHERE sr.learning_track IN ('lms', 'candidate')
-           OR es.learning_track IN ('lms', 'candidate')
-           OR sr.claim_token IS NOT NULL
-           OR sr.lms_invite_status IN ('sent', 'accepted')
-           OR es.lms_invite_status IN ('sent', 'accepted')
-           OR sr.learner_user_id IS NOT NULL
-           OR sr.id IN (SELECT student_id FROM iep_records WHERE status = 'signed')
-           OR sr.id IN (SELECT student_id FROM lms_submissions)
-           OR sr.student_id IN (SELECT student_id FROM lms_submissions)
-           OR sr.id IN (SELECT student_id FROM activity_attempt_log)
-           OR sr.student_id IN (SELECT student_id FROM activity_attempt_log)
-           OR sr.id IN (SELECT student_id FROM attendance_records WHERE source = 'auto')
-    ");
-    $participatingSysLearners = $participatingLearnersStmt ? (int)$participatingLearnersStmt->fetchColumn() : 0;
+    $totalSysLearners = (int)($adminEnrollmentMetrics['total_enrolled'] ?? 0);
+    $participatingSysLearners = (int)($adminEnrollmentMetrics['lms_count'] ?? 0);
+    $traditionalSysLearners = (int)($adminEnrollmentMetrics['traditional_count'] ?? 0);
     $systemDistanceLearningRate = $totalSysLearners > 0 ? round(($participatingSysLearners / $totalSysLearners) * 100, 1) : 0;
     ?>
 
@@ -198,7 +114,7 @@ $pendingCount = count($pendingRoleRequests);
                             <i class="bi bi-laptop text-primary fs-6 me-1"></i> Distance Learning Inclusion
                         </span>
                         <span class="badge <?php echo $systemDistanceLearningRate >= 85 ? 'bg-success' : 'bg-warning text-dark'; ?> px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
-                            <?php echo $systemDistanceLearningRate >= 85 ? '✓ Target Met (≥85%)' : '○ Action Required'; ?>
+                            <?php echo $systemDistanceLearningRate >= 85 ? '✓ Target Met (≥85%)' : '○ In Progress (' . $systemDistanceLearningRate . '% / 85%)'; ?>
                         </span>
                     </div>
                     <div class="d-flex align-items-baseline gap-2 mb-2">
@@ -211,91 +127,114 @@ $pendingCount = count($pendingRoleRequests);
                         <div class="progress-bar <?php echo $systemDistanceLearningRate >= 85 ? 'bg-success' : 'bg-primary'; ?>" role="progressbar" style="width: <?php echo min(100, $systemDistanceLearningRate); ?>%;"></div>
                     </div>
                     <div class="small text-muted" style="font-size: 0.72rem; line-height: 1.3;">
-                        <strong>General Objective:</strong> <?php echo $participatingSysLearners; ?> of <?php echo $totalSysLearners; ?> enrolled SPED learners actively participating in distance learning & LMS.
+                        <strong>General Objective:</strong> <?php echo $participatingSysLearners; ?> of <?php echo $totalSysLearners; ?> enrolled SPED learners actively participating in distance learning &amp; LMS (<?php echo $traditionalSysLearners; ?> in Traditional SEN Track).
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Card 2: Specific Objective 2 — Inclusive Content Policy Compliance Rate -->
+        <!-- Card 2: Specific Objective 1 — Policy Compliance Rate -->
         <div class="col-lg-4 col-md-6">
             <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 5px solid #198754 !important; background: #fff;">
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.3px; font-size: 0.76rem;">
-                            <i class="bi bi-shield-check text-success fs-6 me-1"></i> Policy Compliance Rate
+                            <i class="bi bi-shield-check text-success fs-6 me-1"></i> Inclusive Education Compliance
                         </span>
-                        <?php if ($totalSchoolsCount > 0): ?>
-                            <span class="badge <?php echo $systemOverallComplianceRate >= 85 ? 'bg-success' : 'bg-warning text-dark'; ?> px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
-                                <?php echo $systemOverallComplianceRate >= 85 ? '✓ Compliant (≥85%)' : '○ Action Required'; ?>
+                        <?php if ($so1Rate !== null): ?>
+                            <span class="badge <?php echo $so1Rate >= 85 ? 'Overall target met (85%)' : 'Below overall target'; ?> px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
+                                <?php echo $so1Rate >= 85 ? 'Overall target met (85%)' : 'Below overall target'; ?>
                             </span>
                         <?php else: ?>
-                            <span class="badge bg-secondary px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">No Schools</span>
+                            <span class="badge bg-warning text-dark px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
+                                Pending Evidence
+                            </span>
                         <?php endif; ?>
                     </div>
                     <div class="d-flex align-items-baseline gap-2 mb-2">
-                        <h2 class="fw-bold text-success mb-0">
-                            <?php echo $totalSchoolsCount > 0 ? $systemOverallComplianceRate . '%' : '0.0%'; ?>
-                        </h2>
+                        <?php if ($so1Rate !== null): ?>
+                            <h2 class="fw-bold <?php echo $so1Rate >= 85 ? 'Overall target met (85%)' : 'Below overall target'; ?> mb-0">
+                                <?php echo $so1Rate; ?>%
+                            </h2>
+                        <?php else: ?>
+                            <h4 class="fw-bold text-secondary mb-0">Pending Evidence</h4>
+                        <?php endif; ?>
                         <span class="text-muted small">Target: &ge; 85.0% Across Schools</span>
                     </div>
                     <div class="progress mb-2" style="height: 6px;">
-                        <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo min(100, $systemOverallComplianceRate); ?>%;"></div>
+                        <div class="progress-bar <?php echo ($so1Rate !== null && $so1Rate >= 85) ? 'bg-success' : 'bg-warning progress-bar-striped'; ?>" role="progressbar" style="width: <?php echo $so1Rate !== null ? min(100, $so1Rate) : 0; ?>%;"></div>
                     </div>
                     <div class="small text-muted" style="font-size: 0.72rem; line-height: 1.3;">
-                        <strong>Objective 2:</strong> Verified across <?php echo $totalSchoolsCount; ?> school<?php echo $totalSchoolsCount === 1 ? '' : 's'; ?> based on 4 Compliance Pillars &amp; MOVs.
+                        <?php if ($so1Rate !== null): ?>
+                            <strong>Specific Objective 1:</strong> <?php echo $so1CompliantSchools; ?> of <?php echo $so1EvaluatedSchools; ?> evaluated schools meet all 4 criteria under the existing rule.
+                        <?php else: ?>
+                            <strong>Specific Objective 1:</strong> 0 / 0 evaluated schools; overall achievement unavailable.
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Card 3: Specific Objective 3 — FSL Program Adoption Rate -->
+        <!-- Card 3: Specific Objective 2 — FSL Program Adoption Rate -->
         <div class="col-lg-4 col-md-6">
             <div class="card border-0 shadow-sm rounded-3 h-100" style="border-left: 5px solid #a01422 !important; background: #fff;">
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <span class="fw-bold text-dark text-uppercase small" style="letter-spacing: 0.3px; font-size: 0.76rem;">
-                            <i class="bi bi-award-fill text-warning fs-6 me-1"></i> FSL Program Adoption Rate
+                            <i class="bi bi-award-fill text-warning fs-6 me-1"></i> FSL Program Adoption
                         </span>
-                        <?php if ($totalSysFaculty > 0): ?>
-                            <span class="badge <?php echo $systemFslAdoptionRate >= 75 ? 'bg-success' : 'bg-warning text-dark'; ?> px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
-                                <?php echo $systemFslAdoptionRate >= 75 ? '✓ Target Met (≥75%)' : '○ Below Target'; ?>
+                        <?php if ($so2Rate !== null): ?>
+                            <span class="badge <?php echo $so2Rate >= 75 ? 'Overall target met (75%)' : 'Below overall target'; ?> px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
+                                <?php echo $so2Rate >= 75 ? 'Overall target met (75%)' : 'Below overall target'; ?>
                             </span>
                         <?php else: ?>
-                            <span class="badge bg-secondary px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">No Faculty</span>
+                            <span class="badge bg-warning text-dark px-2 py-1 rounded-pill small" style="font-size: 0.68rem;">
+                                Pending Evidence
+                            </span>
                         <?php endif; ?>
                     </div>
                     <div class="d-flex align-items-baseline gap-2 mb-2">
-                        <h2 class="fw-bold mb-0 <?php echo $systemFslAdoptionRate >= 75 ? 'text-success' : 'text-danger'; ?>">
-                            <?php echo $totalSysFaculty > 0 ? $systemFslAdoptionRate . '%' : '0.0%'; ?>
-                        </h2>
-                        <span class="text-muted small">Target: &ge; 75.0% Certified Faculty</span>
+                        <?php if ($so2Rate !== null): ?>
+                            <h2 class="fw-bold mb-0 <?php echo $so2Rate >= 75 ? 'Overall target met (75%)' : 'Below overall target'; ?>">
+                                <?php echo $so2Rate; ?>%
+                            </h2>
+                        <?php else: ?>
+                            <h4 class="fw-bold text-secondary mb-0">Pending Evidence</h4>
+                        <?php endif; ?>
+                        <span class="text-muted small">Target: &ge; 75.0% Program Adoption</span>
                     </div>
                     <div class="progress mb-2" style="height: 6px;">
-                        <div class="progress-bar <?php echo $systemFslAdoptionRate >= 75 ? 'bg-success' : 'bg-danger'; ?>" role="progressbar" style="width: <?php echo min(100, $systemFslAdoptionRate); ?>%;"></div>
+                        <div class="progress-bar <?php echo ($so2Rate !== null && $so2Rate >= 75) ? 'bg-success' : 'bg-warning progress-bar-striped'; ?>" role="progressbar" style="width: <?php echo $so2Rate !== null ? min(100, $so2Rate) : 0; ?>%;"></div>
                     </div>
                     <div class="small text-muted" style="font-size: 0.72rem; line-height: 1.3;">
-                        <strong>Objective 3:</strong> <?php echo $certifiedSysFaculty; ?> of <?php echo $totalSysFaculty; ?> registered faculty certified in FSL &amp; verified via COT observations.
+                        <?php if ($so2Rate !== null): ?>
+                            <strong>Specific Objective 2:</strong> <?php echo $so2AdoptedPrograms; ?> of <?php echo $so2EvaluatedPrograms; ?> evaluated programs meet all 4 indicators under the existing rule.
+                        <?php else: ?>
+                            <strong>Specific Objective 2:</strong> 0 / 0 evaluated programs; overall achievement unavailable.
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <?php
-    // General Enrollment Registry Metrics across all schools (Macro metrics only)
-    require_once __DIR__ . '/../../Models/MasterlistModel.php';
-    $mModel = new MasterlistModel();
-    $adminEnrollmentMetrics = (method_exists($mModel, 'getAdminEnrollmentMetrics')) 
-        ? $mModel->getAdminEnrollmentMetrics() 
-        : [
-            'total_enrolled'    => 0,
-            'lms_count'         => 0,
-            'traditional_count' => 0,
-            'lrn_synced_count'  => 0,
-            'schools'           => []
-        ];
-    ?>
+
+
+    <div class="card mb-4"><div class="card-body">
+        <h6>School and program evidence readiness (cumulative; all periods)</h6>
+        <p class="small text-muted">Scores reflect evidence on file, not independent MOV verification. SO1 requires all four criteria; SO2 retains its existing four-indicator rule. Overall targets are 85% of evaluated schools and 75% of evaluated programs. Individual passing thresholds of 85% / 75% and alternative COT evidence are proposed and inactive.</p>
+        <p class="small">Pending Evidence: <?php echo $so1Summary['pending']; ?> schools; <?php echo $so2Summary['pending']; ?> programs. Existing evaluation eligibility rules remain in use.</p>
+        <div class="table-responsive"><table class="table table-sm">
+            <thead><tr><th>School / SNED program</th><th>SO1 evidence score</th><th>SO1 result</th><th>SO2 evidence score</th><th>SO2 result</th></tr></thead>
+            <tbody><?php foreach ($allSysSchools as $school): $metrics = $objectiveSchools[$school['id']]; ?>
+                <tr><td><?php echo htmlspecialchars($school['school_name']); ?></td>
+                    <td><?php echo $metrics['so1']['score']; ?>% (<?php echo $metrics['so1']['score']; ?>/100 points; <?php echo $metrics['so1']['met']; ?>/4 criteria)</td>
+                    <td><?php echo $metrics['so1']['status']; ?></td>
+                    <td><?php echo $metrics['so2']['score']; ?>% (<?php echo $metrics['so2']['met']; ?>/4 indicators)</td>
+                    <td><?php echo $metrics['so2']['status']; ?></td></tr>
+            <?php endforeach; ?></tbody>
+        </table></div>
+    </div></div>
 
     <!-- General SPED Enrollment Registry Overview (Macro Metrics Only) -->
     <div class="card border-0 shadow-sm mb-4">
@@ -425,7 +364,7 @@ $pendingCount = count($pendingRoleRequests);
                     </a>
                 </div>
                 <div class="card-body p-4">
-                    <?php 
+                    <?php
                     $total = max(1, $userAnalytics['total']);
                     $rolesData = [
                         ['label' => 'School Principals', 'count' => $userAnalytics['principal'], 'color' => 'bg-danger', 'icon' => 'bi-person-workspace'],

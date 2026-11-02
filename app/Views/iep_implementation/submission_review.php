@@ -95,6 +95,7 @@ $submissionStudentCode = $submissionStudentRec['student_id'] ?? null;
 $actType  = $activity['activity_type'];
 $actData  = $activity['activity_data'];
 $answers  = json_decode($submission['answers'] ?? '{}', true) ?? [];
+unset($answers['_evidence_v1']); // Attempt identity snapshots are not learner answers.
 ?>
 
 <!-- Submission details -->

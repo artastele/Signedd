@@ -597,23 +597,107 @@ class IEPModel {
 
     /**
      * Get students eligible for new IEP (have signed PDSP or enrolled/invited without active draft)
+     * For SPED teachers, restricted to students belonging to the teacher's assigned sections.
+     * For Admins, all eligible students across schools are visible.
      */
-    public function getEligibleStudents($teacherId) {
+    public function getEligibleStudents($teacherId, ?string $userRole = null) {
+        $where = [
+            "sr.id NOT IN (
+                SELECT student_id FROM iep_records
+                WHERE status IN ('draft')
+                AND school_year = CONCAT(YEAR(NOW()), '-', YEAR(NOW()) + 1)
+            )"
+        ];
+        $params = [];
+
+        // Role-based filtering: sped_teacher must only see students in their assigned sections
+        if ($userRole !== 'admin' && !empty($teacherId)) {
+            $where[] = "(
+                sr.assigned_teacher_id = :tid_1
+                OR sr.section_id IN (
+                    SELECT s.id FROM sections s
+                    WHERE s.status = 'active' AND (
+                        s.adviser_teacher_id = :tid_2
+                        OR s.assigned_teacher_id = :tid_3
+                        OR s.section_name IN (SELECT ta.section_name FROM teacher_assignments ta WHERE ta.teacher_id = :tid_4)
+                    )
+                )
+                OR (
+                    sr.section_name IS NOT NULL AND sr.section_name != '' AND sr.section_name IN (
+                        SELECT s2.section_name FROM sections s2
+                        WHERE s2.status = 'active' AND (
+                            s2.adviser_teacher_id = :tid_5
+                            OR s2.assigned_teacher_id = :tid_6
+                            OR s2.section_name IN (SELECT ta2.section_name FROM teacher_assignments ta2 WHERE ta2.teacher_id = :tid_7)
+                        )
+                    )
+                )
+            )";
+            $params['tid_1'] = (int)$teacherId;
+            $params['tid_2'] = (int)$teacherId;
+            $params['tid_3'] = (int)$teacherId;
+            $params['tid_4'] = (int)$teacherId;
+            $params['tid_5'] = (int)$teacherId;
+            $params['tid_6'] = (int)$teacherId;
+            $params['tid_7'] = (int)$teacherId;
+        }
+
+        $whereClause = implode(' AND ', $where);
+
         $stmt = $this->db->prepare("
             SELECT DISTINCT sr.id, sr.student_name, sr.lrn,
                    COALESCE(pr.created_at, sr.created_at) as pdsp_signed_at
             FROM student_records sr
             LEFT JOIN iep_meetings im ON sr.id = im.student_id
             LEFT JOIN pdsp_records pr ON im.id = pr.meeting_id AND pr.status = 'signed'
-            WHERE sr.id NOT IN (
-                SELECT student_id FROM iep_records 
-                WHERE status IN ('draft') 
-                AND school_year = CONCAT(YEAR(NOW()), '-', YEAR(NOW()) + 1)
-            )
+            WHERE {$whereClause}
             ORDER BY sr.student_name ASC
         ");
-        $stmt->execute();
-        return $stmt->fetchAll();
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Check if a student belongs to a teacher's assigned section(s) or direct assignment
+     */
+    public function isStudentAssignedToTeacher(int $studentId, int $teacherId): bool {
+        $stmt = $this->db->prepare("
+            SELECT 1 FROM student_records sr
+            WHERE sr.id = :student_id
+              AND (
+                  sr.assigned_teacher_id = :tid_1
+                  OR sr.section_id IN (
+                      SELECT s.id FROM sections s
+                      WHERE s.status = 'active' AND (
+                          s.adviser_teacher_id = :tid_2
+                          OR s.assigned_teacher_id = :tid_3
+                          OR s.section_name IN (SELECT ta.section_name FROM teacher_assignments ta WHERE ta.teacher_id = :tid_4)
+                      )
+                  )
+                  OR (
+                      sr.section_name IS NOT NULL AND sr.section_name != '' AND sr.section_name IN (
+                          SELECT s2.section_name FROM sections s2
+                          WHERE s2.status = 'active' AND (
+                              s2.adviser_teacher_id = :tid_5
+                              OR s2.assigned_teacher_id = :tid_6
+                              OR s2.section_name IN (SELECT ta2.section_name FROM teacher_assignments ta2 WHERE ta2.teacher_id = :tid_7)
+                          )
+                      )
+                  )
+              )
+            LIMIT 1
+        ");
+        $stmt->execute([
+            'student_id' => $studentId,
+            'tid_1' => $teacherId,
+            'tid_2' => $teacherId,
+            'tid_3' => $teacherId,
+            'tid_4' => $teacherId,
+            'tid_5' => $teacherId,
+            'tid_6' => $teacherId,
+            'tid_7' => $teacherId
+        ]);
+        return (bool)$stmt->fetchColumn();
     }
 
     /**

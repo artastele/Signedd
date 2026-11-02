@@ -914,6 +914,11 @@ require_once __DIR__ . '/../layouts/header.php';
              TAB 6 — LEARNING INSIGHTS & RESOURCE RECOMMENDATIONS
              ============================================================ -->
         <?php require __DIR__ . '/tab_learning_insights.php'; ?>
+        <script>
+        window.signedInterventionBase = <?= json_encode($basePath, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
+        window.signedResourceDrafts = <?= json_encode($_SESSION['resource_drafts'] ?? new stdClass(), JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
+        </script>
+        <script src="<?= htmlspecialchars($basePath) ?>/js/learning-interventions.js" defer></script>
 
 </div><!-- /workspaceTabContent -->
 
@@ -983,6 +988,15 @@ require_once __DIR__ . '/../layouts/header.php';
                 <div class="mb-3">
                     <label class="form-label fw-semibold small">Title <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="matFileTitle" placeholder="Material title" required>
+                </div>
+                <div id="matInterventionFields" class="mb-3" hidden>
+                    <label class="small" for="matInterventionSkill">Skill / Competency</label>
+                    <input id="matInterventionSkill" class="form-control form-control-sm mb-2">
+                    <label class="small" for="matInterventionTags">Suggested tags (editable)</label>
+                    <input id="matInterventionTags" class="form-control form-control-sm mb-2">
+                    <label class="small" for="matInterventionDescription">Practice instructions</label>
+                    <textarea id="matInterventionDescription" class="form-control form-control-sm mb-2" rows="3"></textarea>
+                    <label class="small"><input type="checkbox" id="matInterventionReviewed"> I reviewed these private draft details. Publication requires a separate Share to Hub review.</label>
                 </div>
                 <!-- Simple file input — no upload-zone component to avoid auto-reload side effects -->
                 <div class="mb-3">
@@ -1379,6 +1393,17 @@ require_once __DIR__ . '/../layouts/header.php';
                         <button type="button" class="btn btn-sm btn-success w-100 fw-bold py-1.5 rounded-2 mt-2" id="btnCreateStepLp" onclick="createStepLessonPlanAndOpenStudio()">
                             <i class="ti ti-sparkles me-1"></i> Create Lesson Plan &amp; Open Studio
                         </button>
+                        <div id="interventionDraftFields" class="mt-2" hidden>
+                            <p class="small text-muted" id="interventionTargetSkillNotice" hidden>Choose the target skill based on your assessment. No specific learner difficulty has been confirmed by the system.</p>
+                            <label class="small" for="newInterventionSkill">Skill / Competency</label>
+                            <input id="newInterventionSkill" class="form-control form-control-sm mb-2">
+                            <label class="small" for="newInterventionTags">Suggested tags (editable)</label>
+                            <input id="newInterventionTags" class="form-control form-control-sm mb-2">
+                            <label class="small" for="newInterventionDescription">Practice instructions / reviewed ideas</label>
+                            <textarea id="newInterventionDescription" class="form-control form-control-sm mb-2" rows="4"></textarea>
+                            <label class="small"><input type="checkbox" id="newInterventionReviewed"> I reviewed these details and will check shared metadata for private information before publishing.</label>
+                            <p class="small text-muted mb-0">Save creates a private draft without learner assignment. Use Share to Hub later if you choose to publish.</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2627,6 +2652,14 @@ function createStepLessonPlanAndOpenStudio() {
     const domainInput = document.getElementById('newStepLpDomain');
     const title = titleInput ? titleInput.value.trim() : '';
     const domain = domainInput ? domainInput.value.trim() : 'daily_living_skills';
+    const intervention = window.signedInterventionContext || null;
+    if (intervention && !document.getElementById('newInterventionSkill').value.trim()) {
+        alert('Select the target skill or competency before saving the intervention.');
+        document.getElementById('newInterventionSkill').focus(); return;
+    }
+    if (intervention && !document.getElementById('newInterventionReviewed').checked) {
+        alert('Review and approve the editable intervention details before saving.'); return;
+    }
 
     if (!title) {
         alert('Please enter a title for the new lesson plan.');
@@ -2651,13 +2684,23 @@ function createStepLessonPlanAndOpenStudio() {
             pdsp_domain: domain,
             assignment_type: 'individual',
             iep_id: <?php echo (int)$iepId; ?>,
-            student_id: <?php echo (int)($iep['student_id'] ?? 0); ?>
+            student_id: <?php echo (int)($iep['student_id'] ?? 0); ?>,
+            intervention_draft: !!intervention,
+            source_activity_id: intervention?.activityId || 0,
+            draft_reviewed: intervention ? document.getElementById('newInterventionReviewed').checked : false,
+            resource_draft: intervention ? {
+                title: title, learning_competency: document.getElementById('newInterventionSkill').value,
+                tags: document.getElementById('newInterventionTags').value,
+                description: document.getElementById('newInterventionDescription').value
+            } : {}
         })
     })
     .then(r => r.json())
     .then(data => {
         if (data.success && data.lesson_plan_id) {
-            window.location.href = BASE + '/iep/implementation/lesson/' + data.lesson_plan_id + '/builder';
+            window.location.href = intervention?.mode === 'upload'
+                ? BASE + '/iep/implementation/workspace/<?php echo (int)$iepId; ?>?intervention_upload=' + data.lesson_plan_id
+                : BASE + '/iep/implementation/lesson/' + data.lesson_plan_id + '/builder';
         } else {
             if (btn) {
                 btn.disabled = false;
@@ -2808,6 +2851,16 @@ async function submitMaterialFile() {
     const fd = new FormData();
     fd.append('lesson_plan_id', lpId);
     fd.append('material_type', 'file');
+    if (window.signedResourceDrafts?.[lpId] && !document.getElementById('matInterventionFields').hidden) {
+        if (!document.getElementById('matInterventionSkill').value.trim()) { alert('Select the target skill or competency before saving.'); return; }
+        if (!document.getElementById('matInterventionReviewed').checked) { alert('Review the editable intervention details before saving.'); return; }
+        fd.append('intervention_draft', '1');
+        fd.append('draft_reviewed', '1');
+        fd.append('resource_draft', JSON.stringify({title,
+            learning_competency: document.getElementById('matInterventionSkill').value,
+            tags: document.getElementById('matInterventionTags').value,
+            description: document.getElementById('matInterventionDescription').value}));
+    }
     fd.append('title', title);
     fd.append('file', selectedFile);
 
@@ -2816,6 +2869,7 @@ async function submitMaterialFile() {
         const data = await postForm(BASE + '/iep/implementation/material/add', fd);
         Swal.close();
         if (data.success) {
+            if (data.resource_draft) window.signedResourceDrafts[lpId] = data.resource_draft;
             bootstrap.Modal.getInstance(document.getElementById('matFileModal'))?.hide();
             appendMaterialRow(data.material);
             showToast('success', 'Material added!');
@@ -5055,6 +5109,14 @@ function openShareToHubFromWorkspace(lpId, title, domain) {
     if (mTitle) mTitle.value = '';
     const tagsEl = document.getElementById('wsSharePackTags');
     if (tagsEl) tagsEl.value = '';
+    document.getElementById('wsSharePackArea').value = '';
+    const draft = window.signedResourceDrafts?.[lpId];
+    if (draft) {
+        document.getElementById('wsSharePackTitle').value = draft.title || title || '';
+        document.getElementById('wsSharePackDesc').value = draft.description || '';
+        document.getElementById('wsSharePackCompetency').value = draft.learning_competency || '';
+        document.getElementById('wsSharePackTags').value = draft.tags || '';
+    }
 
     const modal = new bootstrap.Modal(document.getElementById('shareToHubWorkspaceModal'));
     modal.show();
@@ -5077,7 +5139,8 @@ async function submitWorkspaceShareToHub(e) {
         learning_competency: (document.getElementById('wsSharePackCompetency') ? document.getElementById('wsSharePackCompetency').value.trim() : ''),
         mainstream_mastery_url: (document.getElementById('wsSharePackMasteryUrl') ? document.getElementById('wsSharePackMasteryUrl').value.trim() : ''),
         mainstream_mastery_title: (document.getElementById('wsSharePackMasteryTitle') ? document.getElementById('wsSharePackMasteryTitle').value.trim() : ''),
-        tags: (document.getElementById('wsSharePackTags') ? document.getElementById('wsSharePackTags').value.trim() : '')
+        tags: (document.getElementById('wsSharePackTags') ? document.getElementById('wsSharePackTags').value.trim() : ''),
+        tags_approved: document.getElementById('wsSharePackTagsApproved').checked
     };
 
     try {
@@ -5174,6 +5237,7 @@ async function submitWorkspaceShareToHub(e) {
                             <input type="text" id="wsSharePackLevel" class="form-control form-control-sm" value="Primary SPED / Deaf Ed" style="border-radius: 6px;">
                         </div>
 
+                        <?php $hubTagPrefix = 'wsSharePack'; require __DIR__ . '/partials/resource_tag_review.php'; ?>
                         <!-- Advanced Options (Collapsed by default) -->
                         <div class="col-12 pt-1">
                             <a class="text-decoration-none small text-muted d-inline-flex align-items-center gap-1" data-bs-toggle="collapse" href="#wsShareAdvancedOptions" role="button" aria-expanded="false" style="font-size: 0.78rem;">
@@ -5181,14 +5245,6 @@ async function submitWorkspaceShareToHub(e) {
                             </a>
                             <div class="collapse mt-2" id="wsShareAdvancedOptions">
                                 <div class="p-2.5 bg-light rounded border">
-                                    <div class="mb-2">
-                                        <label class="form-label small text-muted mb-0.5">Learning Competency / Objective:</label>
-                                        <input type="text" id="wsSharePackCompetency" class="form-control form-control-sm" placeholder="Auto-linked from lesson if empty..." style="border-radius:6px; font-size:0.8rem;">
-                                    </div>
-                                    <div class="mb-2">
-                                        <label class="form-label small text-muted mb-0.5">Tags (comma-separated):</label>
-                                        <input type="text" id="wsSharePackTags" class="form-control form-control-sm" placeholder="e.g. fsl, signs, beginner" style="border-radius:6px; font-size:0.8rem;">
-                                    </div>
                                     <div class="row g-2">
                                         <div class="col-6">
                                             <label class="form-label small text-muted mb-0.5">External Resource Title:</label>
@@ -5209,7 +5265,7 @@ async function submitWorkspaceShareToHub(e) {
                         Cancel
                     </button>
                     <button type="submit" id="btnSubmitWsShareHub" class="btn btn-warning btn-sm fw-bold px-3 text-dark" style="border-radius: 6px;">
-                        <i class="ti ti-share me-1"></i> Share Resource
+                        <i class="ti ti-share me-1"></i> Publish Resource
                     </button>
                 </div>
             </form>

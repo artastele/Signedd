@@ -49,6 +49,37 @@ class GeminiExplanationService {
     // Public API
     // -----------------------------------------------------------------------
 
+    /** Only a standardized instructional concept is sent; no learner/context payload is accepted. */
+    public function suggestInterventionIdeas(string $skill): array {
+        require_once __DIR__ . '/ResourceTagService.php';
+        if (!in_array($skill, ResourceTagService::safeConcepts($skill), true)) {
+            return ['source'=>'local_rules','ideas'=>['Model the recorded task with concrete examples, then offer guided practice.',
+                'Use a short practice task and review the next independently recorded result.']];
+        }
+        $fallback = ['Model ' . $skill . ' with clear visual or concrete examples appropriate to the learner’s age.',
+            'Offer a few guided ' . $skill . ' practice items, then a short independent task.',
+            'Review the next recorded attempt; adapt support with teacher judgment.'];
+        if (!$this->apiKey) return ['source'=>'local_rules','ideas'=>$fallback];
+        try {
+            $prompt = 'Suggest three practical, age-adaptable teaching strategies for the instructional concept ' . json_encode($skill) .
+                '. No learner data is provided. The teacher selects age and difficulty. Do not diagnose, claim outcomes, refer to existing resources/packs/IDs, provide links, or recommend purchases. Return JSON only: {"ideas":["...","...","..."]}.';
+            $outer = json_decode($this->callGemini($prompt), true);
+            $raw = $outer['candidates'][0]['content']['parts'][0]['text'] ?? '';
+            $raw = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($raw));
+            $ideas = json_decode($raw, true)['ideas'] ?? [];
+            if (!is_array($ideas) || count($ideas) < 1 || count($ideas) > 5) throw new RuntimeException('Invalid ideas');
+            foreach ($ideas as &$idea) {
+                if (!is_string($idea) || mb_strlen($idea)>800 || preg_match('/https?:|www\.|\bpacks?\b|resource\s*(?:id|#|hub)|\b(?:purchase|buy)\b/i',$idea)) throw new RuntimeException('Unsupported resource reference');
+                $idea = trim(strip_tags($idea));
+                if ($idea === '') throw new RuntimeException('Empty idea');
+            }
+            unset($idea);
+            return ['source'=>'gemini','ideas'=>array_values($ideas)];
+        } catch (Throwable $e) {
+            return ['source'=>'local_rules','ideas'=>$fallback];
+        }
+    }
+
     /**
      * Generate a structured AI explanation for a single activity's insight.
      *
@@ -300,7 +331,7 @@ PROMPT;
     // Private: Gemini API Call
     // -----------------------------------------------------------------------
 
-    private function callGemini(string $prompt): string {
+    protected function callGemini(string $prompt): string {
         $url = $this->apiBase . urlencode($this->model) . ':generateContent?key=' . urlencode($this->apiKey);
 
         $requestBody = json_encode([

@@ -267,7 +267,7 @@ $statusColors = ['draft'=>'#6c757d','signing'=>'#ffc107','signed'=>'#3b6d11','lo
                     </a>
                     <?php endforeach; ?>
                 </div>
-                <p class="small text-muted mt-3 mb-0" id="newIepEligibleEmpty" style="<?php echo !empty($eligibleStudents) ? 'display:none;' : ''; ?>">No eligible students right now. Complete PDSP signing or open the full <a href="<?php echo $basePath; ?>/students">students list</a>.</p>
+                <p class="small text-muted mt-3 mb-0" id="newIepEligibleEmpty" style="<?php echo !empty($eligibleStudents) ? 'display:none;' : ''; ?>">No eligible students in your assigned section(s) at this time. Verify that you are assigned to an active section with enrolled learners and that baseline PDSP is ready.</p>
             </div>
         </div>
     </div>

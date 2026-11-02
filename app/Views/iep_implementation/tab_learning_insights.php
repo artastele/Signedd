@@ -1,536 +1,136 @@
 <?php
-// Part of: SignED — IEP Implementation Workspace (Learning Insights & Support)
-// Simplified teacher-friendly interface: Learning Result → Suggested Support → Teacher Review
-//
-// Guaranteed:
-//   - Three clean sections: Section A (Learning Results), Section B (Suggested Materials), Section C (Learning History).
-//   - Non-technical, plain-language teacher observations.
-//   - Zero clinical/diagnostic jargon; no automatic IEP updates or auto-assignments.
-//   - Safe de-identified AI explanations with fallback transparency.
-
+// Activity guidance only. Teacher-defined IEP evaluations remain independent.
 $learningInsights = $learningInsights ?? [];
-$studentId = (int)($studentId ?? ($iep['student_id'] ?? 0));
-$basePath  = $basePath ?? '';
-
-// Evidence-based plain-language observation helper
-if (!function_exists('getEvidenceBasedObservation')) {
-    function getEvidenceBasedObservation(array $summary, array $factors): string {
-        $attempts      = $factors['attempts'] ?? [];
-        $consist       = $factors['consistency'] ?? [];
-        $trend         = $factors['performance_trend'] ?? [];
-        
-        $totalRecorded = (int)($attempts['total_recorded'] ?? 0);
-        $gradedCount   = (int)($attempts['graded'] ?? ($summary['graded_count'] ?? 0));
-        $latestAcc     = $summary['accuracy'] ?? null;
-        
-        $recurring     = $consist['recurring_incorrect_items'] ?? [];
-        $activeRec     = array_filter($recurring, fn($i) => !empty($i['still_incorrect_latest']));
-        $activeCount   = count($activeRec);
-        
-        $trendClass    = $trend['classification'] ?? 'Insufficient Evidence';
-        $consistClass  = $consist['classification'] ?? 'Insufficient Evidence';
-
-        // 1. No graded attempts
-        if ($gradedCount === 0) {
-            return 'No graded attempts recorded yet. A completed attempt is needed to evaluate performance.';
-        }
-
-        // 2. Single attempt completed
-        // Rule: Do not call something a repeated difficulty based on one attempt; do not label as Stable.
-        if ($gradedCount === 1) {
-            if ($latestAcc !== null && $latestAcc < 60) {
-                return '1 attempt completed with some incorrect answers. More attempts are needed to identify a learning pattern.';
-            }
-            return '1 attempt completed. More attempts are needed to identify a learning pattern.';
-        }
-
-        // 3. Multiple attempts with active recurring mistakes
-        if ($activeCount > 0) {
-            $itemLabel = ($activeCount === 1) ? 'Some questions were' : 'Some items were';
-            return "{$itemLabel} answered incorrectly across multiple attempts. Additional practice may help.";
-        }
-
-        // 4. Multiple attempts with resolved prior mistakes
-        $resolved = $consist['resolved_items'] ?? [];
-        if (!empty($resolved) && $activeCount === 0) {
-            return 'Prior mistakes were corrected in repeat attempts. Learner shows good recovery on practiced items.';
-        }
-
-        // 5. Score progression trend
-        if ($trendClass === 'Improving') {
-            return 'Score improved across recent attempts. Continued practice is encouraged.';
-        }
-
-        if ($trendClass === 'Declining') {
-            return 'Score decreased across recent attempts. Teacher review recommended to check difficulty.';
-        }
-
-        if ($consistClass === 'Inconsistent' || $consistClass === 'Variable') {
-            return 'Scores varied across attempts. Additional practice may help build consistent performance.';
-        }
-
-        if ($trendClass === 'Stable') {
-            return 'Score remained consistent across completed attempts.';
-        }
-
-        return 'More results needed across comparable attempts to identify a learning trend.';
-    }
-}
-
-// Activity type human labels
-$activityTypeLabels = [
-    'multiple_choice' => 'Multiple Choice',
-    'true_false'      => 'True / False',
-    'fill_in_blanks'  => 'Fill in the Blanks',
-    'drag_drop_sort'  => 'Drag & Drop Sort',
-    'sequencing'      => 'Sequencing',
-    'matching'        => 'Matching Pairs',
-    'flashcards'      => 'Interactive Flashcards',
-    'custom_printable'=> 'Printed Worksheet'
-];
-
+$basePath = $basePath ?? '';
 require_once __DIR__ . '/../../Helpers/CSRFHelper.php';
+require_once __DIR__ . '/../../Services/InterventionDraftService.php';
 $insightsCsrfToken = CSRFHelper::getToken();
 ?>
-
 <div class="tab-pane fade" id="tab-learning-insights" role="tabpanel" aria-labelledby="tab-learning-insights-btn">
-    
     <input type="hidden" id="learning_insights_csrf" value="<?= htmlspecialchars($insightsCsrfToken) ?>">
-
-    <!-- Top Utility & Diagnostics Bar (Separate from learner-specific explanations) -->
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 p-2 px-3 bg-white border rounded mb-3 shadow-sm" style="font-size: 0.82rem;">
-        <div class="d-flex align-items-center gap-2">
-            <span class="d-inline-flex align-items-center justify-content-center bg-primary-subtle text-primary rounded-circle" style="width: 26px; height: 26px;">
-                <i class="ti ti-bulb" style="font-size: 0.95rem;"></i>
-            </span>
-            <span class="fw-semibold text-dark">Learning Insights &amp; Support</span>
-            <span class="text-muted d-none d-md-inline">&bull; Learning Result &rarr; Suggested Support &rarr; Teacher Review</span>
+    <p class="small text-muted">Suggested ratings guide activity review only. The teacher determines final IEP evaluations using teacher-defined indicators. A quiz score does not establish practical FSL sign production.</p>
+    <?php if (!$learningInsights): ?>
+        <p class="text-muted">No learning results available yet.</p>
+    <?php endif; ?>
+    <?php foreach ($learningInsights as $ins):
+        $act = $ins['activity'] ?? [];
+        $actId = (int)($act['id'] ?? 0);
+        $score = $ins['performance_summary']['accuracy'] ?? null;
+        $rating = $ins['suggested_rating'] ?? null;
+        $ratingNames = ['P'=>'Proficient', 'AP'=>'Approaching Proficiency', 'D'=>'Developing', 'B'=>'Beginning'];
+        $history = $ins['factors']['accuracy']['accuracy_history'] ?? [];
+        $latest = $history ? end($history) : null;
+        $incorrectItems = $ins['factors']['accuracy']['latest_incorrect_items'] ?? [];
+        $recs = $ins['recommendations'] ?? [];
+        $draft = $ins['intervention'] ?? InterventionDraftService::blank();
+        $needsAssessment = $score !== null && $score < 75 && empty($draft['actionable']);
+    ?>
+    <article class="card border rounded-3 p-3 mb-3" id="activity-card-<?= $actId ?>">
+        <h6><?= htmlspecialchars($act['title'] ?? 'Activity') ?></h6>
+        <div class="small mb-2"><strong>Latest Score:</strong> <?= $score !== null && $latest ? htmlspecialchars($latest['score'] . ' / ' . $latest['max_score'] . ' (' . round($score, 2) . '%)') : 'Ungraded' ?></div>
+        <div class="small mb-2"><strong>Suggested Rating:</strong> <?= $rating !== null ? htmlspecialchars($rating . ' (' . ($ratingNames[$rating] ?? '') . ')') : 'No suggested rating' ?></div>
+        <div class="small mb-3"><strong>What the result means</strong>
+            <?php if ($needsAssessment): ?>
+                <p class="mb-1 mt-1"><strong>Needs further assessment</strong></p>
+                <p class="mb-0">This score suggests more support may be needed. The system cannot yet identify the exact skill needing practice. You can select a target skill or assess the learner again.</p>
+            <?php elseif (!empty($draft['actionable'])): ?>
+                <p class="mb-0 mt-1"><?= !empty($draft['skill_verified']) ? 'Practice focus: ' . htmlspecialchars($draft['learning_competency']) . '.' : 'Review the recorded items and select a target skill for practice.' ?></p>
+            <?php elseif ($score === null): ?>
+                <p class="mb-0 mt-1">A graded result is not available yet. You can browse resources or select a skill for a teacher-planned intervention.</p>
+            <?php else: ?>
+                <p class="mb-0 mt-1">No specific learning difficulty is confirmed in the latest result. Use your assessment to decide whether further practice is needed.</p>
+            <?php endif; ?>
         </div>
-        <div>
-            <button type="button" 
-                    class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
-                    id="btn-test-gemini-global"
-                    onclick="testGeminiSynthetic()"
-                    style="border-radius: 6px; font-size: 0.78rem; height: 28px; padding: 0.15rem 0.55rem;"
-                    title="Run connection benchmark using synthetic mock data (zero learner data transmitted)">
-                <i class="ti ti-plug text-primary"></i>
-                <span>Test Gemini Connection (Synthetic)</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Empty State -->
-    <?php if (empty($learningInsights)): ?>
-        <div class="card border-0 shadow-sm p-4 text-center my-3 bg-white" style="border-radius: 8px;">
-            <div class="my-3">
-                <i class="ti ti-chart-line text-muted opacity-50" style="font-size: 2.8rem;"></i>
-            </div>
-            <h6 class="fw-bold text-dark mb-1">No learning results available yet.</h6>
-            <p class="text-muted small mb-0 mx-auto" style="max-width: 480px; font-size: 0.84rem;">
-                Learning results will appear after the learner completes an activity.
-            </p>
-        </div>
-    <?php else: ?>
-
-        <!-- List of Evaluated Activities -->
-        <div class="d-flex flex-column gap-3 mb-4">
-            <?php foreach ($learningInsights as $idx => $ins): ?>
-                <?php
-                $act      = $ins['activity'] ?? [];
-                $actId    = (int)($act['id'] ?? 0);
-                $summary  = $ins['performance_summary'] ?? [];
-                $factors  = $ins['factors'] ?? [];
-                $accuracy = $factors['accuracy'] ?? [];
-                $attempts = $factors['attempts'] ?? [];
-                $trend    = $factors['performance_trend'] ?? [];
-                $consist  = $factors['consistency'] ?? [];
-                $recs     = $ins['recommendations'] ?? [];
-                $iepAlign = $ins['iep_alignment'] ?? [];
-
-                $typeLabel = $activityTypeLabels[$act['type'] ?? ''] ?? ucwords(str_replace('_', ' ', $act['type'] ?? 'Activity'));
-                
-                $latestAcc = $summary['accuracy'] ?? null;
-                $scoreColor = ($latestAcc === null) ? 'secondary' : ($latestAcc >= 75 ? 'success' : ($latestAcc >= 50 ? 'warning' : 'danger'));
-                $latestScoreText = ($latestAcc !== null) ? round($latestAcc, 1) . '%' : 'Ungraded';
-
-                $attemptsTotal = (int)($attempts['total_recorded'] ?? 0);
-                $gradedCount   = (int)($attempts['graded'] ?? ($summary['graded_count'] ?? 0));
-                $observation   = getEvidenceBasedObservation($summary, $factors);
-
-                // Simple labels for Section C
-                $trendClass = $trend['classification'] ?? 'Insufficient Evidence';
-                $progressLabel = match($trendClass) {
-                    'Improving' => 'Improving over time',
-                    'Declining' => 'Decreasing over time',
-                    'Stable'    => 'Steady over time',
-                    default     => 'More Results Needed'
-                };
-
-                $recurring = $consist['recurring_incorrect_items'] ?? [];
-                $activeRecurring = array_filter($recurring, fn($item) => !empty($item['still_incorrect_latest']));
-                $activeCount = count($activeRecurring);
-
-                $repeatedMistakesLabel = ($gradedCount < 2) 
-                    ? 'More Results Needed' 
-                    : ($activeCount > 0 ? "{$activeCount} recurring mistake" . ($activeCount > 1 ? 's' : '') : 'None detected');
-
-                $primaryIep = (!empty($iepAlign['has_verified_iep']) && !empty($iepAlign['objectives'])) 
-                    ? reset($iepAlign['objectives']) 
-                    : null;
-                $hasVerifiedIep = ($primaryIep && !empty($primaryIep['verified']));
-
-                $hasGradedEvidence = $gradedCount > 0;
-                ?>
-
-                <!-- Activity Card -->
-                <div class="card border rounded-3 bg-white shadow-sm" id="activity-card-<?= $actId ?>" style="border-radius: 8px; overflow: hidden;">
-                    
-                    <!-- ========================================================
-                         SECTION A — Learning Results
-                         ======================================================== -->
-                    <div class="p-3 p-md-3.5">
-                        <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
-                            <div class="flex-grow-1">
-                                <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-                                    <span class="badge bg-light text-dark border px-2 py-0.5" style="font-size: 0.74rem;">
-                                        <?= htmlspecialchars($typeLabel) ?>
-                                    </span>
-                                    <h6 class="mb-0 fw-bold text-dark" style="font-size: 0.96rem;">
-                                        <?= htmlspecialchars($act['title'] ?? 'Activity #' . $actId) ?>
-                                    </h6>
-                                </div>
-                                <div class="text-muted small mb-1" style="font-size: 0.82rem;">
-                                    <strong>Latest Result:</strong> <span class="fw-semibold text-<?= $scoreColor ?>"><?= $latestScoreText ?></span>
-                                    <span class="mx-1 text-secondary opacity-50">&bull;</span>
-                                    <strong>Completed:</strong> <?= $attemptsTotal ?> <?= $attemptsTotal === 1 ? 'time' : 'times' ?><?= $gradedCount !== $attemptsTotal ? " ({$gradedCount} graded)" : '' ?>
-                                </div>
-                                <div class="small fst-italic text-dark mt-0.5" style="font-size: 0.84rem; color: #2d3748; line-height: 1.45;">
-                                    &ldquo;<?= htmlspecialchars($observation) ?>&rdquo;
-                                </div>
-                            </div>
-
-                            <div class="flex-shrink-0 align-self-start align-self-md-center pt-1 pt-md-0">
-                                <button type="button" 
-                                        class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1.5"
-                                        data-bs-toggle="collapse" 
-                                        data-bs-target="#review-details-<?= $actId ?>" 
-                                        aria-expanded="false" 
-                                        aria-controls="review-details-<?= $actId ?>"
-                                        id="btn-review-activity-<?= $actId ?>"
-                                        style="border-radius: 6px; font-size: 0.8125rem; font-weight: 500; height: 32px;">
-                                    <i class="ti ti-notes"></i>
-                                    <span>Review Activity</span>
-                                    <i class="ti ti-chevron-down ms-0.5" style="font-size: 0.75rem;"></i>
-                                </button>
-                            </div>
-                        </div>
+        <?php if (!empty($draft['actionable'])): ?>
+        <div class="small mb-3">
+            <strong><?= $recs ? 'Use Existing Resource' : 'Suggested Resource' ?></strong>
+            <?php if (!$recs): ?>
+                <p class="text-muted mb-1">No verified resource match yet. Browse resources or create a practice activity.</p>
+            <?php endif; ?>
+        <?php endif; ?>
+            <?php foreach (!empty($draft['actionable']) ? $recs : [] as $rec):
+                $url = null;
+                if (($rec['resource_type'] ?? '') === 'resource_hub_pack') {
+                    $url = '/iep/implementation/resource-hub/preview/' . (int)$rec['source_id'];
+                } elseif (($rec['resource_type'] ?? '') === 'fsl_vocabulary') {
+                    $url = '/fsl-dictionary?search=' . rawurlencode($rec['lookup_word'] ?? $rec['evidence']['related_concept_or_skill'] ?? '');
+                }
+                if ($url === null) continue;
+            ?>
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">
+                    <div>
+                        <span><?= htmlspecialchars($rec['title'] ?? '') ?></span>
+                        <p class="small text-muted mb-0"><strong>Why it matches:</strong>
+                            <?= htmlspecialchars($rec['evidence']['related_concept_or_skill'] ?? '') ?>.
+                            <?= htmlspecialchars($rec['evidence']['performance_evidence'] ?? '') ?></p>
                     </div>
-
-                    <!-- Collapsible Review Details (Section B & Section C) -->
-                    <div class="collapse border-top bg-light" id="review-details-<?= $actId ?>">
-                        <div class="p-3 p-md-3.5 d-flex flex-column gap-3">
-                            
-                            <!-- ========================================================
-                                 SECTION B — Suggested Learning Materials
-                                 ======================================================== -->
-                            <div class="bg-white border rounded p-3">
-                                <div class="d-flex align-items-center justify-content-between mb-2.5 flex-wrap gap-2">
-                                    <div class="d-flex align-items-center gap-1.5">
-                                        <i class="ti ti-bookmarks text-primary"></i>
-                                        <strong class="text-dark small" style="font-size: 0.88rem;">Suggested Learning Materials</strong>
-                                    </div>
-                                    <?php if (!empty($recs)): ?>
-                                        <span class="text-muted small" style="font-size: 0.74rem;">
-                                            <?= count($recs) ?> material<?= count($recs) > 1 ? 's' : '' ?> available for teacher review
-                                        </span>
-                                    <?php endif; ?>
-                                </div>
-
-                                <?php if (empty($recs)): ?>
-                                    <div class="p-2.5 rounded bg-light border text-muted small" style="font-size: 0.8rem;">
-                                        <i class="ti ti-info-circle text-secondary me-1"></i>
-                                        No matching learning material is available yet. The teacher may choose another appropriate activity or resource.
-                                    </div>
-                                <?php else: ?>
-                                    <div class="d-flex flex-column gap-2" id="recs-list-<?= $actId ?>">
-                                        <?php foreach ($recs as $rIdx => $rec): ?>
-                                            <?php
-                                            $recDomId = 'rec-item-' . $actId . '-' . $rIdx;
-                                            $rType = $rec['resource_type'] ?? '';
-                                            $typeLabel = match($rType) {
-                                                'fsl_vocabulary'        => 'FSL Video',
-                                                'resource_hub_pack'     => 'Resource Hub Pack',
-                                                'remedial_lesson'       => 'Remedial Lesson',
-                                                'supplementary_activity'=> 'Practice Activity',
-                                                default                 => 'Learning Resource'
-                                            };
-                                            $evidence = $rec['evidence'] ?? [];
-                                            $relevance = $evidence['performance_evidence'] ?? $rec['description'] ?? 'Relevant learning material for practice.';
-                                            ?>
-                                            <div class="p-2.5 border rounded bg-white" id="<?= $recDomId ?>">
-                                                <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">
-                                                    <div>
-                                                        <div class="d-flex align-items-center gap-1.5 flex-wrap mb-1">
-                                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-1.5 py-0.5" style="font-size: 0.72rem;">
-                                                                <?= htmlspecialchars($typeLabel) ?>
-                                                            </span>
-                                                            <strong class="text-dark small" style="font-size: 0.85rem;">
-                                                                <?= htmlspecialchars($rec['title']) ?>
-                                                            </strong>
-                                                        </div>
-                                                        <div class="text-muted small" style="font-size: 0.78rem; line-height: 1.4;">
-                                                            <?= htmlspecialchars($relevance) ?>
-                                                        </div>
-                                                    </div>
-
-                                                    <!-- Preview / Open Action -->
-                                                    <div class="d-flex align-items-center gap-1.5 flex-shrink-0">
-                                                        <?php if ($rType === 'fsl_vocabulary'): ?>
-                                                            <button type="button" 
-                                                                    class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"
-                                                                    style="border-radius: 6px; font-size: 0.8rem; height: 30px;"
-                                                                    onclick="previewFslResource('<?= htmlspecialchars(addslashes($evidence['related_concept_or_skill'] ?? $rec['title'])) ?>', '<?= htmlspecialchars(addslashes($rec['media_url'] ?? '')) ?>', '<?= htmlspecialchars(addslashes($rec['category'] ?? '')) ?>', '<?= htmlspecialchars(addslashes($rec['description'] ?? '')) ?>')">
-                                                                <i class="ti ti-player-play"></i>Preview
-                                                            </button>
-                                                            <a href="<?= htmlspecialchars($basePath) ?>/fsl-dictionary?search=<?= urlencode($evidence['related_concept_or_skill'] ?? $rec['title']) ?>"
-                                                               target="_blank" class="btn btn-sm btn-light border d-inline-flex align-items-center gap-1 text-muted"
-                                                               style="border-radius: 6px; font-size: 0.8rem; height: 30px;">
-                                                                <i class="ti ti-book"></i>Dictionary
-                                                            </a>
-                                                        <?php elseif ($rType === 'resource_hub_pack'): ?>
-                                                            <a href="<?= htmlspecialchars($basePath) ?>/iep/implementation/resource-hub/preview/<?= (int)$rec['source_id'] ?>"
-                                                               target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"
-                                                               style="border-radius: 6px; font-size: 0.8rem; height: 30px;">
-                                                                <i class="ti ti-eye"></i>Preview Pack
-                                                            </a>
-                                                        <?php elseif ($rType === 'remedial_lesson'): ?>
-                                                            <a href="<?= htmlspecialchars($basePath) ?>/learning/lesson/<?= (int)$rec['source_id'] ?>"
-                                                               target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"
-                                                               style="border-radius: 6px; font-size: 0.8rem; height: 30px;">
-                                                                <i class="ti ti-external-link"></i>Open Lesson
-                                                            </a>
-                                                        <?php elseif ($rType === 'supplementary_activity'): ?>
-                                                            <a href="<?= htmlspecialchars($basePath) ?>/learning/activity/<?= (int)$rec['source_id'] ?>"
-                                                               target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"
-                                                               style="border-radius: 6px; font-size: 0.8rem; height: 30px;">
-                                                                <i class="ti ti-external-link"></i>Open Activity
-                                                            </a>
-                                                        <?php endif; ?>
-
-                                                        <button type="button" 
-                                                                class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
-                                                                style="border-radius: 6px; font-size: 0.78rem; height: 30px; padding: 0.2rem 0.5rem;"
-                                                                onclick="dismissRecommendation('<?= $recDomId ?>', '<?= htmlspecialchars(addslashes($rec['title'])) ?>')">
-                                                            <i class="ti ti-x"></i>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-
-                            <!-- ========================================================
-                                 SECTION C — Learning History
-                                 ======================================================== -->
-                            <div class="bg-white border rounded p-3">
-                                <div class="d-flex align-items-center justify-content-between mb-2.5 flex-wrap gap-2">
-                                    <div class="d-flex align-items-center gap-1.5">
-                                        <i class="ti ti-history text-primary"></i>
-                                        <strong class="text-dark small" style="font-size: 0.88rem;">Learning History &amp; Diagnostics</strong>
-                                    </div>
-                                </div>
-
-                                <!-- Summary Row with Simple Labels -->
-                                <div class="row g-2 mb-3">
-                                    <div class="col-6 col-md-4">
-                                        <div class="p-2 rounded bg-light border h-100">
-                                            <div class="text-muted small" style="font-size: 0.74rem;">Progress Over Time</div>
-                                            <div class="fw-semibold text-dark mt-0.5" style="font-size: 0.84rem;">
-                                                <?= htmlspecialchars($progressLabel) ?>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-md-4">
-                                        <div class="p-2 rounded bg-light border h-100">
-                                            <div class="text-muted small" style="font-size: 0.74rem;">Repeated Mistakes</div>
-                                            <div class="fw-semibold text-dark mt-0.5" style="font-size: 0.84rem;">
-                                                <?= htmlspecialchars($repeatedMistakesLabel) ?>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-12 col-md-4">
-                                        <div class="p-2 rounded bg-light border h-100">
-                                            <div class="text-muted small" style="font-size: 0.74rem;">IEP Objective Link</div>
-                                            <div class="fw-semibold text-dark mt-0.5" style="font-size: 0.84rem;">
-                                                <?php if ($hasVerifiedIep): ?>
-                                                    Step #<?= (int)($primaryIep['step_number'] ?? 1) ?> (<?= htmlspecialchars($primaryIep['domain'] ?? 'Domain') ?>)
-                                                <?php else: ?>
-                                                    General learning activity
-                                                <?php endif; ?>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- IEP Objective Context (if verified) -->
-                                <?php if ($hasVerifiedIep): ?>
-                                    <div class="p-2.5 rounded bg-light border mb-3 small" style="font-size: 0.8rem;">
-                                        <div class="fw-semibold text-dark mb-0.5">
-                                            <i class="ti ti-target text-primary me-1"></i>
-                                            IEP Step #<?= (int)($primaryIep['step_number'] ?? 1) ?>: <?= htmlspecialchars($primaryIep['objective'] ?? 'IEP Objective') ?>
-                                        </div>
-                                        <?php if (!empty($primaryIep['indicator'])): ?>
-                                            <div class="text-muted">
-                                                <strong>Defined Indicator:</strong> <?= htmlspecialchars($primaryIep['indicator']) ?>
-                                            </div>
-                                        <?php endif; ?>
-                                        <div class="text-muted fst-italic mt-1" style="font-size: 0.74rem;">
-                                            Teacher reminder: Activity scores reflect performance on this specific task; IEP mastery is determined independently by the teacher.
-                                        </div>
-                                    </div>
-                                <?php endif; ?>
-
-                                <!-- Attempt History Table -->
-                                <?php $history = $accuracy['accuracy_history'] ?? []; ?>
-                                <?php if (!empty($history)): ?>
-                                    <div class="mb-3">
-                                        <div class="text-muted small fw-semibold mb-1" style="font-size: 0.76rem;">
-                                            Attempt History Log:
-                                        </div>
-                                        <div class="table-responsive bg-light rounded border">
-                                            <table class="table table-sm table-hover mb-0" style="font-size: 0.78rem;">
-                                                <thead class="table-light">
-                                                    <tr>
-                                                        <th class="ps-2">Times Completed</th>
-                                                        <th>Raw Score</th>
-                                                        <th>Score</th>
-                                                        <th>Status</th>
-                                                        <th class="pe-2">Date Completed</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <?php foreach ($history as $h): ?>
-                                                        <tr>
-                                                            <td class="ps-2 fw-semibold">Attempt <?= (int)$h['attempt_number'] ?></td>
-                                                            <td><?= $h['score'] !== null ? $h['score'] . ' / ' . $h['max_score'] : '<span class="text-muted">N/A</span>' ?></td>
-                                                            <td>
-                                                                <?php if ($h['accuracy'] !== null): ?>
-                                                                    <span class="fw-semibold text-<?= (float)$h['accuracy'] >= 75 ? 'success' : ((float)$h['accuracy'] >= 50 ? 'warning' : 'danger') ?>">
-                                                                        <?= round((float)$h['accuracy'], 1) ?>%
-                                                                    </span>
-                                                                <?php else: ?>
-                                                                    <span class="text-muted">Ungraded</span>
-                                                                <?php endif; ?>
-                                                            </td>
-                                                            <td>
-                                                                <?= !empty($h['graded']) ? '<span class="badge bg-success-subtle text-success">Graded</span>' : '<span class="badge bg-secondary-subtle text-secondary">Ungraded</span>' ?>
-                                                            </td>
-                                                            <td class="pe-2 text-muted"><?= htmlspecialchars($h['attempted_at'] ?? 'N/A') ?></td>
-                                                        </tr>
-                                                    <?php endforeach; ?>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                <?php endif; ?>
-
-                                <!-- Mistakes Detail (if recurring or resolved) -->
-                                <?php if (!empty($recurring) || !empty($consist['resolved_items'])): ?>
-                                    <div class="p-2.5 rounded bg-light border mb-3 small" style="font-size: 0.78rem;">
-                                        <?php if (!empty($recurring)): ?>
-                                            <div class="fw-semibold text-dark mb-1">
-                                                <i class="ti ti-alert-circle text-danger me-1"></i>Repeated Mistakes:
-                                            </div>
-                                            <ul class="mb-2 ps-3">
-                                                <?php foreach ($recurring as $recItem): ?>
-                                                    <li>
-                                                        <strong>Question <?= (int)$recItem['question_index'] + 1 ?>:</strong> Expected <em>"<?= htmlspecialchars($recItem['expected']) ?>"</em>
-                                                        (missed in <?= (int)$recItem['incorrect_in_attempts'] ?> attempts)
-                                                        <?php if (!empty($recItem['still_incorrect_latest'])): ?>
-                                                            <span class="badge bg-danger-subtle text-danger ms-1">Active</span>
-                                                        <?php endif; ?>
-                                                    </li>
-                                                <?php endforeach; ?>
-                                            </ul>
-                                        <?php endif; ?>
-
-                                        <?php if (!empty($consist['resolved_items'])): ?>
-                                            <div class="fw-semibold text-dark mb-1">
-                                                <i class="ti ti-circle-check text-success me-1"></i>Resolved on Repeat Attempt:
-                                            </div>
-                                            <ul class="mb-0 ps-3 text-muted">
-                                                <?php foreach ($consist['resolved_items'] as $resItem): ?>
-                                                    <li>Question <?= (int)$resItem['question_index'] + 1 ?> (<em>"<?= htmlspecialchars($resItem['expected']) ?>"</em>) corrected in subsequent attempt.</li>
-                                                <?php endforeach; ?>
-                                            </ul>
-                                        <?php endif; ?>
-                                    </div>
-                                <?php endif; ?>
-
-                                <!-- AI Explanation Block ("Explain Learning Results") -->
-                                <div class="p-2.5 rounded border bg-light" id="ai-box-<?= $actId ?>">
-                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-                                        <div class="d-flex align-items-center gap-1.5">
-                                            <span class="badge px-2 py-0.5 fw-semibold" style="background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; font-size: 0.72rem;">
-                                                <i class="ti ti-sparkles me-1"></i>AI Assistant
-                                            </span>
-                                            <strong class="text-dark small" style="font-size: 0.82rem;">Explain Learning Results</strong>
-                                            <span class="text-muted" style="font-size: 0.7rem;">(De-identified)</span>
-                                        </div>
-                                        <div>
-                                            <?php if ($hasGradedEvidence): ?>
-                                                <button type="button" 
-                                                        class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 btn-ai-explain"
-                                                        id="btn-ai-explain-<?= $actId ?>"
-                                                        style="border-radius: 6px; font-size: 0.8rem; font-weight: 500; height: 30px;"
-                                                        onclick="generateAiExplanation(<?= $actId ?>, <?= (int)$studentId ?>)">
-                                                    <i class="ti ti-sparkles"></i>
-                                                    <span class="btn-text">Explain Learning Results</span>
-                                                </button>
-                                            <?php else: ?>
-                                                <button type="button" 
-                                                        class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 opacity-50"
-                                                        disabled
-                                                        style="border-radius: 6px; font-size: 0.8rem; font-weight: 500; height: 30px; cursor: not-allowed;"
-                                                        title="Completed graded attempts are required to explain learning results">
-                                                    <i class="ti ti-lock"></i>
-                                                    <span>Explain Learning Results</span>
-                                                </button>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-
-                                    <!-- AI Output Container -->
-                                    <div id="ai-explanation-display-<?= $actId ?>" class="small text-muted" style="font-size: 0.8rem; line-height: 1.45;">
-                                        <?php if ($hasGradedEvidence): ?>
-                                            Click <strong>Explain Learning Results</strong> to generate a concise summary of the learner's attempts and support suggestions.
-                                        <?php else: ?>
-                                            No graded attempt evidence recorded yet for this activity.
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-
-                                <!-- Teacher Next Steps Advisory -->
-                                <div class="text-muted small mt-2 d-flex align-items-center gap-1" style="font-size: 0.74rem;">
-                                    <i class="ti ti-info-circle text-primary flex-shrink-0"></i>
-                                    <span>Teacher decision: Suggested materials are advisory and are not auto-assigned. Review results and determine whether additional practice or observation is appropriate.</span>
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-
+                    <a class="btn btn-sm btn-outline-primary rounded" href="<?= htmlspecialchars($basePath . $url) ?>"><?= ($rec['resource_type'] ?? '') === 'resource_hub_pack' ? 'Preview Resource' : 'Browse FSL Resource' ?></a>
                 </div>
             <?php endforeach; ?>
+        <?php if (!empty($draft['actionable'])): ?></div><?php endif; ?>
+        <div class="mb-3">
+            <a class="btn btn-sm btn-outline-secondary rounded" href="<?= htmlspecialchars($basePath) ?>/iep/implementation/resource-hub?tab=browse">Browse Existing Resources</a>
         </div>
-
-    <?php endif; ?>
-
+            <div class="border rounded p-2 mb-3" data-intervention-draft="<?= htmlspecialchars(json_encode($draft), ENT_QUOTES, 'UTF-8') ?>" id="intervention-<?= $actId ?>">
+                <strong class="small">Create Intervention</strong>
+                <p class="small text-muted mb-2"><?= !empty($draft['requires_target_skill']) ? 'Choose the target skill in the next form. Skill and tags start blank for your review.' : 'Review the prefilled skill and tags in an editable private draft.' ?> Share only when you choose to publish.</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="openInterventionDraft(<?= $actId ?>, 'builder')">Create with Slide Builder</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="openInterventionDraft(<?= $actId ?>, 'upload')">Upload Material</button>
+                    <?php if (!empty($draft['actionable']) && !empty($draft['skill_verified'])): ?>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="suggestInterventionIdeas(<?= $actId ?>, <?= (int)($ins['student_id'] ?? 0) ?>, this)">Suggest Intervention Ideas</button>
+                    <?php endif; ?>
+                </div>
+                <div class="mt-2" id="intervention-ideas-<?= $actId ?>" hidden>
+                    <label class="small" for="intervention-ideas-text-<?= $actId ?>">Editable teaching ideas</label>
+                    <textarea class="form-control form-control-sm" rows="4" id="intervention-ideas-text-<?= $actId ?>" oninput="document.getElementById('intervention-ideas-approved-<?= $actId ?>').checked=false"></textarea>
+                    <label class="small"><input type="checkbox" id="intervention-ideas-approved-<?= $actId ?>"> I reviewed and approve these ideas for my draft.</label>
+                </div>
+                <p class="small text-muted mb-0 mt-1" id="intervention-status-<?= $actId ?>" role="status"></p>
+            </div>
+        <details id="review-details-<?= $actId ?>">
+            <summary class="small text-primary" id="btn-review-activity-<?= $actId ?>">View Evidence Details — Attempt History</summary>
+            <p class="small mt-2"><?= htmlspecialchars($ins['observation'] ?? 'More recorded results are needed.') ?></p>
+            <?php if (!empty($ins['factors']['accuracy']['ambiguous_log_count'])): ?>
+                <p class="small text-muted">Ambiguous historical item evidence was excluded. Existing scores and answers remain unchanged.</p>
+            <?php endif; ?>
+            <?php if ($incorrectItems): ?>
+                <ul class="small mb-3">
+                    <?php foreach ($incorrectItems as $item): ?>
+                        <li>Review <?= ($item['unit'] ?? '') === 'sequence' ? 'evaluated sequence' : 'item' ?> <?= (int)$item['question_index'] + 1 ?>. Expected answer: <?= htmlspecialchars($item['expected']) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+            <p class="small text-muted mt-2">Newer attempts appear here when this tab is refreshed. Changes in performance do not establish that a particular intervention caused improvement.</p>
+            <p class="small mt-2 mb-1"><strong>Recorded attempts:</strong> <?= (int)($ins['performance_summary']['attempt_count'] ?? 0) ?>;
+                graded: <?= (int)($ins['performance_summary']['graded_count'] ?? 0) ?>;
+                comparable: <?= (int)($ins['factors']['attempts']['comparable'] ?? 0) ?>.</p>
+            <?php foreach (['performance_trend' => 'Performance trend', 'consistency' => 'Consistency'] as $factor => $label): ?>
+                <p class="small mb-1"><strong><?= $label ?>:</strong> <?= htmlspecialchars($ins['factors'][$factor]['reason'] ?? 'Insufficient evidence.') ?></p>
+            <?php endforeach; ?>
+            <?php foreach ($ins['iep_alignment']['objectives'] ?? [] as $objective): if (empty($objective['verified'])) continue; ?>
+                <p class="small mt-2">Teacher-defined indicator: <?= htmlspecialchars($objective['indicator'] ?? $objective['objective'] ?? '') ?></p>
+            <?php endforeach; ?>
+            <div class="table-responsive mt-2">
+                <table class="table table-sm small">
+                    <thead><tr><th>Attempt</th><th>Score</th><th>Date</th></tr></thead>
+                    <tbody><?php foreach ($history as $h): ?>
+                        <tr><td><?= (int)$h['attempt_number'] ?></td><td><?= $h['accuracy'] === null ? 'Ungraded' : htmlspecialchars($h['score'] . ' / ' . $h['max_score'] . ' (' . round($h['accuracy'], 1) . '%)') ?></td><td><?= htmlspecialchars($h['attempted_at'] ?? '') ?></td></tr>
+                    <?php endforeach; ?></tbody>
+                </table>
+            </div>
+            <?php if (!empty($ins['limitations'])): ?>
+                <p class="small text-muted mb-1">Evidence limitations</p>
+                <ul class="small text-muted mb-0">
+                    <?php foreach ($ins['limitations'] as $limitation): ?>
+                        <li><?= htmlspecialchars($limitation) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </details>
+    </article>
+    <?php endforeach; ?>
 </div>
-
-<!-- Client-side Scripts for FSL Preview, Dismissal, and AI Narration Handlers -->
 <script>
 function previewFslResource(word, mediaUrl, category, desc) {
     if (typeof window.openFSLModal === 'function') {

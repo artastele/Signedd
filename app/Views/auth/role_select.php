@@ -61,7 +61,7 @@ unset($_SESSION['old_role'], $_SESSION['old_employee_number']);
                     $dbFallback = Database::getInstance()->getConnection();
                     $dbFallback->exec("
                         INSERT INTO schools (school_id, school_name, division, region, address, enrollment_sy, enrollment_status, guidelines_published, contact_email, contact_number, created_at)
-                        VALUES ('118543', 'Cebu City National SPED Center', 'Cebu City', 'Region VII', 'M.J. Cuenco Ave, Cebu City', '2026-2027', 'open', 1, 'cebucity.sped@deped.gov.ph', '09123456789', NOW())
+                        VALUES ('129688', 'Piedad Central Elementary School', 'Division of Davao City', 'Region XI', 'Crossing Bayabas, Toril, Davao City', '2026-2027', 'open', 1, '129688@deped.gov.ph', '09123456789', NOW())
                     ");
                     $schools = $selectSchoolModel->getAllSchools();
                 } catch (\Throwable $e) {}

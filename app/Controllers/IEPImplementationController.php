@@ -81,6 +81,43 @@ class IEPImplementationController {
     // INDEX — list students with signed IEPs
     // ============================================================
 
+    private function canReviewIep(?array $iep): bool {
+        if (!$iep || !in_array($this->userRole, ['sped_teacher','teacher','master_teacher','admin'], true)) return false;
+        if ($this->userRole === 'admin' || (int)($iep['drafted_by'] ?? 0) === $this->userId) return true;
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->prepare('SELECT 1 FROM student_records s WHERE s.id = :sid AND
+            (s.assigned_teacher_id = :tid OR s.section_id IN (SELECT id FROM sections WHERE adviser_teacher_id = :tid2)
+            OR s.section_name IN (SELECT section_name FROM sections WHERE adviser_teacher_id = :tid3)) LIMIT 1');
+        $stmt->execute(['sid'=>(int)$iep['student_id'],'tid'=>$this->userId,'tid2'=>$this->userId,'tid3'=>$this->userId]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    private function verifiedIntervention(int $studentId, int $activityId, bool $requireDifficulty = true): array {
+        if (!in_array($this->userRole,['sped_teacher','teacher','master_teacher','admin'],true)) throw new RuntimeException('Access denied.',403);
+        $activity = $this->model->getActivityById($activityId);
+        $lesson = $activity ? $this->model->findById((int)$activity['lesson_plan_id']) : null;
+        $iep = $lesson ? $this->model->getIepById((int)$lesson['iep_id']) : null;
+        if (!$this->canReviewIep($iep) || (int)($iep['student_id'] ?? 0) !== $studentId) throw new RuntimeException('Access denied.',403);
+        require_once __DIR__ . '/../Services/ResourceRecommendationService.php';
+        $insight = (new ResourceRecommendationService())->recommendForActivity($studentId,$activityId);
+        if ($requireDifficulty && empty($insight['intervention']['actionable'])) throw new RuntimeException('A verified difficulty is required for automatic intervention ideas. Select a target skill manually instead.',422);
+        return $insight;
+    }
+
+    public function interventionIdeas(): void {
+        header('Content-Type: application/json');
+        try {
+            $body = json_decode(file_get_contents('php://input'),true) ?: $_POST;
+            $insight = $this->verifiedIntervention((int)($body['student_id'] ?? 0),(int)($body['activity_id'] ?? 0));
+            require_once __DIR__ . '/../Services/GeminiExplanationService.php';
+            $result = (new GeminiExplanationService())->suggestInterventionIdeas($insight['intervention']['learning_competency']);
+            echo json_encode(['success'=>true] + $result);
+        } catch (Throwable $e) {
+            http_response_code(in_array($e->getCode(),[403,422],true) ? $e->getCode() : 500);
+            echo json_encode(['success'=>false,'message'=>$e->getCode()===500 ? 'Unable to suggest ideas.' : $e->getMessage()]);
+        }
+    }
+
     public function index() {
         $students      = $this->model->getSignedIEPsForTeacher($this->userId);
         $totalStudents = $this->model->countStudentsForTeacher($this->userId);
@@ -229,6 +266,23 @@ class IEPImplementationController {
             $assignmentType = trim($body['assignment_type'] ?? '');
             $iepId          = (int) ($body['iep_id']        ?? 0);
             $studentId      = !empty($body['student_id']) ? (int) $body['student_id'] : null;
+            $iep = $this->model->getIepById($iepId);
+            if (!$this->canReviewIep($iep) || ($studentId && $studentId !== (int)$iep['student_id'])) {
+                http_response_code(403);
+                echo json_encode(['success'=>false,'message'=>'Access denied for this IEP.']);
+                exit;
+            }
+            $interventionDraft = ($body['intervention_draft'] ?? false) === true;
+            $draftMetadata = null;
+            if ($interventionDraft) {
+                $sourceActivity = $this->model->getActivityById((int)($body['source_activity_id'] ?? 0));
+                $sourceLesson = $sourceActivity ? $this->model->findById((int)$sourceActivity['lesson_plan_id']) : null;
+                if ((int)($sourceLesson['iep_id'] ?? 0) !== $iepId) throw new RuntimeException('Source activity does not belong to this IEP.',403);
+                $this->verifiedIntervention((int)$iep['student_id'],(int)$sourceActivity['id'],false);
+                require_once __DIR__ . '/../Services/InterventionDraftService.php';
+                $draftMetadata = InterventionDraftService::reviewedMetadata($body);
+                $draftMetadata['title'] = $title;
+            }
 
             if (!$title || !$pdspDomain || !$assignmentType || !$iepId) {
                 echo json_encode(['success' => false, 'message' => 'Title, PDSP domain, assignment type, and IEP are required.']);
@@ -256,6 +310,7 @@ class IEPImplementationController {
                 'title'           => $title,
                 'pdsp_domain'     => $pdspDomain,
                 'assignment_type' => $assignmentType,
+                'status'          => $interventionDraft ? 'draft' : 'published',
             ]);
 
             if (!$lpId) {
@@ -264,7 +319,12 @@ class IEPImplementationController {
             }
 
             // Assign to student(s)
-            if ($assignmentType === 'individual' && $studentId) {
+            if ($interventionDraft) {
+                $_SESSION['resource_drafts'][$lpId] = $draftMetadata;
+                $this->model->createPage(['lesson_plan_id'=>$lpId,'title'=>$title,
+                    'content'=>'<h2>' . htmlspecialchars($title) . '</h2><p>' . htmlspecialchars($draftMetadata['learning_competency']) . '</p><p>' . nl2br(htmlspecialchars($draftMetadata['description'])) . '</p>',
+                    'guide_questions'=>'Review and adapt this private practice draft before use.']);
+            } elseif ($assignmentType === 'individual' && $studentId) {
                 $this->model->assignToStudent($lpId, $studentId, $this->userId);
             } else {
                 $this->model->assignToAllLearners($lpId, $iepId, $this->userId);
@@ -273,6 +333,7 @@ class IEPImplementationController {
             echo json_encode(['success' => true, 'lesson_plan_id' => $lpId]);
         } catch (Throwable $e) {
             error_log('createLessonPlan error: ' . $e->getMessage());
+            http_response_code($e instanceof InvalidArgumentException || $e->getCode()===422 ? 422 : ($e->getCode()===403 ? 403 : 500));
             echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
         }
         exit;
@@ -769,6 +830,24 @@ class IEPImplementationController {
                 exit;
             }
 
+            $materialLesson = $this->model->findById($lessonPlanId);
+            if (!$this->canManageLessonPlan($materialLesson)) {
+                http_response_code(403);
+                echo json_encode(['success'=>false,'message'=>'Access denied for this lesson material.']);
+                exit;
+            }
+            $materialDraft = null;
+            if (($body['intervention_draft'] ?? '') === '1') {
+                if (($materialLesson['status'] ?? '') !== 'draft' || (int)$materialLesson['created_by'] !== $this->userId) {
+                    http_response_code(403);
+                    echo json_encode(['success'=>false,'message'=>'Intervention uploads must target your private draft.']); exit;
+                }
+                require_once __DIR__ . '/../Services/InterventionDraftService.php';
+                $materialDraft = InterventionDraftService::reviewedMetadata([
+                    'draft_reviewed'=>($body['draft_reviewed'] ?? '') === '1',
+                    'resource_draft'=>json_decode($body['resource_draft'] ?? '{}',true) ?: []]);
+            }
+
             if (!in_array($materialType, ['file', 'link', 'embed'])) {
                 echo json_encode(['success' => false, 'message' => 'Invalid material type.']);
                 exit;
@@ -845,6 +924,7 @@ class IEPImplementationController {
                 echo json_encode(['success' => false, 'message' => 'Failed to save material.']);
                 exit;
             }
+            if ($materialDraft) $_SESSION['resource_drafts'][$lessonPlanId] = $materialDraft;
 
             $material = [
                 'id'             => $materialId,
@@ -857,7 +937,7 @@ class IEPImplementationController {
                 'display_order'  => $displayOrder,
             ];
 
-            echo json_encode(['success' => true, 'material' => $material]);
+            echo json_encode(['success' => true, 'material' => $material, 'resource_draft'=>$materialDraft]);
         } catch (Throwable $e) {
             error_log('addMaterial error: ' . $e->getMessage());
             echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
@@ -2330,10 +2410,26 @@ class IEPImplementationController {
         require_once __DIR__ . '/../Views/iep_implementation/resource_hub_preview.php';
     }
 
-    /**
-     * Share an existing accessible lesson to the Resource Hub
-     * POST /iep/implementation/resource-hub/share/{id}
-     */
+    /** Suggest local metadata tags without inspecting lessons, IEPs, or learner records. */
+    public function suggestResourceTags() {
+        header('Content-Type: application/json');
+        if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Access denied. Teachers only.']);
+            return;
+        }
+        try {
+            $body = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($body)) $body = $_POST;
+            require_once __DIR__ . '/../Services/ResourceTagService.php';
+            echo json_encode(['success' => true, 'tags' => ResourceTagService::suggest($body), 'source' => 'local_rules']);
+        } catch (InvalidArgumentException $e) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    /** Share an existing accessible lesson through the existing Resource Hub publisher. */
     public function shareToResourceHub($id) {
         header('Content-Type: application/json');
         try {
@@ -2359,7 +2455,7 @@ class IEPImplementationController {
             }
 
             $pages = $this->model->getPagesByLessonPlan($lessonPlanId);
-            if (empty($pages)) {
+            if (empty($pages) && !$this->model->getMaterials($lessonPlanId)) {
                 echo json_encode(['success' => false, 'message' => 'Cannot share an empty lesson. Please add at least one slide first.']);
                 exit;
             }
@@ -2369,6 +2465,13 @@ class IEPImplementationController {
                 $body = $_POST;
             }
 
+            try {
+                $body['tags'] = ResourceTagService::approvedTags($body);
+            } catch (InvalidArgumentException $e) {
+                http_response_code(422);
+                echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+                exit;
+            }
             $teacherName = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'SPED Teacher';
             $packId = $this->hubModel->shareLessonToHub($lessonPlanId, $this->userId, $teacherName, [
                 'title'                    => trim($body['title'] ?? $lp['title']),
@@ -2378,6 +2481,7 @@ class IEPImplementationController {
                 'learning_competency'      => trim($body['learning_competency'] ?? ''),
                 'language'                 => trim($body['language'] ?? 'Filipino / FSL'),
                 'tags'                     => trim($body['tags'] ?? ''),
+                'tags_approved'            => true,
                 'mainstream_mastery_url'   => trim($body['mainstream_mastery_url'] ?? ''),
                 'mainstream_mastery_title' => trim($body['mainstream_mastery_title'] ?? '')
             ]);

@@ -3195,7 +3195,7 @@ function autoHighlightFslSigns() {
 
                         <div class="col-12">
                             <label class="form-label small fw-bold text-dark mb-1">Short Description <span class="text-muted fw-normal">(Optional)</span>:</label>
-                            <textarea id="sharePackDesc" class="form-control form-control-sm" rows="2" placeholder="Brief overview for other teachers adapting this pack..." style="border-radius: 6px;"></textarea>
+                            <textarea id="sharePackDesc" class="form-control form-control-sm" rows="2" placeholder="Brief overview for other teachers adapting this pack..." style="border-radius: 6px;"><?= htmlspecialchars($_SESSION['resource_drafts'][$lpId]['description'] ?? '') ?></textarea>
                         </div>
 
                         <div class="col-12 col-md-6">
@@ -3215,24 +3215,7 @@ function autoHighlightFslSigns() {
                             <input type="text" id="sharePackLevel" class="form-control form-control-sm" value="Primary SPED / Deaf Ed" style="border-radius: 6px;">
                         </div>
 
-                        <!-- Advanced Options (Collapsed by default) -->
-                        <div class="col-12 mt-2">
-                            <a class="small fw-semibold text-muted text-decoration-none d-inline-flex align-items-center gap-1" data-bs-toggle="collapse" href="#shareAdvancedCollapse" role="button" aria-expanded="false">
-                                <i class="ph-bold ph-caret-down"></i> Advanced Options
-                            </a>
-                            <div class="collapse mt-2" id="shareAdvancedCollapse">
-                                <div class="p-2.5 rounded bg-light border">
-                                    <div class="mb-2">
-                                        <label class="form-label small fw-semibold text-dark mb-1">Learning Competency / Objective:</label>
-                                        <textarea id="sharePackCompetency" class="form-control form-control-sm" rows="2" placeholder="e.g. Makat-on sa mga batakang senyas sa pamilya ug pagtimbaya..." style="border-radius: 6px;"></textarea>
-                                    </div>
-                                    <div>
-                                        <label class="form-label small fw-semibold text-dark mb-1">Tags / Keywords (comma-separated):</label>
-                                        <input type="text" id="sharePackTags" class="form-control form-control-sm" placeholder="fsl, deaf-ed, greeting, family, primary" style="border-radius: 6px;">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <?php $hubTagPrefix = 'sharePack'; require __DIR__ . '/partials/resource_tag_review.php'; ?>
                     </div>
                 </div>
                 <div class="modal-footer border-top py-2.5 px-3.5 bg-light" style="border-radius: 0 0 12px 12px;">
@@ -3240,7 +3223,7 @@ function autoHighlightFslSigns() {
                         Cancel
                     </button>
                     <button type="submit" id="btnSubmitShareHub" class="btn btn-warning btn-sm fw-bold px-3 text-dark" style="border-radius: 6px;">
-                        <i class="ph-bold ph-share-network me-1"></i> Share Resource
+                        <i class="ph-bold ph-share-network me-1"></i> Publish Resource
                     </button>
                 </div>
             </form>
@@ -3267,7 +3250,8 @@ async function submitShareToHub(e) {
         pdsp_domain: document.getElementById('sharePackDomain').value,
         learning_level: document.getElementById('sharePackLevel').value.trim(),
         learning_competency: (document.getElementById('sharePackCompetency') ? document.getElementById('sharePackCompetency').value.trim() : ''),
-        tags: (document.getElementById('sharePackTags') ? document.getElementById('sharePackTags').value.trim() : '')
+        tags: (document.getElementById('sharePackTags') ? document.getElementById('sharePackTags').value.trim() : ''),
+        tags_approved: document.getElementById('sharePackTagsApproved').checked
     };
 
     try {

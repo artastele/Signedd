@@ -94,7 +94,7 @@ class IEPController {
         // Eligible students for new IEP (sped_teacher only)
         $eligibleStudents = [];
         if ($role === 'sped_teacher' || $role === 'admin') {
-            $eligibleStudents = $this->iepModel->getEligibleStudents($this->userId);
+            $eligibleStudents = $this->iepModel->getEligibleStudents($this->userId, $this->userRole);
         }
 
         // Available sections for filtering
@@ -120,6 +120,16 @@ class IEPController {
             $_SESSION['error'] = 'No student selected.';
             header('Location: ' . BASE_PATH . '/iep');
             exit;
+        }
+
+        // Authorization check: SPED Teachers can only create IEPs for students in their assigned sections
+        if ($this->userRole !== 'admin') {
+            $isAssigned = $this->iepModel->isStudentAssignedToTeacher((int)$studentId, (int)$this->userId);
+            if (!$isAssigned) {
+                $_SESSION['error'] = 'Access denied: You can only draft IEPs for learners in your assigned section(s).';
+                header('Location: ' . BASE_PATH . '/iep');
+                exit;
+            }
         }
 
         // Verify signed PDSP exists or auto-establish baseline for enrolled/invited student
@@ -464,8 +474,38 @@ class IEPController {
     }
 
     /**
-     * AJAX — create lesson plan from IEP step drawer (Process 6 tables + junction).
+     * Read-only local document preview for the currently opened IEP draft.
      */
+    public function importStepsPreview() {
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        require_once __DIR__ . '/../Services/IEPPartThreeImportService.php';
+        try {
+            $iepId = (int) ($_POST['iep_id'] ?? 0);
+            // Reject non-editors before looking up any learner information.
+            if (!in_array($this->userRole, ['sped_teacher', 'admin'], true)) {
+                throw new RuntimeException('Access denied. Only authorized IEP editors can import files.', 403);
+            }
+            $iep = $this->iepModel->findById($iepId);
+            IEPPartThreeImportService::authorize($this->userRole, (int)$this->userId, $iep ?: null,
+                $_POST['import_csrf'] ?? null, $_SESSION['iep_part3_import_csrf'][$iepId] ?? null);
+            $file = $_FILES['import_file'] ?? null;
+            if (!is_array($file) || !isset($file['error']) || is_array($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+                throw new RuntimeException('Upload a readable .docx or .xlsx file no larger than 5 MB.');
+            }
+            if (!is_string($file['tmp_name'] ?? null) || !is_uploaded_file($file['tmp_name']) || !is_string($file['name'] ?? null)) {
+                throw new RuntimeException('The file upload could not be verified. Please choose the file again.');
+            }
+            $preview = (new IEPPartThreeImportService())->read($file['tmp_name'], $file['name']);
+            echo json_encode(['success'=>true, 'iep_id'=>$iepId] + $preview, JSON_INVALID_UTF8_SUBSTITUTE);
+        } catch (Throwable $e) {
+            http_response_code($e->getCode() === 403 ? 403 : 422);
+            $msg = $e->getMessage() ?: 'The document could not be read. Save it again as .docx or .xlsx and retry.';
+            echo json_encode(['success' => false, 'message' => $msg]);
+        }
+    }
+
+    /** AJAX — create lesson plan from IEP step drawer (Process 6 tables + junction). */
     public function createLessonPlanForStep() {
         header('Content-Type: application/json; charset=utf-8');
         if (!in_array($this->userRole, ['sped_teacher','admin'], true)) {
@@ -1286,7 +1326,7 @@ class IEPController {
             echo json_encode(['success' => false, 'message' => 'Access denied']);
             exit;
         }
-        $rows = $this->iepModel->getEligibleStudents($this->userId);
+        $rows = $this->iepModel->getEligibleStudents($this->userId, $this->userRole);
         echo json_encode(['success' => true, 'students' => $rows]);
         exit;
     }

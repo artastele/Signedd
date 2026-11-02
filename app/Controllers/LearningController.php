@@ -590,7 +590,8 @@ class LearningController {
         if (!is_array($input)) {
             $input = $_POST;
         }
-        $answers = $input['answers'] ?? [];
+        $answers = is_array($input['answers'] ?? null) ? $input['answers'] : [];
+        unset($answers['_evidence_v1']);
         $attempts = $input['attempts'] ?? [];
         $accuracyPercentage = isset($input['accuracy_percentage']) ? (int)$input['accuracy_percentage'] : null;
 
@@ -609,19 +610,30 @@ class LearningController {
 
         $activityData = json_decode($activity['activity_data'] ?? '{}', true) ?? [];
         $type         = $activity['activity_type'] ?? '';
+        if (!is_array($activityData) || (in_array($type,['multiple_choice','true_false'],true) && isset($activityData['questions'])
+            && (!is_array($activityData['questions']) || count(array_filter($activityData['questions'],'is_array'))!==count($activityData['questions'])))) {
+            http_response_code(422);
+            echo json_encode(['success'=>false,'message'=>'This activity needs valid question definitions before grading.']); exit;
+        }
         $autoScore    = null;
         $maxScore     = (int) ($activity['max_score'] ?? 0);
+        if (!in_array($type,['sequencing','drag_drop_sort','flashcards','custom_printable'],true)) {
+            foreach ($answers as $answer) if ($answer !== null && !is_scalar($answer)) {
+                http_response_code(422);
+                echo json_encode(['success'=>false,'message'=>'Invalid answer format.']); exit;
+            }
+        }
 
         $db = Database::getInstance()->getConnection();
 
         // Attempt logging helper (scoring/accessibility)
         $pendingItemLogs = [];
-        $logAttempt = function($questionIndex, $selectedValue, $correctValue, $isCorrect) use (&$pendingItemLogs, $attempts) {
-            $itemAttempts = isset($attempts[$questionIndex]) ? (int)$attempts[$questionIndex] : 1;
+        require_once __DIR__ . '/../Services/ActivityEvidence.php';
+        $logAttempt = function($questionIndex, $selectedValue, $correctValue, $isCorrect) use (&$pendingItemLogs) {
             $pendingItemLogs[] = [
                 'qi' => $questionIndex,
-                'sv' => (string) $selectedValue . ($itemAttempts > 1 ? " (Attempts: {$itemAttempts})" : ""),
-                'cv' => (string) $correctValue,
+                'sv' => is_bool($selectedValue) ? ($selectedValue ? 'true' : 'false') : ActivityEvidence::text($selectedValue),
+                'cv' => is_bool($correctValue) ? ($correctValue ? 'true' : 'false') : ActivityEvidence::text($correctValue),
                 'ic' => $isCorrect ? 1 : 0
             ];
         };
@@ -652,93 +664,17 @@ class LearningController {
 
         switch ($type) {
             case 'multiple_choice':
+                require_once __DIR__ . '/../Services/ActivityEvidence.php';
                 $score = 0;
-                $extractOptionText = static function ($opt): string {
-                    if (is_array($opt)) {
-                        return (string)($opt['text'] ?? $opt['label'] ?? '');
-                    }
-                    return (string)$opt;
-                };
-
                 foreach ($activityData['questions'] ?? [] as $qi => $q) {
-                    $userAnswer = $answers[$qi] ?? null;
-                    $questionPoints = (int) ($q['points'] ?? 1);
-
-                    // Support options (standard) or choices (legacy/builder)
-                    $options = !empty($q['options']) && is_array($q['options'])
-                        ? $q['options']
-                        : (!empty($q['choices']) && is_array($q['choices']) ? $q['choices'] : []);
-
-                    // Resolve correct option index
-                    $correctIndex = null;
-                    if (isset($q['correct_answer']) && is_numeric($q['correct_answer'])) {
-                        $correctIndex = (int)$q['correct_answer'];
-                    } elseif (isset($q['correct']) && is_numeric($q['correct'])) {
-                        // Legacy 0-based index field (e.g. warm-up seed)
-                        $correctIndex = (int)$q['correct'];
-                    } else {
-                        foreach ($options as $oi => $opt) {
-                            $isCorrectOpt = is_array($opt) 
-                                ? ($opt['is_correct'] ?? $opt['isCorrect'] ?? $opt['correct_answer'] ?? null) 
-                                : null;
-                            if (!empty($isCorrectOpt)) {
-                                $correctIndex = (int)$oi;
-                                break;
-                            }
-                        }
+                    $evaluated = ActivityEvidence::multipleChoice($q, $answers[$qi] ?? null);
+                    if ($evaluated['expected'] === '') {
+                        http_response_code(422);
+                        echo json_encode(['success'=>false, 'message'=>'This question has no valid expected answer. Please ask the teacher to review it.']);
+                        exit;
                     }
-
-                    // Evaluate learner response
-                    $isCorrect = false;
-                    $userAnswerText = '';
-
-                    // 1. Numeric index submission (standard frontend player format)
-                    if ($userAnswer !== null && is_numeric($userAnswer) && isset($options[(int)$userAnswer])) {
-                        $userIndex = (int)$userAnswer;
-                        $userAnswerText = $extractOptionText($options[$userIndex]);
-                        if ($correctIndex !== null && $userIndex === $correctIndex) {
-                            $isCorrect = true;
-                        }
-                    } elseif ($userAnswer !== null && is_string($userAnswer) && trim($userAnswer) !== '') {
-                        // 2. Legacy text-based answer submission
-                        $trimmedAnswer = trim($userAnswer);
-                        
-                        // Collect all matching option indices
-                        $matchingIndices = [];
-                        foreach ($options as $oi => $opt) {
-                            if (strcasecmp(trim($extractOptionText($opt)), $trimmedAnswer) === 0) {
-                                $matchingIndices[] = (int)$oi;
-                            }
-                        }
-
-                        if (!empty($matchingIndices)) {
-                            // If option labels are duplicated, check if correctIndex is among them
-                            if ($correctIndex !== null && in_array($correctIndex, $matchingIndices, true)) {
-                                $isCorrect = true;
-                                $userAnswerText = $extractOptionText($options[$correctIndex]);
-                            } else {
-                                $isCorrect = false;
-                                $userAnswerText = $extractOptionText($options[$matchingIndices[0]]);
-                            }
-                        } else {
-                            $isCorrect = false;
-                            $userAnswerText = $trimmedAnswer;
-                        }
-                    } else {
-                        // Malformed or unanswered
-                        $isCorrect = false;
-                        $userAnswerText = is_scalar($userAnswer) ? (string)$userAnswer : '';
-                    }
-
-                    if ($isCorrect) {
-                        $score += $questionPoints;
-                    }
-
-                    $correctAnswerText = ($correctIndex !== null && isset($options[$correctIndex]))
-                        ? $extractOptionText($options[$correctIndex])
-                        : ($correctIndex !== null ? (string)$correctIndex : '');
-
-                    $logAttempt($qi, $userAnswerText, $correctAnswerText, $isCorrect);
+                    if ($evaluated['correct']) $score += (int)($q['points'] ?? 1);
+                    $logAttempt($qi, $evaluated['selected'], $evaluated['expected'], $evaluated['correct']);
                 }
                 $autoScore = $score;
                 break;
@@ -749,7 +685,7 @@ class LearningController {
                 if (!empty($activityData['questions'])) {
                     foreach ($activityData['questions'] as $q) {
                         $tfItems[] = [
-                            'answer' => $q['answer'] ?? $q['correct_answer'] ?? 'true',
+                            'answer' => $q['answer'] ?? $q['correct_answer'] ?? null,
                             'points' => $q['points'] ?? ($activityData['points'] ?? 1),
                         ];
                     }
@@ -761,8 +697,9 @@ class LearningController {
                 }
                 foreach ($tfItems as $ti => $item) {
                     $given = $answers[$ti] ?? ($ti === 0 ? ($answers['answer'] ?? null) : null);
-                    $correct = $item['answer'] ?? 'true';
-                    $isCorrect = (strtolower(trim((string)$given)) === strtolower(trim((string)$correct)));
+                    $correct = ActivityEvidence::booleanAnswer($item['answer'] ?? null);
+                    $given = ActivityEvidence::booleanAnswer($given);
+                    $isCorrect = ($correct !== '' && $given === $correct);
                     if ($isCorrect) {
                         $score += (int)($item['points'] ?? 1);
                     }
@@ -866,10 +803,28 @@ class LearningController {
                 foreach ($sets as $si => $set) {
                     $items = $set['items'] ?? $set['steps'] ?? [];
                     $correctOrder = $set['correct_order'] ?? [];
+                    if (!is_array($items) || !is_array($correctOrder)) {
+                        http_response_code(422);
+                        echo json_encode(['success'=>false,'message'=>'Invalid sequence definition.']); exit;
+                    }
                     if (empty($correctOrder)) {
-                        $correctOrder = range(0, count($items) - 1);
+                        $correctOrder = array_keys($items);
+                    }
+                    if (!$items || count($correctOrder)!==count($items)) {
+                        http_response_code(422);
+                        echo json_encode(['success'=>false,'message'=>'This sequence needs a complete expected order before grading.']); exit;
                     }
                     $givenOrder = is_array($answers[$si] ?? null) ? array_values($answers[$si]) : ($si === 0 ? array_values($answers) : []);
+                    foreach (array_merge($correctOrder,$givenOrder) as $index) {
+                        if ((!is_int($index) && !(is_string($index) && preg_match('/^\d+$/D',$index))) || !array_key_exists((int)$index,$items)) {
+                            http_response_code(422);
+                            echo json_encode(['success'=>false,'message'=>'Invalid sequence item identity.']); exit;
+                        }
+                    }
+                    if (count(array_unique($correctOrder))!==count($items)) {
+                        http_response_code(422);
+                        echo json_encode(['success'=>false,'message'=>'Expected sequence items must be unique.']); exit;
+                    }
                     
                     $isPass = ScoreHelper::compareOrder(
                         array_map('strval', $givenOrder),
@@ -883,18 +838,7 @@ class LearningController {
 
                     // Format evaluated sequence for accurate item-level logging
                     $formatSeq = static function(array $order) use ($items): string {
-                        if (empty($order)) return '(Empty)';
-                        $parts = [];
-                        foreach ($order as $idx) {
-                            if (isset($items[$idx])) {
-                                $val = $items[$idx];
-                                $parts[] = is_array($val) ? ($val['text'] ?? $val['title'] ?? $val['label'] ?? (string)$idx) : (string)$val;
-                            } else {
-                                $parts[] = (string)$idx;
-                            }
-                        }
-                        $str = implode(' -> ', $parts);
-                        return (mb_strlen($str) > 250) ? (mb_substr($str, 0, 247) . '...') : $str;
+                        return ActivityEvidence::sequenceText($items,$order);
                     };
 
                     $selectedSeq = $formatSeq($givenOrder);
@@ -949,17 +893,37 @@ class LearningController {
 
         $accuracyPercentage = ($autoScore !== null && $maxScore > 0) ? round(($autoScore / $maxScore) * 100, 2) : null;
         $needsRemediation = ($autoScore !== null && $maxScore > 0 && $accuracyPercentage < $threshold);
+        $submissionAnswersJson = json_encode($answers);
+        // Capture question context for new attempts in the existing attempt answers JSON.
+        if ($autoScore !== null) {
+            if (!$pendingItemLogs || $maxScore <= 0 || $autoScore > $maxScore) {
+                http_response_code(422);
+                echo json_encode(['success'=>false,'message'=>'This activity needs a valid score range and evaluated questions before grading.']); exit;
+            }
+            foreach ($pendingItemLogs as $item) {
+                if ($item['cv'] === '' || mb_strlen($item['cv']) > 250 || mb_strlen($item['sv']) > 250) {
+                    http_response_code(422);
+                    echo json_encode(['success'=>false, 'message'=>'Question evidence is missing or too long to record reliably. Please ask the teacher to review the activity.']);
+                    exit;
+                }
+                $answers['_evidence_v1'][(string)$item['qi']] = [
+                    'prompt'=>ActivityEvidence::prompt($activityData, (int)$item['qi'], $type),
+                    'expected'=>$item['cv'], 'selected'=>$item['sv'], 'correct'=>(bool)$item['ic'],
+                ];
+            }
+        }
         $answersJson = json_encode($answers);
         $flashcardResultsJson = ($type === 'flashcards' && !empty($input['flashcard_results'])) ? json_encode($input['flashcard_results']) : null;
 
         // Debounce: prevent duplicate attempt recording from rapid double submissions (< 2 seconds)
         $stmtDebounce = $db->prepare("
-            SELECT id FROM lms_activity_attempts 
+            SELECT id, answers FROM lms_activity_attempts
             WHERE activity_id = :a AND student_id = :s AND attempted_at >= NOW() - INTERVAL 2 SECOND 
             ORDER BY id DESC LIMIT 1
         ");
         $stmtDebounce->execute(['a' => $activityId, 's' => $studentId]);
-        $existingRecentAttemptId = $stmtDebounce->fetchColumn();
+        $recentAttempt = $stmtDebounce->fetch(PDO::FETCH_ASSOC);
+        $existingRecentAttemptId = $recentAttempt && ($recentAttempt['answers'] ?? '') === $answersJson ? (int)$recentAttempt['id'] : null;
 
         $attemptId = null;
         $db->beginTransaction();
@@ -1025,7 +989,7 @@ class LearningController {
             }
 
             // Always update lms_submissions as authoritative latest state
-            $this->model->saveSubmission($activityId, $studentId, $this->userId, $answersJson, $autoScore, $uploadedFilePath);
+            $this->model->saveSubmission($activityId, $studentId, $this->userId, $submissionAnswersJson, $autoScore, $uploadedFilePath);
             if ($flashcardResultsJson !== null) {
                 $db->prepare("UPDATE lms_submissions SET flashcard_results = :res WHERE activity_id = :a AND student_id = :s")
                    ->execute(['res' => $flashcardResultsJson, 'a' => $activityId, 's' => $studentId]);

@@ -98,7 +98,7 @@ $schoolCotCount = 0;
 $p1_cot = 0;
 $schoolResCount = 0;
 $p2 = 0;
-$p3 = ($certifiedFacultyCount > 0 || $fslRatio >= 75) ? 25 : 0;
+$p3 = $p3 > 0 ? 25 : 0;
 $p4 = $hasSip ? 25 : 0;
 $overallCompliance = 0;
 
@@ -115,76 +115,50 @@ if ($schoolId) {
             LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
             WHERE sr.school_id = :sid
               AND (
-                  sr.learning_track IN ('lms', 'candidate')
-                  OR es.learning_track IN ('lms', 'candidate')
-                  OR sr.claim_token IS NOT NULL
-                  OR sr.lms_invite_status IN ('sent', 'accepted')
-                  OR es.lms_invite_status IN ('sent', 'accepted')
-                  OR sr.learner_user_id IS NOT NULL
-                  OR sr.id IN (SELECT student_id FROM iep_records WHERE status = 'signed')
-                  OR sr.id IN (SELECT student_id FROM lms_submissions)
-                  OR sr.student_id IN (SELECT student_id FROM lms_submissions)
-                  OR sr.id IN (SELECT student_id FROM activity_attempt_log)
-                  OR sr.student_id IN (SELECT student_id FROM activity_attempt_log)
-                  OR sr.id IN (SELECT student_id FROM attendance_records)
-                  OR sr.student_id IN (SELECT student_id FROM attendance_records)
+                  (sr.learning_track = 'lms')
+                  OR (sr.learner_user_id IS NOT NULL)
+                  OR (es.learning_track = 'lms')
+                  OR (es.lms_track = 'lms_candidate')
+                  OR (es.survey_has_internet = 1 AND (es.survey_willing_online = 1 OR es.willing_digital = 1))
+                  OR (es.has_device = 1 AND es.willing_digital = 1)
+                  OR (es.modality_online = 1 OR es.modality_modular_digital = 1)
+                  OR (sr.id IN (SELECT student_id FROM lms_submissions))
+                  OR (sr.student_id IN (SELECT student_id FROM lms_submissions))
+                  OR (sr.id IN (SELECT student_id FROM activity_attempt_log))
+                  OR (sr.student_id IN (SELECT student_id FROM activity_attempt_log))
               )
+              AND (sr.learning_track != 'traditional' AND COALESCE(es.learning_track, '') != 'traditional')
         ");
         $schDlStmt->execute(['sid' => (int)$schoolId]);
         $schDlParticipating = (int)$schDlStmt->fetchColumn();
         $schoolDlRate = $schLearnersTotal > 0 ? round(($schDlParticipating / $schLearnersTotal) * 100, 1) : 0;
 
-        // Pillar 1a: Dynamically check published lesson plans or DLL documents for school
-        $lpCountStmt = $db->prepare("
-            SELECT COUNT(*) FROM lesson_plans lp
-            JOIN users u ON lp.created_by = u.id
-            WHERE u.school_id = :school_id AND lp.status = 'published'
-        ");
-        $lpCountStmt->execute(['school_id' => (int)$schoolId]);
-        $schoolLpCount = (int)$lpCountStmt->fetchColumn();
-
-        $dllCountStmt = $db->prepare("
-            SELECT COUNT(*) FROM traditional_iep_documents tid
-            JOIN student_records sr ON tid.student_id = sr.id
-            WHERE sr.school_id = :school_id AND tid.document_type = 'dll'
-        ");
-        $dllCountStmt->execute(['school_id' => (int)$schoolId]);
-        $schoolDllCount = (int)$dllCountStmt->fetchColumn();
-        $totalLpDllCount = $schoolLpCount + $schoolDllCount;
-        $p1_dll = $totalLpDllCount > 0 ? 12.5 : 0;
-
-        // Pillar 1b: Dynamically verify FINALIZED COT records
-        $cotCountStmt = $db->prepare("
-            SELECT COUNT(*) 
-            FROM classroom_observations co
-            JOIN users u ON co.observed_teacher_id = u.id
-            WHERE u.school_id = :school_id AND co.status = 'finalized'
-        ");
-        $cotCountStmt->execute(['school_id' => (int)$schoolId]);
-        $schoolCotCount = (int)$cotCountStmt->fetchColumn();
-        $p1_cot = $schoolCotCount > 0 ? 12.5 : 0;
-
-        // Pillar 2: Learning Resources (Materials Used with FSL captions / interactive slides)
-        $resCountStmt = $db->prepare("
-            SELECT COUNT(*) FROM (
-                SELECT lm.id FROM learning_materials lm 
-                JOIN users u ON lm.uploaded_by = u.id 
-                WHERE u.school_id = :sid1
-                UNION
-                SELECT lp.id FROM lesson_plans lp 
-                JOIN users u ON lp.created_by = u.id 
-                WHERE u.school_id = :sid2
-            ) AS all_res
-        ");
-        $resCountStmt->execute(['sid1' => (int)$schoolId, 'sid2' => (int)$schoolId]);
-        $schoolResCount = (int)$resCountStmt->fetchColumn();
-        $p2 = $schoolResCount > 0 ? 25 : 0;
-
-        $overallCompliance = round($p1_dll + $p1_cot + $p2 + $p3 + $p4, 1);
     } catch (\Throwable $e) {
         error_log('Principal compliance metrics query error: ' . $e->getMessage());
     }
 }
+require_once __DIR__ . '/../../Models/ObjectiveMetricsModel.php';
+$objectiveMetrics = ObjectiveMetricsModel::calculate([
+    'plans' => 0, 'dll' => 0, 'classroom_finalized' => 0, 'legacy_finalized' => 0,
+    'proficient' => 0, 'resources' => 0, 'certificates' => 0, 'signed_ieps' => 0, 'sip' => false,
+]);
+if ($mySchool) {
+    try {
+        $objectiveMetrics = (new ObjectiveMetricsModel($db))->forSchool($mySchool);
+    } catch (\Throwable $e) {
+        error_log('Principal objective metrics unavailable: ' . $e->getMessage());
+    }
+}
+$overallCompliance = $objectiveMetrics['so1']['score'];
+$p1_dll = $objectiveMetrics['points']['plans'];
+$p1_cot = $objectiveMetrics['points']['cot'];
+$p2 = $objectiveMetrics['points']['resources'];
+$p3 = $objectiveMetrics['points']['faculty'];
+$p4 = $objectiveMetrics['points']['sip'];
+$totalLpDllCount = $objectiveMetrics['evidence']['plans'] + $objectiveMetrics['evidence']['dll'];
+$schoolCotCount = $objectiveMetrics['evidence']['classroom_finalized'] + $objectiveMetrics['evidence']['legacy_finalized'];
+$schoolResCount = $objectiveMetrics['evidence']['resources'] + $objectiveMetrics['evidence']['plans'];
+
 ?>
 
 <body data-logged-in="true">
@@ -238,7 +212,7 @@ if ($schoolId) {
                             <span class="badge bg-secondary me-1">DepEd School ID: <?php echo htmlspecialchars($mySchool['school_id']); ?></span>
                             <span class="badge bg-info text-dark me-1"><?php echo htmlspecialchars($mySchool['division'] ?? 'Division'); ?></span>
                             <?php if (!empty($mySchool['sip_path'])): ?>
-                                <span class="badge bg-success"><i class="bi bi-file-earmark-pdf-fill me-1"></i> SIP Verified</span>
+                                <span class="badge bg-success"><i class="bi bi-file-earmark-pdf-fill me-1"></i> SIP on file</span>
                             <?php else: ?>
                                 <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i> SIP Pending</span>
                             <?php endif; ?>
@@ -275,55 +249,16 @@ if ($schoolId) {
                                 </div>
                             </div>
 
-                            <!-- Card 2: FSL Program Adoption (Specific Objective 3) -->
-                            <div class="col-4 text-center" title="Specific Objective 3: Integration of Filipino Sign Language (FSL) in teacher education programs to at least 75% program adoption.">
-                                <div class="p-2 bg-light rounded-3 border h-100 d-flex flex-column justify-content-between">
-                                    <div>
-                                        <div class="small fw-bold text-dark mb-1" style="font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                            <i class="bi bi-award-fill text-warning me-1"></i> FSL Adoption
-                                        </div>
-                                        <div class="h5 fw-bold mb-0 <?php echo $certifiedFacultyCount >= 1 ? 'text-success' : 'text-danger'; ?>">
-                                            <?php echo $certifiedFacultyCount >= 1 ? '1 / 1' : '0 / 1'; ?>
-                                        </div>
-                                        <div class="progress my-1" style="height: 4px;">
-                                            <div class="progress-bar <?php echo $certifiedFacultyCount >= 1 ? 'bg-success' : 'bg-danger'; ?>" 
-                                                 role="progressbar" 
-                                                 style="width: <?php echo $certifiedFacultyCount >= 1 ? '100' : '0'; ?>%;" 
-                                                 aria-valuenow="<?php echo $certifiedFacultyCount >= 1 ? '100' : '0'; ?>" 
-                                                 aria-valuemin="0" 
-                                                 aria-valuemax="100"></div>
-                                        </div>
-                                    </div>
-                                    <span class="badge <?php echo $certifiedFacultyCount >= 1 ? 'bg-success' : 'bg-warning text-dark'; ?>" style="font-size: 0.62rem;">
-                                        <?php echo $certifiedFacultyCount >= 1 ? '✓ Target Met (1 Required)' : '○ Below Target'; ?>
-                                    </span>
+                            <?php foreach (['so2' => 'FSL program evidence', 'so1' => 'School policy evidence'] as $key => $label): $metric = $objectiveMetrics[$key]; ?>
+                            <div class="col-4 text-center">
+                                <div class="p-2 bg-light rounded-3 border h-100">
+                                    <div class="small fw-bold"><?php echo $label; ?></div>
+                                    <div class="h5 mb-1"><?php echo $metric['score']; ?>%</div>
+                                    <div class="small"><?php echo $key === 'so1' ? $metric['score'] . '/100 points; ' : ''; ?><?php echo $metric['met']; ?>/4 <?php echo $key === 'so1' ? 'criteria' : 'indicators'; ?></div>
+                                    <span class="badge <?php echo $metric['passed'] ? 'bg-success' : 'bg-warning text-dark'; ?>"><?php echo $metric['status']; ?></span>
                                 </div>
                             </div>
-
-                            <!-- Card 3: School Policy Compliance (Specific Objective 2) -->
-                            <div class="col-4 text-center" title="Specific Objective 2: Implementation of inclusive content policies for hearing-impaired students to at least 85% compliance across DepEd schools.">
-                                <div class="p-2 bg-light rounded-3 border h-100 d-flex flex-column justify-content-between">
-                                    <div>
-                                        <div class="small fw-bold text-dark mb-1" style="font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                            <i class="bi bi-shield-check text-success me-1"></i> Compliance
-                                        </div>
-                                        <div class="h5 fw-bold mb-0 <?php echo $overallCompliance >= 85 ? 'text-success' : 'text-warning text-dark'; ?>">
-                                            <?php echo $overallCompliance; ?>%
-                                        </div>
-                                        <div class="progress my-1" style="height: 4px;">
-                                            <div class="progress-bar <?php echo $overallCompliance >= 85 ? 'bg-success' : 'bg-warning'; ?>" 
-                                                 role="progressbar" 
-                                                 style="width: <?php echo min(100, (float)$overallCompliance); ?>%;" 
-                                                 aria-valuenow="<?php echo $overallCompliance; ?>" 
-                                                 aria-valuemin="0" 
-                                                 aria-valuemax="100"></div>
-                                        </div>
-                                    </div>
-                                    <span class="badge <?php echo $overallCompliance >= 85 ? 'bg-success' : 'bg-warning text-dark'; ?>" style="font-size: 0.62rem;">
-                                        <?php echo $overallCompliance >= 85 ? '✓ Compliant (≥85%)' : '○ Action Req.'; ?>
-                                    </span>
-                                </div>
-                            </div>
+                            <?php endforeach; ?>
                         </div>
                     </div>
                 </div>
@@ -338,10 +273,10 @@ if ($schoolId) {
                 <h5 class="mb-0 fw-bold text-dark fs-6">
                     <i class="bi bi-shield-check text-success me-2"></i> Policy Compliance & Means of Verification (MOVs) Indicators
                 </h5>
-                <small class="text-muted" style="font-size: 0.75rem;">A school is considered compliant if it meets all indicators supported by appropriate MOVs.</small>
+                <small class="text-muted" style="font-size: 0.75rem;">All four criteria remain required. Evidence presence is not independent MOV verification. Scores are cumulative across all periods; overall objective targets are 85% of evaluated schools and 75% of evaluated programs. Individual passing thresholds of 85% / 75% and alternatives to finalized COT require approval and are inactive.</small>
             </div>
-            <span class="badge <?php echo $overallCompliance >= 85 ? 'bg-success' : 'bg-warning text-dark'; ?> px-3 py-1.5 fw-bold">
-                Compliance: <?php echo $overallCompliance; ?>% (Target: &ge; 85%)
+            <span class="badge <?php echo $objectiveMetrics['so1']['passed'] ? 'bg-success' : 'bg-warning text-dark'; ?> px-3 py-1.5 fw-bold">
+                Evidence readiness: <?php echo $overallCompliance; ?>% (<?php echo $overallCompliance; ?>/100 points) &mdash; <?php echo $objectiveMetrics['so1']['status']; ?>
             </span>
         </div>
         <div class="card-body p-4">
@@ -360,7 +295,7 @@ if ($schoolId) {
                             <strong>MOV:</strong> Lesson Plans (DLL / DLP)
                         </div>
                         <?php if ($p1_dll > 0): ?>
-                            <span class="text-success fw-bold small" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Verified & Active (<?php echo $totalLpDllCount; ?> Plan<?php echo $totalLpDllCount > 1 ? 's' : ''; ?>)</span>
+                            <span class="text-success fw-bold small" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Evidence on file (<?php echo $totalLpDllCount; ?> Plan<?php echo $totalLpDllCount > 1 ? 's' : ''; ?>)</span>
                         <?php else: ?>
                             <span class="text-warning fw-bold small d-block" style="font-size: 0.75rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i> No Lesson Plans Published</span>
                             <small class="text-muted d-block" style="font-size: 0.65rem;">Teachers publish via Lesson Builder / DLL.</small>
@@ -383,7 +318,7 @@ if ($schoolId) {
                         </div>
                         <?php if ($p1_cot > 0): ?>
                             <span class="text-success fw-bold small" style="font-size: 0.75rem;">
-                                <i class="bi bi-check-circle-fill me-1"></i> Verified & Active (<?php echo $schoolCotCount; ?> Record<?php echo $schoolCotCount > 1 ? 's' : ''; ?>)
+                                <i class="bi bi-check-circle-fill me-1"></i> Evidence on file (<?php echo $schoolCotCount; ?> Record<?php echo $schoolCotCount > 1 ? 's' : ''; ?>)
                             </span>
                         <?php else: ?>
                             <span class="text-secondary fw-semibold small d-block" style="font-size: 0.75rem;"><i class="bi bi-info-circle me-1"></i> Master Teacher / Observers</span>
@@ -406,7 +341,7 @@ if ($schoolId) {
                             <strong>MOV:</strong> Learning Materials (modules/videos)
                         </div>
                         <?php if ($p2 > 0): ?>
-                            <span class="text-success fw-bold small" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Verified & Active (<?php echo $schoolResCount; ?> Resource<?php echo $schoolResCount > 1 ? 's' : ''; ?>)</span>
+                            <span class="text-success fw-bold small" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Evidence on file (<?php echo $schoolResCount; ?> Resource<?php echo $schoolResCount > 1 ? 's' : ''; ?>)</span>
                         <?php else: ?>
                             <span class="text-warning fw-bold small d-block" style="font-size: 0.75rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i> No Learning Resources Active</span>
                             <small class="text-muted d-block" style="font-size: 0.65rem;">Created via Lesson Slide Builder & Modules.</small>
@@ -416,10 +351,10 @@ if ($schoolId) {
 
                 <!-- Pillar 3: Faculty Development (Teacher Skills) -->
                 <div class="col-md-6 col-lg-4 col-xl-2" style="flex: 0 0 20%; max-width: 20%;">
-                    <div class="p-3 rounded-3 border <?php echo ($certifiedFacultyCount > 0 || $fslRatio >= 75) ? 'bg-success bg-opacity-10 border-success' : 'bg-light border-danger'; ?> h-100">
+                    <div class="p-3 rounded-3 border <?php echo $p3 > 0 ? 'bg-success bg-opacity-10 border-success' : 'bg-light border-danger'; ?> h-100">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <span class="fw-bold small text-dark" style="font-size: 0.8rem;">3. Faculty Development</span>
-                            <span class="badge <?php echo ($certifiedFacultyCount > 0 || $fslRatio >= 75) ? 'bg-success' : 'bg-danger'; ?>"><?php echo ($certifiedFacultyCount > 0 || $fslRatio >= 75) ? '+25%' : '0%'; ?></span>
+                            <span class="badge <?php echo $p3 > 0 ? 'bg-success' : 'bg-danger'; ?>"><?php echo $p3 > 0 ? '+25%' : '0%'; ?></span>
                         </div>
                         <p class="small text-secondary mb-2" style="font-size: 0.72rem;">
                             <strong>Teacher Skills:</strong> Teachers trained in FSL / inclusive education participating in discussions.
@@ -428,8 +363,8 @@ if ($schoolId) {
                             <strong>MOV:</strong> Training Certificates
                         </div>
                         <?php if ($certifiedFacultyCount > 0): ?>
-                            <span class="text-success fw-bold small d-block mb-1" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Verified & Active (1 / 1 Certified)</span>
-                            <small class="text-muted d-block" style="font-size: 0.65rem;">Training certificate verified via staff registry.</small>
+                            <span class="text-success fw-bold small d-block mb-1" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i> Evidence on file (<?php echo $certifiedFacultyCount; ?> / <?php echo $totalFacultyCount; ?> faculty)</span>
+                            <small class="text-muted d-block" style="font-size: 0.65rem;">Training certificate path recorded in staff registry.</small>
                         <?php else: ?>
                             <span class="text-danger fw-bold small d-block mb-1" style="font-size: 0.72rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i> 0 / 1 Certified</span>
                             <small class="text-muted d-block" style="font-size: 0.65rem;">At least 1 trained teacher required via staff registry.</small>
@@ -451,7 +386,7 @@ if ($schoolId) {
                             <strong>MOV:</strong> School Improvement Plan (SIP)
                         </div>
                         <?php if ($hasSip): ?>
-                            <span class="text-success fw-bold small d-block mb-1.5" style="font-size: 0.72rem;"><i class="bi bi-check-circle-fill me-1"></i> SIP Verified</span>
+                            <span class="text-success fw-bold small d-block mb-1.5" style="font-size: 0.72rem;"><i class="bi bi-check-circle-fill me-1"></i> SIP on file</span>
                             <button type="button" class="btn btn-xs btn-outline-success w-100 py-1 fw-bold" style="font-size: 0.72rem; border-radius: 6px;" data-bs-toggle="modal" data-bs-target="#viewSipPdfModal">
                                 <i class="bi bi-file-earmark-pdf-fill me-1"></i> View SIP PDF
                             </button>
@@ -1004,7 +939,7 @@ $currSettings = $sysModelObj->getEnrollmentSettings();
                         <div class="form-text small">Upload your school's official School Improvement Plan (SIP PDF document) for Pillar 4 policy verification.</div>
                         <?php if (!empty($mySchool['sip_path'])): ?>
                             <div class="mt-2 p-2 bg-light rounded border d-flex align-items-center justify-content-between">
-                                <span class="small text-success fw-semibold"><i class="bi bi-check-circle-fill me-1"></i> Current SIP Document Uploaded & Verified</span>
+                                <span class="small text-success fw-semibold"><i class="bi bi-check-circle-fill me-1"></i> Current SIP Document Uploaded</span>
                                 <a href="<?php echo $basePath . '/' . htmlspecialchars($mySchool['sip_path']); ?>" target="_blank" class="btn btn-xs btn-outline-primary py-0 px-2" style="font-size: 0.75rem; border-radius: 6px;">View PDF</a>
                             </div>
                         <?php endif; ?>

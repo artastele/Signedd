@@ -16,11 +16,15 @@ require_once __DIR__ . '/../layouts/header.php';
         box-shadow: 0 4px 14px rgba(0,0,0,0.08);
     }
     .badge-lis-status {
-        font-size: 0.75rem;
-        font-weight: 700;
-        padding: 4px 10px;
-        border-radius: 20px;
-        letter-spacing: 0.5px;
+        display: inline-flex;
+        align-items: center;
+        white-space: nowrap;
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 4px 9px;
+        border-radius: 50px;
+        letter-spacing: 0.3px;
+        line-height: 1.2;
     }
     .badge-disability {
         font-size: 0.75rem;
@@ -783,7 +787,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <th>Grade &amp; Section</th>
                                 <th>Learning Track</th>
                                 <th>Disability Category</th>
-                                <th>Registry Status</th>
+                                <th class="text-nowrap">Registry Status</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -865,7 +869,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                                 <i class="bi bi-person-wheelchair me-1"></i><?= htmlspecialchars($l['disability_type'] ?? 'Hearing Impaired (DHH)') ?>
                                             </span>
                                         </td>
-                                        <td>
+                                        <td class="text-nowrap">
                                             <span class="badge-lis-status <?= $badgeClass ?>">
                                                 <i class="bi <?= $isRegistered ? 'bi-check-circle-fill' : 'bi-clock-history' ?> me-1"></i><?= $isRegistered ? 'REGISTERED' : 'PENDING LRN' ?>
                                             </span>

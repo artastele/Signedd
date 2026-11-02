@@ -175,17 +175,16 @@ class MasterlistModel {
             SELECT 
                 COUNT(*) AS total_enrolled,
                 SUM(CASE 
-                    WHEN sr.learning_track = 'lms' 
-                      OR sr.learner_user_id IS NOT NULL 
-                      OR es.lms_track = 'signed' 
-                      OR es.lms_track = '1' 
-                      OR es.lms_track = 1 
-                      OR es.learning_track = 'lms' 
-                      OR (es.survey_has_internet = 1 AND (es.survey_willing_online = 1 OR es.willing_digital = 1)) 
-                      OR (es.has_device = 1 AND es.willing_digital = 1) 
-                      OR es.modality_online = 1 
-                      OR es.modality_modular_digital = 1
-                    THEN 1 ELSE 0 
+                    WHEN sr.learning_track = 'traditional' THEN 0
+                    WHEN sr.learning_track = 'lms' THEN 1
+                    WHEN sr.learner_user_id IS NOT NULL THEN 1
+                    WHEN es.learning_track = 'traditional' THEN 0
+                    WHEN es.learning_track = 'lms' THEN 1
+                    WHEN es.lms_track = 'lms_candidate' THEN 1
+                    WHEN (es.survey_has_internet = 1 AND (es.survey_willing_online = 1 OR es.willing_digital = 1)) THEN 1
+                    WHEN (es.has_device = 1 AND es.willing_digital = 1) THEN 1
+                    WHEN es.modality_online = 1 OR es.modality_modular_digital = 1 THEN 1
+                    ELSE 0
                 END) AS lms_count,
                 SUM(CASE 
                     WHEN (sr.lis_status = 'synced' OR (sr.lrn IS NOT NULL AND CHAR_LENGTH(TRIM(sr.lrn)) = 12))
@@ -210,17 +209,16 @@ class MasterlistModel {
                 s.region,
                 COUNT(sr.id) AS enrolled_count,
                 SUM(CASE 
-                    WHEN sr.learning_track = 'lms' 
-                      OR sr.learner_user_id IS NOT NULL 
-                      OR es.lms_track = 'signed' 
-                      OR es.lms_track = '1' 
-                      OR es.lms_track = 1 
-                      OR es.learning_track = 'lms' 
-                      OR (es.survey_has_internet = 1 AND (es.survey_willing_online = 1 OR es.willing_digital = 1)) 
-                      OR (es.has_device = 1 AND es.willing_digital = 1) 
-                      OR es.modality_online = 1 
-                      OR es.modality_modular_digital = 1
-                    THEN 1 ELSE 0 
+                    WHEN sr.learning_track = 'traditional' THEN 0
+                    WHEN sr.learning_track = 'lms' THEN 1
+                    WHEN sr.learner_user_id IS NOT NULL THEN 1
+                    WHEN es.learning_track = 'traditional' THEN 0
+                    WHEN es.learning_track = 'lms' THEN 1
+                    WHEN es.lms_track = 'lms_candidate' THEN 1
+                    WHEN (es.survey_has_internet = 1 AND (es.survey_willing_online = 1 OR es.willing_digital = 1)) THEN 1
+                    WHEN (es.has_device = 1 AND es.willing_digital = 1) THEN 1
+                    WHEN es.modality_online = 1 OR es.modality_modular_digital = 1 THEN 1
+                    ELSE 0
                 END) AS lms_count,
                 SUM(CASE 
                     WHEN (sr.lis_status = 'synced' OR (sr.lrn IS NOT NULL AND CHAR_LENGTH(TRIM(sr.lrn)) = 12))
@@ -229,6 +227,7 @@ class MasterlistModel {
             FROM schools s
             LEFT JOIN student_records sr ON sr.school_id = s.id
             LEFT JOIN enrollment_submissions es ON sr.enrollment_id = es.id
+            WHERE s.school_name NOT LIKE '%Cebu%'
             GROUP BY s.id, s.school_name, s.school_id, s.division, s.region
             ORDER BY enrolled_count DESC, s.school_name ASC
         ");

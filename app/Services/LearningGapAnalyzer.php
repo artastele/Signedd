@@ -12,6 +12,7 @@
 //   - lesson_plans.score_threshold : lesson context only (NOT an IEP indicator)
 
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/ActivityEvidence.php';
 
 class LearningGapAnalyzer {
     public const TREND_IMPROVING    = 'Improving';
@@ -68,6 +69,24 @@ class LearningGapAnalyzer {
         $attempts    = $this->fetchAttempts($studentId, $activityId);
         $logsByAtt   = $this->fetchLogsByAttempt(array_column($attempts, 'id'));
         $limitations = [];
+        $ambiguousLogs = 0;
+        foreach ($logsByAtt as &$logs) {
+            $logs = array_values(array_filter($logs, function ($log) use (&$ambiguousLogs): bool {
+                if ($log['is_correct'] !== null && ActivityEvidence::ambiguous($log)) { $ambiguousLogs++; return false; }
+                return true;
+            }));
+        }
+        unset($logs);
+        if ($ambiguousLogs) $limitations[] = "{$ambiguousLogs} item log(s) have missing expected answers, contradictory selected/expected values, or duplicate-label ambiguity. Historical scores remain unchanged; these logs cannot establish a specific difficulty.";
+        foreach ($attempts as $attempt) {
+            $captured = json_decode($attempt['answers'] ?? '{}',true)['_evidence_v1'] ?? [];
+            foreach ($logsByAtt[(int)$attempt['id']] ?? [] as $index => $log) {
+                $entry = $captured[(string)$log['question_index']] ?? [];
+                if (($entry['expected'] ?? null) === $log['correct_value'] && ($entry['selected'] ?? null) === $log['selected_value']) {
+                    $logsByAtt[(int)$attempt['id']][$index]['_captured_prompt'] = (string)($entry['prompt'] ?? '');
+                }
+            }
+        }
 
         // ── Factor 2: Attempts ─────────────────────────────────────
         $graded   = [];
@@ -92,8 +111,8 @@ class LearningGapAnalyzer {
         $accuracyHistory = array_map(fn($a) => [
             'attempt_id'     => (int)$a['id'],
             'attempt_number' => (int)$a['attempt_number'],
-            'score'          => $a['score'] !== null ? (int)$a['score'] : null,
-            'max_score'      => $a['max_score'] !== null ? (int)$a['max_score'] : null,
+            'score'          => $a['score'] !== null ? (float)$a['score'] : null,
+            'max_score'      => $a['max_score'] !== null ? (float)$a['max_score'] : null,
             'accuracy'       => $this->attemptAccuracy($a),
             'graded'         => $this->attemptAccuracy($a) !== null,
             'comparable'     => in_array((int)$a['id'], array_map(fn($c) => (int)$c['id'], $comparable), true),
@@ -102,6 +121,30 @@ class LearningGapAnalyzer {
 
         $latestGraded   = $graded ? end($graded) : null;
         $latestAccuracy = $latestGraded ? $latestGraded['_accuracy'] : null;
+        $latestAttempt = $attempts ? end($attempts) : null;
+        $latestResult = $latestAttempt ? $this->attemptAccuracy($latestAttempt) : null;
+        $latestIncorrect = [];
+        $snapshot = $latestAttempt ? (json_decode($latestAttempt['answers'] ?? '{}', true)['_evidence_v1'] ?? []) : [];
+        if ($latestAttempt && $latestResult !== null) {
+            foreach ($logsByAtt[(int)$latestAttempt['id']] ?? [] as $log) {
+                if ($log['is_correct'] !== null && (int)$log['is_correct'] === 0 && trim((string)$log['correct_value']) !== '') {
+                    $latestIncorrect[(int)$log['question_index']] = [
+                        'question_index' => (int)$log['question_index'],
+                        'expected' => (string)$log['correct_value'],
+                        'unit' => in_array($activity['activity_type'],self::SEQUENCE_LEVEL_TYPES,true) ? 'sequence' : 'item',
+                        'prompt' => isset($snapshot[(string)$log['question_index']])
+                            && ($snapshot[(string)$log['question_index']]['expected'] ?? null) === $log['correct_value']
+                            && ($snapshot[(string)$log['question_index']]['selected'] ?? null) === $log['selected_value']
+                            && ($snapshot[(string)$log['question_index']]['correct'] ?? null) === false
+                            ? (string)($snapshot[(string)$log['question_index']]['prompt'] ?? '') : '',
+                    ];
+                }
+            }
+        }
+        if ($latestResult !== null && $latestResult < 100 && !$latestIncorrect
+            ) {
+            $limitations[] = 'The latest score is below full marks, but there is insufficient reliable item evidence to establish an actionable difficulty. A new evaluated attempt may provide clearer evidence.';
+        }
 
         // Smallest detectable change = one raw point of the activity's max score (data-derived, not universal).
         $maxScoreRef  = $latestGraded ? (int)$latestGraded['max_score'] : (int)($activity['max_score'] ?? 0);
@@ -141,6 +184,8 @@ class LearningGapAnalyzer {
         $limitations[] = 'Question identity is verified by matching question index AND expected value across attempts; lms_activities has no version history.';
 
         $teacherReview = $this->teacherReviewStatus($trend, $consistency, $itemFindings, $iepLinks, $lessonContext, count($graded));
+        $activityData = json_decode($activity['activity_data'] ?? '{}', true) ?: [];
+        $competency = $activityData['learning_competency'] ?? $activityData['competency'] ?? '';
 
         return [
             'student_id'     => $studentId,
@@ -150,11 +195,15 @@ class LearningGapAnalyzer {
                 'type'           => $activity['activity_type'],
                 'max_score'      => $activity['max_score'] !== null ? (int)$activity['max_score'] : null,
                 'lesson_plan_id' => (int)$activity['lesson_plan_id'],
+                'competency'     => is_string($competency) ? $competency : '',
             ],
             'iep_objectives' => $iepLinks,
             'factors' => [
                 'accuracy' => [
                     'latest_accuracy'  => $latestAccuracy,
+                    'latest_result_accuracy' => $latestResult,
+                    'latest_incorrect_items' => array_values($latestIncorrect),
+                    'ambiguous_log_count' => $ambiguousLogs,
                     'accuracy_history' => $accuracyHistory,
                 ],
                 'attempts' => [
@@ -196,7 +245,7 @@ class LearningGapAnalyzer {
 
     private function fetchAttempts(int $studentId, int $activityId): array {
         $stmt = $this->db->prepare("
-            SELECT id, attempt_number, score, max_score, accuracy_percentage,
+            SELECT id, attempt_number, score, max_score, accuracy_percentage, answers,
                    is_remedial_attempt, needs_remediation, attempted_at
             FROM lms_activity_attempts
             WHERE student_id = :s AND activity_id = :a
@@ -273,13 +322,46 @@ class LearningGapAnalyzer {
 
     /** Accuracy for a graded attempt; NULL when ungraded. */
     private function attemptAccuracy(array $att): ?float {
-        if ($att['score'] === null || $att['max_score'] === null || (int)$att['max_score'] <= 0) {
+        if (!is_numeric($att['score'] ?? null) || !is_numeric($att['max_score'] ?? null)
+            || (float)$att['max_score'] <= 0 || (float)$att['score'] < 0
+            || (float)$att['score'] > (float)$att['max_score']) {
             return null;
         }
-        if ($att['accuracy_percentage'] !== null) {
-            return round((float)$att['accuracy_percentage'], 2);
+        return ((float)$att['score'] / (float)$att['max_score']) * 100;
+    }
+
+    public static function suggestedRating(?float $percentage): ?string {
+        if ($percentage === null || !is_finite($percentage) || $percentage < 0 || $percentage > 100) return null;
+        if ($percentage >= 90) return 'P';
+        if ($percentage >= 75) return 'AP';
+        if ($percentage >= 50) return 'D';
+        return 'B';
+    }
+
+    public static function observation(array $factors): string {
+        $attempts = $factors['attempts'] ?? [];
+        if (empty($attempts['graded'])) return 'No valid graded result is recorded yet.';
+        $accuracy = $factors['accuracy'] ?? [];
+        if (array_key_exists('latest_result_accuracy', $accuracy) && $accuracy['latest_result_accuracy'] === null) {
+            return 'The latest attempt has no valid graded result. Review the earlier graded attempts below.';
         }
-        return round(((int)$att['score'] / (int)$att['max_score']) * 100, 2);
+        $count = count($accuracy['latest_incorrect_items'] ?? []);
+        if (!$count && ($accuracy['latest_result_accuracy'] ?? 100) < 100
+            && (!empty($accuracy['ambiguous_log_count']) || ($attempts['graded'] ?? 0) === 1)) return 'Insufficient reliable item evidence to identify a specific learning difficulty. Review the score and evidence limitations below.';
+        $practice = $count ? "The learner needs more practice with {$count} incorrectly answered item(s). " : '';
+        if (($attempts['graded'] ?? 0) === 1) {
+            return $practice . 'Only one graded attempt is recorded. More results are needed to identify a pattern.';
+        }
+        $active = array_filter($factors['consistency']['recurring_incorrect_items'] ?? [],
+            fn($item) => !empty($item['still_incorrect_latest']) && ($item['incorrect_in_attempts'] ?? 0) >= 2);
+        if ($active) return count($active) . ' item(s) were answered incorrectly across multiple recorded attempts. More practice may help.';
+        $n = (int)($attempts['comparable'] ?? 0);
+        $trend = $factors['performance_trend']['classification'] ?? self::INSUFFICIENT;
+        if ($n >= 2 && $trend === self::TREND_IMPROVING) return $practice . "The learner has improved across {$n} comparable attempts.";
+        if ($n >= 2 && $trend === self::TREND_DECLINING) return $practice . "Scores decreased across {$n} comparable attempts. Teacher review may help.";
+        return $practice . ($n >= 2 && $trend === self::TREND_STABLE
+            ? 'Scores remained similar across comparable attempts.'
+            : 'More comparable results are needed to identify a pattern.');
     }
 
     /** Fingerprint of an attempt's item set: question_index + expected value. */
@@ -287,7 +369,7 @@ class LearningGapAnalyzer {
         if (empty($logs)) return null;
         $parts = [];
         foreach ($logs as $l) {
-            $parts[] = (int)$l['question_index'] . '=' . mb_strtolower(trim((string)$l['correct_value']));
+            $parts[(int)$l['question_index']] = (int)$l['question_index'] . '=' . mb_strtolower(trim((string)$l['correct_value'])) . '|prompt=' . ($l['_captured_prompt'] ?? '');
         }
         sort($parts);
         return md5(implode('|', $parts));
@@ -307,7 +389,9 @@ class LearningGapAnalyzer {
         foreach ($graded as $att) {
             if ((int)$att['max_score'] !== $refMax) continue;
             $fp = $this->itemFingerprint($logsByAtt[(int)$att['id']] ?? []);
-            if ($refFp !== null && $fp !== null && $fp !== $refFp) continue;
+            if ($fp === null || $refFp === null || $fp !== $refFp) {
+                if ((int)$att['id'] !== (int)$ref['id']) continue;
+            }
             $comparable[] = $att;
         }
         return [$comparable, count($graded) - count($comparable)];
@@ -452,9 +536,12 @@ class LearningGapAnalyzer {
         }
 
         $items = [];
-        $latestId = end($withLogs);
+        $latestId = end($attIds);
         foreach ($withLogs as $id) {
-            foreach ($logsByAtt[$id] as $l) {
+            $uniqueLogs = [];
+            foreach ($logsByAtt[$id] as $l) $uniqueLogs[(int)$l['question_index']] = $l;
+            foreach ($uniqueLogs as $l) {
+                if ($l['is_correct'] === null) continue;
                 $qi = (int)$l['question_index'];
                 if (in_array($qi, $conflicts, true)) continue;
                 $items[$qi] ??= [
