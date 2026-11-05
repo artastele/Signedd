@@ -114,6 +114,7 @@ class RoleController {
         $employeeNumber = trim($_POST['employee_number'] ?? '');
         $schoolMode = $_POST['school_mode'] ?? 'existing';
         $schoolId = $_POST['school_id'] ?? null;
+        $isNewSchoolApplication = false;
 
         // Validation
         $errors = [];
@@ -140,7 +141,7 @@ class RoleController {
             } else {
                 $existingSchool = $this->schoolModel->findBySchoolCode($newCode);
                 if ($existingSchool) {
-                    $schoolId = $existingSchool['id'];
+                    $errors[] = 'This DepEd School ID is already registered. Select the existing school instead of creating a new one.';
                 } else {
                     // School logo validation
                     if (empty($_FILES['school_logo']['name']) || $_FILES['school_logo']['error'] !== UPLOAD_ERR_OK) {
@@ -148,6 +149,7 @@ class RoleController {
                     } else {
                         $schoolId = $this->schoolModel->createSchool($newCode, $newName, $newDiv, $newReg, $newAddr);
                         if ($schoolId) {
+                            $isNewSchoolApplication = true;
                             $logoFile = $_FILES['school_logo'];
                             $logoDir = public_path('uploads/schools/');
                             if (!is_dir($logoDir)) {
@@ -270,6 +272,7 @@ class RoleController {
             'employee_number' => $employeeNumber,
             'principal_rank' => $principalRank,
             'school_id' => $schoolId,
+            'school_mode' => $isNewSchoolApplication ? 'new' : 'existing',
             'files' => $uploadedFiles,
             'certifications' => $uploadedCertifications
         ];

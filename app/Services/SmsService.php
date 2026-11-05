@@ -46,6 +46,7 @@ class SmsService {
      * Ensure sms_logs table exists
      */
     private function ensureTable(): void {
+        if (!runtime_schema_changes_allowed()) return;
         try {
             $this->db->exec("
                 CREATE TABLE IF NOT EXISTS `sms_logs` (

@@ -2,6 +2,11 @@
 $pageTitle = 'Verify Email - SignED';
 $basePath = defined('BASE_PATH') ? BASE_PATH : '';
 require_once __DIR__ . '/../layouts/header.php';
+$verifyCsrfToken = CSRFHelper::generateToken();
+$resendCsrfToken = CSRFHelper::generateToken();
+$localOtp = (class_exists('MailHelper') && MailHelper::localVerificationFallbackAllowed())
+    ? ($_SESSION['dev_otp_code'] ?? null)
+    : null;
 ?>
 
 <div class="auth-container">
@@ -17,7 +22,7 @@ require_once __DIR__ . '/../layouts/header.php';
             
             <h1>Email Verification</h1>
             <p>Verify your email address to continue</p>
-            <p>We've sent a 6-digit code to your email</p>
+            <p>Use the 6-digit code sent to your email</p>
         </div>
     </div>
 
@@ -47,8 +52,17 @@ require_once __DIR__ . '/../layouts/header.php';
                     <?php unset($_SESSION['error']); ?>
                 <?php endif; ?>
 
+                <?php if ($localOtp): ?>
+                    <div class="alert alert-warning" id="localOtpNotice" role="status">
+                        <strong>Local development code:</strong>
+                        <span id="localOtpCode"><?php echo htmlspecialchars($localOtp); ?></span>
+                        <div class="small mt-1">SMTP authentication failed, so this code is shown only on localhost in development mode.</div>
+                    </div>
+                <?php endif; ?>
+
                 <!-- OTP Input Form -->
                 <form method="POST" action="<?php echo $basePath; ?>/auth/verify-email" id="otpForm">
+                    <input type="hidden" name="_csrf_token" value="<?php echo htmlspecialchars($verifyCsrfToken); ?>">
                     <div class="otp-input-container mb-4">
                         <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp1" name="otp1" required autofocus>
                         <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric" id="otp2" name="otp2" required>
@@ -179,6 +193,7 @@ function autoFillOtp(code) {
 
 // Resend OTP with countdown
 let countdownTimer = null;
+let resendCsrfToken = <?php echo json_encode($resendCsrfToken); ?>;
 
 function resendOTP() {
     const resendBtn = document.getElementById('resendBtn');
@@ -193,20 +208,36 @@ function resendOTP() {
     fetch('<?php echo $basePath; ?>/auth/resend-otp', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': resendCsrfToken
         }
     })
     .then(response => response.json())
     .then(data => {
+        if (data.csrf_token) resendCsrfToken = data.csrf_token;
         if (data.success) {
             // Show success message
             const alertDiv = document.createElement('div');
             alertDiv.className = 'alert alert-success alert-dismissible fade show';
-            alertDiv.innerHTML = '<i class="bi bi-check-circle me-1"></i> A new 6-digit verification code has been sent to your email. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+            alertDiv.innerHTML = '<i class="bi bi-check-circle me-1"></i> ' + escapeHtml(data.message) + ' <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
             document.querySelector('.auth-form-container').insertBefore(alertDiv, document.getElementById('otpForm'));
             
             // Clear OTP inputs
             otpInputs.forEach(input => input.value = '');
+            if (data.local_code) {
+                autoFillOtp(data.local_code);
+                const notice = document.getElementById('localOtpNotice');
+                if (notice) {
+                    document.getElementById('localOtpCode').textContent = data.local_code;
+                } else {
+                    const localNotice = document.createElement('div');
+                    localNotice.id = 'localOtpNotice';
+                    localNotice.className = 'alert alert-warning';
+                    localNotice.innerHTML = '<strong>Local development code:</strong> <span id="localOtpCode"></span><div class="small mt-1">SMTP authentication failed, so this code is shown only on localhost in development mode.</div>';
+                    localNotice.querySelector('#localOtpCode').textContent = data.local_code;
+                    document.querySelector('.auth-form-container').insertBefore(localNotice, document.getElementById('otpForm'));
+                }
+            }
             otpInputs[0].focus();
         } else {
             alert(data.message || 'Failed to resend code. Please try again.');
@@ -237,6 +268,12 @@ function resendOTP() {
             countdown.style.display = 'none';
         }
     }, 1000);
+}
+
+function escapeHtml(value) {
+    const node = document.createElement('div');
+    node.textContent = String(value || '');
+    return node.innerHTML;
 }
 </script>
 

@@ -18,6 +18,9 @@ RewriteEngine On
 # Block access to hidden files (.env, .git, etc.)
 RewriteRule (^\.|/\.) - [F]
 
+# Educational upload bytes always pass through the entitlement-aware PHP gateway, even for real files.
+RewriteRule ^uploads/(materials|lesson_pages|lesson_editor|activities|fsl_custom_videos|lesson_plans)/ index.php [QSA,L,NC]
+
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php [QSA,L]

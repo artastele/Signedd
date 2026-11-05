@@ -164,7 +164,7 @@ require __DIR__ . '/../app/Views/iep_implementation/tab_learning_insights.php';
 $ungradedHtml = ob_get_clean();
 verify(str_contains($ungradedHtml, 'Ungraded') && str_contains($ungradedHtml, 'No suggested rating'), 'Ungraded activity card has no rating');
 $routes = file_get_contents(__DIR__ . '/../routes/web.php');
-verify((bool)preg_match("~route\('GET',\s*'/iep/implementation/resource-hub/preview/\{id\}'.*'iep.implement'~", $routes), 'Preview route retains authorization');
+verify((bool)preg_match("~route\('GET',\s*'/iep/implementation/resource-hub/preview/\{id\}'.*'resource_hub.view'~", $routes), 'Preview route requires resource_hub.view authorization');
 verify($db->query('SELECT instructional_evaluation FROM iep_steps')->fetchAll() === $storedIepBefore,
     'Teacher IEP evaluations stay unchanged after all suggestions and view renders');
 verify($db->query('SELECT rating FROM student_quarterly_ratings')->fetchAll() === $storedReportBefore,

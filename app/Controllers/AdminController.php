@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../Models/UserModel.php';
 require_once __DIR__ . '/../Models/RoleRequestModel.php';
 require_once __DIR__ . '/../Models/NotificationModel.php';
+require_once __DIR__ . '/../Services/FinanceService.php';
 if (file_exists(__DIR__ . '/../Helpers/MailHelper.php')) {
     require_once __DIR__ . '/../Helpers/MailHelper.php';
 }
@@ -73,25 +74,39 @@ class AdminController {
         }
 
         $reviewNote = trim($_POST['review_note'] ?? '');
+        $submittedDocs = is_string($request['submitted_docs'] ?? null)
+            ? (json_decode($request['submitted_docs'], true) ?: [])
+            : ($request['submitted_docs'] ?? []);
+        $newSchoolPrincipal = $request['requested_role'] === 'principal'
+            && ($submittedDocs['school_mode'] ?? '') === 'new';
+        $licenseOrderId = 0;
 
-        // Update role request status
-        $this->roleRequestModel->updateStatus(
-            $requestId,
-            'approved',
-            $_SESSION['user_id'],
-            $reviewNote
-        );
-
-        // Update user role
-        $this->userModel->updateRole($request['user_id'], $request['requested_role']);
+        $db = Database::getInstance()->getConnection();
+        try {
+            $db->beginTransaction();
+            $this->userModel->updateRole($request['user_id'], $request['requested_role']);
+            if ($newSchoolPrincipal && FinanceService::enabled()) {
+                $licenseOrderId = (new FinanceService($db))->prepareNewSchoolLicense((int)$request['user_id'], (int)$_SESSION['user_id']);
+            }
+            $this->roleRequestModel->updateStatus($requestId, 'approved', $_SESSION['user_id'], $reviewNote);
+            $db->commit();
+        } catch (DomainException $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            $_SESSION['error'] = $e->getMessage();
+            header('Location: ' . $this->basePath . '/admin/role-requests');
+            exit;
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            throw $e;
+        }
 
         // Create notification
         $this->notificationModel->create(
             $request['user_id'],
             'role_approved',
             'Application Approved',
-            'Your application for ' . ucwords(str_replace('_', ' ', $request['requested_role'])) . ' has been approved!',
-            ['role' => $request['requested_role'], 'request_id' => $requestId]
+            'Your application for ' . ucwords(str_replace('_', ' ', $request['requested_role'])) . ' has been approved!' . ($licenseOrderId ? ' Complete the annual school license payment before faculty accounts and teaching tools are activated.' : ''),
+            ['role' => $request['requested_role'], 'request_id' => $requestId, 'license_order_id' => $licenseOrderId ?: null]
         );
 
         // Send approval email
@@ -103,7 +118,9 @@ class AdminController {
             );
         }
 
-        $_SESSION['success'] = 'Role request approved successfully!';
+        $_SESSION['success'] = $licenseOrderId
+            ? 'Principal and new school approved. The annual license payment request is ready; faculty activation remains locked until verified payment.'
+            : 'Role request approved successfully!';
         header('Location: ' . $this->basePath . '/admin/role-requests');
         exit;
     }
@@ -423,7 +440,7 @@ class AdminController {
         }
 
         // Validate role
-        $validRoles = ['user', 'parent', 'sped_teacher', 'guidance', 'principal', 'master_teacher', 'learner', 'admin'];
+        $validRoles = ['user', 'parent', 'sped_teacher', 'general_teacher', 'guidance', 'principal', 'master_teacher', 'learner', 'admin'];
         if (!in_array($newRole, $validRoles)) {
             echo json_encode(['success' => false, 'message' => 'Invalid role']);
             exit;
@@ -439,7 +456,12 @@ class AdminController {
         $oldRole = $user['role'];
 
         // Update role
-        $success = $this->userModel->updateRole($userId, $newRole);
+        try {
+            $success = $this->userModel->updateRole($userId, $newRole);
+        } catch (DomainException $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+            exit;
+        }
 
         if ($success) {
             // Log activity
@@ -501,7 +523,12 @@ class AdminController {
 
         // Toggle status
         $newStatus = $user['status'] === 'active' ? 'inactive' : 'active';
-        $success = $this->userModel->updateStatus($userId, $newStatus);
+        try {
+            $success = $this->userModel->updateStatus($userId, $newStatus);
+        } catch (DomainException $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+            exit;
+        }
 
         if ($success) {
             // Log activity

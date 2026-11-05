@@ -663,7 +663,8 @@ class IEPImplementationController {
         }
 
         $iepId = (int)$lessonPlan['iep_id'];
-        $iep   = $this->model->getIepById($iepId);
+        $iep   = $iepId ? $this->model->getIepById($iepId) : null;
+        $assignableIeps = $iepId ? [] : $this->hubModel->getManageableIepsForTeacher($this->userId);
         $pages = $this->model->getPagesByLessonPlan($lpId);
 
         // FSL Vocabulary for interactive sign insertion (filter out any signs without real videos)
@@ -2336,7 +2337,7 @@ class IEPImplementationController {
      * Browse and search shared Accessibility Packs in the Resource Hub
      */
     public function resourceHub() {
-        if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+        if (!in_array($this->userRole, ['sped_teacher', 'general_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
             http_response_code(403);
             $_SESSION['error'] = 'Access denied. The Resource Hub is accessible to verified teachers and administrators only.';
             header('Location: ' . $this->basePath . '/login');
@@ -2356,7 +2357,14 @@ class IEPImplementationController {
         ];
 
         $packs   = $this->hubModel->getAllPacks($filters);
-        $myIeps  = $this->hubModel->getManageableIepsForTeacher($this->userId);
+        if ($this->userRole === 'general_teacher') {
+            $packs = array_values(array_filter($packs, static function ($pack) {
+                return !isset($pack['price_centavos']) ||
+                    (($pack['finance_review'] ?? 'APPROVED') === 'APPROVED' && (int)$pack['price_centavos'] === 0);
+            }));
+        }
+        $myIeps  = $this->userRole === 'general_teacher' ? [] : $this->hubModel->getManageableIepsForTeacher($this->userId);
+        $myResourceDrafts = in_array($this->userRole,['sped_teacher','teacher','master_teacher'],true) ? $this->hubModel->getTeacherResourceDrafts($this->userId) : [];
 
         $basePath  = $this->basePath;
         $pageTitle = 'SignED Accessibility Pack Resource Hub';
@@ -2370,7 +2378,7 @@ class IEPImplementationController {
      * Preview an Accessibility Pack before cloning (Read-Only)
      */
     public function previewResourcePack($id) {
-        if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
+        if (!in_array($this->userRole, ['sped_teacher', 'general_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
             http_response_code(403);
             $_SESSION['error'] = 'Access denied. Teachers only.';
             header('Location: ' . $this->basePath . '/login');
@@ -2380,15 +2388,27 @@ class IEPImplementationController {
         $packId = (int)$id;
         $pack   = $this->hubModel->getPackById($packId);
 
-        if (!$pack || $pack['status'] !== 'published') {
+        if (!$pack || ($pack['status'] !== 'published' && ($pack['access_label'] ?? '') !== 'Owned')) {
             $_SESSION['error'] = 'Accessibility Pack not found or no longer available.';
             header('Location: ' . $this->basePath . '/iep/implementation/resource-hub');
             exit;
         }
 
+        if (!empty($pack['access_label']) && empty($pack['access_allowed'])) {
+            $basePath = $this->basePath;
+            if (($_GET['format'] ?? '') === 'json') {
+                header('Content-Type: application/json');
+                echo json_encode(['success'=>true,'pack'=>$pack,'pages'=>[],'activities'=>[], 'access_label'=>$pack['access_label']]);
+            } else {
+                require __DIR__ . '/../Views/finance/pack_preview.php';
+            }
+            return;
+        }
         $pages      = $this->hubModel->getPackPages($packId);
         $activities = $this->hubModel->getPackActivities($packId);
-        $myIeps     = $this->hubModel->getManageableIepsForTeacher($this->userId);
+        $reviewOnly = $this->userRole === 'admin' && ($_GET['review'] ?? '') === '1';
+        $myIeps     = ($reviewOnly || $this->userRole === 'general_teacher') ? [] : $this->hubModel->getManageableIepsForTeacher($this->userId);
+        $_SESSION['finance_csrf'] = $_SESSION['finance_csrf'] ?? bin2hex(random_bytes(32));
 
         // Allow JSON inspection if requested
         if (isset($_GET['format']) && $_GET['format'] === 'json') {
@@ -2431,6 +2451,13 @@ class IEPImplementationController {
 
     /** Share an existing accessible lesson through the existing Resource Hub publisher. */
     public function shareToResourceHub($id) {
+        if (FinanceService::enabled()) {
+            $token = $_SERVER['HTTP_X_FINANCE_CSRF'] ?? '';
+            if (!is_string($token) || empty($_SESSION['finance_csrf']) || !hash_equals($_SESSION['finance_csrf'], $token)) {
+                http_response_code(403); header('Content-Type: application/json');
+                echo json_encode(['success'=>false,'message'=>'Reload this page before submitting.']); return;
+            }
+        }
         header('Content-Type: application/json');
         try {
             if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
@@ -2465,6 +2492,13 @@ class IEPImplementationController {
                 $body = $_POST;
             }
 
+            $shareScope = $body['share_scope'] ?? 'full_lesson';
+            if (!is_string($shareScope) || !in_array($shareScope, ['slide_deck', 'full_lesson'], true)) {
+                http_response_code(422);
+                echo json_encode(['success' => false, 'message' => 'Choose a valid Resource Hub pack type.']);
+                exit;
+            }
+
             try {
                 $body['tags'] = ResourceTagService::approvedTags($body);
             } catch (InvalidArgumentException $e) {
@@ -2474,6 +2508,8 @@ class IEPImplementationController {
             }
             $teacherName = $_SESSION['user_name'] ?? $_SESSION['name'] ?? 'SPED Teacher';
             $packId = $this->hubModel->shareLessonToHub($lessonPlanId, $this->userId, $teacherName, [
+                'share_scope'              => $shareScope,
+                'proposed_amount'          => (int)($body['proposed_amount'] ?? 0),
                 'title'                    => trim($body['title'] ?? $lp['title']),
                 'description'              => trim($body['description'] ?? ''),
                 'pdsp_domain'              => trim($body['pdsp_domain'] ?? $lp['pdsp_domain']),
@@ -2489,7 +2525,7 @@ class IEPImplementationController {
             echo json_encode([
                 'success' => true,
                 'pack_id' => $packId,
-                'message' => 'Accessibility Pack successfully published to the Resource Hub! Other teachers can now adapt it for their learners.'
+                'message' => FinanceService::enabled() ? 'Pack submitted for admin pricing and publication review.' : 'Pack shared. Check My Shared Packs for its publication status.'
             ]);
         } catch (Throwable $e) {
             error_log('shareToResourceHub error: ' . $e->getMessage());
@@ -2503,6 +2539,13 @@ class IEPImplementationController {
      * POST /iep/implementation/resource-hub/clone/{id}
      */
     public function cloneFromResourceHub($id) {
+        if (FinanceService::enabled()) {
+            $token = $_SERVER['HTTP_X_FINANCE_CSRF'] ?? '';
+            if (!is_string($token) || empty($_SESSION['finance_csrf']) || !hash_equals($_SESSION['finance_csrf'], $token)) {
+                http_response_code(403); header('Content-Type: application/json');
+                echo json_encode(['success'=>false,'message'=>'Reload this page before submitting.']); return;
+            }
+        }
         header('Content-Type: application/json');
         try {
             if (!in_array($this->userRole, ['sped_teacher', 'teacher', 'master_teacher', 'admin'], true)) {
@@ -2520,20 +2563,15 @@ class IEPImplementationController {
             $targetIepId = (int)($body['target_iep_id'] ?? 0);
             $targetStudentId = !empty($body['target_student_id']) ? (int)$body['target_student_id'] : null;
 
-            if (!$targetIepId) {
-                echo json_encode(['success' => false, 'message' => 'Please select one of your signed learner IEPs to clone this lesson into.']);
-                exit;
-            }
-
-            // Verify target IEP exists and teacher has authorization
-            $targetIep = $this->model->getIepById($targetIepId);
-            if (!$targetIep) {
+            // An IEP is optional while saving to the teacher's private resource library.
+            $targetIep = $targetIepId ? $this->model->getIepById($targetIepId) : null;
+            if ($targetIepId && !$targetIep) {
                 http_response_code(404);
                 echo json_encode(['success' => false, 'message' => 'Target IEP record not found.']);
                 exit;
             }
 
-            if ($this->userRole !== 'admin' && (int)($targetIep['drafted_by'] ?? 0) !== $this->userId) {
+            if ($targetIep && $this->userRole !== 'admin' && (int)($targetIep['drafted_by'] ?? 0) !== $this->userId) {
                 // Check if assigned in student_records
                 $db = Database::getInstance()->getConnection();
                 $st = $db->prepare("SELECT assigned_teacher_id FROM student_records WHERE id = :sid LIMIT 1");
@@ -2547,18 +2585,31 @@ class IEPImplementationController {
             }
 
             // Perform transactional clone
-            $newLpId = $this->hubModel->clonePackToIep($packId, $targetIepId, $this->userId, $targetStudentId);
+            $newLpId = $this->hubModel->clonePackToIep($packId, $targetIepId ?: null, $this->userId, $targetStudentId);
 
             echo json_encode([
                 'success'        => true,
                 'lesson_plan_id' => $newLpId,
                 'redirect'       => $this->basePath . '/iep/implementation/lesson/' . $newLpId . '/builder',
-                'message'        => 'Accessibility Pack cloned successfully as an independent lesson draft! Opening Lesson Builder...'
+                'message'        => $targetIepId ? 'Resource copied and assigned as an editable lesson draft.' : 'Resource saved to My Resources as a private editable draft.'
             ]);
         } catch (Throwable $e) {
             error_log('cloneFromResourceHub error: ' . $e->getMessage());
             echo json_encode(['success' => false, 'message' => 'Cloning error: ' . $e->getMessage()]);
         }
+        exit;
+    }
+
+    public function assignResourceDraft($id): void {
+        header('Content-Type: application/json');
+        try {
+            $token=$_SERVER['HTTP_X_FINANCE_CSRF']??'';
+            if (!is_string($token) || empty($_SESSION['finance_csrf']) || !hash_equals($_SESSION['finance_csrf'],$token)) throw new DomainException('Reload this page before assigning.');
+            $body=json_decode(file_get_contents('php://input'),true)?:$_POST;
+            $this->hubModel->assignLibraryDraft((int)$id,(int)($body['target_iep_id']??0),$this->userId);
+            echo json_encode(['success'=>true,'redirect'=>$this->basePath.'/iep/implementation/lesson/'.(int)$id.'/builder','message'=>'Resource assigned to the learner. You can now publish it when ready.']);
+        } catch (DomainException $e) { http_response_code(422); echo json_encode(['success'=>false,'message'=>$e->getMessage()]); }
+        catch (Throwable $e) { http_response_code(500); echo json_encode(['success'=>false,'message'=>'Unable to assign this resource draft.']); }
         exit;
     }
 

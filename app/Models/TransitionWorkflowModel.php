@@ -16,6 +16,7 @@ class TransitionWorkflowModel {
     }
 
     private function ensureTables(): void {
+        if (!runtime_schema_changes_allowed()) return;
         $tables = [
             "CREATE TABLE IF NOT EXISTS progress_reports (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -301,6 +302,7 @@ class TransitionWorkflowModel {
     }
 
     private function ensureGeneralTeacherAndPlacementSchema(): void {
+        if (!runtime_schema_changes_allowed()) return;
         try {
             $this->db->exec("ALTER TABLE users MODIFY COLUMN role ENUM('user','parent','sped_teacher','guidance','principal','master_teacher','learner','admin','general_teacher') DEFAULT 'user'");
         } catch (Throwable $e) {
@@ -330,6 +332,7 @@ class TransitionWorkflowModel {
     }
 
     private function addColumnIfNotExists(string $tableName, string $columnName, string $definition): void {
+        if (!runtime_schema_changes_allowed()) return;
         $stmt = $this->db->prepare(
             'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND COLUMN_NAME = :column LIMIT 1'
         );

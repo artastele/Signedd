@@ -2,7 +2,9 @@
 // SignED — Accessibility Pack Resource Hub (MVP)
 // Teacher-Facing Reusable Deaf-Accessible Lesson Library
 
+$_SESSION['finance_csrf'] = $_SESSION['finance_csrf'] ?? bin2hex(random_bytes(32));
 $pageTitle = 'SignED Accessibility Pack Resource Hub';
+$financeStyles = true;
 require_once __DIR__ . '/../layouts/header.php';
 
 $activeTab = $_GET['tab'] ?? 'browse';
@@ -132,8 +134,8 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
 }
 </style>
 
-<div class="main-content">
-    <div class="container-fluid py-4">
+<div class="main-content finance-marketplace-page resource-marketplace-page">
+    <div class="container-fluid finance-shell">
 
         <!-- Top Notification Banner -->
         <?php if (!empty($_SESSION['success'])): ?>
@@ -155,37 +157,44 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
                 <div>
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <span class="badge bg-warning text-dark fw-bold px-2.5 py-1" style="border-radius:6px; font-size:0.75rem;">
-                            <i class="ph-bold ph-sparkle me-1"></i> Teacher Resource Hub
+                            <i class="ph-bold ph-sparkle me-1"></i> Teaching resources
                         </span>
                         <span class="badge bg-white text-dark fw-semibold px-2 py-1" style="border-radius:6px; font-size:0.75rem;">
-                            Deaf-Accessible &middot; FSL Packs
+                            Free &middot; Premium
                         </span>
                     </div>
-                    <h3 class="fw-bold mb-1 text-white">SignED Accessibility Pack Resource Hub</h3>
+                    <h1 class="h3 fw-bold mb-1 text-white">Resource Hub</h1>
                     <p class="mb-0 text-white-50" style="font-size: 0.9rem; max-width: 720px;">
-                        Browse, preview, and adapt shared Deaf-accessible lesson templates with Filipino Sign Language (FSL) support.
-                        Re-use proven visual lessons for your learners while preserving learner privacy.
+                        <?= $userRole === 'general_teacher' ? 'Browse and preview free shared teaching resources.' : 'Browse, preview and adapt shared lesson packs. Free packs are ready to use; premium access follows a verified purchase or active subscription.' ?>
                     </p>
                 </div>
                 <div class="d-flex gap-2">
-                    <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation" class="btn btn-outline-light btn-sm fw-medium px-3" style="border-radius: 6px;">
-                        <i class="ph-bold ph-arrow-left me-1"></i> IEP Workspace
+                    <a href="<?php echo htmlspecialchars($basePath); ?><?php echo $userRole === 'general_teacher' ? '/dashboard' : '/iep/implementation'; ?>" class="btn btn-light btn-sm fw-medium px-3" style="border-radius: 6px;">
+                        <i class="ph-bold ph-arrow-left me-1"></i> <?= $userRole === 'general_teacher' ? 'Back to Dashboard' : 'Back to IEP Workspace' ?>
                     </a>
                 </div>
             </div>
         </div>
 
+        <?php if ($userRole !== 'general_teacher') require __DIR__.'/../finance/partials/hub_subscription.php'; ?>
+
         <!-- Section Tabs: Browse Resources vs My Shared Packs -->
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <ul class="nav nav-pills hub-nav-pills gap-2" id="hubTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link <?php echo $activeTab !== 'my_packs' ? 'active' : ''; ?>" id="tab-browse-btn" data-bs-toggle="pill" data-bs-target="#tab-browse" type="button" role="tab" onclick="updateTabUrl('browse')">
+                    <button class="nav-link <?php echo $activeTab === 'browse' ? 'active' : ''; ?>" id="tab-browse-btn" data-bs-toggle="pill" data-bs-target="#tab-browse" type="button" role="tab" onclick="updateTabUrl('browse')">
                         <i class="ph-bold ph-globe me-1.5"></i> Browse Resources
-                        <span class="badge rounded-pill ms-1 <?php echo $activeTab !== 'my_packs' ? 'bg-white text-dark' : 'bg-secondary text-white'; ?>" style="font-size: 0.72rem;">
+                        <span class="badge rounded-pill ms-1 <?php echo $activeTab === 'browse' ? 'bg-white text-dark' : 'bg-secondary text-white'; ?>" style="font-size: 0.72rem;">
                             <?php echo count($browsePacks); ?>
                         </span>
                     </button>
                 </li>
+                <?php if ($userRole !== 'general_teacher'): ?><li class="nav-item" role="presentation">
+                    <button class="nav-link <?php echo $activeTab === 'my_resources' ? 'active' : ''; ?>" id="tab-myresources-btn" data-bs-toggle="pill" data-bs-target="#tab-myresources" type="button" role="tab" onclick="updateTabUrl('my_resources')">
+                        <i class="ph-bold ph-folder-open me-1.5"></i> My Resources
+                        <span class="badge rounded-pill ms-1 <?php echo $activeTab === 'my_resources' ? 'bg-white text-dark' : 'bg-secondary text-white'; ?>" style="font-size:0.72rem;"><?php echo count($myResourceDrafts ?? []); ?></span>
+                    </button>
+                </li><?php endif; ?>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link <?php echo $activeTab === 'my_packs' ? 'active' : ''; ?>" id="tab-mypacks-btn" data-bs-toggle="pill" data-bs-target="#tab-mypacks" type="button" role="tab" onclick="updateTabUrl('my_packs')">
                         <i class="ph-bold ph-user-circle me-1.5"></i> My Shared Packs
@@ -257,19 +266,19 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
         <div class="tab-content" id="hubTabsContent">
 
             <!-- TAB 1: BROWSE RESOURCES -->
-            <div class="tab-pane fade <?php echo $activeTab !== 'my_packs' ? 'show active' : ''; ?>" id="tab-browse" role="tabpanel">
+            <div class="tab-pane fade <?php echo $activeTab === 'browse' ? 'show active' : ''; ?>" id="tab-browse" role="tabpanel">
                 <?php if (empty($browsePacks)): ?>
                     <div class="card border-0 shadow-sm text-center py-5 px-3" style="border-radius: 12px;">
                         <div class="mb-3 text-muted" style="font-size: 3rem; color:#cbd5e1;">
                             <i class="ph-bold ph-folder-open"></i>
                         </div>
-                        <h5 class="fw-bold text-dark mb-1">No Accessibility Packs Found</h5>
+                        <h5 class="fw-bold text-dark mb-1"><?= !empty($search)||!empty($selectedDomain)||!empty($selectedLevel)||!empty($fslOnly)?'No packs match your filters':'No shared packs yet' ?></h5>
                         <p class="text-muted small mb-3" style="max-width: 480px; margin: 0 auto;">
-                            There are currently no shared accessibility packs matching your search criteria. You can share your own completed lessons from the Lesson Builder or IEP Workspace!
+                            <?= !empty($search)||!empty($selectedDomain)||!empty($selectedLevel)||!empty($fslOnly)?'Try a different search or clear the filters to browse all published packs.':'Published free and premium packs will appear here after creator submission and admin review.' ?>
                         </p>
                         <div>
-                            <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation" class="btn btn-primary btn-sm px-3 fw-medium" style="border-radius: 6px;">
-                                <i class="ph-bold ph-arrow-left me-1"></i> Return to Workspace
+                            <a href="<?php echo htmlspecialchars($basePath); ?><?= !empty($search)||!empty($selectedDomain)||!empty($selectedLevel)||!empty($fslOnly)?'/iep/implementation/resource-hub':'/iep/implementation' ?>" class="btn btn-primary btn-sm px-3 fw-medium" style="border-radius: 6px;">
+                                <?= !empty($search)||!empty($selectedDomain)||!empty($selectedLevel)||!empty($fslOnly)?'Clear filters':'Back to IEP Workspace' ?>
                             </a>
                         </div>
                     </div>
@@ -296,7 +305,7 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
                                             <span class="badge-domain"><?php echo htmlspecialchars($domainPretty); ?></span>
                                             <span class="badge-level"><?php echo htmlspecialchars($pack['learning_level'] ?? 'SPED'); ?></span>
                                             <?php if (!empty($pack['fsl_supported'])): ?>
-                                                <span class="badge-fsl" title="Teacher-reviewed FSL signs included">
+                                                <span class="badge-fsl" title="FSL signs listed in this pack">
                                                     <i class="ph-bold ph-hands-clapping"></i>
                                                     <?php echo (int)($pack['fsl_sign_count'] ?? 0); ?> FSL Sign<?php echo ((int)$pack['fsl_sign_count'] === 1 ? '' : 's'); ?>
                                                 </span>
@@ -317,10 +326,23 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
                                         <!-- Author & Date -->
                                         <div class="text-muted small mb-2.5" style="font-size: 0.78rem;">
                                             <i class="ph-bold ph-user me-1"></i>
-                                            Author: <strong><?php echo htmlspecialchars($pack['author_name'] ?? 'SPED Teacher'); ?></strong>
+                                            Creator: <strong><?php echo htmlspecialchars($pack['author_name'] ?: ($pack['creator_user_name'] ?? 'Resource creator')); ?></strong>
                                             &middot; <?php echo date('M j, Y', strtotime($pack['created_at'])); ?>
                                         </div>
 
+                                        <?php if(isset($pack['price_centavos'])): ?>
+                                            <div class="finance-pack-label mb-2"><?php
+                                                $displayPrice = (int)$pack['price_centavos'];
+                                                $reviewState = $pack['finance_review'] ?? 'APPROVED';
+                                                if ($reviewState === 'PENDING' || $reviewState === 'REJECTED') {
+                                                    echo $displayPrice > 0 ? 'Proposed ₱'.number_format($displayPrice/100,2) : 'Free proposal';
+                                                    echo $reviewState === 'PENDING' ? ' · Awaiting approval' : ' · Needs revision';
+                                                } else {
+                                                    echo $displayPrice > 0 ? 'Premium · ₱'.number_format($displayPrice/100,2) : 'Free';
+                                                }
+                                            ?></div>
+                                        <?php endif; ?>
+                                        <?php if(!empty($pack['learning_competency'])): ?><p class="small text-muted mb-2">Competency: <?php echo htmlspecialchars(mb_strimwidth($pack['learning_competency'],0,100,'…')); ?></p><?php endif; ?>
                                         <!-- Description Snippet -->
                                         <?php if (!empty($pack['description'])): ?>
                                             <p class="text-muted mb-2.5" style="font-size: 0.8125rem; line-height: 1.45;">
@@ -340,19 +362,14 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
                                     </div>
 
                                     <!-- Footer Actions -->
-                                    <div class="hub-pack-footer d-flex justify-content-between align-items-center gap-2">
+                                    <div class="hub-pack-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
                                         <div class="small text-muted" style="font-size: 0.75rem;">
                                             <i class="ph-bold ph-copy-simple me-0.5"></i>
                                             <strong><?php echo (int)($pack['clone_count'] ?? 0); ?></strong> adapted
                                         </div>
 
-                                        <div class="d-flex align-items-center gap-1.5">
-                                            <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/resource-hub/preview/<?php echo (int)$pack['id']; ?>" class="btn btn-outline-secondary btn-hub-action" title="Preview Lesson Content & Signs">
-                                                <i class="ph-bold ph-eye me-1"></i> Preview
-                                            </a>
-                                            <button type="button" class="btn btn-primary btn-hub-action" onclick="openUseAsTemplateModal(<?php echo (int)$pack['id']; ?>, <?php echo htmlspecialchars(json_encode($pack['title'])); ?>)">
-                                                <i class="ph-bold ph-copy me-1"></i> Use as Template
-                                            </button>
+                                        <div class="d-flex flex-wrap justify-content-end align-items-center gap-1.5">
+                                            <?php require __DIR__.'/../finance/partials/pack_actions.php'; ?>
                                         </div>
                                     </div>
                                 </div>
@@ -362,7 +379,13 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
                 <?php endif; ?>
             </div>
 
-            <!-- TAB 2: MY SHARED PACKS -->
+            <!-- TAB 2: MY PRIVATE EDITABLE RESOURCES -->
+            <div class="tab-pane fade <?php echo $activeTab === 'my_resources' ? 'show active' : ''; ?>" id="tab-myresources" role="tabpanel">
+                <?php if(empty($myResourceDrafts)): ?><div class="finance-empty-state"><div class="finance-empty-icon"><i class="ph-bold ph-folder-open"></i></div><div><h3 class="h6 fw-bold">No editable resources saved yet</h3><p class="small text-muted mb-0">Open a pack and choose “Save to My Resources.” No learner or IEP is required.</p></div></div>
+                <?php else: ?><div class="row g-3"><?php foreach($myResourceDrafts as $draft): ?><div class="col-xl-4 col-md-6"><article class="hub-pack-card"><div class="hub-pack-body"><span class="badge bg-warning-subtle text-warning-emphasis mb-2">Private editable draft</span><h3 class="h6 fw-bold"><?php echo htmlspecialchars($draft['title'],ENT_QUOTES,'UTF-8'); ?></h3><p class="small text-muted mb-0"><?php echo (int)$draft['page_count']; ?> slides · <?php echo (int)$draft['activity_count']; ?> activities</p></div><div class="hub-pack-footer"><a class="btn btn-primary btn-sm w-100" href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/lesson/<?php echo (int)$draft['id']; ?>/builder"><i class="ph-bold ph-pencil-simple me-1"></i> Edit / Assign</a></div></article></div><?php endforeach; ?></div><?php endif; ?>
+            </div>
+
+            <!-- TAB 3: MY SHARED PACKS -->
             <div class="tab-pane fade <?php echo $activeTab === 'my_packs' ? 'show active' : ''; ?>" id="tab-mypacks" role="tabpanel">
                 <?php if (empty($mySharedPacks)): ?>
                     <div class="card border-0 shadow-sm text-center py-5 px-3" style="border-radius: 12px;">
@@ -403,7 +426,7 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
                                             <span class="badge-domain"><?php echo htmlspecialchars($domainPretty); ?></span>
                                             <span class="badge-level"><?php echo htmlspecialchars($pack['learning_level'] ?? 'SPED'); ?></span>
                                             <?php if (!empty($pack['fsl_supported'])): ?>
-                                                <span class="badge-fsl" title="Teacher-reviewed FSL signs included">
+                                                <span class="badge-fsl" title="FSL signs listed in this pack">
                                                     <i class="ph-bold ph-hands-clapping"></i>
                                                     <?php echo (int)($pack['fsl_sign_count'] ?? 0); ?> FSL Signs
                                                 </span>
@@ -418,6 +441,12 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
                                         </h5>
 
                                         <div class="text-muted small mb-2.5" style="font-size: 0.78rem;">
+                                            <?php if(isset($pack['finance_review'])): ?>
+                                                <div class="small mb-1">Pricing / publication:
+                                                    <strong><?= htmlspecialchars(['PENDING'=>'Awaiting admin approval','APPROVED'=>'Approved','REJECTED'=>'Needs revision'][$pack['finance_review']]??'Awaiting review',ENT_QUOTES,'UTF-8') ?></strong>
+                                                    · <?php if ((int)($pack['price_centavos']??0)===0): ?><?= $pack['finance_review']==='APPROVED'?'Free':'Free proposal' ?><?php else: ?><?= $pack['finance_review']==='APPROVED'?'Approved ':'Proposed ' ?>₱<?= number_format((int)$pack['price_centavos']/100,2) ?><?php endif ?>
+                                                </div>
+                                            <?php endif ?>
                                             Shared on <?php echo date('M j, Y', strtotime($pack['created_at'])); ?>
                                             &middot; <strong><?php echo (int)($pack['clone_count'] ?? 0); ?></strong> teachers adapted
                                         </div>
@@ -429,12 +458,12 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
                                         <?php endif; ?>
                                     </div>
 
-                                    <div class="hub-pack-footer d-flex justify-content-between align-items-center gap-2">
+                                    <div class="hub-pack-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
                                         <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/resource-hub/preview/<?php echo (int)$pack['id']; ?>" class="btn btn-outline-secondary btn-hub-action" title="Preview Lesson Content & Signs">
                                             <i class="ph-bold ph-eye me-1"></i> Preview
                                         </a>
 
-                                        <div class="d-flex align-items-center gap-1.5">
+                                        <div class="d-flex flex-wrap justify-content-end align-items-center gap-1.5">
                                             <button type="button" class="btn btn-outline-danger btn-hub-action" title="Archive / Unshare from Resource Hub" onclick="unsharePack(<?php echo (int)$pack['id']; ?>)">
                                                 <i class="ph-bold ph-trash me-1"></i> Unshare
                                             </button>
@@ -463,7 +492,7 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
                     </div>
                     <div>
                         <h6 class="modal-title fw-bold mb-0 text-dark">Use as Template</h6>
-                        <span class="text-muted" style="font-size:0.75rem;">Create an independent draft for your learner</span>
+                        <span class="text-muted" style="font-size:0.75rem;">Save an editable copy now; assign it later</span>
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -481,16 +510,16 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
 
                     <div class="mb-3">
                         <label for="targetIepSelect" class="form-label small fw-bold text-dark mb-1">
-                            Choose Your Student / Signed IEP Context: <span class="text-danger">*</span>
+                            Learner / signed IEP <span class="text-muted fw-normal">(optional)</span>
                         </label>
                         <?php if (empty($myIeps)): ?>
                             <div class="alert alert-warning py-2 px-3 small mb-0" style="border-radius: 6px;">
                                 <i class="ph-bold ph-warning me-1"></i>
-                                You do not have any active signed IEPs assigned to you. To adapt a template, you must manage at least one <strong>Signed IEP</strong>.
+                                No signed IEP is assigned to you yet. You can still save this pack to <strong>My Resources</strong>, edit it privately, and assign it later.
                             </div>
                         <?php else: ?>
-                            <select id="targetIepSelect" name="target_iep_id" class="form-select form-select-sm" required style="border-radius: 6px;">
-                                <option value="">-- Select Student / IEP --</option>
+                            <select id="targetIepSelect" name="target_iep_id" class="form-select form-select-sm" style="border-radius: 6px;">
+                                <option value="">Save to My Resources — assign later</option>
                                 <?php foreach ($myIeps as $iep): ?>
                                     <option value="<?php echo (int)$iep['iep_id']; ?>" data-student-id="<?php echo (int)($iep['student_id'] ?? 0); ?>">
                                         <?php echo htmlspecialchars($iep['student_name'] ?? 'Learner'); ?>
@@ -499,7 +528,7 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
                                 <?php endforeach; ?>
                             </select>
                             <div class="form-text text-muted" style="font-size:0.74rem;">
-                                An independent editable draft lesson will be created for this learner and opened immediately in the Lesson Builder.
+                                Choose a learner now, or leave blank to create a private editable resource draft.
                             </div>
                         <?php endif; ?>
                     </div>
@@ -520,8 +549,8 @@ $mySharedPacks = array_values(array_filter($browsePacks, function($p) use ($curr
                     <button type="button" class="btn btn-outline-secondary btn-sm fw-medium px-3" data-bs-dismiss="modal" style="border-radius: 6px;">
                         Cancel
                     </button>
-                    <button type="submit" id="btnSubmitClone" class="btn btn-primary btn-sm fw-semibold px-3" style="border-radius: 6px;" <?php echo empty($myIeps) ? 'disabled' : ''; ?>>
-                        <i class="ph-bold ph-copy me-1"></i> Clone &amp; Open in Builder
+                    <button type="submit" id="btnSubmitClone" class="btn btn-primary btn-sm fw-semibold px-3" style="border-radius: 6px;">
+                        <i class="ph-bold ph-folder-plus me-1"></i> Save &amp; Open in Builder
                     </button>
                 </div>
             </form>
@@ -553,12 +582,7 @@ async function submitCloneForm(e) {
     const select = document.getElementById('targetIepSelect');
     const targetIepId = select ? select.value : '';
 
-    if (!targetIepId) {
-        alert('Please select one of your assigned signed learner IEPs.');
-        return;
-    }
-
-    const selectedOption = select.options[select.selectedIndex];
+    const selectedOption = select && select.selectedIndex >= 0 ? select.options[select.selectedIndex] : null;
     const studentId = selectedOption ? selectedOption.dataset.studentId : null;
 
     const btn = document.getElementById('btnSubmitClone');
@@ -569,7 +593,7 @@ async function submitCloneForm(e) {
     try {
         const res = await fetch(`${BASE_URL}/iep/implementation/resource-hub/clone/${packId}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Finance-CSRF': <?= json_encode($_SESSION['finance_csrf']) ?> },
             body: JSON.stringify({
                 target_iep_id: targetIepId,
                 target_student_id: studentId
@@ -600,7 +624,7 @@ async function unsharePack(packId) {
     try {
         const res = await fetch(`${BASE_URL}/iep/implementation/resource-hub/unshare/${packId}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json', 'X-Finance-CSRF': <?= json_encode($_SESSION['finance_csrf']) ?> }
         });
         const data = await res.json();
         if (data.success) {

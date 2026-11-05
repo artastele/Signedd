@@ -84,18 +84,22 @@ class PrincipalController {
 
         $reviewNote = trim($_POST['review_note'] ?? '');
 
-        // Update role request status
-        $this->roleRequestModel->updateStatus(
-            $requestId,
-            'approved',
-            $_SESSION['user_id'],
-            $reviewNote
-        );
-
-        // Update user role and associate to principal's school_id if set
-        $this->userModel->updateRole($request['user_id'], $request['requested_role']);
-        if (!empty($principalUser['school_id'])) {
-            $this->userModel->updateSchoolId($request['user_id'], $principalUser['school_id']);
+        $db = Database::getInstance()->getConnection();
+        try {
+            $db->beginTransaction();
+            // The seat check and request approval must commit together.
+            $this->userModel->updateRole($request['user_id'], $request['requested_role']);
+            $this->userModel->updateSchoolId($request['user_id'], $schoolId);
+            $this->roleRequestModel->updateStatus($requestId, 'approved', $_SESSION['user_id'], $reviewNote);
+            $db->commit();
+        } catch (DomainException $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            $_SESSION['error'] = $e->getMessage();
+            header('Location: ' . $this->basePath . '/principal/staff-requests');
+            exit;
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            throw $e;
         }
 
         // Create notification
@@ -228,6 +232,12 @@ class PrincipalController {
             exit;
         }
 
+        if (!$schoolId || !in_array($role, ['sped_teacher', 'general_teacher', 'guidance', 'master_teacher'], true)) {
+            $_SESSION['error'] = 'A valid school and staff role are required.';
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
+        }
+
         if ($this->userModel->emailExists($email)) {
             $_SESSION['error'] = 'An account with that email already exists.';
             header('Location: ' . $this->basePath . '/dashboard');
@@ -242,13 +252,28 @@ class PrincipalController {
             INSERT INTO users (name, email, password_hash, role, school_id, email_verified, status)
             VALUES (:name, :email, :password_hash, :role, :school_id, TRUE, 'active')
         ");
-        $stmt->execute([
-            'name' => $name,
-            'email' => $email,
-            'password_hash' => $passwordHash,
-            'role' => $role,
-            'school_id' => $schoolId
-        ]);
+        try {
+            $db->beginTransaction();
+            InstitutionalTeacherSeats::assertAvailable($db, null, [
+                'school_id' => $schoolId, 'role' => $role, 'status' => 'active'
+            ]);
+            $stmt->execute([
+                'name' => $name,
+                'email' => $email,
+                'password_hash' => $passwordHash,
+                'role' => $role,
+                'school_id' => $schoolId
+            ]);
+            $db->commit();
+        } catch (DomainException $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            $_SESSION['error'] = $e->getMessage();
+            header('Location: ' . $this->basePath . '/dashboard');
+            exit;
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            throw $e;
+        }
 
         $_SESSION['success'] = 'Faculty member "' . htmlspecialchars($name) . '" (' . ucwords(str_replace('_', ' ', $role)) . ') enrolled successfully!';
         header('Location: ' . $this->basePath . '/dashboard');

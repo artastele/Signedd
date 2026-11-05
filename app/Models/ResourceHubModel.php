@@ -6,6 +6,8 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/LessonPlanModel.php';
 require_once __DIR__ . '/../Helpers/HtmlSanitizer.php';
 require_once __DIR__ . '/../Services/ResourceTagService.php';
+require_once __DIR__ . '/../Services/FinanceService.php';
+require_once __DIR__ . '/../Services/PremiumMediaService.php';
 
 class ResourceHubModel {
 
@@ -22,6 +24,7 @@ class ResourceHubModel {
      * Self-healing schema check to ensure Resource Hub tables and columns exist
      */
     private function ensureTables(): void {
+        if (!runtime_schema_changes_allowed()) return;
         static $checked = false;
         if ($checked) {
             return;
@@ -135,7 +138,14 @@ class ResourceHubModel {
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if (FinanceService::accessEnabled($this->db)) {
+            $finance = new FinanceService($this->db);
+            foreach ($rows as &$row) $row = $this->withFinance($row, $finance);
+            unset($row);
+            $rows = array_values(array_filter($rows, function($p) { return ($p['finance_review'] ?? 'APPROVED') === 'APPROVED' || (int)$p['created_by'] === (int)($_SESSION['user_id'] ?? 0) || ($_SESSION['role'] ?? '') === 'admin'; }));
+        }
+        return $rows;
     }
 
     /**
@@ -153,13 +163,24 @@ class ResourceHubModel {
         ");
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ?: null;
+        return $row ? (FinanceService::accessEnabled($this->db) ? $this->withFinance($row, new FinanceService($this->db)) : $row) : null;
+    }
+
+    private function withFinance(array $pack, FinanceService $f): array {
+        $price = $f->query('SELECT * FROM finance_pack_pricing WHERE pack_id=?', [$pack['id']])->fetch();
+        $access = $f->packAccess((int)$pack['id'], (int)($_SESSION['user_id'] ?? 0));
+        $pack['finance_review'] = $price['review_status'] ?? 'APPROVED';
+        $pack['price_centavos'] = $price['approved_amount'] ?? $price['proposed_amount'] ?? 0;
+        $pack['access_label'] = $access['label'];
+        $pack['access_allowed'] = $access['allowed'];
+        return $pack;
     }
 
     /**
      * Get all pages for a resource pack
      */
     public function getPackPages(int $packId): array {
+        if (FinanceService::accessEnabled($this->db)) (new FinanceService($this->db))->requirePack($packId, (int)($_SESSION['user_id'] ?? 0));
         $stmt = $this->db->prepare("
             SELECT * FROM resource_hub_pages
             WHERE pack_id = :pack_id
@@ -173,6 +194,7 @@ class ResourceHubModel {
      * Get all activities for a resource pack
      */
     public function getPackActivities(int $packId): array {
+        if (FinanceService::accessEnabled($this->db)) (new FinanceService($this->db))->requirePack($packId, (int)($_SESSION['user_id'] ?? 0));
         $stmt = $this->db->prepare("
             SELECT * FROM resource_hub_activities
             WHERE pack_id = :pack_id
@@ -204,6 +226,10 @@ class ResourceHubModel {
     public function shareLessonToHub(int $lessonPlanId, int $teacherId, string $teacherName, array $meta): int {
         // Existing tags column stores only metadata explicitly reviewed at publication.
         $tags = ResourceTagService::approvedTags($meta);
+        $scope = $meta['share_scope'] ?? 'full_lesson';
+        if (!in_array($scope, ['slide_deck', 'full_lesson'], true)) {
+            throw new InvalidArgumentException('Choose a valid Resource Hub pack type.');
+        }
         $lp = $this->lpModel->findById($lessonPlanId);
         if (!$lp) {
             throw new InvalidArgumentException("Lesson plan not found.");
@@ -211,7 +237,7 @@ class ResourceHubModel {
 
         $pages = $this->lpModel->getPagesByLessonPlan($lessonPlanId);
         // Existing file/link materials become read-only snapshot pages only on explicit sharing.
-        foreach ($this->lpModel->getMaterials($lessonPlanId) as $material) {
+        foreach ($scope === 'full_lesson' ? $this->lpModel->getMaterials($lessonPlanId) : [] as $material) {
             $path = trim($material['file_path'] ?? '');
             $url = trim($material['external_url'] ?? '');
             if ($path !== '') {
@@ -224,8 +250,8 @@ class ResourceHubModel {
                 'content'=>'<p><a class="resource-material-link" href="' . htmlspecialchars($url,ENT_QUOTES,'UTF-8') . '">Open material: ' . htmlspecialchars($material['title']) . '</a></p>',
                 'guide_questions'=>null,'media_type'=>'none','media_path'=>null];
         }
-        if (!$pages) throw new InvalidArgumentException('Add an available slide or material before publishing.');
-        $activities = $this->lpModel->getActivitiesByIepId((int)$lp['iep_id']);
+        if (!$pages) throw new InvalidArgumentException($scope === 'slide_deck' ? 'Save at least one slide before sharing a slide deck.' : 'Add an available slide or material before publishing.');
+        $activities = $scope === 'full_lesson' ? $this->lpModel->getActivitiesByIepId((int)$lp['iep_id']) : [];
         // Filter activities specifically linked to this lesson plan
         $lessonActivities = array_filter($activities, function($a) use ($lessonPlanId) {
             return (int)($a['lesson_plan_id'] ?? 0) === $lessonPlanId;
@@ -285,6 +311,16 @@ class ResourceHubModel {
             ]);
 
             $packId = (int)$this->db->lastInsertId();
+            if (FinanceService::accessEnabled($this->db)) {
+                $amount = (int)($meta['proposed_amount'] ?? 0);
+                $finance = new FinanceService($this->db);
+                $finance->validatePremiumSnapshot($amount, $pages, $lessonActivities);
+                if (PremiumMediaService::tokens($pages, $lessonActivities)) {
+                    $media = new PremiumMediaService($finance);
+                    $media->bindNewPack($packId, $media->validateOwnedReferences($pages, $lessonActivities, $teacherId, $amount > 0));
+                }
+                $finance->query("INSERT INTO finance_pack_pricing(pack_id,creator_id,proposed_amount,updated_at) VALUES(?,?,?,UTC_TIMESTAMP())", [$packId,$teacherId,$amount]);
+            }
 
             // Insert snapshot pages (retaining sanitized .fsl-word spans)
             $stmtPage = $this->db->prepare("
@@ -350,20 +386,22 @@ class ResourceHubModel {
      * Creates an independent DRAFT lesson plan owned by $teacherId.
      * Transactional: If any step fails, entire clone is rolled back.
      */
-    public function clonePackToIep(int $packId, int $targetIepId, int $teacherId, ?int $targetStudentId = null): int {
+    public function clonePackToIep(int $packId, ?int $targetIepId, int $teacherId, ?int $targetStudentId = null): int {
         $pack = $this->getPackById($packId);
-        if (!$pack || $pack['status'] !== 'published') {
+        if (FinanceService::accessEnabled($this->db)) (new FinanceService($this->db))->requirePack($packId, $teacherId);
+        if (!$pack || ($pack['status'] !== 'published' && ($pack['access_label'] ?? '') !== 'Owned')) {
             throw new InvalidArgumentException("Accessibility Pack not found or not published.");
         }
 
-        // Verify that target IEP exists and is accessible
-        $iep = $this->lpModel->getIepById($targetIepId);
-        if (!$iep) {
-            throw new InvalidArgumentException("Target learner IEP not found.");
-        }
-
-        // Auto-resolve student_id if not explicitly provided
-        if (!$targetStudentId && !empty($iep['student_id'])) {
+        $iep = null;
+        if ($targetIepId) {
+            $iep = $this->lpModel->getIepById($targetIepId);
+            if (!$iep) throw new InvalidArgumentException("Target learner IEP not found.");
+            $actor = (new FinanceService($this->db))->user($teacherId);
+            $assigned = $this->db->prepare('SELECT assigned_teacher_id FROM student_records WHERE id=?');
+            $assigned->execute([(int)$iep['student_id']]);
+            if ($actor['role'] !== 'admin' && (int)($iep['drafted_by'] ?? 0) !== $teacherId && (int)$assigned->fetchColumn() !== $teacherId) throw new DomainException('Learner access denied.');
+            if ($targetStudentId !== null && $targetStudentId !== (int)$iep['student_id']) throw new DomainException('Learner does not match target IEP.');
             $targetStudentId = (int)$iep['student_id'];
         }
 
@@ -380,8 +418,8 @@ class ResourceHubModel {
                     status, created_at, updated_at
                 ) VALUES (
                     :iep_id, :student_id, :created_by, :title, :pdsp_domain,
-                    'individual', :cloned_from_pack_id, :mastery_url, :mastery_title,
-                    'published', NOW(), NOW()
+                    :assignment_type, :cloned_from_pack_id, :mastery_url, :mastery_title,
+                    'draft', NOW(), NOW()
                 )
             ");
 
@@ -392,6 +430,7 @@ class ResourceHubModel {
                 'created_by'          => $teacherId,
                 'title'               => $newTitle,
                 'pdsp_domain'         => $pack['pdsp_domain'],
+                'assignment_type'     => $targetIepId ? 'individual' : 'shared',
                 'cloned_from_pack_id' => $packId,
                 'mastery_url'         => $pack['mainstream_mastery_url'] ?? null,
                 'mastery_title'       => $pack['mainstream_mastery_title'] ?? null
@@ -450,12 +489,32 @@ class ResourceHubModel {
             $stmtCount = $this->db->prepare("UPDATE resource_hub_packs SET clone_count = clone_count + 1 WHERE id = :id");
             $stmtCount->execute(['id' => $packId]);
 
+            if (FinanceService::accessEnabled($this->db)) (new FinanceService($this->db))->recordUse($packId, $teacherId);
             $this->db->commit();
             return $newLessonPlanId;
         } catch (Throwable $e) {
             $this->db->rollBack();
             throw $e;
         }
+    }
+
+    /** Attach a teacher-owned library draft to an authorized signed learner IEP. */
+    public function assignLibraryDraft(int $lessonPlanId, int $targetIepId, int $teacherId): void {
+        $lesson=$this->lpModel->findById($lessonPlanId);
+        if (!$lesson || (int)$lesson['created_by']!==$teacherId || !empty($lesson['iep_id'])) throw new DomainException('Only your unassigned resource draft can be assigned.');
+        $iep=$this->lpModel->getIepById($targetIepId);
+        if (!$iep || !in_array($iep['status']??'', ['signed','finalized'], true)) throw new DomainException('Choose a signed learner IEP.');
+        $assigned=$this->db->prepare('SELECT assigned_teacher_id FROM student_records WHERE id=?');
+        $assigned->execute([(int)$iep['student_id']]);
+        if ((int)($iep['drafted_by']??0)!==$teacherId && (int)$assigned->fetchColumn()!==$teacherId) throw new DomainException('Learner access denied.');
+        $this->db->beginTransaction();
+        try {
+            $update=$this->db->prepare("UPDATE lesson_plans SET iep_id=?,student_id=?,assignment_type='individual',updated_at=NOW() WHERE id=? AND created_by=? AND iep_id IS NULL");
+            $update->execute([$targetIepId,(int)$iep['student_id'],$lessonPlanId,$teacherId]);
+            if ($update->rowCount()!==1) throw new DomainException('Resource draft assignment changed; reload and try again.');
+            $this->lpModel->assignToStudent($lessonPlanId,(int)$iep['student_id'],$teacherId);
+            $this->db->commit();
+        } catch (Throwable $e) { if ($this->db->inTransaction()) $this->db->rollBack(); throw $e; }
     }
 
     /**
@@ -478,5 +537,11 @@ class ResourceHubModel {
      */
     public function getManageableIepsForTeacher(int $teacherId): array {
         return $this->lpModel->getSignedIEPsForTeacher($teacherId);
+    }
+
+    public function getTeacherResourceDrafts(int $teacherId): array {
+        $stmt=$this->db->prepare("SELECT lp.id,lp.title,lp.pdsp_domain,lp.status,lp.updated_at,lp.cloned_from_pack_id,COUNT(DISTINCT pg.id) AS page_count,COUNT(DISTINCT a.id) AS activity_count FROM lesson_plans lp LEFT JOIN lesson_plan_pages pg ON pg.lesson_plan_id=lp.id LEFT JOIN lms_activities a ON a.lesson_plan_id=lp.id WHERE lp.created_by=? AND lp.iep_id IS NULL AND lp.cloned_from_pack_id IS NOT NULL GROUP BY lp.id ORDER BY lp.updated_at DESC");
+        $stmt->execute([$teacherId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC)?:[];
     }
 }

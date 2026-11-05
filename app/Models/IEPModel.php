@@ -19,6 +19,7 @@ class IEPModel {
      * ADD COLUMN IF NOT EXISTS). Ensure column exists before INSERT/UPDATE that reference it.
      */
     private function ensureStepDomainColumnExists(): void {
+        if (!runtime_schema_changes_allowed()) return;
         static $ok = false;
         if ($ok) {
             return;
@@ -51,6 +52,7 @@ class IEPModel {
      * Ensures header snapshot columns exist so IEP save-part1 does not fail.
      */
     private function ensureIepRecordsHeaderColumns(): void {
+        if (!runtime_schema_changes_allowed()) return;
         static $ok = false;
         if ($ok) {
             return;
@@ -93,6 +95,7 @@ class IEPModel {
      * Ensure Part I save dependencies exist (domains/core tables + header columns).
      */
     public function ensurePartOneSaveSchema(): void {
+        if (!runtime_schema_changes_allowed()) return;
         try {
             $this->db->exec("CREATE TABLE IF NOT EXISTS iep_domains (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -424,6 +427,7 @@ class IEPModel {
      * v44 migration may be missing on some DBs. Digital signing UI requires send_status + sent_at.
      */
     public function ensureIepSignatoriesDigitalColumns(): void {
+        if (!runtime_schema_changes_allowed()) return;
         try {
             $q = $this->db->query("
                 SELECT COUNT(*) FROM information_schema.COLUMNS

@@ -81,6 +81,8 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
                 </div>
 
+                <?php if(in_array($user['role']??'', ['admin','principal','teacher','sped_teacher','master_teacher'],true)): ?><p class="small mb-3"><a href="<?= htmlspecialchars((defined('BASE_PATH')?BASE_PATH:'').'/finance',ENT_QUOTES,'UTF-8') ?>"><?= ($user['role']??'')==='admin'?'Finance Management':'Billing history, invoices and payment confirmations' ?></a></p><?php endif ?>
+
                 <!-- Alert Messages -->
                 <?php if (!empty($success)): ?>
                     <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm" role="alert">

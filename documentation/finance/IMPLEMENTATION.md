@@ -1,0 +1,79 @@
+# SignED sandbox finance implementation and migration review
+
+> Current local status: migration applied and Finance enabled for sandbox testing on 3 November 2026. See [local activation verification](LOCAL_SANDBOX_ACTIVATION.md). Earlier disabled/not-applied statements below describe prior review stages. Provider end-to-end acceptance remains pending.
+
+## Inspection (3 November 2026)
+Local MAMP: PHP 8.3.30, MySQL 8.0.44, database `sped_lms`, port 8889. Inspected using a separate PDO read-only transaction, without application bootstrap. Existing `schools.id` and `users.school_id` identify each school; `resource_hub_packs/pages/activities` contain reusable snapshots; lesson plans track `cloned_from_pack_id`. Reuse the Hub cards, controller, IEP permission checks, recommendation workflow, role middleware, sessions, and admin layout. No existing institutional license, order, invoice, payment, subscription, or commission tables were found. No server PDF dependency exists.
+
+Existing uncommitted composer, database-port, and MAMP migration-runner work is preserved. Do not run the existing runner: it executes legacy migrations.
+
+## Startup risk isolated before integration
+`public/index.php` previously invoked SchemaManager on every request. Database construction attempted ALTERs, inserted default admin credentials and a school, and created tables. Hub, IEP, progress, transition, observation, SMS and login models also self-healed. Those legacy paths now require CLI plus `SIGNED_SCHEMA_MAINTENANCE=approved`; HTTP startup never opts in. Do not enable this legacy switch for finance installation. New finance services never perform DDL. Missing finance schema leaves finance disabled and existing free Hub workflows intact.
+
+## Proposed migration (NOT APPLIED)
+`database/migrations/20261103_sandbox_finance.sql` contains new InnoDB tables only. No changes to existing client tables, no seeders, no legacy migration version bump:
+- `finance_orders`: unified orders, buyer/item snapshots, server prices, unique checkout/payment IDs, access state.
+- `finance_events`: unique provider events and body hashes, no raw personal payloads.
+- `finance_pack_pricing`: proposed and approved prices/publication review on existing pack identities.
+- `finance_entitlements`: permanent pack rights, subscription periods, institutional activation periods.
+- `finance_usage`: unique first use per subscription period and premium pack.
+- `finance_accounting`: verified fee basis, exact integer shares, undistributed liabilities.
+- `finance_earnings`: creator allocations and immutable refund adjustments.
+- `finance_payouts` / `finance_payout_items`: confirmed manual transfers linked to earnings.
+- `finance_refunds`: customer request, admin decision, provider reconciliation and audit.
+- `finance_audit`: actor and transition history.
+- `finance_fee_evidence`: append-only individual payment retrieval evidence (source, hashes, payment/ledger IDs, fee/net or pending reason).
+- `finance_media_assets` / `finance_pack_media`: private blob metadata and new-pack asset bindings; no legacy file or record conversion.
+
+Relationships reference existing integer IDs logically; new internal foreign keys enforce order relationships. Original school/learner records never cascade through finance. All records are sandbox-only; no live credentials accepted.
+
+## Approval and verified backup gate
+No migration may run until the client approves this exact migration and a backup is verified. First use the local MAMP `mysqldump` with an interactive password or mode-0600 option file outside public/ and Git. Export the full local database with `--single-transaction --routines --triggers --events --hex-blob`. Include uploaded/encrypted files and relevant encryption configuration in a private backup. Record SHA-256, size, server version, row counts, engines, schema version, and migration checksum. Verify restoration in a separately approved disposable database, compare row counts and SHOW CREATE TABLE outputs; a nonempty SQL file alone is not verification. Do not import into the working database. Freeze writes during backup for non-InnoDB tables. Obtain approval for restore-test creation and migration application. Apply only the reviewed finance SQL, then compare existing table definitions/counts and validate all new constraints. MySQL DDL implicitly commits; rollback is by restoring the verified private backup under separate authorization, not by dropping client tables.
+
+## Configuration and provider requirements
+Set `SIGNED_FINANCE_ENABLED=true` only after approved installation. Supply server-side `PAYMONGO_SECRET_KEY=sk_test_...`, the endpoint-specific `PAYMONGO_WEBHOOK_SECRET`, `PAYMONGO_PAYMENT_METHODS` (enabled account methods), and `SIGNED_FINANCE_BASE_URL` (absolute local public base URL for redirects). Do not paste secrets into chat or source files. No credentials were present at inspection. The module retrieves `GET /v1/payments/{id}` using the test secret and verifies payment identity, currency, paid status and amount before using integer fee/net evidence. Unavailable or unreconciled values stay PENDING_FEES. Ancillary deduction ambiguity stays pending; no gross-minus-net fee estimate is posted. See [SANDBOX_SETUP.md](SANDBOX_SETUP.md) for storage, server routing and exact account/environment setup.
+
+Official docs reviewed: [Hosted Checkout v2](https://docs.paymongo.com/docs/payment-channels-hosted-checkout), [webhook signatures](https://docs.paymongo.com/do/docs/developer-tools-webhook-setup-management), [refund API guide](https://docs.paymongo.com/docs/payment-acceptance-refunds), [refund resource](https://docs.paymongo.com/reference/refund-resource). Refund guide uses `/v1/refunds`; confirm account support in sandbox before exercising. Checkout creation is never blindly retried after an uncertain POST. Reconciliation uses persisted checkout/payment IDs. Admin can reconcile uncertain states explicitly.
+
+## Implementation order and outstanding gates
+1. Isolate startup writes, inspect local schema read-only, prepare additive migration.
+2. Implement provider/signature validation, integer accounting, order/access services, isolated tests.
+3. Integrate existing Hub pricing/access and customer/admin finance screens, PDFs, refunds/payouts.
+4. Client approval + verified backup + approved migration, then local database integration and browser role checks.
+5. Client approval before a temporary HTTPS tunnel. Proxy ONLY POST `/finance/webhook`; return 404 for all other paths. Never tunnel MAMP root, phpMyAdmin or MySQL. Register test-only events and retain endpoint-specific secret server-side. Disable tunnel and webhook after testing.
+6. Actual PayMongo test payments and A–L reconciliation; no deployment/commits/pushes.
+
+Institutional enforcement requires Finance enabled and applies automatically only to a school explicitly created through a newly approved Principal application. Approval creates one server-priced pending ₱15,000 annual order and records `SCHOOL_LICENSE_REQUIRED`; it does not grant teaching access. Faculty may submit applications while payment is pending, but the Principal cannot approve or activate SPED Teacher, General Teacher, Master Teacher, or Guidance accounts until payment is independently verified. Those four roles share one 10-active-account school limit. Verified payment atomically creates the annual entitlement, records `SCHOOL_LICENSE_ENROLLED`, and activates access; no second System Admin activation step is used. Table existence alone never enrolls a school. Existing schools and historical activation/expiry records without either marker retain legacy access. Disabled Finance bypasses the school gate before any connection/schema query; persistent premium-media protection remains independent. Enrollment and activation write finance records only; educational, account, and school records are not rewritten.
+
+Institutional renewal during grace extends from previous expiry; after grace starts on activation. Monthly periods use calendar months clamped to month-end. Usage is counted on successful template use, never preview. Pools close after period end; zero-use pools remain undistributed. Full confirmed refunds revoke only entitlements sourced by that order; later independently paid terms survive. Partial refunds suspend the affected order's entitlement and flag review. Refunded institutional data remains intact. Already paid creator allocations are offset by new negative earnings, preserving payout history.
+
+## Current implementation limits (must resolve before claiming completion)
+- Private premium media delivery is implemented for new uploads: opaque blobs outside all web roots, MIME/size/integrity checks, creator-owned asset bindings, and entitlement checks on every GET/HEAD/download/Range request. Existing Hub page/activity reads and template cloning retain server-side checks. The lesson editor has a private-image upload option; Finance supports image/PDF/video/audio uploads. New premium snapshots reject public/external/base64 URLs. Legacy educational upload URLs are routed through an authenticated gateway; premium references are checked without changing records or moving files, including encoded and JSON-escaped references and symlink aliases. Assigned learners/parents require an existing published cloned-lesson assignment and the originating teacher's current pack entitlement. Server routing/aliases must still be verified locally before acceptance.
+- Confirmed refunds preserve original provider fees and add auditable proportional creator/undistributed reversals. SignED bears the retained processing cost. Any returned processing fee remains unverified, and affected payouts remain blocked. Returned-fee reconciliation remains pending where the account does not supply verifiable ledger/statement evidence; do not treat those totals as final reconciled income. Individual sale fees can now be retrieved and reconciled independently of checkout-embedded amounts. Changed posted fees are preserved as evidence, mark FEE_REVIEW, and block payout; late fees after confirmed refunds mark REFUND_FEE_REVIEW without retroactively allocating proceeds.
+- Schema-backed services, simultaneous webhook delivery, role browser interactions, and actual provider behavior remain unverified until migration approval and sandbox credentials are supplied. This is a staged implementation, not completed acceptance.
+- Finance disabled after installation still protects premium pack content; turning off checkout does not make paid packs free. Historical pre-migration packs remain free. Already adapted free packs cannot be converted to premium.
+- Failed payment attempts leave a retryable checkout pending and grant no access. Cancellation only follows confirmed provider session expiry. Checkout v2 creation uses v1 retrieve/expire resource endpoints per current API reference.
+- Customer and admin lists show the latest 100 transactions, earnings 200; search/filter narrows transactions. Full-history pagination/export remains follow-up work for larger histories.
+
+## Files changed
+`config/db.php`, `config/env.php`, `public/index.php`, `config/SchemaManager.php`, and legacy model/service self-healing guards isolate startup writes. `routes/web.php` and `app/Middleware/SchoolLicenseMiddleware.php` add finance routes and school grace enforcement for paid teaching tools. `app/Services/FinanceRules.php`, `PayMongoSandbox.php`, `FinanceService.php`, and `FinancePdf.php` implement the new module; `app/Controllers/FinanceController.php` and `app/Views/finance/` reuse existing layouts. Hub model/controller/cards/share dialog and Learning Insights recommendations incorporate pricing review and access labels. `.env.example` lists blank server-side settings. `.gitignore` permits reviewed migration sources while continuing to exclude backups.
+
+## Focused media/fee review — code changes only
+No database connection, migration, existing record/file conversion, provider request, tunnel, commit or deployment was performed during this follow-up. Migration is ready for client review; applying and exercising its schema is still gated by approval and verified backup.
+
+Files changed in this follow-up:
+- Media: `app/Services/PremiumMediaService.php`, `app/Controllers/PremiumMediaController.php`, `app/Models/ResourceHubModel.php`, `public/.htaccess`, `routes/web.php`, `tools/finance_local_router.php`, `app/Views/iep_implementation/lesson_slide_builder.php`.
+- Fees/admin: `app/Services/PayMongoFeeEvidence.php`, `app/Services/PayMongoSandbox.php`, `app/Services/FinanceService.php`, `app/Controllers/FinanceController.php`, `app/Views/finance/index.php`.
+- Review/setup: `database/migrations/20261103_sandbox_finance.sql`, `.env.example`, this document, `ACCEPTANCE.md`, `SANDBOX_SETUP.md`.
+- Isolated tests: `tests/PremiumMediaTest.php`, `tests/PayMongoFeeEvidenceTest.php`, `tests/FinanceFeePostingTest.php`.
+
+## Institutional license-gate safety fix
+The migration-safety review's availability blocker is fixed in local code. `SchoolLicenseMiddleware::decision()` checks the explicit feature flag first, not `FinanceService::accessEnabled()` (which still protects paid Hub content after checkout is disabled). Guarded paths include existing implementation/learning tools, the `/teacher/resource-hub` alias and actual `/teacher-fsl-training` routes. Normal role authorization still runs. The gate reads the active user's authoritative database role; System Admin remains exempt from school expiry, without giving unrelated teachers administrative rights.
+
+A Principal must explicitly check the institutional application consent field. The server validates role/school membership and records `LICENSE_APPLICATION_ACCEPTED` inside the order transaction. A browser redirect never activates access. When PayMongo independently verifies the exact payment, one transaction marks the order paid, creates the annual entitlement, activates access, and records `SCHOOL_LICENSE_ENROLLED` for the first term. No new table, column, migration, bulk opt-in, seeder, or backfill is needed. Historical records lacking the enrollment marker remain legacy; verified renewals reuse the school identity. A refunded or revoked term does not silently remove enrollment. Status calculations and middleware never modify educational records.
+
+Enrolled schools keep full access through expiry plus 30 days (inclusive). Early and within-grace renewals extend the previous end; after-grace renewal starts at activation. Denied protected requests return 403 and a billing link, without redirecting. Login/logout/auth, Finance, payments, principal renewal actions, PDF documents, webhook and dashboard endpoints remain outside this gate and retain their own authorization/CSRF/signature checks. Missing verification for an enrolled school fails closed; disabled Finance performs no new license lookup and preserves existing access.
+
+Files changed for this safety fix: `app/Middleware/SchoolLicenseMiddleware.php`, `app/Services/FinanceService.php`, `app/Services/FinanceRules.php`, `app/Controllers/FinanceController.php`, `app/Views/finance/index.php`, `tests/SchoolLicenseGateTest.php`, and these finance implementation/acceptance/setup documents. The proposed SQL migration and actual `.env` were not changed. Finance remains disabled. No database connection, migration, record change, reset, provider request, tunnel, commit, push or deployment was performed.
+
+Remaining before migration: client approval of the reviewed SQL and verified local backup/restore. The licensing availability blocker no longer requires a schema change; actual migrated MySQL concurrency and browser/PayMongo acceptance remain unverified. Private storage, server route/alias verification and the separately approved test webhook are still required before full payment acceptance testing.

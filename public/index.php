@@ -107,8 +107,8 @@ if (file_exists($appRoot . 'app/Helpers/StudentDisplayHelper.php')) {
 }
 
 // Apply schema migrations on first run
-$schemaManager = new SchemaManager();
-$schemaManager->applyMigrations();
+// Schema changes require an approved, backed-up CLI maintenance run.
+// Never migrate or seed during an HTTP request.
 
 // Simple router
 $requestUri = $_SERVER['REQUEST_URI'];

@@ -97,13 +97,13 @@ require_once __DIR__ . '/../layouts/header.php';
         <!-- Header Bar -->
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div class="d-flex align-items-center gap-2">
-                <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/resource-hub" class="btn btn-outline-secondary btn-sm" style="border-radius: 6px;">
-                    <i class="ph-bold ph-arrow-left me-1"></i> Back to Hub
+                <a href="<?php echo htmlspecialchars($basePath); ?><?php echo !empty($reviewOnly) ? '/finance?tab=transactions' : '/iep/implementation/resource-hub'; ?>" class="btn btn-outline-secondary btn-sm" style="border-radius: 6px;">
+                    <i class="ph-bold ph-arrow-left me-1"></i> <?php echo !empty($reviewOnly) ? 'Back to Finance review' : 'Back to Hub'; ?>
                 </a>
                 <div>
                     <h4 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
                         <span><?php echo htmlspecialchars($pack['title']); ?></span>
-                        <span class="badge bg-secondary-subtle text-secondary fw-semibold border" style="font-size:0.75rem; border-radius:6px;">Preview Mode</span>
+                        <span class="badge bg-secondary-subtle text-secondary fw-semibold border" style="font-size:0.75rem; border-radius:6px;"><?php echo !empty($reviewOnly) ? 'Admin review preview' : 'Preview Mode'; ?></span>
                     </h4>
                 </div>
             </div>
@@ -114,9 +114,9 @@ require_once __DIR__ . '/../layouts/header.php';
                         <i class="ph-bold ph-arrow-square-out me-1"></i> <?php echo htmlspecialchars($pack['mainstream_mastery_title'] ?: 'External Mastery Activity'); ?>
                     </a>
                 <?php endif; ?>
-                <button type="button" class="btn btn-primary btn-sm btn-hub-action fw-semibold" onclick="openUseAsTemplateModal(<?php echo (int)$pack['id']; ?>, <?php echo htmlspecialchars(json_encode($pack['title'])); ?>)">
+                <?php if (empty($reviewOnly) && ($userRole ?? $_SESSION['role'] ?? '') !== 'general_teacher'): ?><button type="button" class="btn btn-primary btn-sm btn-hub-action fw-semibold" onclick="openUseAsTemplateModal(<?php echo (int)$pack['id']; ?>, <?php echo htmlspecialchars(json_encode($pack['title'])); ?>)">
                     <i class="ph-bold ph-copy me-1"></i> Use as Template
-                </button>
+                </button><?php endif; ?>
             </div>
         </div>
 
@@ -244,6 +244,7 @@ require_once __DIR__ . '/../layouts/header.php';
     </div><!-- /container-fluid -->
 </div><!-- /main-content -->
 
+<?php if (empty($reviewOnly) && ($userRole ?? $_SESSION['role'] ?? '') !== 'general_teacher'): ?>
 <!-- Clone Modal (Reuse same modal) -->
 <div class="modal fade" id="useAsTemplateModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -255,7 +256,7 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
                     <div>
                         <h6 class="modal-title fw-bold mb-0 text-dark">Use as Template</h6>
-                        <span class="text-muted" style="font-size:0.75rem;">Create an independent draft for your learner</span>
+                        <span class="text-muted" style="font-size:0.75rem;">Save an editable copy now; assign it to a learner later</span>
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -273,16 +274,16 @@ require_once __DIR__ . '/../layouts/header.php';
 
                     <div class="mb-3">
                         <label for="targetIepSelect" class="form-label small fw-bold text-dark mb-1">
-                            Pilia ang Imong Estudyante / IEP Context: <span class="text-danger">*</span>
+                            Learner / IEP assignment <span class="text-muted fw-normal">(optional)</span>
                         </label>
                         <?php if (empty($myIeps)): ?>
                             <div class="alert alert-warning py-2 px-3 small mb-0" style="border-radius: 6px;">
                                 <i class="ph-bold ph-warning me-1"></i>
-                                Wala kay nakita nga pirmadong IEP nga imong gidumala. Aron maka-clone og lesson, kinahanglan aduna kay bisan usa ka <strong>Signed IEP</strong> ubos sa imong pagtudlo.
+                                Wala kay signed IEP nga imong gidumala. You can still save this pack to <strong>My Resources</strong>, edit it privately, and assign it later.
                             </div>
                         <?php else: ?>
-                            <select id="targetIepSelect" name="target_iep_id" class="form-select form-select-sm" required style="border-radius: 6px;">
-                                <option value="">-- Pilia ang Estudiyante / IEP --</option>
+                            <select id="targetIepSelect" name="target_iep_id" class="form-select form-select-sm" style="border-radius: 6px;">
+                                <option value="">Save to My Resources — assign later</option>
                                 <?php foreach ($myIeps as $iep): ?>
                                     <option value="<?php echo (int)$iep['iep_id']; ?>" data-student-id="<?php echo (int)($iep['student_id'] ?? 0); ?>">
                                         <?php echo htmlspecialchars($iep['student_name'] ?? 'Learner'); ?>
@@ -291,7 +292,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <?php endforeach; ?>
                             </select>
                             <div class="form-text text-muted" style="font-size:0.74rem;">
-                                Ang bag-ong lesson plan ipahinungod sa napili nga estudyante ug ablihan dayon sa Lesson Builder.
+                                Optional: choose a learner now, or leave this blank to keep an editable private draft.
                             </div>
                         <?php endif; ?>
                     </div>
@@ -312,14 +313,15 @@ require_once __DIR__ . '/../layouts/header.php';
                     <button type="button" class="btn btn-outline-secondary btn-sm fw-medium px-3" data-bs-dismiss="modal" style="border-radius: 6px;">
                         Kanselahon
                     </button>
-                    <button type="submit" id="btnSubmitClone" class="btn btn-primary btn-sm fw-semibold px-3" style="border-radius: 6px;" <?php echo empty($myIeps) ? 'disabled' : ''; ?>>
-                        <i class="ph-bold ph-copy me-1"></i> Clone &amp; Open in Builder
+                    <button type="submit" id="btnSubmitClone" class="btn btn-primary btn-sm fw-semibold px-3" style="border-radius: 6px;">
+                        <i class="ph-bold ph-folder-plus me-1"></i> Save &amp; Open in Builder
                     </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <script>
 const BASE_URL = '<?php echo htmlspecialchars($basePath); ?>';
@@ -428,12 +430,7 @@ async function submitCloneForm(e) {
     const select = document.getElementById('targetIepSelect');
     const targetIepId = select ? select.value : '';
 
-    if (!targetIepId) {
-        alert('Palihug pilia ang usa sa imong signed learner IEPs.');
-        return;
-    }
-
-    const selectedOption = select.options[select.selectedIndex];
+    const selectedOption = select && select.selectedIndex >= 0 ? select.options[select.selectedIndex] : null;
     const studentId = selectedOption ? selectedOption.dataset.studentId : null;
 
     const btn = document.getElementById('btnSubmitClone');
@@ -444,7 +441,7 @@ async function submitCloneForm(e) {
     try {
         const res = await fetch(`${BASE_URL}/iep/implementation/resource-hub/clone/${packId}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Finance-CSRF': <?php echo json_encode($_SESSION['finance_csrf'] ?? ''); ?> },
             body: JSON.stringify({
                 target_iep_id: targetIepId,
                 target_student_id: studentId

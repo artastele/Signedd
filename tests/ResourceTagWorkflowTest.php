@@ -3,6 +3,13 @@ declare(strict_types=1);
 // Real publisher, analyzer, recommender, and view; entirely in-memory PDO fixtures.
 require_once __DIR__ . '/../app/Models/ResourceHubModel.php';
 require_once __DIR__ . '/../app/Services/ResourceRecommendationService.php';
+// This fixture covers the legacy free-Hub workflow independently of the developer's local Finance flag.
+$fixtureFinanceFlag = getenv('SIGNED_FINANCE_ENABLED');
+putenv('SIGNED_FINANCE_ENABLED=false');
+register_shutdown_function(static function () use ($fixtureFinanceFlag): void {
+    if ($fixtureFinanceFlag === false) putenv('SIGNED_FINANCE_ENABLED');
+    else putenv('SIGNED_FINANCE_ENABLED=' . $fixtureFinanceFlag);
+});
 
 class TagWorkflowStatement extends PDOStatement {
     private $executeRows;
@@ -29,6 +36,9 @@ class TagWorkflowDatabase extends PDO {
     public function commit(): bool { $this->transaction = false; return true; }
     public function rollBack(): bool { $this->transaction = false; return true; }
     public function lastInsertId(?string $name = null): string|false { return (string)array_key_last($this->packs); }
+    public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false {
+        $statement = $this->prepare($query); $statement->execute(); return $statement;
+    }
     public function exec(string $statement): int|false { throw new RuntimeException('Schema/direct writes forbidden'); }
     public function prepare(string $sql, array $options = []): PDOStatement|false {
         return new TagWorkflowStatement(function (array $params) use ($sql): array {
@@ -47,6 +57,7 @@ class TagWorkflowDatabase extends PDO {
                 $this->writes[] = 'activity'; $this->activities[] = $params; return [];
             }
             if (!preg_match('/^\s*SELECT/i', $sql)) throw new RuntimeException('Unexpected write: '.$sql);
+            if (str_contains($sql, 'FROM information_schema.TABLES') && str_contains($sql, "TABLE_NAME='finance_pack_pricing'")) return [];
             if (str_contains($sql, 'FROM csrf_tokens')) return [['token'=>'fixture-token']];
             if (str_contains($sql, 'FROM system_settings') || str_contains($sql,'SELECT 1 FROM student_records')) return [];
             if (str_contains($sql, 'FROM lms_activities la')) return [$this->activity];
@@ -164,4 +175,40 @@ tagReject(fn() => ResourceTagService::normalizeTags(str_repeat('x',61)), 'Oversi
 tagCheck($db->ratings === $originalRatings && $db->writes === $publishWrites, 'Recommendations never write IEP ratings, report cards, assignments or clones');
 putenv('GEMINI_API_KEY=');
 tagCheck(ResourceTagService::suggest($meta) === $suggested, 'Gemini unavailable: deterministic local suggestions remain available');
+$scopeDb = new TagWorkflowDatabase();
+$scopeLesson = new class extends TagWorkflowLesson {
+    public function getPagesByLessonPlan(int $lessonPlanId): array {
+        return [
+            ['page_number'=>1,'title'=>'Slide one','content'=>'<p>First slide</p>'],
+            ['page_number'=>2,'title'=>'Slide two','content'=>'<p>Second slide</p>']
+        ];
+    }
+    public function getMaterials($lessonPlanId) {
+        return [['title'=>'Teacher reference','file_path'=>'','external_url'=>'https://example.test/reference.pdf']];
+    }
+    public function getActivitiesByIepId($iepId) {
+        return [
+            ['lesson_plan_id'=>20,'title'=>'Linked practice','activity_type'=>'multiple_choice','activity_data'=>'[]'],
+            ['lesson_plan_id'=>21,'title'=>'Another lesson practice','activity_type'=>'multiple_choice','activity_data'=>'[]']
+        ];
+    }
+};
+$scopeHub = $hubReflection->newInstanceWithoutConstructor();
+$hubReflection->getProperty('db')->setValue($scopeHub, $scopeDb);
+$hubReflection->getProperty('lpModel')->setValue($scopeHub, $scopeLesson);
+$slideDeckId = $scopeHub->shareLessonToHub(20, 11, 'Teacher A', $meta + ['share_scope'=>'slide_deck']);
+tagCheck(count(array_filter($scopeDb->pages, fn($p) => $p['pack_id']===$slideDeckId))===2 && !$scopeDb->activities, 'Slide deck contains saved slides only, without materials or linked activities');
+$fullPackId = $scopeHub->shareLessonToHub(20, 11, 'Teacher A', $meta + ['share_scope'=>'full_lesson']);
+tagCheck(count(array_filter($scopeDb->pages, fn($p) => $p['pack_id']===$fullPackId))===3 && count($scopeDb->activities)===1 && $scopeDb->activities[0]['title']==='Linked practice', 'Full lesson includes available material and only linked activity');
+$writesBeforeInvalidScope = count($scopeDb->writes);
+tagReject(fn() => $scopeHub->shareLessonToHub(20, 11, 'Teacher A', $meta + ['share_scope'=>'unknown']), 'Unknown share scope is rejected');
+tagCheck(count($scopeDb->writes)===$writesBeforeInvalidScope, 'Rejected share scope writes no pack or educational record');
+$emptyDeckHub = $hubReflection->newInstanceWithoutConstructor();
+$hubReflection->getProperty('db')->setValue($emptyDeckHub, $scopeDb);
+$hubReflection->getProperty('lpModel')->setValue($emptyDeckHub, new class extends TagWorkflowLesson {
+    public function getPagesByLessonPlan(int $lessonPlanId): array { return []; }
+    public function getMaterials($lessonPlanId) { return [['title'=>'Only a material','file_path'=>'','external_url'=>'https://example.test/file.pdf']]; }
+});
+tagReject(fn() => $emptyDeckHub->shareLessonToHub(20, 11, 'Teacher A', $meta + ['share_scope'=>'slide_deck']), 'Slide deck requires a saved slide even when materials exist');
+tagCheck(count($scopeDb->writes)===$writesBeforeInvalidScope, 'Empty slide deck rejection writes no pack');
 echo "Resource tag workflow: {$checks} checks passed; no real database, files, or network modified.\n";

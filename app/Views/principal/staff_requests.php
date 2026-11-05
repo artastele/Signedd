@@ -22,7 +22,7 @@ require_once __DIR__ . '/../layouts/header.php';
 
     <div class="alert alert-info border-0 shadow-sm">
         <i class="bi bi-info-circle-fill me-2"></i>
-        <strong>Your Approval Authority:</strong> As Principal, you approve role requests for SPED Teachers, Guidance Counselors, Master Teachers, and General Teachers assigned to your school.
+        <strong>Your Approval Authority:</strong> You may approve SPED Teachers, Guidance Counselors, Master Teachers, and General Teachers assigned to your school after the institutional license is active. These four roles share the school’s 10 active faculty seats.
     </div>
 
     <!-- Success/Error Messages -->

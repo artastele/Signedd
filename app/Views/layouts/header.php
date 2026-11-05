@@ -14,6 +14,10 @@
     <!-- Custom CSS -->
     <link href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/css/custom.css?v=<?php echo time(); ?>" rel="stylesheet">
 
+    <?php if (!empty($financeStyles)): ?>
+    <link href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/css/finance-marketplace.css?v=<?php echo is_file(__DIR__ . "/../../../public/css/finance-marketplace.css") ? filemtime(__DIR__ . "/../../../public/css/finance-marketplace.css") : 1; ?>" rel="stylesheet">
+    <?php endif; ?>
+
     <!-- Self-Hosted Phosphor Icons (Bold Weight - Zero CDN Dependency) -->
     <link href="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/css/phosphor/style.css?v=<?php echo time(); ?>" rel="stylesheet">
 

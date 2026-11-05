@@ -406,6 +406,14 @@ class ResourceRecommendationService {
             $activitiesByPack = [];
             foreach ($activityStmt->fetchAll(PDO::FETCH_ASSOC) as $row) $activitiesByPack[(int)$row['pack_id']][] = $row;
             foreach ($packs as $pack) {
+                $accessLabel = 'Free';
+                require_once __DIR__.'/FinanceService.php';
+                if (!empty($_SESSION['user_id']) && FinanceService::accessEnabled($this->db)) {
+                    $finance = new FinanceService($this->db);
+                    $review = $finance->query('SELECT review_status FROM finance_pack_pricing WHERE pack_id=?',[$pack['id']])->fetchColumn();
+                    if ($review && $review !== 'APPROVED') continue;
+                    $accessLabel = $finance->packAccess((int)$pack['id'],(int)($_SESSION['user_id']??0))['label'];
+                }
                 if ((int)($pack['id'] ?? 0) <= 0 || trim($pack['title'] ?? '') === '' || ($pack['status'] ?? '') !== 'published') continue;
                 // Do not substitute a different explicitly stated numerical range.
                 $contextText = ($activity['competency'] ?? '') . ' ' . ($activity['title'] ?? '');
@@ -421,6 +429,7 @@ class ResourceRecommendationService {
                 if (!$match || isset($seenKeys[$key])) continue;
                 $seenKeys[$key] = true;
                 $recommendations[] = [
+                    'access_label' => $accessLabel,
                     'resource_type' => 'resource_hub_pack', 'source_table' => 'resource_hub_packs',
                     'source_id' => (int)$pack['id'], 'title' => $pack['title'],
                     'description' => $pack['description'] ?? '', 'category' => $pack['learning_level'] ?? '',

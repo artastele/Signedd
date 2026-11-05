@@ -103,8 +103,8 @@ class LessonPlanModel {
                 sr.student_name, sr.lrn,
                 u.name AS created_by_name
             FROM lesson_plans lp
-            JOIN iep_records ir     ON lp.iep_id     = ir.id
-            JOIN student_records sr ON ir.student_id  = sr.id
+            LEFT JOIN iep_records ir     ON lp.iep_id     = ir.id
+            LEFT JOIN student_records sr ON ir.student_id  = sr.id
             JOIN users u            ON lp.created_by  = u.id
             WHERE lp.id = :id
             LIMIT 1

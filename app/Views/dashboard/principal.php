@@ -1,5 +1,6 @@
 <?php
 $pageTitle = 'Principal Dashboard - SignED';
+$financeStyles = true;
 $basePath = defined('BASE_PATH') ? BASE_PATH : '';
 require_once __DIR__ . '/../layouts/header.php';
 
@@ -176,6 +177,8 @@ $schoolResCount = $objectiveMetrics['evidence']['resources'] + $objectiveMetrics
             <i class="bi bi-geo-alt-fill me-1"></i> Assign Classroom & Section
         </button>
     </div>
+
+    <?php require __DIR__.'/../finance/partials/school_license.php'; ?>
 
     <!-- Alert Messages -->
     <?php if (isset($_SESSION['success'])): ?>

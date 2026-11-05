@@ -13,6 +13,9 @@ class SchemaManager {
     }
 
     public function applyMigrations() {
+        if (!runtime_schema_changes_allowed()) {
+            throw new RuntimeException("Schema maintenance requires explicit approval and a verified backup.");
+        }
         try {
             // Read schema.sql
             $schemaPath = __DIR__ . '/schema.sql';

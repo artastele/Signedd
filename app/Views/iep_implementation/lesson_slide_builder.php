@@ -1,4 +1,5 @@
 <?php
+$_SESSION['finance_csrf'] = $_SESSION['finance_csrf'] ?? bin2hex(random_bytes(32));
 // SignED — Dedicated Lesson Slides Studio & FSL Interactive Aids Builder
 // Full-page 3-column workspace for SPED Teachers
 
@@ -376,18 +377,60 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
     line-height: 1.6 !important;
     min-height: 360px !important;
 }
+.studio-topbar { padding: 1.25rem 1.5rem !important; }
+.lesson-studio-shell .gap-1\.5 { gap: .5rem !important; }
+.lesson-studio-shell .gap-2\.5 { gap: .75rem !important; }
+.slide-editor-pane .overflow-auto { padding: 1.25rem !important; }
+.studio-topbar > .d-flex { align-items: flex-start !important; row-gap: 1rem !important; }
+.studio-topbar-actions { gap: .65rem 1rem !important; justify-content: flex-end; }
+.studio-topbar-actions .btn { min-height: 38px !important; height: auto !important; padding: .45rem .8rem !important; }
+.studio-topbar-actions .btn-group { gap: .45rem; }
+.studio-topbar-actions .btn-group .btn { border-radius: 7px !important; }
+.studio-editor-tools { gap: .55rem !important; margin-top: .75rem; }
+.studio-editor-tools .btn { min-height: 34px; }
+.studio-editor-tools .btn:last-child { margin-left: auto; }
+.studio-editor-tools summary { cursor: pointer; color: #334155; font-size: .84rem; font-weight: 600; list-style: none; }
+.studio-editor-tools summary::-webkit-details-marker { display: none; }
+.studio-editor-tools[open] { width: 100%; padding: .75rem; border: 1px solid #dbe3ed; border-radius: 8px; background: #f8fafc; }
+.studio-editor-tools .studio-tool-list { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: .65rem; }
+.studio-save-actions { gap: .75rem !important; flex-wrap: wrap; }
+.studio-save-actions .btn { border-radius: 7px !important; min-height: 38px; }
+.studio-save-status { min-height: 24px; }
+#shareToHubModal .modal-dialog { width: min(1120px, calc(100vw - 2rem)); max-width: none; }
+#shareToHubModal .modal-body { max-height: calc(100vh - 220px); overflow-y: auto; }
+#shareToHubModal .modal-body > .row { --bs-gutter-x: 1.25rem; --bs-gutter-y: 1rem; }
+#shareToHubModal .form-control, #shareToHubModal .form-select { min-height: 40px; font-size: .95rem; }
+#shareToHubModal .private-pack-media { padding: 1rem; border: 1px solid #dbe3ed; border-radius: 10px; background: #f8fafc; }
+#shareToHubModal .private-pack-media-controls, #shareToHubModal .private-pack-media-url { display: flex; gap: .75rem; }
+#shareToHubModal .private-pack-media-controls .form-control, #shareToHubModal .private-pack-media-url .form-control { flex: 1; min-width: 0; }
+#shareToHubModal .private-pack-media-controls .btn, #shareToHubModal .private-pack-media-url .btn { flex: 0 0 auto; }
+#shareToHubModal .private-pack-media-url[hidden] { display: none; }
+@media (max-width: 1450px) {
+    .studio-workspace-row { flex-wrap: wrap; }
+    .fsl-library-pane { flex: 1 1 100% !important; width: 100% !important; max-width: 100% !important; }
+    .fsl-library-list { max-height: 380px; }
+}
+@media (max-width: 1050px) {
+    .slide-deck-pane { flex-basis: 210px !important; width: 210px !important; }
+}
+@media (max-width: 767px) {
+    .studio-workspace-row { flex-direction: column; }
+    .slide-deck-pane, .fsl-library-pane, .slide-editor-pane { flex: 1 1 auto !important; width: 100% !important; max-width: 100% !important; }
+    .studio-topbar-actions { justify-content: flex-start; }
+    #shareToHubModal .private-pack-media-controls, #shareToHubModal .private-pack-media-url { flex-direction: column; }
+}
 </style>
 
 <div class="main-content">
     <div class="lesson-studio-shell">
         
         <!-- Consolidated Sleek Studio Top Header -->
-        <div class="studio-card p-3 mb-3 bg-white shadow-sm border" style="border-radius: 10px;">
+        <div class="studio-card studio-topbar p-3 mb-3 bg-white shadow-sm border" style="border-radius: 10px;">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                 <!-- Left: Navigation & Meta -->
                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <a href="<?php echo htmlspecialchars($basePath); ?>/iep/implementation/workspace/<?php echo $iepId; ?>" class="btn btn-sm btn-outline-secondary fw-semibold d-inline-flex align-items-center gap-1.5" title="Back to Workspace" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 12px; height: 32px;">
-                        <i class="ph-bold ph-arrow-left"></i> <span>Back to Workspace</span>
+                    <a href="<?php echo htmlspecialchars($basePath); ?><?php echo $iepId ? '/iep/implementation/workspace/'.$iepId : '/iep/implementation/resource-hub'; ?>" class="btn btn-sm btn-outline-secondary fw-semibold d-inline-flex align-items-center gap-1.5" title="Back" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 12px; height: 32px;">
+                        <i class="ph-bold ph-arrow-left"></i> <span><?php echo $iepId ? 'Back to Workspace' : 'Back to My Resources'; ?></span>
                     </a>
                     <div class="vr mx-1 opacity-25 d-none d-sm-block" style="height: 22px;"></div>
                     <span class="badge bg-primary text-white rounded-2 px-2 py-1" style="font-size: 0.72rem; letter-spacing: 0.5px;">STUDIO</span>
@@ -402,10 +445,11 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                             <i class="ph-bold ph-user me-1 text-primary"></i> <?php echo htmlspecialchars($studentName); ?>
                         </span>
                     <?php endif; ?>
+                    <?php if (!$iepId): ?><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2.5 py-1 rounded-2 fw-semibold"><i class="ph-bold ph-folder-open me-1"></i> Private Resource Draft</span><?php endif; ?>
                 </div>
 
                 <!-- Right: Status, Panel Toggles & Primary Actions -->
-                <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+                <div class="d-flex align-items-center gap-2 flex-wrap ms-auto studio-topbar-actions">
                     <!-- Slide Counter & Status Badges -->
                     <span class="badge bg-light text-secondary border px-2.5 py-1.5 fw-semibold" id="totalSlidesCountBadge" style="font-size: 0.76rem; border-radius: 6px;">
                         <?php echo count($pages); ?> Slides
@@ -430,16 +474,16 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                     <div class="vr mx-1 opacity-25 d-none d-md-block" style="height: 22px;"></div>
 
                     <!-- Action Buttons -->
-                    <a id="btnPreviewAsLearner" href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lpId; ?>" target="_blank" class="btn btn-sm btn-outline-primary fw-semibold d-inline-flex align-items-center gap-1" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 12px; height: 32px;">
+                    <?php if ($iepId): ?><a id="btnPreviewAsLearner" href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lpId; ?>" target="_blank" class="btn btn-sm btn-outline-primary fw-semibold d-inline-flex align-items-center gap-1" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 12px; height: 32px;">
                         <i class="ph-bold ph-eye"></i> <span>Preview as Learner</span> <i class="ph-bold ph-arrow-square-out ms-0.5"></i>
-                    </a>
-                    <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-semibold d-inline-flex align-items-center gap-1" onclick="openShareToHubModal()" title="Share as reusable Accessibility Pack" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 12px; height: 32px; border-color: #f59e0b;">
-                        <i class="ph-bold ph-share-network text-warning"></i> <span>Share to Hub</span>
+                    </a><?php else: ?><button type="button" class="btn btn-sm btn-primary fw-semibold d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#assignResourceModal"><i class="ph-bold ph-user-plus"></i> Assign to Learner</button><?php endif; ?>
+                    <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-semibold d-inline-flex align-items-center gap-1" onclick="openShareToHubModal()" title="Share only the saved slides in this lesson" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 12px; height: 32px; border-color: #f59e0b;">
+                        <i class="ph-bold ph-share-network text-warning"></i> <span>Share Slide Deck</span>
                     </button>
-                    <button type="button" class="btn btn-sm btn-success fw-bold d-inline-flex align-items-center gap-1 shadow-sm" onclick="saveActiveSlide()" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 14px; height: 32px; background: #059669; border-color: #059669;">
+                    <button type="button" id="saveSlideTopBtn" class="btn btn-sm btn-success fw-bold d-inline-flex align-items-center gap-1 shadow-sm" onclick="saveActiveSlide()" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 14px; height: 32px; background: #059669; border-color: #059669;">
                         <i class="ph-bold ph-floppy-disk"></i> <span>Save Slide</span>
                     </button>
-                    <?php if (($lessonPlan['status'] ?? '') !== 'published'): ?>
+                    <?php if ($iepId && ($lessonPlan['status'] ?? '') !== 'published'): ?>
                     <button type="button" id="btnPublishFromBuilder" class="btn btn-sm btn-primary fw-bold d-inline-flex align-items-center gap-1 shadow-sm" onclick="publishFromBuilder()" title="Publish this lesson to assigned learners" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 14px; height: 32px; background: #a01422; border-color: #a01422;">
                         <i class="ph-bold ph-paper-plane-tilt"></i> <span>Publish Lesson</span>
                     </button>
@@ -451,6 +495,13 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
         <!-- Hidden Compatibility Targets for any external scripts expecting btnOpenSlideDeck/btnOpenFslLibrary -->
         <button type="button" id="btnOpenSlideDeck" style="display:none !important;" onclick="toggleSlideDeck()"></button>
         <button type="button" id="btnOpenFslLibrary" style="display:none !important;" onclick="toggleFslLibrary()"></button>
+
+        <?php if (!$iepId): ?>
+        <div class="alert alert-info border-0 shadow-sm d-flex align-items-center justify-content-between gap-3 flex-wrap">
+            <div><strong>Saved in My Resources.</strong> Edit this private copy freely. Choose “Assign to Learner” only when you are ready to connect it to a signed IEP.</div>
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#assignResourceModal"><i class="ph-bold ph-user-plus me-1"></i> Assign to Learner</button>
+        </div>
+        <?php endif; ?>
 
         <!-- 3-Column Studio Workspace -->
         <div class="row g-3 studio-workspace-row" id="studioWorkspaceRow">
@@ -475,9 +526,7 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                     </div>
                     
                     <div class="p-2 border-top bg-light text-center">
-                        <button type="button" class="btn btn-sm btn-outline-primary w-100 fw-bold" onclick="startNewSlide()" style="border-radius: 6px; font-size: 0.8rem;">
-                            <i class="ph-bold ph-plus-circle me-1"></i> Add Slide
-                        </button>
+                            <span class="small text-muted">Choose a slide above or use New.</span>
                     </div>
                 </div>
             </div>
@@ -518,7 +567,9 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                                         </label>
                                         <span class="text-muted small ms-1 d-none d-lg-inline" style="font-size: 0.78rem;">(Click interactive words to preview FSL signs)</span>
                                     </div>
-                                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                    <details class="studio-editor-tools">
+                                        <summary><i class="ph-bold ph-sliders-horizontal me-1"></i> Editing tools <i class="ph-bold ph-caret-down ms-1"></i></summary>
+                                        <div class="studio-tool-list">
                                         <button type="button" class="btn btn-sm btn-warning text-dark fw-bold px-3 py-1 shadow-sm" id="btnAnalyzeSlideFsl" onclick="analyzeSlideFslSigns(true)" title="Scan slide text for matching FSL signs" style="font-size: 0.8rem; border-radius: 6px; background: #fef3c7; border: 1px solid #fcd34d;">
                                             <i class="ph-bold ph-sparkle text-warning me-1"></i> Analyze FSL Signs
                                         </button>
@@ -531,7 +582,8 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                                         <button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1" onclick="clearEditorContent()" title="Papasa tanang sulod sa editor" style="font-size: 0.8rem; border-radius: 6px;">
                                             <i class="ph-bold ph-trash me-0.5"></i> Clear
                                         </button>
-                                    </div>
+                                        </div>
+                                    </details>
                                 </div>
 
                                 <!-- Live Shape Quick Adjust Toolbar (Only shown when a Shape is focused) -->
@@ -616,16 +668,13 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                             <input type="file" id="slideMediaFileInput" style="display: none;">
 
                             <!-- Action Buttons -->
-                            <div class="d-flex align-items-center justify-content-between pt-2 border-top">
-                                <div class="d-flex align-items-center gap-1.5" id="saveStatusIndicator">
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 pt-3 border-top">
+                                <div class="d-flex align-items-center gap-1.5 studio-save-status" id="saveStatusIndicator" role="status" aria-live="polite">
                                     <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1 fw-semibold" style="font-size:0.75rem;">
-                                        <i class="ph-bold ph-cloud-check me-1"></i> Awtomatikong Na-save
+                                        <i class="ph-bold ph-pencil-simple me-1"></i> Ready to edit
                                     </span>
                                 </div>
-                                <div class="d-flex gap-2">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" onclick="startNewSlide()">
-                                        <i class="ph-bold ph-plus me-1"></i> Bag-ong Slide
-                                    </button>
+                                <div class="d-flex studio-save-actions">
                                     <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold" id="saveSlideSubmitBtn" onclick="saveActiveSlide(true)">
                                         <i class="ph-bold ph-floppy-disk me-1"></i> I-save Karon
                                     </button>
@@ -947,6 +996,11 @@ function initSummernote() {
 
     // Enable Center Guide by default so teachers can align their slide layout cleanly
     $('.note-editor').addClass('show-center-guide');
+    <?php if (getenv('SIGNED_FINANCE_ENABLED') === 'true'): ?>
+    if (!document.getElementById('privateMediaUploads')) {
+        $('.note-toolbar').first().append('<label class="small ms-2"><input id="privateMediaUploads" type="checkbox"> Store new images privately for premium sharing</label>');
+    }
+    <?php endif ?>
 
     // Auto-save when editing Title or Guide Questions
     document.getElementById('slideTitleInput').addEventListener('input', triggerAutoSave);
@@ -956,8 +1010,9 @@ function initSummernote() {
 function uploadImageToServer(file, $editor) {
     const fd = new FormData();
     fd.append('image', file);
-
-    fetch(BASE + '/iep/implementation/upload-slide-image', {
+    const privateMode = !!document.getElementById('privateMediaUploads')?.checked;
+    if (privateMode) fd.append('_finance_csrf', <?= json_encode($_SESSION['finance_csrf']) ?>);
+    fetch(BASE + (privateMode ? '/finance/media/upload' : '/iep/implementation/upload-slide-image'), {
         method: 'POST',
         body: fd
     })
@@ -966,12 +1021,14 @@ function uploadImageToServer(file, $editor) {
         if (data.success && data.url) {
             $editor.summernote('insertImage', data.url);
         } else {
+            if (privateMode) throw new Error('Private upload failed. Check storage configuration and try again.');
             const reader = new FileReader();
             reader.onloadend = () => $editor.summernote('insertImage', reader.result);
             reader.readAsDataURL(file);
         }
     })
     .catch(() => {
+        if (privateMode) { alert('Private upload failed. No public or embedded copy was created.'); return; }
         const reader = new FileReader();
         reader.onloadend = () => $editor.summernote('insertImage', reader.result);
         reader.readAsDataURL(file);
@@ -1038,6 +1095,9 @@ function resolveContentMediaUrls(html) {
 // ── Load Slide into Canvas Form ──
 function loadSlideIntoEditor(idx) {
     if (!LESSON_PAGES[idx]) return;
+    clearTimeout(autoSaveTimer);
+    suppressAutoSave = true;
+    slideContextVersion++;
     activeSlideIndex = idx;
     const p = LESSON_PAGES[idx];
 
@@ -1068,14 +1128,20 @@ function loadSlideIntoEditor(idx) {
     document.getElementById('activeSlideBadge').textContent = 'Slide ' + (idx + 1);
     document.getElementById('activeSlideHeaderTitle').textContent = p.title || 'Edit Slide Content';
     document.getElementById('deleteSlideBtn').style.display = 'inline-flex';
-    document.getElementById('saveStatusIndicator').textContent = 'Loaded Slide ' + (idx + 1) + '. Ready to edit.';
+    const status = document.getElementById('saveStatusIndicator');
+    status.textContent = 'Loaded Slide ' + (idx + 1) + '. Ready to edit.';
+    status.classList.remove('text-danger');
 
     renderSlideDeck();
     resetFslSuggestionsForNewSlide();
+    suppressAutoSave = false;
 }
 
 // ── Start Fresh New Slide ──
 function startNewSlide() {
+    clearTimeout(autoSaveTimer);
+    suppressAutoSave = true;
+    slideContextVersion++;
     activeSlideIndex = -1;
     document.getElementById('slideId').value = '';
     document.getElementById('slideTitleInput').value = '';
@@ -1087,18 +1153,27 @@ function startNewSlide() {
     document.getElementById('activeSlideBadge').textContent = 'New Slide';
     document.getElementById('activeSlideHeaderTitle').textContent = 'Add Slide Content';
     document.getElementById('deleteSlideBtn').style.display = 'none';
-    document.getElementById('saveStatusIndicator').textContent = 'Ready for new slide.';
+    const status = document.getElementById('saveStatusIndicator');
+    status.textContent = 'Ready for new slide.';
+    status.classList.remove('text-danger');
 
     renderSlideDeck();
     resetFslSuggestionsForNewSlide();
+    suppressAutoSave = false;
     document.getElementById('slideTitleInput').focus();
 }
 
 // ── Auto-Save Engine (Debounced) ──
 let autoSaveTimer = null;
 let isAutoSaving = false;
+let suppressAutoSave = false;
+let slideEditRevision = 0;
+let pendingManualSave = false;
+let slideContextVersion = 0;
 
 function triggerAutoSave() {
+    if (suppressAutoSave) return;
+    slideEditRevision++;
     const title = document.getElementById('slideTitleInput').value.trim();
     const content = $('#slideContentEditor').summernote('code');
     
@@ -1119,7 +1194,12 @@ function triggerAutoSave() {
 }
 
 // ── Save Active Slide (AJAX) ──
-function saveActiveSlide(isManual = true) {
+async function saveActiveSlide(isManual = true) {
+    clearTimeout(autoSaveTimer);
+    if (isAutoSaving) {
+        if (isManual) pendingManualSave = true;
+        return;
+    }
     const titleInput = document.getElementById('slideTitleInput');
     let title = titleInput.value.trim();
     const content = $('#slideContentEditor').summernote('code');
@@ -1137,14 +1217,16 @@ function saveActiveSlide(isManual = true) {
         }
     }
 
-    if (isAutoSaving) return;
     isAutoSaving = true;
+    const savedRevision = slideEditRevision;
+    const savedContext = slideContextVersion;
 
     const saveBtn = document.getElementById('saveSlideSubmitBtn');
-    if (isManual && saveBtn) {
-        saveBtn.disabled = true;
-        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Nag-save...';
-    }
+    const topSaveBtn = document.getElementById('saveSlideTopBtn');
+    if (saveBtn) saveBtn.disabled = true;
+    if (topSaveBtn) topSaveBtn.disabled = true;
+    const indicator = document.getElementById('saveStatusIndicator');
+    if (indicator) indicator.textContent = 'Saving slide…';
 
     const fd = new FormData();
     fd.append('title', title);
@@ -1157,45 +1239,41 @@ function saveActiveSlide(isManual = true) {
         ? `${BASE}/iep/implementation/lesson-plan/page/${slideId}/update` 
         : `${BASE}/iep/implementation/lesson-plan/${LP_ID}/page/add`;
 
-    fetch(url, {
-        method: 'POST',
-        body: fd
-    })
-    .then(r => r.json())
-    .then(data => {
-        isAutoSaving = false;
-        if (saveBtn) {
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = '<i class="ph-bold ph-floppy-disk me-1"></i> I-save Karon';
+    try {
+        const response = await fetch(url, {method: 'POST', body: fd});
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data?.success) throw new Error(data?.message || `Save failed (HTTP ${response.status}).`);
+        const pageId = data.page_id || slideId;
+        if (pageId && !slideId && savedContext === slideContextVersion && !document.getElementById('slideId').value) {
+            document.getElementById('slideId').value = pageId;
+            document.getElementById('activeSlideHeaderTitle').textContent = title;
+            document.getElementById('deleteSlideBtn').style.display = 'inline-flex';
         }
 
-        if (data.success) {
-            const pageId = data.page_id || slideId;
-            if (pageId && !slideId) {
-                document.getElementById('slideId').value = pageId;
-            }
-
-            const indicator = document.getElementById('saveStatusIndicator');
-            if (indicator) {
-                indicator.innerHTML = '<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1 fw-semibold" style="font-size:0.75rem;"><i class="ph-bold ph-cloud-check me-1"></i> Awtomatikong Na-save (' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + ')</span>';
-            }
-
-            // Silently refresh slide deck thumbnail without reloading editor content
-            silentRefreshDeck();
-        } else {
-            if (isManual) {
-                alert('Failed to save slide: ' + (data.message || 'Error occurred'));
-            }
+        if (indicator && savedContext === slideContextVersion && slideEditRevision === savedRevision) {
+            indicator.textContent = 'Saved at ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
         }
-    })
-    .catch(err => {
-        isAutoSaving = false;
-        if (saveBtn) {
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = '<i class="ph-bold ph-floppy-disk me-1"></i> I-save Karon';
+        silentRefreshDeck();
+    } catch (err) {
+        if (indicator && savedContext === slideContextVersion) {
+            indicator.textContent = 'Slide not saved: ' + err.message;
+            indicator.classList.add('text-danger');
         }
         console.error('Save error:', err);
-    });
+        pendingManualSave = false;
+        return;
+    } finally {
+        isAutoSaving = false;
+        if (saveBtn) saveBtn.disabled = false;
+        if (topSaveBtn) topSaveBtn.disabled = false;
+    }
+    if (indicator) indicator.classList.remove('text-danger');
+    if (pendingManualSave) {
+        pendingManualSave = false;
+        saveActiveSlide(true);
+    } else if (slideEditRevision !== savedRevision || savedContext !== slideContextVersion) {
+        triggerAutoSave();
+    }
 }
 
 // ── Silent Refresh of Left Deck without blowing away active inputs ──
@@ -1205,6 +1283,12 @@ function silentRefreshDeck() {
         .then(data => {
             if (data.success && data.pages) {
                 LESSON_PAGES = data.pages;
+                const activeId = document.getElementById('slideId').value;
+                const found = LESSON_PAGES.findIndex(page => String(page.id) === String(activeId));
+                if (found >= 0) {
+                    activeSlideIndex = found;
+                    document.getElementById('activeSlideBadge').textContent = 'Slide ' + (found + 1);
+                }
                 renderSlideDeck();
             }
         })
@@ -3158,7 +3242,7 @@ function autoHighlightFslSigns() {
 
 <!-- Share to Resource Hub Modal -->
 <div class="modal fade" id="shareToHubModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow" style="border-radius: 12px;">
             <div class="modal-header border-bottom py-3 px-3.5" style="background:#f8fafc; border-radius: 12px 12px 0 0;">
                 <div class="d-flex align-items-center gap-2">
@@ -3166,8 +3250,8 @@ function autoHighlightFslSigns() {
                         <i class="ph-bold ph-share-network"></i>
                     </div>
                     <div>
-                        <h6 class="modal-title fw-bold mb-0 text-dark">Share to Resource Hub</h6>
-                        <span class="text-muted" style="font-size:0.75rem;">Publish as a reusable Deaf-accessible template pack</span>
+                        <h6 class="modal-title fw-bold mb-0 text-dark">Share Slide Deck to Resource Hub</h6>
+                        <span class="text-muted" style="font-size:0.75rem;">Create a reusable pack from this lesson's saved slides</span>
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -3180,20 +3264,25 @@ function autoHighlightFslSigns() {
                             <i class="ph-bold ph-shield-check text-warning mt-0.5" style="font-size: 1.25rem;"></i>
                             <div>
                                 <strong class="d-block mb-0.5 text-dark">Learner Privacy Protected:</strong>
-                                Shared packs contain instructional slides and FSL signs only. Student names, IEP IDs, and submissions are never included.
+                                Shared decks contain instructional slides and FSL signs only. Student names, IEP IDs, and submissions are never included.
                             </div>
                         </div>
                     </div>
 
+                    <div class="p-3 mb-3 rounded border bg-light small">
+                        <strong class="d-block mb-1">What this pack includes</strong>
+                        All saved slides in this lesson. Materials and linked activities stay out of this pack. To share them together, use <strong>Share Full Lesson Pack</strong> in IEP Workspace.
+                    </div>
+
                     <div class="row g-2.5">
-                        <div class="col-12">
+                        <div class="col-12 col-lg-6">
                             <label class="form-label small fw-bold text-dark mb-1">
                                 Accessibility Pack Title: <span class="text-danger">*</span>
                             </label>
-                            <input type="text" id="sharePackTitle" class="form-control form-control-sm" required value="<?php echo htmlspecialchars($lessonPlan['title'] ?? ''); ?>" style="border-radius: 6px;">
+                            <input type="text" id="sharePackTitle" class="form-control form-control-sm" required value="<?php echo htmlspecialchars(($lessonPlan['title'] ?? 'Lesson') . ' — Slide Deck'); ?>" style="border-radius: 6px;">
                         </div>
 
-                        <div class="col-12">
+                        <div class="col-12 col-lg-6">
                             <label class="form-label small fw-bold text-dark mb-1">Short Description <span class="text-muted fw-normal">(Optional)</span>:</label>
                             <textarea id="sharePackDesc" class="form-control form-control-sm" rows="2" placeholder="Brief overview for other teachers adapting this pack..." style="border-radius: 6px;"><?= htmlspecialchars($_SESSION['resource_drafts'][$lpId]['description'] ?? '') ?></textarea>
                         </div>
@@ -3215,6 +3304,11 @@ function autoHighlightFslSigns() {
                             <input type="text" id="sharePackLevel" class="form-control form-control-sm" value="Primary SPED / Deaf Ed" style="border-radius: 6px;">
                         </div>
 
+                        <?php if (getenv('SIGNED_FINANCE_ENABLED') === 'true'): ?>
+                        <div class="col-12 col-md-6"><label class="form-label small fw-bold" for="sharePackPrice">Proposed price</label><select id="sharePackPrice" class="form-select"><option value="0">Free</option><option value="5900">Premium · PHP 59</option><option value="7900">Premium · PHP 79</option><option value="9900">Premium · PHP 99</option></select><p class="small text-muted mt-2 mb-0">Premium price and publication require admin approval.</p></div>
+                        <div class="col-12 col-md-6 d-flex align-items-end"><a class="btn btn-outline-secondary" href="<?= htmlspecialchars((defined('BASE_PATH')?BASE_PATH:'').'/finance?tab=earnings',ENT_QUOTES,'UTF-8') ?>">View creator earnings</a></div>
+                        <?php endif ?>
+                        <?php $hubTagPrefix = 'sharePack'; require __DIR__ . '/partials/private_pack_media.php'; ?>
                         <?php $hubTagPrefix = 'sharePack'; require __DIR__ . '/partials/resource_tag_review.php'; ?>
                     </div>
                 </div>
@@ -3223,7 +3317,7 @@ function autoHighlightFslSigns() {
                         Cancel
                     </button>
                     <button type="submit" id="btnSubmitShareHub" class="btn btn-warning btn-sm fw-bold px-3 text-dark" style="border-radius: 6px;">
-                        <i class="ph-bold ph-share-network me-1"></i> Publish Resource
+                        <i class="ph-bold ph-share-network me-1"></i> <?= getenv('SIGNED_FINANCE_ENABLED') === 'true' ? 'Submit for Admin Review' : 'Publish Resource' ?>
                     </button>
                 </div>
             </form>
@@ -3245,19 +3339,21 @@ async function submitShareToHub(e) {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sharing...';
 
     const payload = {
+        share_scope: 'slide_deck',
         title: document.getElementById('sharePackTitle').value.trim(),
         description: document.getElementById('sharePackDesc').value.trim(),
         pdsp_domain: document.getElementById('sharePackDomain').value,
         learning_level: document.getElementById('sharePackLevel').value.trim(),
         learning_competency: (document.getElementById('sharePackCompetency') ? document.getElementById('sharePackCompetency').value.trim() : ''),
         tags: (document.getElementById('sharePackTags') ? document.getElementById('sharePackTags').value.trim() : ''),
+        proposed_amount: Number(document.getElementById('sharePackPrice')?.value || 0),
         tags_approved: document.getElementById('sharePackTagsApproved').checked
     };
 
     try {
         const res = await fetch(`${BASE}/iep/implementation/resource-hub/share/${LP_ID}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Finance-CSRF': <?= json_encode($_SESSION['finance_csrf']) ?> },
             body: JSON.stringify(payload)
         });
 
@@ -3272,8 +3368,8 @@ async function submitShareToHub(e) {
             if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     icon: 'success',
-                    title: 'Resource Shared Successfully!',
-                    text: 'Your accessibility pack is now published in the Resource Hub under My Shared Packs.',
+                    title: payload.proposed_amount > 0 ? 'Sent for admin review' : 'Resource shared successfully',
+                    text: data.message || (payload.proposed_amount > 0 ? 'Your premium pack awaits price and publication approval.' : 'Your pack is available in My Shared Packs.'),
                     showCancelButton: true,
                     confirmButtonColor: '#1e4072',
                     cancelButtonColor: '#6c757d',
@@ -3329,7 +3425,7 @@ async function publishFromBuilder() {
             const response = await fetch(basePath + '/iep/implementation/lesson-plan/' + lpId + '/publish', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json', 'X-Finance-CSRF': <?= json_encode($_SESSION['finance_csrf']) ?>,
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify({ lesson_plan_id: lpId })
@@ -3428,6 +3524,26 @@ async function publishFromBuilder() {
     }
 }
 </script>
+
+<?php if (!$iepId): ?>
+<div class="modal fade" id="assignResourceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow">
+        <div class="modal-header"><div><h5 class="modal-title fw-bold">Assign resource to a learner</h5><p class="small text-muted mb-0">Your private draft will be connected to the selected signed IEP.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <form id="assignResourceForm"><div class="modal-body">
+            <?php if (empty($assignableIeps)): ?><div class="alert alert-warning mb-0">No manageable signed IEP is available yet. Your edited resource remains safely stored in My Resources.</div>
+            <?php else: ?><label class="form-label fw-semibold" for="assignResourceIep">Learner / signed IEP</label><select class="form-select" id="assignResourceIep" required><option value="">Choose learner</option><?php foreach($assignableIeps as $item): ?><option value="<?= (int)$item['iep_id'] ?>"><?= htmlspecialchars($item['student_name']??'Learner',ENT_QUOTES,'UTF-8') ?><?= !empty($item['lrn'])?' · LRN '.htmlspecialchars($item['lrn'],ENT_QUOTES,'UTF-8'):'' ?></option><?php endforeach; ?></select><?php endif; ?>
+        </div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><?php if(!empty($assignableIeps)): ?><button class="btn btn-primary" type="submit"><i class="ph-bold ph-user-plus me-1"></i> Assign Resource</button><?php endif; ?></div></form>
+    </div></div>
+</div>
+<script>
+document.getElementById('assignResourceForm')?.addEventListener('submit',async function(event){
+    event.preventDefault();
+    const select=document.getElementById('assignResourceIep'); if(!select?.value)return;
+    const button=this.querySelector('button[type="submit"]'); button.disabled=true;
+    try{const response=await fetch(<?= json_encode($basePath.'/iep/implementation/lesson-plan/'.$lpId.'/assign-iep') ?>,{method:'POST',headers:{'Content-Type':'application/json','X-Finance-CSRF':<?= json_encode($_SESSION['finance_csrf']) ?>},body:JSON.stringify({target_iep_id:select.value})});const data=await response.json();if(!response.ok||!data.success)throw new Error(data.message||'Assignment failed.');window.location.href=data.redirect;}catch(error){button.disabled=false;if(typeof Swal!=='undefined')Swal.fire({icon:'error',title:'Unable to assign',text:error.message});else alert(error.message);}
+});
+</script>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>
 

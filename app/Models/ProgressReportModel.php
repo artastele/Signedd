@@ -14,6 +14,7 @@ class ProgressReportModel {
     }
 
     private function ensureTables(): void {
+        if (!runtime_schema_changes_allowed()) return;
         try {
             // Drop old attendance_records if it doesn't have the new 'source' column
             $checkCol = $this->db->query("SHOW COLUMNS FROM attendance_records LIKE 'source'")->fetch();

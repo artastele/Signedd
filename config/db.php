@@ -12,12 +12,13 @@ class Database {
 
     private function __construct() {
         $host = env('DB_HOST', 'localhost');
+        $port = env('DB_PORT', '3306');
         $dbname = env('DB_NAME', 'sped_lms');
         $username = env('DB_USER', 'root');
         $password = env('DB_PASS', '');
         $charset = 'utf8mb4';
 
-        $dsn = "mysql:host=$host;dbname=$dbname;charset=$charset";
+        $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=$charset";
         
         // CRITICAL: Use INIT_COMMAND to force autocommit at connection level
         $options = [
@@ -40,7 +41,7 @@ class Database {
             
             // Self-healing schema auto-migration for missing Stage 1 columns
             static $autoMigrated = false;
-            if (!$autoMigrated) {
+            if (!$autoMigrated && runtime_schema_changes_allowed()) {
                 $autoMigrated = true;
                 try {
                     $this->connection->exec("ALTER TABLE schools ADD COLUMN sip_path VARCHAR(500) NULL");

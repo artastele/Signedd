@@ -57,3 +57,6 @@ signedtest_extracted/
 !config/insert_demo_enrollments.sql
 !database.sql
 backups/
+
+# Reviewed additive finance migrations (never database backups)
+!database/migrations/*.sql

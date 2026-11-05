@@ -3,6 +3,13 @@ declare(strict_types=1);
 // Exercise real controller permission/publication checks in isolated CLI children.
 // Constructors are bypassed so schema self-healing and real connections cannot run.
 require_once __DIR__ . '/../app/Controllers/IEPImplementationController.php';
+// This fixture covers the legacy free-Hub workflow independently of the developer's local Finance flag.
+$fixtureFinanceFlag = getenv('SIGNED_FINANCE_ENABLED');
+putenv('SIGNED_FINANCE_ENABLED=false');
+register_shutdown_function(static function () use ($fixtureFinanceFlag): void {
+    if ($fixtureFinanceFlag === false) putenv('SIGNED_FINANCE_ENABLED');
+    else putenv('SIGNED_FINANCE_ENABLED=' . $fixtureFinanceFlag);
+});
 
 class InsightsHubFixture extends ResourceHubModel {
     public array $calls = [];
@@ -105,8 +112,8 @@ foreach ([0, 43] as $id) {
 }
 $routes = file_get_contents(__DIR__ . '/../routes/web.php');
 foreach (['', '/preview/\{id\}'] as $suffix) {
-    hubCheck((bool)preg_match("~route\('GET',\s*'/iep/implementation/resource-hub" . $suffix . "'.*'iep.implement'~", $routes),
-        'Resource Hub route requires iep.implement permission');
+    hubCheck((bool)preg_match("~route\('GET',\s*'/iep/implementation/resource-hub" . $suffix . "'.*'resource_hub.view'~", $routes),
+        'Resource Hub browsing route requires resource_hub.view permission');
 }
 hubCheck((bool)preg_match("~route\('POST',\s*'/iep/implementation/resource-hub/suggest-tags'.*'iep.implement'~", $routes),
     'Suggestion route retains iep.implement authorization');

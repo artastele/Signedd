@@ -13,7 +13,7 @@
         }
     },
     "config": {
-        "disable-tls": true
+        "disable-tls": false
     },
     "extra": {
         "google/apiclient-services": [

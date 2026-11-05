@@ -39,6 +39,27 @@ function route($method, $pattern, $controller, $action, $permission = null) {
 // PUBLIC ROUTES (No authentication required)
 // ============================================
 
+require_once __DIR__.'/../app/Middleware/SchoolLicenseMiddleware.php';
+SchoolLicenseMiddleware::check($path);
+
+// These routes must run before static-file fallbacks; entitlement checks apply to every request.
+route('POST', '/finance/media/upload', 'PremiumMediaController', 'upload');
+route('GET', '/finance/media/{token}', 'PremiumMediaController', 'view');
+route('HEAD', '/finance/media/{token}', 'PremiumMediaController', 'view');
+route('GET', '/uploads/(materials|lesson_pages|lesson_editor|activities|fsl_custom_videos|lesson_plans)/(.+)', 'PremiumMediaController', 'legacy');
+route('HEAD', '/uploads/(materials|lesson_pages|lesson_editor|activities|fsl_custom_videos|lesson_plans)/(.+)', 'PremiumMediaController', 'legacy');
+
+// Finance handles exact raw webhook bodies and strict role/CSRF checks internally.
+route('POST', '/finance/webhook', 'FinanceController', 'webhook');
+route('GET', '/finance', 'FinanceController', 'index');
+route('GET', '/finance/premium', 'FinanceController', 'premiumPlans');
+route('GET', '/finance/license', 'FinanceController', 'licenseOverview');
+route('GET', '/finance/pack/{id}', 'FinanceController', 'packDetail');
+route('GET', '/finance/review', 'FinanceController', 'checkoutReview');
+route('GET', '/finance/payment/{id}', 'FinanceController', 'paymentRequest');
+route('POST', '/finance/action', 'FinanceController', 'action');
+route('GET', '/finance/document/{id}/{type}', 'FinanceController', 'document');
+
 // Home - redirect to login or dashboard
 route('GET', '/', 'AuthController', 'index');
 
@@ -179,6 +200,7 @@ route('GET',  '/iep/implementation/progress/{id}',                  'IEPImplemen
 route('POST', '/iep/implementation/lesson-plan/create',             'IEPImplementationController', 'createLessonPlan',  'iep.implement');
 route('POST', '/iep/implementation/lesson-plan/upload-doc',         'IEPImplementationController', 'uploadLessonDoc',   'iep.implement');
 route('POST', '/iep/implementation/lesson-plan/{id}/publish',       'IEPImplementationController', 'publishLessonPlan', 'iep.implement');
+route('POST', '/iep/implementation/lesson-plan/{id}/assign-iep',    'IEPImplementationController', 'assignResourceDraft', 'iep.implement');
 route('POST', '/iep/implementation/lesson-plan/{id}/delete',        'IEPImplementationController', 'deleteLessonPlan',  'iep.implement');
 route('GET',  '/iep/implementation/lesson/{id}/builder',            'IEPImplementationController', 'lessonSlideBuilder', 'iep.implement');
 route('GET',  '/iep/implementation/lesson-plan/{id}/builder',       'IEPImplementationController', 'lessonSlideBuilder', 'iep.implement');
@@ -208,10 +230,10 @@ route('POST', '/iep/implementation/traditional-doc/upload',        'IEPImplement
 route('POST', '/iep/implementation/traditional-doc/delete/{id}',   'IEPImplementationController', 'deleteTraditionalDoc', 'iep.implement');
 
 // Accessibility Pack Resource Hub (MVP)
-route('GET',  '/iep/implementation/resource-hub',                 'IEPImplementationController', 'resourceHub',           'iep.implement');
-route('GET',  '/teacher/resource-hub',                            'IEPImplementationController', 'resourceHub',           'iep.implement');
-route('GET',  '/iep/implementation/resource-hub/preview/{id}',     'IEPImplementationController', 'previewResourcePack',   'iep.implement');
-route('GET',  '/teacher/resource-hub/preview/{id}',                'IEPImplementationController', 'previewResourcePack',   'iep.implement');
+route('GET',  '/iep/implementation/resource-hub',                 'IEPImplementationController', 'resourceHub',           'resource_hub.view');
+route('GET',  '/teacher/resource-hub',                            'IEPImplementationController', 'resourceHub',           'resource_hub.view');
+route('GET',  '/iep/implementation/resource-hub/preview/{id}',     'IEPImplementationController', 'previewResourcePack',   'resource_hub.view');
+route('GET',  '/teacher/resource-hub/preview/{id}',                'IEPImplementationController', 'previewResourcePack',   'resource_hub.view');
 route('POST', '/iep/implementation/resource-hub/share/{id}',       'IEPImplementationController', 'shareToResourceHub',     'iep.implement');
 route('POST', '/iep/implementation/resource-hub/suggest-tags',    'IEPImplementationController', 'suggestResourceTags',   'iep.implement');
 route('POST', '/iep/implementation/resource-hub/clone/{id}',       'IEPImplementationController', 'cloneFromResourceHub',   'iep.implement');

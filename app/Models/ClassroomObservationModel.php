@@ -52,6 +52,7 @@ class ClassroomObservationModel {
      * Ensure teacher signature column exists (self-heal if migration v58 was skipped).
      */
     private function ensureTeacherSignatureColumn(): void {
+        if (!runtime_schema_changes_allowed()) return;
         try {
             $chk = $this->db->prepare("
                 SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -76,6 +77,7 @@ class ClassroomObservationModel {
      * Auto-seed default indicators if missing
      */
     public function ensureDefaultIndicators(): void {
+        if (!runtime_schema_changes_allowed()) return;
         try {
             $count = $this->db->query("SELECT COUNT(*) FROM cot_indicator_sets")->fetchColumn();
             if ($count > 0) {

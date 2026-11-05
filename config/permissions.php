@@ -43,6 +43,7 @@ return [
         'assessment.view',
         'iep.meeting',
         'iep.implement',
+        'resource_hub.view',
         'iep.view',
         'iep.create',
         'iep.sign',
@@ -122,6 +123,7 @@ return [
         'learning.access',
         'iep.view',
         'iep.implement',
+        'resource_hub.view',
         'observation.conduct',
         'cot.submit',
         'cot.create',
@@ -164,6 +166,7 @@ return [
 
     'general_teacher' => [
         'dashboard.teacher',
+        'resource_hub.view',
         'learning.access',
         'iep.view',
         'student.records',

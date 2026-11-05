@@ -77,4 +77,7 @@ if (!function_exists('public_path')) {
         return $cleanPath !== '' ? $base . $cleanPath : $base;
     }
 }
-
+/** Legacy self-healing is disabled by default and forbidden during HTTP requests. */
+function runtime_schema_changes_allowed(): bool {
+    return PHP_SAPI === 'cli' && getenv('SIGNED_SCHEMA_MAINTENANCE') === 'approved';
+}

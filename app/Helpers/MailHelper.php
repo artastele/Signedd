@@ -11,6 +11,12 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 class MailHelper {
+    public static function localVerificationFallbackAllowed(): bool {
+        $environment = strtolower((string)self::getEnvVar('APP_ENV', 'production'));
+        $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+        $host = preg_replace('/:\d+$/', '', $host);
+        return $environment === 'development' && in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+    }
     /**
      * Helper function to get environment variables (compatible with hosts that disable putenv)
      */
@@ -116,17 +122,9 @@ class MailHelper {
             $mail->SMTPAuth   = true;
             $mail->Username   = self::getEnvVar('MAIL_USERNAME');
             $mail->Password   = self::getEnvVar('MAIL_PASSWORD');
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            $encryption = strtolower((string)self::getEnvVar('MAIL_ENCRYPTION', 'tls'));
+            $mail->SMTPSecure = $encryption === 'ssl' ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port       = self::getEnvVar('MAIL_PORT', 587);
-            
-            // Disable SSL verification for development (XAMPP Windows fix)
-            $mail->SMTPOptions = array(
-                'ssl' => array(
-                    'verify_peer' => false,
-                    'verify_peer_name' => false,
-                    'allow_self_signed' => true
-                )
-            );
             
             // Default sender
             $mail->setFrom(
@@ -217,16 +215,16 @@ class MailHelper {
      * Send OTP verification email
      */
     public static function sendOTPEmail($userEmail, $userName, $otp) {
-        $subject = 'Verify Your Email - SPED LMS';
+        $subject = 'Verify Your Email - SignED';
         $body = "
             <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
                 <div style='background: linear-gradient(135deg, #1e4072 0%, #a01422 100%); padding: 20px; text-align: center;'>
-                    <h1 style='color: white; margin: 0;'>SPED LMS</h1>
+                    <h1 style='color: white; margin: 0;'>SignED</h1>
                 </div>
                 <div style='padding: 30px; background: #f5f5f5;'>
                     <h2 style='color: #1e4072;'>Verify Your Email Address</h2>
                     <p>Hello <strong>$userName</strong>,</p>
-                    <p>Thank you for registering with SPED LMS. Please use the verification code below to complete your registration:</p>
+                    <p>Thank you for registering with SignED. Please use the verification code below to complete your registration:</p>
                     
                     <div style='background: white; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; border: 2px solid #a01422;'>
                         <h1 style='color: #a01422; font-size: 36px; letter-spacing: 8px; margin: 0;'>$otp</h1>
@@ -237,12 +235,23 @@ class MailHelper {
                     
                     <hr style='border: none; border-top: 1px solid #ddd; margin: 30px 0;'>
                     <p style='color: #666; font-size: 12px;'>
-                        This is an automated message from SPED LMS. Please do not reply to this email.
+                        This is an automated message from SignED. Please do not reply to this email.
                     </p>
                 </div>
             </div>
         ";
-        return self::sendMail($userEmail, $userName, $subject, $body);
+        $sent = self::sendMail($userEmail, $userName, $subject, $body);
+        if ($sent) {
+            unset($_SESSION['dev_otp_code'], $_SESSION['verification_delivery_failed']);
+        } else {
+            $_SESSION['verification_delivery_failed'] = true;
+            if (self::localVerificationFallbackAllowed()) {
+                $_SESSION['dev_otp_code'] = (string)$otp;
+            } else {
+                unset($_SESSION['dev_otp_code']);
+            }
+        }
+        return $sent;
     }
     
     /**

@@ -60,6 +60,7 @@ $insightsCsrfToken = CSRFHelper::getToken();
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2">
                     <div>
                         <span><?= htmlspecialchars($rec['title'] ?? '') ?></span>
+                        <?php if (isset($rec['access_label'])): ?><span class="badge bg-light text-dark"><?= htmlspecialchars($rec['access_label']) ?></span><?php endif ?>
                         <p class="small text-muted mb-0"><strong>Why it matches:</strong>
                             <?= htmlspecialchars($rec['evidence']['related_concept_or_skill'] ?? '') ?>.
                             <?= htmlspecialchars($rec['evidence']['performance_evidence'] ?? '') ?></p>

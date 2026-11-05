@@ -4,6 +4,7 @@
 // Part of: SignED — IEP Implementation Workspace
 
 $pageTitle = 'IEP Workspace — ' . htmlspecialchars($iep['student_name'] ?? 'Student') . ' — SignED';
+$_SESSION['finance_csrf'] = $_SESSION['finance_csrf'] ?? bin2hex(random_bytes(32));
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -395,8 +396,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <button class="btn btn-sm"
                                             style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:0.75rem; border-radius:6px; font-weight:600;"
                                             onclick="openShareToHubFromWorkspace(<?php echo $lpId; ?>, '<?php echo htmlspecialchars(addslashes($lp['title'])); ?>', '<?php echo htmlspecialchars(addslashes($lpDomain)); ?>')"
-                                            title="Share as reusable Accessibility Pack">
-                                        <i class="ti ti-share me-1"></i>Share to Hub
+                                            title="Share saved slides, valid materials, and activities linked to this lesson">
+                                        <i class="ti ti-share me-1"></i>Share Full Lesson Pack
                                     </button>
                                     <button class="btn btn-sm"
                                             style="background:#a01422;color:#fff;border:none;font-size:0.75rem; border-radius:6px;"
@@ -5098,7 +5099,7 @@ let currentWorkspaceShareLpId = null;
 
 function openShareToHubFromWorkspace(lpId, title, domain) {
     currentWorkspaceShareLpId = lpId;
-    document.getElementById('wsSharePackTitle').value = title || '';
+    document.getElementById('wsSharePackTitle').value = (title || 'Lesson') + ' — Full Lesson Pack';
     document.getElementById('wsSharePackDomain').value = domain || 'communication_language';
     document.getElementById('wsSharePackDesc').value = '';
     const compEl = document.getElementById('wsSharePackCompetency');
@@ -5132,6 +5133,7 @@ async function submitWorkspaceShareToHub(e) {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sharing...';
 
     const payload = {
+        share_scope: 'full_lesson',
         title: document.getElementById('wsSharePackTitle').value.trim(),
         description: document.getElementById('wsSharePackDesc').value.trim(),
         pdsp_domain: document.getElementById('wsSharePackDomain').value,
@@ -5140,13 +5142,14 @@ async function submitWorkspaceShareToHub(e) {
         mainstream_mastery_url: (document.getElementById('wsSharePackMasteryUrl') ? document.getElementById('wsSharePackMasteryUrl').value.trim() : ''),
         mainstream_mastery_title: (document.getElementById('wsSharePackMasteryTitle') ? document.getElementById('wsSharePackMasteryTitle').value.trim() : ''),
         tags: (document.getElementById('wsSharePackTags') ? document.getElementById('wsSharePackTags').value.trim() : ''),
+        proposed_amount: Number(document.getElementById('wsSharePackPrice')?.value || 0),
         tags_approved: document.getElementById('wsSharePackTagsApproved').checked
     };
 
     try {
         const res = await fetch(`${BASE}/iep/implementation/resource-hub/share/${currentWorkspaceShareLpId}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Finance-CSRF': <?= json_encode($_SESSION['finance_csrf']) ?> },
             body: JSON.stringify(payload)
         });
 
@@ -5182,7 +5185,7 @@ async function submitWorkspaceShareToHub(e) {
 
 <!-- Share to Resource Hub Modal (Workspace) -->
 <div class="modal fade" id="shareToHubWorkspaceModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="width:min(1120px, calc(100vw - 2rem)); max-width:none;">
         <div class="modal-content border-0 shadow" style="border-radius: 12px;">
             <div class="modal-header border-bottom py-3 px-3.5" style="background:#f8fafc; border-radius: 12px 12px 0 0;">
                 <div class="d-flex align-items-center gap-2">
@@ -5190,14 +5193,14 @@ async function submitWorkspaceShareToHub(e) {
                         <i class="ti ti-share"></i>
                     </div>
                     <div>
-                        <h6 class="modal-title fw-bold mb-0 text-dark">Share to Resource Hub</h6>
-                        <span class="text-muted" style="font-size:0.75rem;">Publish as a reusable Deaf-accessible template pack</span>
+                        <h6 class="modal-title fw-bold mb-0 text-dark">Share Full Lesson Pack to Resource Hub</h6>
+                        <span class="text-muted" style="font-size:0.75rem;">Saved slides, valid materials, and linked activities</span>
                     </div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="shareToHubWorkspaceForm" onsubmit="submitWorkspaceShareToHub(event)">
-                <div class="modal-body p-3.5">
+                <div class="modal-body p-4" style="max-height:calc(100vh - 220px); overflow-y:auto;">
                     <div class="p-2.5 mb-3 rounded border border-warning-subtle bg-warning-subtle text-dark small" style="font-size: 0.76rem; line-height: 1.45;">
                         <div class="d-flex align-items-start gap-2">
                             <i class="ti ti-shield-check text-warning mt-0.5" style="font-size: 1.15rem;"></i>
@@ -5207,15 +5210,20 @@ async function submitWorkspaceShareToHub(e) {
                         </div>
                     </div>
 
-                    <div class="row g-2.5">
-                        <div class="col-12">
+                    <div class="p-3 mb-3 rounded border bg-light small">
+                        <strong class="d-block mb-1">What this pack includes</strong>
+                        All saved slides and available materials in this lesson, plus activities linked to this lesson. For slides only, use <strong>Share Slide Deck</strong> in the Lesson Builder.
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-12 col-lg-6">
                             <label class="form-label small fw-bold text-dark mb-1">
                                 Title: <span class="text-danger">*</span>
                             </label>
                             <input type="text" id="wsSharePackTitle" class="form-control form-control-sm" required style="border-radius: 6px;">
                         </div>
 
-                        <div class="col-12">
+                        <div class="col-12 col-lg-6">
                             <label class="form-label small fw-bold text-dark mb-1">Short Description <span class="text-muted fw-normal">(Optional)</span>:</label>
                             <textarea id="wsSharePackDesc" class="form-control form-control-sm" rows="2" placeholder="Brief overview for other teachers..." style="border-radius: 6px;"></textarea>
                         </div>
@@ -5237,6 +5245,10 @@ async function submitWorkspaceShareToHub(e) {
                             <input type="text" id="wsSharePackLevel" class="form-control form-control-sm" value="Primary SPED / Deaf Ed" style="border-radius: 6px;">
                         </div>
 
+                        <?php if (getenv('SIGNED_FINANCE_ENABLED') === 'true'): ?>
+                        <div class="col-12"><label class="form-label small fw-bold" for="wsSharePackPrice">Proposed price</label><select id="wsSharePackPrice" class="form-select"><option value="0">Free</option><option value="5900">Premium · PHP 59</option><option value="7900">Premium · PHP 79</option><option value="9900">Premium · PHP 99</option></select><p class="small text-muted mt-2 mb-0">Premium price and publication require admin approval.</p></div>
+                        <?php endif ?>
+                        <?php $hubTagPrefix = 'wsSharePack'; require __DIR__ . '/partials/private_pack_media.php'; ?>
                         <?php $hubTagPrefix = 'wsSharePack'; require __DIR__ . '/partials/resource_tag_review.php'; ?>
                         <!-- Advanced Options (Collapsed by default) -->
                         <div class="col-12 pt-1">

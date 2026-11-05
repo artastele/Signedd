@@ -17,6 +17,7 @@ class ExternalMasteryModel {
      * Self-healing schema check to ensure External Mastery table and columns exist
      */
     private function ensureTables(): void {
+        if (!runtime_schema_changes_allowed()) return;
         static $checked = false;
         if ($checked) {
             return;

@@ -94,6 +94,10 @@ if ($role === 'learner') {
             <i class="bi bi-house-door-fill"></i>
             <span>Dashboard</span>
         </a>
+        <?php if (in_array($role, ['admin','principal','teacher','sped_teacher','master_teacher'], true)): ?>
+        <a class="nav-link" href="<?= htmlspecialchars($basePath) ?>/finance"><i class="ph-bold ph-receipt"></i><span><?= $role === 'admin' ? 'Finance Management' : 'Billing history' ?></span></a>
+        <?php endif ?>
+
 
         <?php if ($role === 'user'): ?>
             <a href="<?php echo $basePath; ?>/services" class="<?php echo isActive('/services'); ?>">
@@ -194,6 +198,10 @@ if ($role === 'learner') {
             </a>
 
         <?php elseif ($role === 'general_teacher'): ?>
+            <a href="<?php echo $basePath; ?>/iep/implementation/resource-hub" class="<?php echo isActive('/iep/implementation/resource-hub') ? 'active' : ''; ?>">
+                <i class="bi bi-collection-play"></i>
+                <span>Free Resource Hub</span>
+            </a>
             <a href="<?php echo $basePath; ?>/iep" class="<?php echo isActive('/iep') && !preg_match('#/iep/\\d+/#', $currentPath) ? 'active' : ''; ?>">
                 <i class="bi bi-folder2-open"></i>
                 <span>Assigned IEPs</span>

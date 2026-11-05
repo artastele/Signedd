@@ -4,6 +4,7 @@
 // Part of: SPED LMS — User Model
 
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../Services/InstitutionalTeacherSeats.php';
 
 class UserModel {
     private $db;
@@ -85,13 +86,11 @@ class UserModel {
      * Update user school_id
      */
     public function updateSchoolId($userId, $schoolId) {
-        $stmt = $this->db->prepare("
+        return $this->updateWithTeacherSeats($userId, ['school_id' => $schoolId], "
             UPDATE users
             SET school_id = :school_id, updated_at = CURRENT_TIMESTAMP
             WHERE id = :id
-        ");
-
-        return $stmt->execute([
+        ", [
             'school_id' => $schoolId,
             'id' => $userId
         ]);
@@ -126,13 +125,11 @@ class UserModel {
      * Update user role
      */
     public function updateRole($userId, $role) {
-        $stmt = $this->db->prepare("
+        return $this->updateWithTeacherSeats($userId, ['role' => $role], "
             UPDATE users
             SET role = :role, updated_at = CURRENT_TIMESTAMP
             WHERE id = :id
-        ");
-
-        return $stmt->execute([
+        ", [
             'role' => $role,
             'id' => $userId
         ]);
@@ -142,16 +139,36 @@ class UserModel {
      * Update user status
      */
     public function updateStatus($userId, $status) {
-        $stmt = $this->db->prepare("
+        return $this->updateWithTeacherSeats($userId, ['status' => $status], "
             UPDATE users
             SET status = :status, updated_at = CURRENT_TIMESTAMP
             WHERE id = :id
-        ");
-
-        return $stmt->execute([
+        ", [
             'status' => $status,
             'id' => $userId
         ]);
+    }
+
+    private function updateWithTeacherSeats($userId, array $changes, string $sql, array $params) {
+        if (!InstitutionalTeacherSeats::enabled()) {
+            return $this->db->prepare($sql)->execute($params);
+        }
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare('SELECT id,school_id,role,status FROM users WHERE id=? FOR UPDATE');
+            $stmt->execute([$userId]);
+            $before = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($before) {
+                InstitutionalTeacherSeats::assertAvailable($this->db, $before, array_replace($before, $changes));
+            }
+            $result = $this->db->prepare($sql)->execute($params);
+            if ($ownsTransaction) $this->db->commit();
+            return $result;
+        } catch (Throwable $e) {
+            if ($ownsTransaction && $this->db->inTransaction()) $this->db->rollBack();
+            throw $e;
+        }
     }
 
     /**
@@ -213,7 +230,8 @@ class UserModel {
                 'result'     => in_array($result, ['success', 'failure']) ? $result : 'failure'
             ]);
         } catch (\Throwable $e) {
-            // Auto-heal table if missing
+            // Auto-heal only during approved CLI maintenance
+            if (!runtime_schema_changes_allowed()) return;
             try {
                 $this->db->exec("
                     CREATE TABLE IF NOT EXISTS login_log (
@@ -281,12 +299,9 @@ class UserModel {
      * Generate OTP for email verification
      */
     public function generateOTP($userId) {
-        $otp = str_pad(rand(100000, 999999), 6, '0', STR_PAD_LEFT);
+        $otp = (string)random_int(100000, 999999);
         $expires = date('Y-m-d H:i:s', strtotime('+10 minutes'));
         
-        // Log OTP to error_log for easy developer retrieval in local testing
-        error_log("OTP generated for User ID $userId: $otp");
-
         $stmt = $this->db->prepare("
             UPDATE users
             SET email_verification_token = :token,
@@ -327,12 +342,12 @@ class UserModel {
         }
 
         // Check if OTP expired
-        if (strtotime($user['email_verification_expires']) < time()) {
+        if (empty($user['email_verification_token']) || empty($user['email_verification_expires']) || strtotime($user['email_verification_expires']) < time()) {
             return ['success' => false, 'message' => 'Verification code expired. Please request a new one.'];
         }
 
         // Check if OTP matches
-        if ($user['email_verification_token'] !== $otp) {
+        if (!hash_equals((string)$user['email_verification_token'], (string)$otp)) {
             // Increment attempts
             $this->incrementVerificationAttempts($userId);
             return ['success' => false, 'message' => 'Invalid verification code'];

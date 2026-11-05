@@ -181,17 +181,21 @@ class AuthController {
         if (!$_SESSION['email_verified']) {
             // Generate new OTP
             $otp = $this->userModel->generateOTP($user['id']);
-            $_SESSION['dev_otp_code'] = $otp;
-            
+            $sent = false;
             if (class_exists('MailHelper')) {
                 try {
-                    MailHelper::sendOTPEmail($email, $user['name'], $otp);
+                    $sent = MailHelper::sendOTPEmail($email, $user['name'], $otp);
                 } catch (\Throwable $e) {
                     error_log("Failed to send OTP email: " . $e->getMessage());
                 }
             }
             
-            $_SESSION['success'] = 'Please verify your email to continue. A verification code has been generated.';
+            $localFallback = class_exists('MailHelper') && MailHelper::localVerificationFallbackAllowed();
+            $_SESSION[$sent ? 'success' : 'error'] = $sent
+                ? 'Please verify your email to continue. A verification code was sent.'
+                : ($localFallback
+                    ? 'Email delivery is unavailable locally. Use the development verification code shown on the next page.'
+                    : 'We could not send the verification email. Check the mail configuration or try Resend Code.');
             header('Location: ' . $basePath . '/auth/verify-email');
             exit;
         }
@@ -307,11 +311,10 @@ class AuthController {
 
             // Generate and send OTP
             $otp = $this->userModel->generateOTP($userId);
-            $_SESSION['dev_otp_code'] = $otp;
-            
+            $sent = false;
             if (class_exists('MailHelper')) {
                 try {
-                    MailHelper::sendOTPEmail($email, $fullName, $otp);
+                    $sent = MailHelper::sendOTPEmail($email, $fullName, $otp);
                 } catch (\Throwable $e) {
                     error_log("Failed to send OTP email: " . $e->getMessage());
                 }
@@ -327,7 +330,12 @@ class AuthController {
             $_SESSION['email_verified'] = false;
             $_SESSION['last_activity'] = time();
             
-            $_SESSION['success'] = 'Registration successful! Verification code generated.';
+            $localFallback = class_exists('MailHelper') && MailHelper::localVerificationFallbackAllowed();
+            $_SESSION[$sent ? 'success' : 'error'] = $sent
+                ? 'Registration successful. A verification code was sent to your email.'
+                : ($localFallback
+                    ? 'Registration successful. Email delivery is unavailable locally, so use the development code shown below.'
+                    : 'Registration succeeded, but the verification email could not be sent. Try Resend Code.');
             header('Location: ' . (defined('BASE_PATH') ? BASE_PATH : '') . '/auth/verify-email');
         } else {
             $_SESSION['error'] = 'Registration failed. Please try again.';
@@ -384,11 +392,13 @@ class AuthController {
                         error_log("Failed to send OTP email: " . $e->getMessage());
                     }
                 }
+            } elseif (class_exists('MailHelper') && MailHelper::localVerificationFallbackAllowed()) {
+                // Local-only recovery for a still-valid code created before an SMTP failure.
+                $_SESSION['dev_otp_code'] = (string)$tokenData['email_verification_token'];
             }
         } catch (\Throwable $e) {
             error_log("Verification check error: " . $e->getMessage());
         }
-        unset($_SESSION['dev_otp_code']);
         
         require_once __DIR__ . '/../Views/auth/verify_email.php';
     }
@@ -407,6 +417,14 @@ class AuthController {
         // Must be logged in
         if (!isset($_SESSION['user_id'])) {
             header('Location: ' . $basePath . '/login');
+            exit;
+        }
+
+        try {
+            CSRFHelper::verify();
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Security validation failed. Please reload and try again.';
+            header('Location: ' . $basePath . '/auth/verify-email');
             exit;
         }
         
@@ -472,11 +490,30 @@ class AuthController {
             echo json_encode(['success' => false, 'message' => 'Unauthorized']);
             exit;
         }
+
+        try {
+            CSRFHelper::verify();
+        } catch (Exception $e) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Security validation failed. Reload the page and try again.']);
+            exit;
+        }
+
+        $lastResend = (int)($_SESSION['verification_resend_at'] ?? 0);
+        if ($lastResend > 0 && time() - $lastResend < 60) {
+            http_response_code(429);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Please wait before requesting another code.',
+                'retry_after' => 60 - (time() - $lastResend),
+                'csrf_token' => CSRFHelper::generateToken()
+            ]);
+            exit;
+        }
+        $_SESSION['verification_resend_at'] = time();
         
         // Generate new OTP
         $otp = $this->userModel->generateOTP($_SESSION['user_id']);
-        unset($_SESSION['dev_otp_code']);
-        
         // Send email
         $sent = false;
         if (class_exists('MailHelper')) {
@@ -486,9 +523,14 @@ class AuthController {
                 error_log("Failed to resend OTP email: " . $e->getMessage());
             }
         }
+        $localFallback = !$sent && class_exists('MailHelper') && MailHelper::localVerificationFallbackAllowed();
         echo json_encode([
-            'success' => true,
-            'message' => 'A new 6-digit verification code has been sent to your email.'
+            'success' => $sent || $localFallback,
+            'message' => $sent
+                ? 'A new 6-digit verification code has been sent to your email.'
+                : ($localFallback ? 'SMTP is unavailable. Use the local development code shown below.' : 'The verification email could not be sent. Check the mail configuration and try again.'),
+            'local_code' => $localFallback ? ($_SESSION['dev_otp_code'] ?? null) : null,
+            'csrf_token' => CSRFHelper::generateToken()
         ]);
         exit;
     }
