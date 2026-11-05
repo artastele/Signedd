@@ -8,6 +8,7 @@ require_once __DIR__ . '/../Helpers/HtmlSanitizer.php';
 require_once __DIR__ . '/../Services/ResourceTagService.php';
 require_once __DIR__ . '/../Services/FinanceService.php';
 require_once __DIR__ . '/../Services/PremiumMediaService.php';
+require_once __DIR__ . '/../Services/PremiumSnapshotService.php';
 
 class ResourceHubModel {
 
@@ -275,6 +276,7 @@ class ResourceHubModel {
             $masteryUrl = null;
         }
 
+        $snapshot = null;
         $this->db->beginTransaction();
         try {
             $stmt = $this->db->prepare("
@@ -314,6 +316,11 @@ class ResourceHubModel {
             if (FinanceService::accessEnabled($this->db)) {
                 $amount = (int)($meta['proposed_amount'] ?? 0);
                 $finance = new FinanceService($this->db);
+                if ($amount > 0) {
+                    if ($amount < 5900 || $amount > 9900) throw new DomainException('Premium price must be PHP 59–99.');
+                    $snapshot = new PremiumSnapshotService($finance);
+                    [$pages, $lessonActivities] = $snapshot->prepare($pages, $lessonActivities, $teacherId);
+                }
                 $finance->validatePremiumSnapshot($amount, $pages, $lessonActivities);
                 if (PremiumMediaService::tokens($pages, $lessonActivities)) {
                     $media = new PremiumMediaService($finance);
@@ -377,6 +384,7 @@ class ResourceHubModel {
             return $packId;
         } catch (Throwable $e) {
             $this->db->rollBack();
+            if ($snapshot) $snapshot->discard();
             throw $e;
         }
     }

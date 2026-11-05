@@ -2,6 +2,12 @@
 /** Local, deterministic resource metadata rules. Never reads learner data or calls an API. */
 class ResourceTagService {
     private const CONCEPTS = [
+        'color recognition' => ['color recognition','colour recognition','identify colors','identify colours','colors','colours','kulay','pagkilala sa kulay'],
+        'red' => ['red','pula'],
+        'blue' => ['blue','asul'],
+        'yellow' => ['yellow','dilaw'],
+        'green' => ['green','berde'],
+        'orange' => ['orange','kahel'],
         'addition' => ['addition', 'adding', 'add numbers', 'pagdaragdag', 'pagsasama ng bilang'],
         'subtraction' => ['subtraction', 'subtract', 'pagbabawas'],
         'multiplication' => ['multiplication', 'multiply', 'pagpaparami'],

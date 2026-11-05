@@ -69,6 +69,10 @@ class LearningGapAnalyzer {
         $attempts    = $this->fetchAttempts($studentId, $activityId);
         $logsByAtt   = $this->fetchLogsByAttempt(array_column($attempts, 'id'));
         $limitations = [];
+        foreach ($attempts as &$attempt) {
+            $this->normalizeCapturedScore($attempt, $activity, $logsByAtt[(int)$attempt['id']] ?? [], $limitations);
+        }
+        unset($attempt);
         $ambiguousLogs = 0;
         foreach ($logsByAtt as &$logs) {
             $logs = array_values(array_filter($logs, function ($log) use (&$ambiguousLogs): bool {
@@ -122,6 +126,26 @@ class LearningGapAnalyzer {
         $latestGraded   = $graded ? end($graded) : null;
         $latestAccuracy = $latestGraded ? $latestGraded['_accuracy'] : null;
         $latestAttempt = $attempts ? end($attempts) : null;
+        $latestPractice = $latestAttempt ? $this->capturedPractice($latestAttempt, $activity, $logsByAtt[(int)$latestAttempt['id']] ?? []) : null;
+        $latestRetryItems = [];
+        if ($latestPractice) {
+            $data = json_decode($activity['activity_data'] ?? '{}', true) ?: [];
+            $captured = json_decode($latestAttempt['answers'] ?? '{}', true)['_evidence_v1'] ?? [];
+            $groups = [];
+            if ($activity['activity_type'] === 'matching') {
+                $index=0;
+                foreach ($data['sets'] ?? $data['matching_sets'] ?? [['pairs'=>$data['pairs']??[]]] as $step=>$set)
+                    foreach ($set['pairs']??[] as $_) $groups[$index++]=$step;
+            }
+            foreach ($logsByAtt[(int)$latestAttempt['id']] ?? [] as $log) {
+                $qi=(int)$log['question_index'];
+                $step=$activity['activity_type']==='image_label' ? 0 : ($groups[$qi]??$qi);
+                $count=$latestPractice['steps'][$step]['attempts']??null;
+                if ($count === null || $count <= 1) continue;
+                $latestRetryItems[]=['question_index'=>$qi,'expected'=>$log['correct_value'],
+                    'prompt'=>$log['_captured_prompt']??'', 'attempts'=>$count,'unit'=>'item','basis'=>'reported_retry_checks'];
+            }
+        }
         $latestResult = $latestAttempt ? $this->attemptAccuracy($latestAttempt) : null;
         $latestIncorrect = [];
         $snapshot = $latestAttempt ? (json_decode($latestAttempt['answers'] ?? '{}', true)['_evidence_v1'] ?? []) : [];
@@ -203,6 +227,8 @@ class LearningGapAnalyzer {
                     'latest_accuracy'  => $latestAccuracy,
                     'latest_result_accuracy' => $latestResult,
                     'latest_incorrect_items' => array_values($latestIncorrect),
+                    'latest_practice_summary' => $latestPractice,
+                    'latest_retry_items' => $latestRetryItems,
                     'ambiguous_log_count' => $ambiguousLogs,
                     'accuracy_history' => $accuracyHistory,
                 ],
@@ -321,6 +347,37 @@ class LearningGapAnalyzer {
     // ----------------------------------------------------------------
 
     /** Accuracy for a graded attempt; NULL when ungraded. */
+    private function capturedPractice(array $attempt, array $activity, array $logs): ?array {
+        $stored=json_decode($attempt['answers']??'{}',true)['_practice_v1']??null;
+        if (!is_array($stored) || ($stored['source']??'')!=='learner_reported_checks' || !$logs) return null;
+        $counts=[]; foreach ($stored['steps']??[] as $step=>$entry) $counts[$step]=$entry['attempts']??null;
+        $items=array_map(fn($log)=>['qi'=>(int)$log['question_index'],'ic'=>(int)$log['is_correct']],$logs);
+        return ActivityEvidence::practiceSummary($items,$counts,$activity['activity_type'],json_decode($activity['activity_data']??'{}',true)?:[]);
+    }
+
+    /** Correct the old default denominator in the read model only, with a complete matching snapshot. */
+    private function normalizeCapturedScore(array &$attempt, array $activity, array $logs, array &$limitations): void {
+        if ($activity['activity_type']!=='multiple_choice') return;
+        $questions=json_decode($activity['activity_data']??'{}',true)['questions']??[];
+        $captured=json_decode($attempt['answers']??'{}',true)['_evidence_v1']??[];
+        if (!$questions || count($questions)!==count($captured) || count($questions)!==count($logs)) return;
+        $indexed=[];foreach($logs as $log)$indexed[(int)$log['question_index']]=$log;
+        $score=0;$max=0;
+        foreach($questions as $qi=>$question) {
+            $entry=$captured[$qi]??[];$log=$indexed[$qi]??[];
+            if (!isset($entry['expected'],$entry['selected'],$entry['correct']) ||
+                ($log['correct_value']??null)!==$entry['expected'] || ($log['selected_value']??null)!==$entry['selected'] ||
+                (bool)($log['is_correct']??false)!==$entry['correct']) return;
+            $evaluated=ActivityEvidence::multipleChoice($question,$entry['selected']);
+            if($evaluated['expected']!==$entry['expected'] || $evaluated['correct']!==$entry['correct'])return;
+            $points=(int)($question['points']??1);if($points<=0)return;
+            $max+=$points;if($entry['correct'])$score+=$points;
+        }
+        if ((float)$attempt['score']!== (float)$score || (int)$attempt['max_score']===$max) return;
+        $limitations[]='An older default maximum was corrected for display using the complete captured answer evidence and matching current point weights. Stored historical records were not overwritten.';
+        $attempt['max_score']=$max;
+    }
+
     private function attemptAccuracy(array $att): ?float {
         if (!is_numeric($att['score'] ?? null) || !is_numeric($att['max_score'] ?? null)
             || (float)$att['max_score'] <= 0 || (float)$att['score'] < 0
@@ -346,6 +403,9 @@ class LearningGapAnalyzer {
             return 'The latest attempt has no valid graded result. Review the earlier graded attempts below.';
         }
         $count = count($accuracy['latest_incorrect_items'] ?? []);
+        if (!empty($accuracy['latest_retry_items'])) {
+            return count($accuracy['latest_retry_items']) . ' item(s) needed repeated learner-reported checks before completion. These retries can guide practice even when the final score is full marks; they do not establish a trend across separate submissions.';
+        }
         if (!$count && ($accuracy['latest_result_accuracy'] ?? 100) < 100
             && (!empty($accuracy['ambiguous_log_count']) || ($attempts['graded'] ?? 0) === 1)) return 'Insufficient reliable item evidence to identify a specific learning difficulty. Review the score and evidence limitations below.';
         $practice = $count ? "The learner needs more practice with {$count} incorrectly answered item(s). " : '';

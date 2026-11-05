@@ -371,7 +371,7 @@ function showPreviewSlide(idx) {
         </div>
         ${mediaHtml}
         <div class="lesson-slide-content mb-3" style="font-size: 1.05rem; line-height: 1.7; color: #1e293b;">
-            ${page.content || '<em class="text-muted">Walay sulod kini nga slide.</em>'}
+            ${LessonMedia.resolveHtml(page.content || '<em class="text-muted">Walay sulod kini nga slide.</em>', BASE_URL)}
         </div>
         ${questionsHtml}
     `;

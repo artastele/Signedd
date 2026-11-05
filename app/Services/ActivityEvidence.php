@@ -1,6 +1,36 @@
 <?php
 /** Scoring identity helpers shared by new submissions and read-only intervention matching. */
 class ActivityEvidence {
+    /** Retry counts are learner-reported; final correctness is evaluated by the server. */
+    public static function practiceSummary(array $logs, $reportedAttempts, string $type, array $data): array {
+        $reportedAttempts = is_array($reportedAttempts) ? $reportedAttempts : [];
+        $groupForItem = [];
+        if ($type === 'matching') {
+            $sets = $data['sets'] ?? $data['matching_sets'] ?? [['pairs'=>$data['pairs']??[]]];
+            $index = 0;
+            foreach ($sets as $step => $set) foreach ($set['pairs'] ?? [] as $_) $groupForItem[$index++] = $step;
+        }
+        $groups = [];
+        foreach ($logs as $item) {
+            $step = $type === 'image_label' ? 0 : ($groupForItem[$item['qi']] ?? $item['qi']);
+            $groups[$step] = ($groups[$step] ?? true) && (bool)$item['ic'];
+        }
+        $steps = []; $total = 0; $successful = 0; $complete = true;
+        foreach ($groups as $step => $solved) {
+            $raw = $reportedAttempts[$step] ?? null;
+            $valid = (is_int($raw) || (is_string($raw) && ctype_digit($raw))) && (int)$raw >= 1 && (int)$raw <= 100000;
+            $count = $valid ? (int)$raw : null;
+            if ($count === null) $complete = false;
+            else $total += $count;
+            if ($solved) $successful++;
+            $steps[(string)$step] = ['attempts'=>$count, 'solved'=>$solved,
+                'accuracy_percentage'=>$count === null ? null : ($solved ? round(100 / $count, 2) : 0)];
+        }
+        return ['source'=>'learner_reported_checks', 'steps'=>$steps, 'successful_checks'=>$successful,
+            'total_attempts'=>$complete ? $total : null,
+            'accuracy_percentage'=>$complete && $total > 0 ? round(100 * $successful / $total, 2) : null];
+    }
+
     public static function text($value): string {
         return is_scalar($value) ? trim((string)$value) : '';
     }

@@ -21,7 +21,10 @@ class RecordingDatabase extends PDO {
         return new RecordingStatement(function($params)use($sql){
             if(str_contains($sql,'SELECT id FROM student_records'))return [['id'=>5]];
             if(str_contains($sql,'SELECT score_threshold'))return [['score_threshold'=>70,'remedial_for_lesson_id'=>null]];
-            if(str_contains($sql,'SELECT id, answers FROM lms_activity_attempts'))return $this->case==='rapid'?[['id'=>600,'answers'=>'[1]']]:[];
+            if(str_contains($sql,'SELECT id, answers FROM lms_activity_attempts')){
+                if($this->case==='storage-unavailable')throw new PDOException('Missing attempt storage fixture');
+                return $this->case==='rapid'?[['id'=>600,'answers'=>'[1]']]:[];
+            }
             if(str_contains($sql,'COALESCE(MAX(attempt_number)'))return [['next'=>2]];
             if(str_contains($sql,'INSERT INTO lms_activity_attempts')){$this->attempts[]=$params;return [];}
             if(str_contains($sql,'INSERT INTO activity_attempt_log')){$this->logs[]=$params;return [];}
@@ -49,6 +52,9 @@ class RecordingGamification extends GamificationModel {
 if(($argv[1]??'')==='--case'){
     $case=$argv[2];$type='multiple_choice';$data=['questions'=>[['question'=>'Ilan ang 3 + 2?','options'=>['4','5','6'],'correct'=>1,'points'=>10]]];$answers=[0];
     if($case==='correct')$answers=[1];
+    if($case==='four-retries'){
+        $data=['questions'=>array_fill(0,4,['question'=>'Color?','options'=>['Wrong','Right'],'correct'=>1,'points'=>1])];$answers=[1,1,1,1];
+    }
     if($case==='text')$answers=['4'];
     if($case==='malformed')$answers=[['not'=>'an answer']];
     if($case==='missing')unset($data['questions'][0]['correct']);
@@ -56,6 +62,13 @@ if(($argv[1]??'')==='--case'){
     if($case==='boolean'){$type='true_false';$data=['questions'=>[['statement'=>'A statement','answer'=>false,'points'=>10]]];$answers=[false];}
     if($case==='fill'){$type='fill_in_blanks';$data=['sentences'=>[['sentence'=>'A [blank].','answers'=>['mother'],'points'=>10]],'answer_mode'=>'free_type'];$answers=['father'];}
     if($case==='matching'){$type='matching';$data=['pairs'=>[['left'=>'Ina','right'=>'mother']],'points'=>10];$answers=['father'];}
+    if(str_starts_with($case,'matching-three-')){
+        $type='matching';$data=['sets'=>[['pairs'=>[['left'=>'Red','right'=>'Dilaw'],['left'=>'Yellow','right'=>'Pula'],['left'=>'Asul','right'=>'Blue']],'points'=>1]]];
+        $answers=['0_0'=>'Blue','0_1'=>'Dilaw','0_2'=>'Pula'];
+        if($case==='matching-three-partial')$answers=['0_0'=>'Dilaw','0_1'=>'Blue','0_2'=>'Pula'];
+        if($case==='matching-three-screenshot')$answers=['0_0'=>'Blue','0_1'=>'Pula','0_2'=>'Dilaw'];
+        if($case==='matching-three-correct')$answers=['0_0'=>'Dilaw','0_1'=>'Pula','0_2'=>'Blue'];
+    }
     if($case==='sequence'){$type='sequencing';$data=['sets'=>[['steps'=>['Wash','Rinse'],'correct_order'=>[0,1],'points'=>10]]];$answers=[[1,0]];}
     if($case==='invalid-sequence'){$type='sequencing';$data=['sets'=>[['steps'=>['Wash','Rinse'],'correct_order'=>[0,1],'points'=>10]]];$answers=[[99,0]];}
     $activity=['id'=>19,'lesson_plan_id'=>26,'activity_type'=>$type,'activity_data'=>json_encode($data),'max_score'=>10,'title'=>'Practice'];
@@ -64,7 +77,8 @@ if(($argv[1]??'')==='--case'){
     $reflection->getProperty('connection')->setValue($singleton,$db);$reflection->getProperty('instance')->setValue(null,$singleton);
     $controllerReflection=new ReflectionClass(LearningController::class);$controller=$controllerReflection->newInstanceWithoutConstructor();
     foreach(['model'=>$model,'gamification'=>new RecordingGamification(),'userId'=>12,'userRole'=>'learner','basePath'=>'']as$key=>$value)$controllerReflection->getProperty($key)->setValue($controller,$value);
-    $_POST=['answers'=>$answers+['_evidence_v1'=>['forged'=>'client evidence']],'attempts'=>[0=>9]];$_FILES=[];http_response_code(200);ob_start();
+    $_POST=['answers'=>$answers+['_evidence_v1'=>['forged'=>'client evidence'],'_practice_v1'=>['accuracy_percentage'=>100]],'attempts'=>[0=>9],'accuracy_percentage'=>100];$_FILES=[];http_response_code(200);ob_start();
+    if($case==='four-retries')$_POST['attempts']=[12,5,5,1];
     register_shutdown_function(function()use($db,$model){$body=ob_get_clean();echo json_encode(['status'=>http_response_code(),'body'=>json_decode($body,true),'attempts'=>$db->attempts,'logs'=>$db->logs,'submissions'=>$model->submissions]);});
     $controller->submitActivity('19');exit;
 }
@@ -73,6 +87,7 @@ function recordCheck(bool $ok,string $message):void{global $checks;$checks++;if(
 function recordCase(string $case):array{
     $process=proc_open([PHP_BINARY,__FILE__,'--case',$case],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);fclose($pipes[0]);
     $out=stream_get_contents($pipes[1]);fclose($pipes[1]);$error=stream_get_contents($pipes[2]);fclose($pipes[2]);$code=proc_close($process);
+    if($case==='storage-unavailable'&&trim($error)==='Activity submission storage check failed: Missing attempt storage fixture')$error='';
     if($code!==0||$error!=='')throw new RuntimeException($error);return json_decode($out,true,512,JSON_THROW_ON_ERROR);
 }
 foreach(['wrong','correct','text','rapid','boolean','fill','matching','sequence']as$case){
@@ -86,4 +101,28 @@ foreach(['wrong','correct','text','rapid','boolean','fill','matching','sequence'
     if(in_array($case,['wrong','text','rapid'],true))recordCheck($log['sv']==='4'&&$log['cv']==='5'&&$log['ic']===0,'Actual addition answer values saved');
 }
 foreach(['missing','malformed','invalid-sequence','malformed-definition']as$case){$r=recordCase($case);recordCheck($r['status']===422&&!$r['attempts']&&!$r['logs'],'Invalid '.$case.' data is rejected before any writes');}
+foreach(['wrong'=>0,'partial'=>33.33,'screenshot'=>33.33,'correct'=>100] as $suffix=>$expected){
+    $r=recordCase('matching-three-'.$suffix);
+    recordCheck($r['body']['success']===true&&count($r['logs'])===3,'Matching records each pair separately: '.$suffix);
+    recordCheck((float)$r['body']['accuracy_percentage']===(float)$expected,'Server recomputes '.$suffix.' accuracy despite client claiming 100%');
+    recordCheck((int)$r['attempts'][0]['max_score']===3,'Matching uses actual three-pair maximum instead of stale maximum 10');
+}
+$unavailable=recordCase('storage-unavailable');
+recordCheck($unavailable['status']===503&&$unavailable['body']['success']===false,'Missing submission schema returns a structured failure instead of an HTML fatal error');
+recordCheck(!$unavailable['attempts']&&!$unavailable['logs']&&!$unavailable['submissions'],'Storage failure cannot report a saved attempt or write a partial submission');
+$retry=recordCase('four-retries');
+recordCheck($retry['body']['auto_score']===4&&$retry['body']['max_score']===4,'Four correct one-point answers score 4/4 despite database default max 10');
+recordCheck((float)$retry['body']['score_percentage']===100.0,'Final score remains 100% after retries');
+recordCheck((float)$retry['body']['practice_accuracy_percentage']===17.39,'Practice accuracy is 4 successful checks divided by 23 attempts');
+$practice=json_decode($retry['submissions'][0]['answers'],true)['_practice_v1'];
+recordCheck($practice['total_attempts']===23&&array_column($practice['steps'],'attempts')===[12,5,5,1],'Per-question attempt counts persist for reopening results');
+recordCheck($practice['accuracy_percentage']===17.39&&!$retry['body']['needs_remediation'],'Retry accuracy is retained separately from passing final score');
+require_once __DIR__.'/../app/Services/ActivityEvidence.php';
+$groupLogs=[['qi'=>0,'ic'=>1],['qi'=>1,'ic'=>1],['qi'=>2,'ic'=>1]];
+$groupData=['pairs'=>[['left'=>'a','right'=>'b'],['left'=>'c','right'=>'d'],['left'=>'e','right'=>'f']]];
+$group=ActivityEvidence::practiceSummary($groupLogs,[4],'matching',$groupData);
+recordCheck($group['total_attempts']===4&&$group['successful_checks']===1&&$group['accuracy_percentage']===25.0,'A matching set check counts once rather than once per pair');
+foreach([[],[0],[-1],['bad'],[[]]] as $counts){
+    recordCheck(ActivityEvidence::practiceSummary([['qi'=>0,'ic'=>1]],$counts,'multiple_choice',[])['accuracy_percentage']===null,'Missing or invalid check counts never become fabricated 100% accuracy');
+}
 echo "Activity evidence recording: {$checks} checks passed through real submission controller; no real database or network used.\n";

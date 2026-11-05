@@ -108,7 +108,7 @@ final class PremiumMediaService {
         return ['token'=>$token,'path'=>'finance/media/'.$token,'url'=>(defined('BASE_PATH')?BASE_PATH:'').'/finance/media/'.$token];
     }
     public static function requireMime(string $mime): void {
-        if(!in_array($mime,['image/jpeg','image/png','image/gif','image/webp','application/pdf','video/mp4','video/webm','audio/mpeg','audio/ogg','audio/wav'],true)) throw new DomainException('Unsupported media type. SVG, HTML and executable formats are forbidden.');
+        if(!in_array($mime,['image/jpeg','image/png','image/gif','image/webp','application/pdf','video/mp4','video/webm','video/quicktime','audio/mpeg','audio/ogg','audio/wav'],true)) throw new DomainException('Unsupported media type. SVG, HTML and executable formats are forbidden.');
     }
     private function assetPath(array $asset): string {
         if (!self::validToken($asset['token']??'')) throw new DomainException('Invalid asset.');

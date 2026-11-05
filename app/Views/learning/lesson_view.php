@@ -344,7 +344,7 @@ $typeMap = [
                             $activityType = $activityItem['activity_type'] ?? '';
                             $typeInfo = $typeMap[$activityType] ?? [ucwords(str_replace('_', ' ', $activityType)), 'ph-bold ph-list-checks'];
                             $score = $submission['score'] ?? $submission['auto_score'] ?? null;
-                            $scoreMax = $submission['grade_max_score'] ?? $activityItem['max_score'] ?? 0;
+                            $scoreMax = $submission['grade_max_score'] ?? LessonPlanModel::displayMaxScoreForActivity($activityItem);
                             $dueTimestamp = !empty($activityItem['due_date']) ? strtotime($activityItem['due_date']) : null;
                             $isOverdue = $dueTimestamp && $dueTimestamp < time() && !$isSubmitted;
                         ?>
@@ -706,8 +706,10 @@ body.learner-layout-active footer {
     color: #1e293b;
 }
 .lesson-slide-rich-content table {
-    width: 100% !important;
-    margin: 1.5rem 0 !important;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
     border-collapse: collapse !important;
     border: 1px solid #cbd5e1 !important;
     border-radius: 10px !important;
@@ -730,9 +732,11 @@ body.learner-layout-active footer {
 }
 .lesson-slide-rich-content img {
     max-width: 100% !important;
-    height: auto !important;
+    height: auto;
     border-radius: 8px !important;
-    margin: 0.75rem 0 !important;
+    /* Preserve the editor's horizontal auto margins, float and text alignment. */
+    margin-top: 0.75rem;
+    margin-bottom: 0.75rem;
     box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
 }
 .lesson-slide-rich-content h1,
@@ -990,7 +994,7 @@ function renderSlide(idx) {
     
     // Render rich HTML content & highlight inline FSL signs
     const slideContentEl = document.getElementById('slideContent');
-    slideContentEl.innerHTML = highlightFslKeywords(page.content || '');
+    slideContentEl.innerHTML = LessonMedia.resolveHtml(highlightFslKeywords(page.content || ''), BASE);
 
     // Guide Questions
     const guideWrap = document.getElementById('slideGuideWrap');

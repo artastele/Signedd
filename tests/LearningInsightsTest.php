@@ -15,6 +15,9 @@ class InsightsDatabase extends PDO {
     public array $attempts = [];
     public array $logs = [];
     public array $vocabulary = [];
+    public array $activityOverride = [];
+    public ?array $packs = null;
+    public ?array $pages = null;
     public array $iepEvaluations = [['id'=>1, 'instructional_evaluation'=>'B']];
     public array $reportCardRatings = [['domain'=>'communication_language', 'indicator_text'=>'Teacher indicator', 'quarter'=>1, 'rating'=>'B']];
     public int $writeAttempts = 0;
@@ -31,19 +34,19 @@ class InsightsDatabase extends PDO {
         if (str_contains($query, 'FROM csrf_tokens')) return new InsightsStatement([['token'=>'synthetic-test-token']]);
         if (str_contains($query, 'FROM student_quarterly_ratings')) return new InsightsStatement($this->reportCardRatings);
         if (str_contains($query, 'FROM iep_steps')) return new InsightsStatement($this->iepEvaluations);
-        if (str_contains($query, 'FROM lms_activities la')) return new InsightsStatement([[
+        if (str_contains($query, 'FROM lms_activities la')) return new InsightsStatement([array_replace([
             'id'=>7, 'title'=>'Greetings', 'activity_type'=>'multiple_choice', 'activity_data'=>'{}',
             'max_score'=>10, 'lesson_plan_id'=>3, 'lesson_title'=>'Greetings', 'score_threshold'=>70, 'lp_iep_id'=>1,
-        ]]);
+        ], $this->activityOverride)]);
         if (str_contains($query, 'FROM lms_activity_attempts')) return new InsightsStatement($this->attempts);
         if (str_contains($query, 'FROM activity_attempt_log')) return new InsightsStatement($this->logs);
         if (str_contains($query, 'FROM iep_step_lesson_plans')) return new InsightsStatement([]);
         if (str_contains($query, 'FROM fsl_vocabulary')) return new InsightsStatement($this->vocabulary);
-        if (str_contains($query, 'FROM resource_hub_pages rp JOIN')) return new InsightsStatement([
+        if (str_contains($query, 'FROM resource_hub_pages rp JOIN')) return new InsightsStatement($this->pages ?? [
             ['id'=>9,'pack_id'=>42,'title'=>'Hello practice','content'=>'<span data-word="hello">Hello</span>','guide_questions'=>''],
         ]);
         if (str_contains($query, 'FROM resource_hub_activities ra JOIN')) return new InsightsStatement([]);
-        if (str_contains($query, 'FROM resource_hub_packs')) return new InsightsStatement([
+        if (str_contains($query, 'FROM resource_hub_packs')) return new InsightsStatement($this->packs ?? [
             ['id'=>42,'title'=>'Hello signs','description'=>'Practice','pdsp_domain'=>'communication_language','learning_level'=>'Primary','learning_competency'=>'hello','tags'=>'greetings','fsl_supported'=>1,'status'=>'published'],
             ['id'=>43,'title'=>'Counting','description'=>'hello','pdsp_domain'=>'communication_language','learning_level'=>'Primary','learning_competency'=>'numbers','tags'=>'mathematics','fsl_supported'=>1,'status'=>'published'],
             ['id'=>44,'title'=>'Shellology','description'=>'','pdsp_domain'=>'communication_language','learning_level'=>'Primary','learning_competency'=>'shellology','tags'=>'','fsl_supported'=>0,'status'=>'published'],
@@ -171,4 +174,34 @@ verify($db->query('SELECT rating FROM student_quarterly_ratings')->fetchAll() ==
     'Stored final report card ratings stay unchanged after all suggestions and view renders');
 verify(hash_file('sha256', $reportCardView) === $reportCardHashBefore, 'Final SF9 report card template remains unchanged');
 verify($db->writeAttempts === 0, 'Analysis, recommendations, and teacher view never attempt database writes');
+$colors=['Pula','Blue','Yellow','Orange'];$questions=[];$snapshot=[];$logs=[];
+foreach($colors as $qi=>$color){
+    $questions[]=['question'=>'Identify the color','options'=>['Wrong',$color],'correct'=>1,'points'=>1];
+    $snapshot[$qi]=['prompt'=>'Identify the color','expected'=>$color,'selected'=>$color,'correct'=>true];
+    $logs[]=array_replace(item(1,1,$color),['question_index'=>$qi]);
+}
+$db->activityOverride=['title'=>'Identify Colors','activity_data'=>json_encode(['questions'=>$questions])];
+$db->attempts=[array_replace(attempt(1,4),['answers'=>json_encode(['_evidence_v1'=>$snapshot])])];$db->logs=$logs;$db->vocabulary=[];
+$old=$service->recommendForActivity(1,7);
+$h=$old['factors']['accuracy']['accuracy_history'][0];
+verify($h['score']===4.0&&$h['max_score']===4.0&&$old['performance_summary']['accuracy']===100.0,'Complete saved evidence corrects old 4/10 to 4/4 in the Insights read model');
+verify($db->attempts[0]['max_score']===10,'Historical stored score denominator is never overwritten');
+verify($old['performance_summary']['practice_accuracy']===null,'Old submissions without retry counts have no invented practice accuracy');
+verify(str_contains($old['intervention']['tags'],'color recognition'),'Related context tags are available even when retry difficulty is unknown');
+verify(!$old['intervention']['actionable']&&!$old['recommendations'],'Correct final answers alone cannot fabricate a targeted learning difficulty');
+$practice=ActivityEvidence::practiceSummary(array_map(fn($l)=>['qi'=>$l['question_index'],'ic'=>$l['is_correct']],$logs),[12,5,5,1],'multiple_choice',['questions'=>$questions]);
+$db->attempts[0]['answers']=json_encode(['_evidence_v1'=>$snapshot,'_practice_v1'=>$practice]);
+$db->packs=[['id'=>42,'title'=>'Colors practice','description'=>'Color recognition','pdsp_domain'=>'communication_language','learning_level'=>'Primary','learning_competency'=>'color recognition','tags'=>'colors, blue, red','fsl_supported'=>1,'status'=>'published']];
+$db->pages=[['id'=>9,'pack_id'=>42,'title'=>'Color recognition','content'=>'<span data-word="Blue">Blue</span>','guide_questions'=>'']];
+$retry=$service->recommendForActivity(1,7);
+verify($retry['performance_summary']['accuracy']===100.0&&$retry['performance_summary']['practice_accuracy']===17.39,'Teacher Insights separates the final 4/4 score from 4/23 practice accuracy');
+verify($retry['rating_basis']==='practice_accuracy'&&$retry['suggested_rating']==='B','Suggested activity review rating uses practice accuracy when saved');
+verify(count($retry['factors']['accuracy']['latest_retry_items'])===3,'Only the three questions with repeated checks become retry-based practice targets');
+verify($retry['intervention']['learning_competency']==='color recognition'&&str_contains($retry['intervention']['tags'],'blue'),'Intervention skill and tags relate to the recorded color lesson and retry items');
+verify(!str_contains($retry['intervention']['tags'],'orange'),'A first-try correct color is not presented as a retry target');
+verify(in_array(42,array_column($retry['recommendations'],'source_id'),true),'Matching published color resources remain eligible after a perfect final score with repeated checks');
+$learningInsights=[$retry];ob_start();require __DIR__.'/../app/Views/iep_implementation/tab_learning_insights.php';$retryHtml=ob_get_clean();
+verify(str_contains($retryHtml,'4 / 4 (100%)')&&str_contains($retryHtml,'17.39%'),'Rendered teacher card shows corrected score and independent practice accuracy');
+verify(str_contains($retryHtml,'Related lesson tags:')&&str_contains($retryHtml,'color recognition'),'Relevant tags appear on the teacher card');
+verify($db->writeAttempts===0,'Historical score correction and retry recommendations stay read-only');
 echo "Learning Insights: {$checks} checks passed; no database connection or network used.\n";

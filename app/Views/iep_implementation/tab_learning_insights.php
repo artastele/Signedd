@@ -21,14 +21,20 @@ $insightsCsrfToken = CSRFHelper::getToken();
         $history = $ins['factors']['accuracy']['accuracy_history'] ?? [];
         $latest = $history ? end($history) : null;
         $incorrectItems = $ins['factors']['accuracy']['latest_incorrect_items'] ?? [];
+        $practice = $ins['factors']['accuracy']['latest_practice_summary'] ?? null;
+        $retryItems = $ins['factors']['accuracy']['latest_retry_items'] ?? [];
         $recs = $ins['recommendations'] ?? [];
         $draft = $ins['intervention'] ?? InterventionDraftService::blank();
-        $needsAssessment = $score !== null && $score < 75 && empty($draft['actionable']);
+        $reviewAccuracy = $practice['accuracy_percentage'] ?? $score;
+        $needsAssessment = $reviewAccuracy !== null && $reviewAccuracy < 75 && empty($draft['actionable']);
+        $tagChips = ResourceTagService::normalizeTags($draft['tags'] ?? '');
     ?>
     <article class="card border rounded-3 p-3 mb-3" id="activity-card-<?= $actId ?>">
         <h6><?= htmlspecialchars($act['title'] ?? 'Activity') ?></h6>
         <div class="small mb-2"><strong>Latest Score:</strong> <?= $score !== null && $latest ? htmlspecialchars($latest['score'] . ' / ' . $latest['max_score'] . ' (' . round($score, 2) . '%)') : 'Ungraded' ?></div>
-        <div class="small mb-2"><strong>Suggested Rating:</strong> <?= $rating !== null ? htmlspecialchars($rating . ' (' . ($ratingNames[$rating] ?? '') . ')') : 'No suggested rating' ?></div>
+        <div class="small mb-2"><strong>Practice accuracy:</strong> <?= ($practice['accuracy_percentage'] ?? null) !== null ? htmlspecialchars((string)$practice['accuracy_percentage']) . '% · ' . (int)$practice['successful_checks'] . ' successful checks / ' . (int)$practice['total_attempts'] . ' attempts' : 'Retry counts were not recorded for this submission.' ?></div>
+        <div class="small mb-2"><strong>Suggested Rating:</strong> <?= $rating !== null ? htmlspecialchars($rating . ' (' . ($ratingNames[$rating] ?? '') . ')') : 'No suggested rating' ?> <span class="text-muted">(<?= ($ins['rating_basis'] ?? '') === 'practice_accuracy' ? 'based on practice accuracy' : 'based on final score; retry accuracy unavailable' ?>)</span></div>
+        <?php if ($tagChips): ?><div class="small mb-3"><strong>Related lesson tags:</strong> <?php foreach ($tagChips as $tag): ?><span class="badge bg-light text-dark border me-1"><?= htmlspecialchars($tag) ?></span><?php endforeach; ?><span class="text-muted">Review these suggestions before publishing.</span></div><?php endif; ?>
         <div class="small mb-3"><strong>What the result means</strong>
             <?php if ($needsAssessment): ?>
                 <p class="mb-1 mt-1"><strong>Needs further assessment</strong></p>
@@ -38,7 +44,7 @@ $insightsCsrfToken = CSRFHelper::getToken();
             <?php elseif ($score === null): ?>
                 <p class="mb-0 mt-1">A graded result is not available yet. You can browse resources or select a skill for a teacher-planned intervention.</p>
             <?php else: ?>
-                <p class="mb-0 mt-1">No specific learning difficulty is confirmed in the latest result. Use your assessment to decide whether further practice is needed.</p>
+                <p class="mb-0 mt-1">The final answers do not establish a specific learning difficulty. Retry-based recommendations require saved check counts; older submissions without them cannot show how many tries were needed.</p>
             <?php endif; ?>
         </div>
         <?php if (!empty($draft['actionable'])): ?>
@@ -74,7 +80,7 @@ $insightsCsrfToken = CSRFHelper::getToken();
         </div>
             <div class="border rounded p-2 mb-3" data-intervention-draft="<?= htmlspecialchars(json_encode($draft), ENT_QUOTES, 'UTF-8') ?>" id="intervention-<?= $actId ?>">
                 <strong class="small">Create Intervention</strong>
-                <p class="small text-muted mb-2"><?= !empty($draft['requires_target_skill']) ? 'Choose the target skill in the next form. Skill and tags start blank for your review.' : 'Review the prefilled skill and tags in an editable private draft.' ?> Share only when you choose to publish.</p>
+                <p class="small text-muted mb-2"><?= !empty($draft['requires_target_skill']) ? 'Choose the target skill in the next form. Related lesson tags are suggested when available; review and edit them.' : 'Review the prefilled skill and tags in an editable private draft.' ?> Share only when you choose to publish.</p>
                 <div class="d-flex flex-wrap gap-2">
                     <button type="button" class="btn btn-sm btn-outline-primary" onclick="openInterventionDraft(<?= $actId ?>, 'builder')">Create with Slide Builder</button>
                     <button type="button" class="btn btn-sm btn-outline-primary" onclick="openInterventionDraft(<?= $actId ?>, 'upload')">Upload Material</button>
@@ -102,6 +108,7 @@ $insightsCsrfToken = CSRFHelper::getToken();
                     <?php endforeach; ?>
                 </ul>
             <?php endif; ?>
+            <?php if ($retryItems): ?><p class="small mb-1"><strong>Items needing repeated checks</strong> (learner-reported counts)</p><ul class="small"><?php foreach ($retryItems as $item): ?><li>Item <?= (int)$item['question_index'] + 1 ?> · Expected answer: <?= htmlspecialchars($item['expected']) ?> · <?= (int)$item['attempts'] ?> checks before completion</li><?php endforeach; ?></ul><?php endif; ?>
             <p class="small text-muted mt-2">Newer attempts appear here when this tab is refreshed. Changes in performance do not establish that a particular intervention caused improvement.</p>
             <p class="small mt-2 mb-1"><strong>Recorded attempts:</strong> <?= (int)($ins['performance_summary']['attempt_count'] ?? 0) ?>;
                 graded: <?= (int)($ins['performance_summary']['graded_count'] ?? 0) ?>;

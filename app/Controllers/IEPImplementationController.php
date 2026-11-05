@@ -2527,9 +2527,13 @@ class IEPImplementationController {
                 'pack_id' => $packId,
                 'message' => FinanceService::enabled() ? 'Pack submitted for admin pricing and publication review.' : 'Pack shared. Check My Shared Packs for its publication status.'
             ]);
+        } catch (DomainException | InvalidArgumentException $e) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         } catch (Throwable $e) {
             error_log('shareToResourceHub error: ' . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Unable to prepare the pack. Check private media storage and try again. Your original lesson has not changed.']);
         }
         exit;
     }

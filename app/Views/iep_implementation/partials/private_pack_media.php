@@ -9,9 +9,9 @@
 </style>
 <section class="col-12 private-pack-media" aria-label="Private pack media">
     <h3 class="h6 mb-1">Private pack media <span class="text-muted fw-normal">(optional)</span></h3>
-    <p class="small text-muted mb-2">For premium packs, upload media here, then add the protected URL to your lesson and save the slide before submitting. Only approved buyers can open the file after publication.</p>
+    <p class="small text-muted mb-2">Existing local images and FSL videos in your lesson are protected automatically when you submit a Premium pack. No re-upload is needed. This optional upload is for adding a new file to your lesson.</p>
     <div class="private-pack-media-controls">
-        <input class="form-control" type="file" id="<?= $hubTagPrefix ?>MediaFile" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,video/mp4,video/webm,audio/mpeg,audio/ogg,audio/wav" aria-label="Choose private pack media file">
+        <input class="form-control" type="file" id="<?= $hubTagPrefix ?>MediaFile" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,video/mp4,video/webm,video/quicktime,audio/mpeg,audio/ogg,audio/wav" aria-label="Choose private pack media file">
         <button class="btn btn-outline-primary" type="button" id="<?= $hubTagPrefix ?>MediaUpload">Upload privately</button>
     </div>
     <p class="small mt-2 mb-0" id="<?= $hubTagPrefix ?>MediaStatus" role="status" aria-live="polite"></p>

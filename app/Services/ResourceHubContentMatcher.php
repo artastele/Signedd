@@ -101,7 +101,7 @@ class ResourceHubContentMatcher {
             // A misleading title alone is not evidence: corroborate the skill in instructional content.
             foreach ($pages as $page) {
                 $text = ($page['title'] ?? '') . ' ' . strip_tags($page['content'] ?? '') . ' ' . ($page['guide_questions'] ?? '');
-                $instructionalSkill = in_array($skill,['addition','subtraction','multiplication','division','counting','letter sounds','letter recognition','reading comprehension','sight words','rhyming words','hand washing'],true);
+                $instructionalSkill = in_array($skill,['color recognition','addition','subtraction','multiplication','division','counting','letter sounds','letter recognition','reading comprehension','sight words','rhyming words','hand washing'],true);
                 $explicitHeading = ResourceTagService::contains($page['title'] ?? '',$skill);
                 if (($instructionalSkill || $explicitHeading) && (in_array($skill, ResourceTagService::skills($text), true) || ResourceTagService::contains($text, $skill))) {
                     $offer(50, $skill, 'Specific skill metadata is supported by the published instructional content.', 'resource_hub_pages#' . $page['id']);

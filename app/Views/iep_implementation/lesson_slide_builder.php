@@ -396,6 +396,11 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
 .studio-save-actions { gap: .75rem !important; flex-wrap: wrap; }
 .studio-save-actions .btn { border-radius: 7px !important; min-height: 38px; }
 .studio-save-status { min-height: 24px; }
+.studio-save-status[data-state] { font-size: .8125rem; font-weight: 600; color: #475569; }
+.studio-save-status[data-state="saving"], .studio-save-status[data-state="dirty"] { color: #92400e; }
+.studio-save-status[data-state="saved"] { color: #047857; }
+.studio-save-status[data-state="error"] { color: #b91c1c; }
+#saveStatusIndicator { max-width: 280px; overflow-wrap: anywhere; }
 #shareToHubModal .modal-dialog { width: min(1120px, calc(100vw - 2rem)); max-width: none; }
 #shareToHubModal .modal-body { max-height: calc(100vh - 220px); overflow-y: auto; }
 #shareToHubModal .modal-body > .row { --bs-gutter-x: 1.25rem; --bs-gutter-y: 1rem; }
@@ -474,12 +479,13 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                     <div class="vr mx-1 opacity-25 d-none d-md-block" style="height: 22px;"></div>
 
                     <!-- Action Buttons -->
-                    <?php if ($iepId): ?><a id="btnPreviewAsLearner" href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lpId; ?>" target="_blank" class="btn btn-sm btn-outline-primary fw-semibold d-inline-flex align-items-center gap-1" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 12px; height: 32px;">
+                    <?php if ($iepId): ?><a id="btnPreviewAsLearner" href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lpId; ?>" target="_blank" onclick="previewSavedSlide(event)" class="btn btn-sm btn-outline-primary fw-semibold d-inline-flex align-items-center gap-1" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 12px; height: 32px;">
                         <i class="ph-bold ph-eye"></i> <span>Preview as Learner</span> <i class="ph-bold ph-arrow-square-out ms-0.5"></i>
                     </a><?php else: ?><button type="button" class="btn btn-sm btn-primary fw-semibold d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#assignResourceModal"><i class="ph-bold ph-user-plus"></i> Assign to Learner</button><?php endif; ?>
                     <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-semibold d-inline-flex align-items-center gap-1" onclick="openShareToHubModal()" title="Share only the saved slides in this lesson" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 12px; height: 32px; border-color: #f59e0b;">
                         <i class="ph-bold ph-share-network text-warning"></i> <span>Share Slide Deck</span>
                     </button>
+                    <span id="saveStatusIndicator" class="studio-save-status" role="status" aria-live="polite" aria-atomic="true" data-state="ready">Ready to edit</span>
                     <button type="button" id="saveSlideTopBtn" class="btn btn-sm btn-success fw-bold d-inline-flex align-items-center gap-1 shadow-sm" onclick="saveActiveSlide()" style="border-radius: 6px; font-size: 0.8125rem; padding: 5px 14px; height: 32px; background: #059669; border-color: #059669;">
                         <i class="ph-bold ph-floppy-disk"></i> <span>Save Slide</span>
                     </button>
@@ -576,7 +582,7 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
                                         <button type="button" class="btn btn-sm btn-outline-secondary text-dark fw-semibold px-2.5 py-1" onclick="insertSampleInteractiveTemplate()" title="Insert interactive story sample" style="font-size: 0.8rem; border-radius: 6px;">
                                             <i class="ph-bold ph-file-text me-1"></i> Sample Story
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-primary fw-semibold px-2.5 py-1" id="btnToggleCenterGuide" onclick="toggleCenterGuide()" title="Toggle Center Guide Line" style="font-size: 0.8rem; border-radius: 6px;">
+                                        <button type="button" class="btn btn-sm btn-outline-primary fw-semibold px-2.5 py-1" id="btnToggleCenterGuide" onclick="toggleCenterGuide()" title="Visual guide only. Use paragraph alignment in the editor toolbar to center text and images." style="font-size: 0.8rem; border-radius: 6px;">
                                             <i class="ph-bold ph-split-vertical me-1"></i> Center Guide: <span id="centerGuideState">ON</span>
                                         </button>
                                         <button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1" onclick="clearEditorContent()" title="Papasa tanang sulod sa editor" style="font-size: 0.8rem; border-radius: 6px;">
@@ -669,7 +675,7 @@ $iepId       = (int)($lessonPlan['iep_id'] ?? $iep['id'] ?? 0);
 
                             <!-- Action Buttons -->
                             <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 pt-3 border-top">
-                                <div class="d-flex align-items-center gap-1.5 studio-save-status" id="saveStatusIndicator" role="status" aria-live="polite">
+                                <div class="d-flex align-items-center gap-1.5 studio-save-status" id="saveStatusFooterIndicator" data-state="ready">
                                     <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1 fw-semibold" style="font-size:0.75rem;">
                                         <i class="ph-bold ph-pencil-simple me-1"></i> Ready to edit
                                     </span>
@@ -1077,6 +1083,7 @@ function renderSlideDeck() {
 // ── Resolve relative or environment-dependent image paths for Editor Canvas ──
 function resolveContentMediaUrls(html) {
     if (!html) return '';
+    html = LessonMedia.resolveHtml(html, BASE);
     const bp = (window.BASE || window.BASE_PATH || '').replace(/\/+$/, '');
     return html.replace(/(<img\s+[^>]*?src=["'])([^"']+)(["'][^>]*?>)/gi, function(match, pre, src, post) {
         let cleanSrc = src.trim();
@@ -1128,9 +1135,7 @@ function loadSlideIntoEditor(idx) {
     document.getElementById('activeSlideBadge').textContent = 'Slide ' + (idx + 1);
     document.getElementById('activeSlideHeaderTitle').textContent = p.title || 'Edit Slide Content';
     document.getElementById('deleteSlideBtn').style.display = 'inline-flex';
-    const status = document.getElementById('saveStatusIndicator');
-    status.textContent = 'Loaded Slide ' + (idx + 1) + '. Ready to edit.';
-    status.classList.remove('text-danger');
+    setSlideSaveStatus('ready', 'Loaded Slide ' + (idx + 1) + '. Ready to edit.');
 
     renderSlideDeck();
     resetFslSuggestionsForNewSlide();
@@ -1153,9 +1158,7 @@ function startNewSlide() {
     document.getElementById('activeSlideBadge').textContent = 'New Slide';
     document.getElementById('activeSlideHeaderTitle').textContent = 'Add Slide Content';
     document.getElementById('deleteSlideBtn').style.display = 'none';
-    const status = document.getElementById('saveStatusIndicator');
-    status.textContent = 'Ready for new slide.';
-    status.classList.remove('text-danger');
+    setSlideSaveStatus('ready', 'New slide — not saved yet.');
 
     renderSlideDeck();
     resetFslSuggestionsForNewSlide();
@@ -1170,6 +1173,19 @@ let suppressAutoSave = false;
 let slideEditRevision = 0;
 let pendingManualSave = false;
 let slideContextVersion = 0;
+let slideSaveFinished = Promise.resolve();
+
+function setSlideSaveStatus(state, message) {
+    for (const id of ['saveStatusIndicator', 'saveStatusFooterIndicator']) {
+        const indicator = document.getElementById(id);
+        if (!indicator) continue;
+        indicator.textContent = message;
+        indicator.dataset.state = state;
+        indicator.classList.remove('text-danger');
+    }
+    const label = document.getElementById('saveSlideTopBtn')?.querySelector('span');
+    if (label) label.textContent = state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved ✓' : 'Save Slide';
+}
 
 function triggerAutoSave() {
     if (suppressAutoSave) return;
@@ -1182,10 +1198,7 @@ function triggerAutoSave() {
         return;
     }
 
-    const indicator = document.getElementById('saveStatusIndicator');
-    if (indicator) {
-        indicator.innerHTML = '<span class="badge bg-warning-subtle text-dark border border-warning-subtle rounded-pill px-2.5 py-1" style="font-size:0.75rem;"><i class="ph-bold ph-arrows-clockwise me-1 spin"></i> Nag-save...</span>';
-    }
+    setSlideSaveStatus('dirty', 'Unsaved changes — waiting to save…');
 
     clearTimeout(autoSaveTimer);
     autoSaveTimer = setTimeout(() => {
@@ -1198,7 +1211,7 @@ async function saveActiveSlide(isManual = true) {
     clearTimeout(autoSaveTimer);
     if (isAutoSaving) {
         if (isManual) pendingManualSave = true;
-        return;
+        return false;
     }
     const titleInput = document.getElementById('slideTitleInput');
     let title = titleInput.value.trim();
@@ -1208,9 +1221,9 @@ async function saveActiveSlide(isManual = true) {
 
     if (!title) {
         if (isManual) {
-            alert('Palihug pagbutang una ug Slide Title.');
+            setSlideSaveStatus('error', 'Slide not saved: please enter a Slide Title.');
             titleInput.focus();
-            return;
+            return false;
         } else {
             title = 'Slide ' + (LESSON_PAGES.length + 1);
             titleInput.value = title;
@@ -1218,6 +1231,8 @@ async function saveActiveSlide(isManual = true) {
     }
 
     isAutoSaving = true;
+    let finishSave;
+    slideSaveFinished = new Promise(resolve => { finishSave = resolve; });
     const savedRevision = slideEditRevision;
     const savedContext = slideContextVersion;
 
@@ -1225,8 +1240,7 @@ async function saveActiveSlide(isManual = true) {
     const topSaveBtn = document.getElementById('saveSlideTopBtn');
     if (saveBtn) saveBtn.disabled = true;
     if (topSaveBtn) topSaveBtn.disabled = true;
-    const indicator = document.getElementById('saveStatusIndicator');
-    if (indicator) indicator.textContent = 'Saving slide…';
+    setSlideSaveStatus('saving', 'Saving slide…');
 
     const fd = new FormData();
     fd.append('title', title);
@@ -1250,29 +1264,45 @@ async function saveActiveSlide(isManual = true) {
             document.getElementById('deleteSlideBtn').style.display = 'inline-flex';
         }
 
-        if (indicator && savedContext === slideContextVersion && slideEditRevision === savedRevision) {
-            indicator.textContent = 'Saved at ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+        if (savedContext === slideContextVersion && slideEditRevision === savedRevision) {
+            setSlideSaveStatus('saved', 'Saved at ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'}));
         }
         silentRefreshDeck();
     } catch (err) {
-        if (indicator && savedContext === slideContextVersion) {
-            indicator.textContent = 'Slide not saved: ' + err.message;
-            indicator.classList.add('text-danger');
+        if (savedContext === slideContextVersion) {
+            setSlideSaveStatus('error', 'Slide not saved: ' + err.message);
         }
         console.error('Save error:', err);
         pendingManualSave = false;
-        return;
+        return false;
     } finally {
         isAutoSaving = false;
         if (saveBtn) saveBtn.disabled = false;
         if (topSaveBtn) topSaveBtn.disabled = false;
+        finishSave();
     }
-    if (indicator) indicator.classList.remove('text-danger');
     if (pendingManualSave) {
         pendingManualSave = false;
-        saveActiveSlide(true);
+        return saveActiveSlide(true);
     } else if (slideEditRevision !== savedRevision || savedContext !== slideContextVersion) {
         triggerAutoSave();
+        return false;
+    }
+    return true;
+}
+
+async function previewSavedSlide(event) {
+    event.preventDefault();
+    const link = event.currentTarget;
+    // Reserve the tab during the click so browsers do not block it after the save.
+    const preview = window.open('about:blank', '_blank');
+    if (preview) preview.opener = null;
+    while (isAutoSaving) await slideSaveFinished;
+    if (await saveActiveSlide(true)) {
+        if (preview) preview.location.replace(link.href);
+        else window.location.assign(link.href);
+    } else if (preview) {
+        preview.close();
     }
 }
 
@@ -3258,6 +3288,7 @@ function autoHighlightFslSigns() {
             </div>
             <form id="shareToHubForm" onsubmit="submitShareToHub(event)">
                 <div class="modal-body p-3.5">
+                    <div id="sharePackError" class="alert alert-danger" role="alert" hidden></div>
                     <!-- Privacy Guarantee Notice -->
                     <div class="p-2.5 mb-3 rounded border border-warning-subtle bg-warning-subtle text-dark small" style="font-size: 0.78rem; line-height: 1.45;">
                         <div class="d-flex align-items-start gap-2">
@@ -3305,7 +3336,7 @@ function autoHighlightFslSigns() {
                         </div>
 
                         <?php if (getenv('SIGNED_FINANCE_ENABLED') === 'true'): ?>
-                        <div class="col-12 col-md-6"><label class="form-label small fw-bold" for="sharePackPrice">Proposed price</label><select id="sharePackPrice" class="form-select"><option value="0">Free</option><option value="5900">Premium · PHP 59</option><option value="7900">Premium · PHP 79</option><option value="9900">Premium · PHP 99</option></select><p class="small text-muted mt-2 mb-0">Premium price and publication require admin approval.</p></div>
+                        <div class="col-12 col-md-6"><label class="form-label small fw-bold" for="sharePackPrice">Proposed price</label><select id="sharePackPrice" class="form-select"><option value="0">Free</option><option value="5900">Premium · PHP 59</option><option value="7900">Premium · PHP 79</option><option value="9900">Premium · PHP 99</option></select><p class="small text-muted mt-2 mb-0">Local images and FSL videos are protected automatically for Premium packs. Price and publication require admin approval.</p></div>
                         <div class="col-12 col-md-6 d-flex align-items-end"><a class="btn btn-outline-secondary" href="<?= htmlspecialchars((defined('BASE_PATH')?BASE_PATH:'').'/finance?tab=earnings',ENT_QUOTES,'UTF-8') ?>">View creator earnings</a></div>
                         <?php endif ?>
                         <?php $hubTagPrefix = 'sharePack'; require __DIR__ . '/partials/private_pack_media.php'; ?>
@@ -3333,6 +3364,8 @@ function openShareToHubModal() {
 
 async function submitShareToHub(e) {
     e.preventDefault();
+    const errorBox = document.getElementById('sharePackError');
+    errorBox.hidden = true;
     const btn = document.getElementById('btnSubmitShareHub');
     const origHtml = btn.innerHTML;
     btn.disabled = true;
@@ -3351,6 +3384,12 @@ async function submitShareToHub(e) {
     };
 
     try {
+        while (isAutoSaving) await slideSaveFinished;
+        const currentContent = $('#slideContentEditor').summernote('code');
+        if (document.getElementById('slideTitleInput').value.trim() || (currentContent && currentContent !== '<p><br></p>')) {
+            if (!await saveActiveSlide(true)) throw new Error('Your slide could not be saved. Close this dialog, check the save message, and try again.');
+        }
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Preparing pack…';
         const res = await fetch(`${BASE}/iep/implementation/resource-hub/share/${LP_ID}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Finance-CSRF': <?= json_encode($_SESSION['finance_csrf']) ?> },
@@ -3384,11 +3423,15 @@ async function submitShareToHub(e) {
                 alert('Resource shared successfully!');
             }
         } else {
-            alert(data.message || 'Failed to share to Resource Hub.');
+            errorBox.textContent = data.message || 'Failed to share to Resource Hub.';
+            errorBox.hidden = false;
+            errorBox.scrollIntoView({block: 'nearest'});
         }
     } catch (err) {
         console.error(err);
-        alert('Server connection error while sharing to Resource Hub.');
+        errorBox.textContent = err.message || 'Connection error while sharing. Please try again.';
+        errorBox.hidden = false;
+        errorBox.scrollIntoView({block: 'nearest'});
     } finally {
         btn.disabled = false;
         btn.innerHTML = origHtml;

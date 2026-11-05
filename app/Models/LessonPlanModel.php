@@ -842,6 +842,7 @@ class LessonPlanModel {
                    ON sub.activity_id = la.id AND sub.student_id = :student_id
             LEFT JOIN lms_grades g ON g.submission_id = sub.id
             WHERE la.id = :activity_id
+            ORDER BY sub.submitted_at DESC, sub.id DESC
             LIMIT 1
         ");
         $stmt->execute(['activity_id' => $activityId, 'student_id' => $studentId]);

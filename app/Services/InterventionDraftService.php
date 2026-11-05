@@ -9,11 +9,12 @@ class InterventionDraftService {
     public static function fromFactors(array $activity, array $factors): array {
         $accuracy = $factors['accuracy'] ?? [];
         $score = $accuracy['latest_result_accuracy'] ?? null;
-        $items = $accuracy['latest_incorrect_items'] ?? [];
-        if ($score === null || $score >= 100 || !$items) return self::blank();
+        $items = array_merge($accuracy['latest_incorrect_items'] ?? [], $accuracy['latest_retry_items'] ?? []);
+        $context = ResourceTagService::safeConcepts(($activity['competency'] ?? '') . ' ' . ($activity['title'] ?? ''));
+        if ($score === null || !$items || ($score >= 100 && empty($accuracy['latest_retry_items']))) return array_merge(self::blank(), ['tags'=>implode(', ', $context), 'context_tags'=>$context]);
         $text = '';
         foreach ($items as $item) $text .= ' ' . ($item['expected'] ?? '');
-        $concepts = ResourceTagService::safeConcepts($text);
+        $concepts = array_values(array_unique(array_merge($context, ResourceTagService::safeConcepts($text))));
         if (!$concepts) $concepts = ResourceTagService::safeConcepts(($activity['competency'] ?? '') . ' ' . ($activity['title'] ?? ''));
         if (!$concepts) return array_merge(self::blank(), ['actionable'=>true]);
         $skill = $concepts[0];

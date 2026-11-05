@@ -38,6 +38,7 @@
         window.CURRENT_USER_ID = <?php echo isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 0; ?>;
         window.USER_ROLE = '<?php echo isset($_SESSION['role']) ? htmlspecialchars((string)$_SESSION['role'], ENT_QUOTES, 'UTF-8') : ''; ?>';
     </script>
+    <script src="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/js/lesson-media.js?v=<?php echo time(); ?>"></script>
     <script src="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/js/fsl-modal.js?v=<?php echo time(); ?>" defer></script>
     <?php if (isset($_SESSION['user_id'])): ?>
     <script src="<?php echo defined('BASE_PATH') ? BASE_PATH : ''; ?>/js/offline-manager.js?v=<?php echo time(); ?>" defer></script>

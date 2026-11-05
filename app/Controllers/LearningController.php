@@ -591,9 +591,8 @@ class LearningController {
             $input = $_POST;
         }
         $answers = is_array($input['answers'] ?? null) ? $input['answers'] : [];
-        unset($answers['_evidence_v1']);
+        unset($answers['_evidence_v1'], $answers['_practice_v1']);
         $attempts = $input['attempts'] ?? [];
-        $accuracyPercentage = isset($input['accuracy_percentage']) ? (int)$input['accuracy_percentage'] : null;
 
         $activity = $this->model->getActivityById($activityId);
         if (!$activity) {
@@ -616,7 +615,7 @@ class LearningController {
             echo json_encode(['success'=>false,'message'=>'This activity needs valid question definitions before grading.']); exit;
         }
         $autoScore    = null;
-        $maxScore     = (int) ($activity['max_score'] ?? 0);
+        $maxScore     = LessonPlanModel::displayMaxScoreForActivity($activity);
         if (!in_array($type,['sequencing','drag_drop_sort','flashcards','custom_printable'],true)) {
             foreach ($answers as $answer) if ($answer !== null && !is_scalar($answer)) {
                 http_response_code(422);
@@ -751,6 +750,8 @@ class LearningController {
 
             case 'matching':
                 $score = 0;
+                // Use the same weighted pair total shown by teacher reports.
+                $maxScore = LessonPlanModel::displayMaxScoreForActivity($activity);
                 $sets = $activityData['sets'] ?? $activityData['matching_sets'] ?? null;
                 if (empty($sets)) {
                     $sets = [['pairs' => $activityData['pairs'] ?? [], 'points' => $activityData['points'] ?? 1]];
@@ -892,7 +893,10 @@ class LearningController {
         }
 
         $accuracyPercentage = ($autoScore !== null && $maxScore > 0) ? round(($autoScore / $maxScore) * 100, 2) : null;
+        $scorePercentage = $accuracyPercentage;
         $needsRemediation = ($autoScore !== null && $maxScore > 0 && $accuracyPercentage < $threshold);
+        $practiceSummary = $autoScore !== null ? ActivityEvidence::practiceSummary($pendingItemLogs, $attempts, $type, $activityData) : null;
+        if ($practiceSummary !== null) $answers['_practice_v1'] = $practiceSummary;
         $submissionAnswersJson = json_encode($answers);
         // Capture question context for new attempts in the existing attempt answers JSON.
         if ($autoScore !== null) {
@@ -916,14 +920,21 @@ class LearningController {
         $flashcardResultsJson = ($type === 'flashcards' && !empty($input['flashcard_results'])) ? json_encode($input['flashcard_results']) : null;
 
         // Debounce: prevent duplicate attempt recording from rapid double submissions (< 2 seconds)
-        $stmtDebounce = $db->prepare("
-            SELECT id, answers FROM lms_activity_attempts
-            WHERE activity_id = :a AND student_id = :s AND attempted_at >= NOW() - INTERVAL 2 SECOND 
-            ORDER BY id DESC LIMIT 1
-        ");
-        $stmtDebounce->execute(['a' => $activityId, 's' => $studentId]);
-        $recentAttempt = $stmtDebounce->fetch(PDO::FETCH_ASSOC);
-        $existingRecentAttemptId = $recentAttempt && ($recentAttempt['answers'] ?? '') === $answersJson ? (int)$recentAttempt['id'] : null;
+        try {
+            $stmtDebounce = $db->prepare("
+                SELECT id, answers FROM lms_activity_attempts
+                WHERE activity_id = :a AND student_id = :s AND attempted_at >= NOW() - INTERVAL 2 SECOND
+                ORDER BY id DESC LIMIT 1
+            ");
+            $stmtDebounce->execute(['a' => $activityId, 's' => $studentId]);
+            $recentAttempt = $stmtDebounce->fetch(PDO::FETCH_ASSOC);
+            $existingRecentAttemptId = $recentAttempt && ($recentAttempt['answers'] ?? '') === $answersJson ? (int)$recentAttempt['id'] : null;
+        } catch (PDOException $e) {
+            error_log('Activity submission storage check failed: ' . $e->getMessage());
+            http_response_code(503);
+            echo json_encode(['success'=>false,'message'=>'Your activity could not be saved because submission storage is unavailable. Keep this page open; your answers are still here. Ask the administrator to apply the activity submission migration, then try again.']);
+            return;
+        }
 
         $attemptId = null;
         $db->beginTransaction();
@@ -1207,6 +1218,8 @@ class LearningController {
             'max_score'           => $maxScore,
             'score_percentage'    => $scorePercentage ?? 100,
             'accuracy_percentage' => $accuracyPercentage ?? ($scorePercentage ?? 100),
+            'practice_accuracy_percentage' => $practiceSummary['accuracy_percentage'] ?? null,
+            'practice_summary'    => $practiceSummary,
             'threshold'           => $threshold ?? 70,
             'needs_remediation'   => $needsRemediation ?? false,
             'type'                => $type,

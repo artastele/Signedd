@@ -9,7 +9,7 @@ $actData      = is_array($activity['activity_data'] ?? null) ? $activity['activi
 $hasSub       = !empty($submission['submission_id']);
 $lessonPlanId = (int)($activity['lesson_plan_id'] ?? 0);
 $typeLabel    = ucwords(str_replace('_', ' ', $actType));
-$maxScore     = (int)($activity['max_score'] ?? 0);
+$maxScore     = LessonPlanModel::displayMaxScoreForActivity($activity);
 $submittedAnswers = [];
 $tfItems = [];
 if (!empty($actData['questions']) && $actType === 'true_false') {
@@ -138,6 +138,8 @@ if (!empty($submission['answers'])) {
     $decodedAnswers = json_decode((string)$submission['answers'], true);
     $submittedAnswers = is_array($decodedAnswers) ? $decodedAnswers : [];
 }
+$submittedPractice = is_array($submittedAnswers['_practice_v1'] ?? null) ? $submittedAnswers['_practice_v1'] : null;
+unset($submittedAnswers['_practice_v1'], $submittedAnswers['_evidence_v1']);
 
 $earnedScore = null;
 if (isset($submission['score']) && $submission['score'] !== null && $submission['score'] !== '') {
@@ -326,6 +328,17 @@ echo '<link rel="stylesheet" href="' . $basePath . '/css/learner.css?v=' . time(
                     </div>
                 <?php else: ?>
                     <p class="congrats-text text-muted my-2">Matagumpay mong naisumite ang iyong sagot!</p>
+                <?php endif; ?>
+                <?php if ($submittedPractice !== null && $submittedPractice['accuracy_percentage'] !== null): ?>
+                    <p class="fw-semibold mb-1">Practice accuracy: <?= htmlspecialchars((string)$submittedPractice['accuracy_percentage']) ?>%</p>
+                    <p class="small text-muted"><?= (int)$submittedPractice['successful_checks'] ?> successful checks across <?= (int)$submittedPractice['total_attempts'] ?> attempts</p>
+                    <div class="d-flex flex-wrap justify-content-center gap-2">
+                        <?php foreach ($submittedPractice['steps'] as $step => $details): ?>
+                            <span class="badge bg-light text-dark border">Challenge <?= (int)$step + 1 ?>: <?= (int)$details['attempts'] ?> attempts</span>
+                        <?php endforeach; ?>
+                    </div>
+                <?php elseif ($earnedScore !== null): ?>
+                    <p class="small text-muted">Practice attempt counts were not recorded for this submission.</p>
                 <?php endif; ?>
                 <div class="game-actions center d-flex justify-content-center gap-2 mt-4 flex-wrap">
                     <a class="btn btn-bubble-outline px-4 py-2 d-flex align-items-center gap-1.5" href="<?php echo htmlspecialchars($basePath); ?>/learning/lesson/<?php echo $lessonPlanId; ?>">
@@ -1282,19 +1295,21 @@ const attemptCounts = {};
 const AUTO_ADVANCE_MS = 1800;
 
 function getItemAccuracy(attempts) {
-    if (!attempts || attempts <= 1) return 100;
-    if (attempts === 2) return 75;
-    if (attempts === 3) return 50;
-    return 25;
+    return attempts > 0 ? Math.round(10000 / attempts) / 100 : 0;
 }
 
 function calculateOverallAccuracy() {
-    let totalAcc = 0;
+    let totalAttempts = 0;
+    let successfulChecks = 0;
     for (let step = 0; step < TOTAL_STEPS; step++) {
-        const attempts = attemptCounts[step] || 1;
-        totalAcc += getItemAccuracy(attempts);
+        const result = frontendResults[step];
+        if (!result || !['correct', 'wrong'].includes(result.status)) return null;
+        const count = attemptCounts[step];
+        if (!Number.isInteger(count) || count < 1) return null;
+        totalAttempts += count;
+        if (result.status === 'correct') successfulChecks++;
     }
-    return Math.round(totalAcc / Math.max(1, TOTAL_STEPS));
+    return totalAttempts > 0 ? Math.round(10000 * successfulChecks / totalAttempts) / 100 : null;
 }
 
 function triggerShakeCard(card) {
@@ -1429,7 +1444,7 @@ function isStepAnswered(step) {
         const card = document.getElementById('matchingCard_' + step) || getCardForStep(step);
         if (!card) return false;
         const leftCards = card.querySelectorAll('.left-card');
-        if (leftCards.length === 0) return true;
+        if (leftCards.length === 0) return false;
         const conns = matchingConnections[step] || {};
         return Object.keys(conns).length >= leftCards.length;
     }
@@ -1475,6 +1490,15 @@ function goChallenge(offset) {
                 if (!checkedSteps[currentStep]) {
                     return;
                 }
+            } else if (ACTIVITY_TYPE === 'matching') {
+                confirmMatchingStep(currentStep);
+                return; // The checker advances only after the pairs pass.
+            } else if (ACTIVITY_TYPE === 'drag_drop_sort' || ACTIVITY_TYPE === 'sequencing') {
+                confirmOrderStep(currentStep);
+                return;
+            } else if (ACTIVITY_TYPE === 'image_label') {
+                confirmLabelsStep();
+                return;
             }
         }
     }
@@ -2214,8 +2238,8 @@ function confirmMatchingStep(setIndex) {
     attemptCounts[setIndex] = (attemptCounts[setIndex] || 0) + 1;
     const currentAttempt = attemptCounts[setIndex];
     
-    let allCorrect = true;
     const leftCards = document.querySelectorAll(`#matchingCard_${setIndex} .left-card`);
+    let allCorrect = leftCards.length > 0 && leftCards.length === Object.keys(correctAnswers).length;
     
     leftCards.forEach(lCard => {
         const leftIdx = parseInt(lCard.dataset.index, 10);
@@ -2272,6 +2296,7 @@ function confirmMatchingStep(setIndex) {
         autoAdvance(setIndex);
     } else {
         // Cisco-style: Do NOT reveal correct answers! Allow disconnect & reconnect
+        frontendResults[setIndex] = {status: 'wrong', selected: getSelectedAnswerText(setIndex), attempts: currentAttempt, accuracy: 0};
         playAudioTone(false);
         triggerShakeCard(card);
         
@@ -2963,6 +2988,9 @@ function collectAnswers() {
 }
 
 function validateAllAnswered() {
+    if (['multiple_choice', 'true_false', 'fill_in_blanks', 'matching', 'image_label', 'drag_drop_sort', 'sequencing'].includes(ACTIVITY_TYPE)) {
+        if (!Array.from({length: TOTAL_STEPS}, (_, step) => Boolean(checkedSteps[step])).every(Boolean)) return false;
+    }
     if (ACTIVITY_TYPE === 'multiple_choice') return Object.keys(mcAnswers).length >= TOTAL_STEPS;
     if (ACTIVITY_TYPE === 'true_false') return Object.keys(tfAnswers).length >= TOTAL_STEPS;
     if (ACTIVITY_TYPE === 'fill_in_blanks') return Array.from(document.querySelectorAll('.fib-input')).every(function(input) { return input.value.trim().length > 0; });
@@ -3028,10 +3056,10 @@ function buildMissionReview() {
     const overallAccuracy = calculateOverallAccuracy();
 
     for (let step = 0; step < TOTAL_STEPS; step++) {
-        const result = frontendResults[step] || {status: 'saved', selected: getSelectedAnswerText(step), attempts: 1, accuracy: 100};
-        const attempts = attemptCounts[step] || 1;
+        const result = frontendResults[step] || {status: 'pending', selected: getSelectedAnswerText(step)};
+        const attempts = attemptCounts[step] || 0;
         totalAttempts += attempts;
-        const itemAcc = getItemAccuracy(attempts);
+        const itemAcc = result.status === 'correct' ? getItemAccuracy(attempts) : result.status === 'wrong' ? 0 : null;
         
         if (result.status === 'correct' || result.status === 'wrong') knownCount++;
         if (result.status === 'correct') correctCount++;
@@ -3040,9 +3068,9 @@ function buildMissionReview() {
             ? `<span class="review-state correct"><i class="bi bi-check-circle-fill"></i> Passed (${attempts} attempt${attempts > 1 ? 's' : ''})</span>`
             : result.status === 'wrong'
                 ? '<span class="review-state wrong"><i class="bi bi-x-circle-fill"></i> Needs practice</span>'
-                : '<span class="review-state saved"><i class="bi bi-bookmark-check-fill"></i> Saved</span>';
+                : '<span class="review-state saved"><i class="bi bi-clock"></i> Not checked yet</span>';
         
-        const attemptNote = `<div class="d-flex align-items-center gap-2 mt-1"><span class="badge bg-light text-dark border"><i class="bi bi-arrow-repeat me-1"></i> Attempts: <strong>${attempts}</strong></span><span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-bullseye me-1"></i> Accuracy: <strong>${itemAcc}%</strong></span></div>`;
+        const attemptNote = `<div class="d-flex align-items-center gap-2 mt-1"><span class="badge bg-light text-dark border"><i class="bi bi-arrow-repeat me-1"></i> Attempts: <strong>${attempts}</strong></span><span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-bullseye me-1"></i> Practice accuracy: <strong>${itemAcc === null ? 'Pending check' : itemAcc + '%'}</strong></span></div>`;
 
         html += `<article class="mission-review-item ${result.status}">
             <strong>${escapeHtml(getQuestionTitle(step))}</strong>
@@ -3060,17 +3088,21 @@ function buildMissionReview() {
                     <i class="bi bi-bullseye fs-4 text-white"></i>
                 </div>
                 <div>
-                    <strong class="d-block text-dark fs-6">Overall Accuracy: ${overallAccuracy}%</strong>
-                    <span class="small text-muted">Completed all ${TOTAL_STEPS} challenges across ${totalAttempts} total attempt${totalAttempts > 1 ? 's' : ''}</span>
+                    <strong class="d-block text-dark fs-6">Practice accuracy: ${overallAccuracy === null ? 'Pending check' : overallAccuracy + '%'}</strong>
+                    <span class="small text-muted">Checked ${knownCount} of ${TOTAL_STEPS} challenges across ${totalAttempts} total attempt${totalAttempts !== 1 ? 's' : ''}</span>
                 </div>
             </div>
-            <div class="badge bg-primary fs-5 p-2 px-3 rounded-pill">${overallAccuracy}%</div>
+            <div class="badge bg-primary fs-5 p-2 px-3 rounded-pill">${overallAccuracy === null ? 'Pending' : overallAccuracy + '%'}</div>
         </div>
     `;
 
     list.innerHTML = accuracyCard + html;
     if (preview) {
-        preview.textContent = `All challenges solved! Overall accuracy: ${overallAccuracy}%. Backend scoring will finalize the mission.`;
+        preview.textContent = knownCount < TOTAL_STEPS
+            ? 'Some answers have not been checked yet. Return to the challenges and check your answers.'
+            : correctCount < TOTAL_STEPS
+                ? 'Some answers need practice. Return to the challenges to try again.'
+                : `All challenges checked. Practice accuracy: ${overallAccuracy}%. Your final score is calculated when you submit.`;
     }
 }
 
@@ -3154,8 +3186,9 @@ function showResult(data) {
         for (let i = 1; i <= 3; i++) starHtml += '<i class="ph-bold ph-star ' + (i <= stars ? 'text-warning' : 'text-muted') + ' fs-3 mx-1"></i>';
         
         let accHtml = '';
-        if (data.accuracy_percentage !== undefined) {
-            accHtml = '<div class="badge bg-primary-subtle text-primary p-2 px-3 rounded-pill my-2 fs-6"><i class="ph-bold ph-target me-1"></i> Accuracy Rating: ' + data.accuracy_percentage + '%</div>';
+        if (data.practice_accuracy_percentage !== null && data.practice_accuracy_percentage !== undefined) {
+            accHtml = '<div class="badge bg-primary-subtle text-primary p-2 px-3 rounded-pill my-2 fs-6"><i class="ph-bold ph-target me-1"></i> Practice accuracy: ' + data.practice_accuracy_percentage + '%</div>';
+            if (data.practice_summary) accHtml += '<p class="small text-muted">' + data.practice_summary.successful_checks + ' successful checks across ' + data.practice_summary.total_attempts + ' attempts</p>';
         }
 
         if (data.needs_remediation) {

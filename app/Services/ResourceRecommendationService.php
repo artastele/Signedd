@@ -73,10 +73,13 @@ class ResourceRecommendationService {
         $recurring     = $consistency['recurring_incorrect_items'] ?? [];
         $activeRecurring = array_filter($recurring, fn($item) => !empty($item['still_incorrect_latest']) && ($item['incorrect_in_attempts'] ?? 0) >= 2);
         $difficultyItems = $accuracy['latest_incorrect_items'] ?? [];
+        $retryItems = $accuracy['latest_retry_items'] ?? [];
+        $difficultyItems = array_merge($difficultyItems, $retryItems);
         $threshold     = (int)($lessonCtx['lesson_score_threshold'] ?? 70);
 
         $summary = [
             'accuracy'                  => $latestAcc,
+            'practice_accuracy'         => $accuracy['latest_practice_summary']['accuracy_percentage'] ?? null,
             'attempt_count'             => (int)($attempts['total_recorded'] ?? 0),
             'graded_count'              => $gradedCount,
             'consistency'               => $consistency['classification'] ?? LearningGapAnalyzer::INSUFFICIENT,
@@ -87,7 +90,7 @@ class ResourceRecommendationService {
         ];
 
         // ── Rule 1: Insufficient attempt evidence ────────────────────────────
-        if ($gradedCount === 0 || $latestAcc === null || $latestAcc >= 100) {
+        if ($gradedCount === 0 || $latestAcc === null || ($latestAcc >= 100 && !$retryItems)) {
             return $this->buildResponse(
                 $studentId,
                 $activity,
@@ -222,10 +225,12 @@ class ResourceRecommendationService {
                 'domain'        => 'communication_language',
                 'priority'      => self::PRIORITY_HIGH,
                 'evidence'      => [
-                    'gap_type'                  => 'recorded_incorrect_item',
+                    'gap_type'                  => ($item['basis'] ?? '') === 'reported_retry_checks' ? 'reported_retry_checks' : 'recorded_incorrect_item',
                     'related_concept_or_skill'  => $expected,
                     'relevant_iep_objective'    => $this->getPrimaryIepText($analysis['iep_objectives'] ?? []),
-                    'performance_evidence'      => sprintf(
+                    'performance_evidence'      => ($item['basis'] ?? '') === 'reported_retry_checks'
+                        ? sprintf('Item %d was completed after %d reported checks. The final answer was "%s"; earlier wrong selections were not recorded.', $item['question_index'] + 1, $item['attempts'], $expected)
+                        : sprintf(
                         'Learner answered question index %d incorrectly in %d attempt(s) (observed: %s; expected: "%s").',
                         $item['question_index'],
                         $item['incorrect_in_attempts'] ?? 1,
@@ -620,7 +625,8 @@ class ResourceRecommendationService {
                 'lesson_plan_id' => (int)($activity['lesson_plan_id'] ?? 0),
             ],
             'performance_summary'   => $summary,
-            'suggested_rating' => LearningGapAnalyzer::suggestedRating($summary['accuracy'] ?? null),
+            'suggested_rating' => LearningGapAnalyzer::suggestedRating($summary['practice_accuracy'] ?? $summary['accuracy'] ?? null),
+            'rating_basis' => ($summary['practice_accuracy'] ?? null) !== null ? 'practice_accuracy' : 'final_score',
             'intervention' => InterventionDraftService::fromFactors($activity, $factors),
             'observation' => LearningGapAnalyzer::observation($factors),
             'factors'               => $factors,
